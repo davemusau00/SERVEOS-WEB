@@ -2805,7 +2805,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
         "setup.completeStep" => {
             if !permissions(&user.role).contains(&"business.configure") { return Err("Owner permission required".into()); }
             let step=text(p,"step")?;
-            let allowed=["BUSINESS_IDENTITY","TAX","PAYMENTS","SERVICE_AREAS","STOCK_LOCATIONS","CATALOG","RECIPES_PORTIONS","OPENING_INVENTORY","FLOORPLAN","STAFF_ACCESS","TILL","BACKUP_SYNC"];
+            let allowed=["BUSINESS_IDENTITY","TAX","PAYMENTS","SERVICE_AREAS","STOCK_LOCATIONS","CATALOG","ROOM_STAYS","RECIPES_PORTIONS","OPENING_INVENTORY","FLOORPLAN","STAFF_ACCESS","TILL","BACKUP_SYNC"];
             if !allowed.contains(&step) { return Err("Unknown setup step".into()); }
             match step {
                 "BUSINESS_IDENTITY" => { let (_,property)=get(&tx,"property","property")?; text(&property,"name")?; },
@@ -2814,6 +2814,14 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                 "SERVICE_AREAS" => { if list(&tx,"outlets")?.is_empty(){return Err("Create at least one service area".into());} },
                 "STOCK_LOCATIONS" => { if list(&tx,"stockLocations")?.is_empty(){return Err("Create at least one stock location".into());} },
                 "CATALOG" => { if list(&tx,"products")?.is_empty(){return Err("Create at least one sellable product".into());} },
+                "ROOM_STAYS" => {
+                    let (_,property)=get(&tx,"property","property")?;
+                    let room_type=property["roomStayRoomTypeId"].as_str().filter(|value|!value.trim().is_empty()).ok_or("Configure a room stay room type before completing this step")?;
+                    let rate_id=property["roomStayRatePlanId"].as_str().filter(|value|!value.trim().is_empty()).ok_or("Configure the room stay rate before completing this step")?;
+                    get(&tx,"roomTypes",room_type)?;
+                    let (_,rate)=get(&tx,"ratePlans",rate_id)?;
+                    if rate["roomTypeId"].as_str()!=Some(room_type)||rate["mode"].as_str()!=Some("NIGHTLY"){return Err("Configure one NIGHTLY room stay rate matching the room type".into());}
+                },
                 "STAFF_ACCESS" => { let admins:i64=tx.query_row("SELECT count(*) FROM staff WHERE active=1 AND role='Admin'",[],|r|r.get(0)).map_err(error)?; if admins<1{return Err("At least one active Admin is required".into());} },
                 "TILL" => { get(&tx,"tillPolicy","main")?; },
                 "BACKUP_SYNC" => {
@@ -2827,7 +2835,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             progress["completedSteps"]=json!(done.clone());
             progress["currentStep"]=p.get("nextStep").cloned().unwrap_or(json!(step));
             progress["updatedAt"]=json!(now());
-            let required=["BUSINESS_IDENTITY","TAX","PAYMENTS","SERVICE_AREAS","STOCK_LOCATIONS","CATALOG","OPENING_INVENTORY","STAFF_ACCESS","TILL","BACKUP_SYNC"];
+            let required=["BUSINESS_IDENTITY","TAX","PAYMENTS","SERVICE_AREAS","STOCK_LOCATIONS","CATALOG","ROOM_STAYS","OPENING_INVENTORY","STAFF_ACCESS","TILL","BACKUP_SYNC"];
             if required.iter().all(|required_step|done.iter().any(|v|v==*required_step)){set_meta(&tx,"installation_stage","READY_FOR_GO_LIVE")?;}
             put(&tx,"businessSetup","business",progress,&mut changes)?;
         }
@@ -2843,6 +2851,11 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                 get(&tx,"stockLocations",location)?;
             }
             if list(&tx,"products")?.is_empty(){return Err("No products configured".into());}
+            let room_type=property["roomStayRoomTypeId"].as_str().filter(|value|!value.trim().is_empty()).ok_or("Configure the room stay room type before Go Live")?;
+            let rate_id=property["roomStayRatePlanId"].as_str().filter(|value|!value.trim().is_empty()).ok_or("Configure the room stay rate before Go Live")?;
+            get(&tx,"roomTypes",room_type)?;
+            let (_,rate)=get(&tx,"ratePlans",rate_id)?;
+            if rate["roomTypeId"].as_str()!=Some(room_type)||rate["mode"].as_str()!=Some("NIGHTLY"){return Err("Configure one NIGHTLY room stay rate matching the room type".into());}
             if meta(&tx,"last_backup")?.is_none(){return Err("Create and verify a local backup before Go Live".into());}
             get(&tx,"paymentConfig","main")?;
             get(&tx,"tillPolicy","main")?;
@@ -2850,7 +2863,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             if admins<1{return Err("No active Admin configured".into());}
             let (_,mut progress)=get(&tx,"businessSetup","business")?;
             let done=progress["completedSteps"].as_array().cloned().unwrap_or_default();
-            let required=["BUSINESS_IDENTITY","TAX","PAYMENTS","SERVICE_AREAS","STOCK_LOCATIONS","CATALOG","OPENING_INVENTORY","STAFF_ACCESS","TILL","BACKUP_SYNC"];
+            let required=["BUSINESS_IDENTITY","TAX","PAYMENTS","SERVICE_AREAS","STOCK_LOCATIONS","CATALOG","ROOM_STAYS","OPENING_INVENTORY","STAFF_ACCESS","TILL","BACKUP_SYNC"];
             let missing:Vec<&str>=required.iter().copied().filter(|s|!done.iter().any(|v|v==*s)).collect();
             if !missing.is_empty(){return Err(format!("Complete required setup steps: {}",missing.join(", ")));}
             progress["completedAt"]=json!(now()); progress["goLiveApprovedAt"]=json!(now()); progress["goLiveApprovedBy"]=json!(user.staff_id); progress["updatedAt"]=json!(now());

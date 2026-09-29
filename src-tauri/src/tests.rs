@@ -20,7 +20,11 @@ fn setup() -> (tempfile::TempDir, rusqlite::Connection, Session) {
     run(&mut db,&session,"record.save",json!({"collection":"tillPolicy","id":"main","data":{"name":"Till policy","defaultOpeningFloat":0,"varianceThreshold":50}}));
     set_meta(&db, "last_backup", "2026-09-26T00:00:00Z").unwrap();
     run(&mut db,&session,"record.save",json!({"collection":"products","id":"setup-product","data":{"name":"Setup Product","code":"SETUP","price":1,"routeTo":"SERVICE","category":"TEST","outletIds":["main"],"taxClassId":"A_STANDARD"}}));
-    for step in ["BUSINESS_IDENTITY","TAX","PAYMENTS","SERVICE_AREAS","STOCK_LOCATIONS","CATALOG","OPENING_INVENTORY","STAFF_ACCESS","TILL","BACKUP_SYNC"] {
+    run(&mut db,&session,"roomType.save",json!({"id":"setup-room-type","data":{"name":"Standard room","code":"STD","maxGuests":2}}));
+    run(&mut db,&session,"ratePlan.save",json!({"id":"setup-rate","data":{"name":"Standard nightly","roomTypeId":"setup-room-type","mode":"NIGHTLY","priceMinor":15000,"currency":"KES","taxBasisPoints":0}}));
+    let property_version=get(&db,"property","property").unwrap().0;
+    run(&mut db,&session,"roomStay.settings",json!({"propertyVersion":property_version,"roomTypeId":"setup-room-type","ratePlanId":"setup-rate","nightlyCheckoutTime":"10:00","dayStayCutoffTime":"18:00"}));
+    for step in ["BUSINESS_IDENTITY","TAX","PAYMENTS","SERVICE_AREAS","STOCK_LOCATIONS","CATALOG","ROOM_STAYS","OPENING_INVENTORY","STAFF_ACCESS","TILL","BACKUP_SYNC"] {
         run(&mut db,&session,"setup.completeStep",json!({"step":step}));
     }
     run(&mut db,&session,"setup.goLive",json!({}));

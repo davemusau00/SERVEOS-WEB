@@ -23,11 +23,12 @@ Required steps are:
 4. Service areas
 5. Stock locations
 6. Catalog
-7. Opening inventory acknowledgement
-8. Staff access
-9. Till policy
+7. Room-stay rate and policy
+8. Opening inventory acknowledgement
+9. Staff access
+10. Till policy
 
-Optional steps are recipes/portions, floorplan and backup/synchronization rehearsal. Each `setup.completeStep` checks relevant persisted evidence rather than trusting UI checkbox state.
+Optional steps are recipes/portions, floorplan and backup/synchronization rehearsal. Room setup must include one room type and one matching `NIGHTLY` rate; reservations cannot be created until the rate is selected in the room-stay policy. Each `setup.completeStep` checks relevant persisted evidence rather than trusting UI checkbox state.
 
 Opening stock uses `inventory.openingBalance` and creates explicit stock movements. It never rewrites stock silently.
 
