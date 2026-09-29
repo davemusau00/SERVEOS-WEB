@@ -1,0 +1,28 @@
+begin;
+insert into servos_v2.devices values('10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','A','DESKTOP',true,0,now()),('10000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001','B','WEB',true,0,now());
+insert into servos_v2.resources(kind,id,capacity) values('STOCK','bottle/main',10),('ROOM','room-1',1);
+do $$declare a uuid:='30000000-0000-4000-8000-000000000001';b uuid:='30000000-0000-4000-8000-000000000002';d1 uuid:='10000000-0000-4000-8000-000000000001';d2 uuid:='10000000-0000-4000-8000-000000000002';e uuid:=gen_random_uuid();t timestamptz:=now();failed boolean:=false;begin
+ perform servos_v2.reserve(a,'STOCK','bottle/main',d1,6,t-interval '1 hour',t+interval '1 hour');
+ perform servos_v2.reserve(b,'STOCK','bottle/main',d2,4,t-interval '1 hour',t+interval '1 hour');
+ begin perform servos_v2.reserve(gen_random_uuid(),'STOCK','bottle/main',d2,1,t,t+interval '1 hour');exception when others then failed:=sqlerrm like '%ALLOCATION_EXHAUSTED%';end;
+ if not failed then raise exception 'oversubscribed stock';end if;
+ perform servos_v2.consume(a,d1,5,e,t);perform servos_v2.consume(a,d1,5,e,t);
+ if (select used from servos_v2.resources where kind='STOCK')<>5 then raise exception 'consumption duplicated';end if;
+ failed:=false;begin perform servos_v2.consume(a,d2,1,gen_random_uuid(),t);exception when others then failed:=sqlerrm like '%RESOURCE_OWNED%';end;
+ if not failed then raise exception 'other device spent allowance';end if;
+ failed:=false;begin perform servos_v2.consume(a,d1,2,gen_random_uuid(),t);exception when others then failed:=sqlerrm like '%ALLOCATION_EXHAUSTED%';end;
+ if not failed then raise exception 'overspent allowance';end if;
+ update servos_v2.allocations set expires_at=t-interval '1 minute' where id=b;
+ failed:=false;begin perform servos_v2.reserve(gen_random_uuid(),'STOCK','bottle/main',d1,1,t,t+interval '1 hour');exception when others then failed:=sqlerrm like '%ALLOCATION_EXHAUSTED%';end;
+ if not failed then raise exception 'expired allowance released uncertain resources';end if;
+ perform servos_v2.reserve(gen_random_uuid(),'ROOM','room-1',d1,1,t,t+interval '1 day',t,t+interval '2 hours');
+ failed:=false;begin perform servos_v2.reserve(gen_random_uuid(),'ROOM','room-1',d2,1,t,t+interval '1 day',t+interval '1 hour',t+interval '3 hours');exception when others then failed:=sqlerrm like '%RESOURCE_OWNED%';end;
+ if not failed then raise exception 'overlapping room allocated';end if;
+ perform servos_v2.reserve(gen_random_uuid(),'ROOM','room-1',d2,1,t,t+interval '1 day',t+interval '2 hours',t+interval '3 hours');
+ failed:=false;begin perform servos_v2.return_allocation(a,d1,0);exception when others then failed:=sqlerrm like '%HANDOVER_REQUIRED%';end;
+ if not failed then raise exception 'unacknowledged handover allowed';end if;
+ update servos_v2.allocations set state='RETURN_REQUESTED' where id=a;
+ perform servos_v2.return_allocation(a,d1,0);
+ perform servos_v2.reserve(gen_random_uuid(),'STOCK','bottle/main',d2,1,t,t+interval '1 hour');
+end$$;
+rollback;

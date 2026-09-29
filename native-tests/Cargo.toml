@@ -1,0 +1,19 @@
+[package]
+name = "servos-domain-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+csv = "1"
+sha2 = "0.10"
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+argon2 = "0.5"
+rand_core = { version = "0.6", features = ["getrandom"] }
+
+[dev-dependencies]
+tempfile = "3"

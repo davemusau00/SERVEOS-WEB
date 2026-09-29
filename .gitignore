@@ -1,0 +1,34 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+src-tauri/target/
+src-tauri/gen/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+native-tests/target/
+test-results/
+playwright-report/
+
+.playwright-tmp/
+.servos-patch-backup-*/
+.servos-followup-backup-*/
+.servos-hardening-backup-*/
+fix-servos-*.ps1
+
+.servos-patch-*-backup-*
+
+# Local ServOS patch/recovery artifacts
+.servos-patch-*-backup-*/
+apply-servos-patch-*.mjs
+patch*_payload.json
+PATCH_*_README.md
+
+# Local release bundles
+release/

@@ -1,0 +1,15 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS staff(id TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('Admin','Manager','Server')), pin_hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, failures INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, staff_id TEXT NOT NULL REFERENCES staff(id), last_seen INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS records(collection TEXT NOT NULL, id TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, data TEXT NOT NULL CHECK(json_valid(data)), archived INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(collection,id));
+CREATE TABLE IF NOT EXISTS commands(id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS audit(sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE NOT NULL, command_id TEXT UNIQUE NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, occurred_at TEXT NOT NULL, payload TEXT NOT NULL);
+CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT,'Audit entries cannot be updated'); END;
+CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT,'Audit entries cannot be deleted'); END;
+CREATE TABLE IF NOT EXISTS outbox(sequence INTEGER PRIMARY KEY REFERENCES audit(sequence), command_id TEXT UNIQUE NOT NULL, envelope TEXT NOT NULL, acknowledged_at TEXT);
+CREATE TABLE IF NOT EXISTS mpesa_codes(account TEXT NOT NULL, code TEXT NOT NULL, receipt_id TEXT UNIQUE NOT NULL, PRIMARY KEY(account,code));
+CREATE TABLE IF NOT EXISTS remote_requests(id TEXT PRIMARY KEY, status TEXT NOT NULL, result TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS outbox_pending ON outbox(sequence) WHERE acknowledged_at IS NULL;
+CREATE INDEX IF NOT EXISTS records_collection ON records(collection,archived);
+PRAGMA user_version = 1;

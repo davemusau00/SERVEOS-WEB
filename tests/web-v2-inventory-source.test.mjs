@@ -1,0 +1,49 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+test('inventory expansion is staged and never self-activates v2',()=>{
+  const sql=readFileSync('supabase/expansion/011_inventory_catalog.sql','utf8');
+  assert.match(sql,/STAGED V2 ONLY/);
+  assert.doesNotMatch(sql,/update\s+servos_v2\.control\s+set\s+enabled\s*=\s*true/i);
+  assert.match(sql,/inventory\.count/);
+  assert.match(sql,/inventory\.transfer/);
+  assert.match(sql,/inventory\.waste/);
+  assert.match(sql,/product\.save/);
+  assert.match(sql,/stockItem\.save/);
+  assert.match(sql,/stockLocation\.save/);
+  assert.match(sql,/DUPLICATE_REFERENCE/);
+  assert.match(sql,/VERSION_CONFLICT|assert_version/);
+});
+
+test('web v2 catalog and inventory use command queue rather than direct Supabase table writes',()=>{
+  const ui=readFileSync('src/runtime/web/WebCatalogInventory.tsx','utf8');
+  assert.match(ui,/product\.save/);
+  assert.match(ui,/stockItem\.save/);
+  assert.match(ui,/inventory\.count/);
+  assert.match(ui,/inventory\.transfer/);
+  assert.match(ui,/inventory\.waste/);
+  assert.match(ui,/useBarcodeScanner/);
+  assert.doesNotMatch(ui,/business_records/);
+  assert.doesNotMatch(ui,/from\(['"]business_records/);
+});
+
+test('transactional web workspace exposes catalog and inventory tabs',()=>{
+  const app=readFileSync('src/runtime/web/WebBusinessApp.tsx','utf8');
+  assert.match(app,/WebCatalogView/);
+  assert.match(app,/WebInventoryView/);
+  assert.match(app,/'Catalog'/);
+  assert.match(app,/'Inventory'/);
+});
+
+test('disposable Supabase harness runs inventory acceptance after expansion SQL',()=>{
+  const harness=readFileSync('scripts/test-supabase.mjs','utf8');
+  assert.match(harness,/tests\/supabase\/inventory\.sql/);
+  const acceptance=readFileSync('tests/supabase/inventory.sql','utf8');
+  assert.match(acceptance,/stale baseline must conflict/i);
+  assert.match(acceptance,/Immutable history/i);
+  assert.match(acceptance,/quantity":99/);
+  assert.match(acceptance,/REJECTED','VALIDATION_FAILED/);
+  const domain=readFileSync('supabase/expansion/011_inventory_catalog.sql','utf8');
+  assert.match(domain,/insufficient stock/i);
+});
