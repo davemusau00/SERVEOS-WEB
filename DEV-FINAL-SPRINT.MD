@@ -1,438 +1,1412 @@
-The finish line is a deliberately redundant ServOS system where **Tauri/SQLite and Web/PWA remain permanent, first-class clients**.
+# ServOS DEV FINAL SPRINT
+## Dual-Runtime Finish-Line Execution Plan
 
-YOU WILL ALWAYS UPDATE THIS DOCUMENT AFTER EVERY MAJOR IMPROVEMENT 
-YOU WILL BUILD CONTINIOUSLY ONLY CHECKING FOR BUGS WHEN NECESSARY DEFER FULL SUITE TEST TILL LATER 
-THIS DOCUMENT IS YOUR ONE YOUR GUIDE 
+**Repository:** `davemusau00/SERVEOS-WEB`  
+**Reviewed main:** `65b8d1bc93a82d72001dd35d6f5948bced24973f`  
+**Current direction:** Permanent ServOS Terminal + ServOS Web redundancy  
+**Companion product specification:** `PRODUCT-INVENTORY.MD`
 
-The latest deployment picture is:
+---
 
-| Gate | Current state |
+# 1. SOURCE OF TRUTH
+
+The finish line is a deliberately redundant ServOS system where:
+
+- Tauri/SQLite Terminal remains a permanent first-class client.
+- Web/PWA remains a permanent first-class client.
+- PostgreSQL/Supabase v2 coordinates shared business truth.
+- SQLite remains the terminal's local survival authority during permitted offline operation.
+- IndexedDB provides durable Web cache, drafts, synchronization state and later controlled offline capability.
+- Both clients use the same business command contracts, permissions, invariants, audit model and reconciliation rules.
+
+This document is the execution guide for reaching production.
+
+After every major completed workstream:
+
+1. update this document;
+2. update the cross-client operation/parity manifest;
+3. update affected acceptance tests;
+4. update relevant user guidance;
+5. record remaining blockers.
+
+Do not allow documentation, UI capability and backend capability to drift into three different versions of ServOS.
+
+---
+
+# 2. CURRENT REPOSITORY CHECKPOINT
+
+Current main includes:
+
+- Web workspace registry.
+- Activity / synchronization center.
+- contextual help drawer;
+- web manifest and service-worker update flow;
+- room-stay configuration and required setup validation;
+- PostgreSQL/Supabase v2 domain migrations through room-stay policy;
+- Native Tauri/SQLite business engine;
+- Web/PWA runtime foundations;
+- substantial POS parity;
+- catalog/inventory;
+- procurement;
+- financial controls;
+- rooms/front desk/folios/housekeeping;
+- assets foundations;
+- staff/devices;
+- controlled import foundations;
+- guidance infrastructure;
+- `DEV-FINAL-SPRINT.MD`;
+- `PRODUCT-INVENTORY.MD`.
+
+The latest checked GitHub Actions state remains red:
+
+| Gate | Current |
 |---|---|
-| Vercel build/deployment | ✅ Success |
-| TypeScript | ✅ Pass |
-| Production Vite build | ✅ Pass |
-| Cloud protocol tests | ✅ Pass |
-| `npm test` | ❌ Fail |
-| Native-domain test suite | ❌ Fail |
-| UI audit | ⏭ blocked by Node test failure |
-| Docs check | ⏭ blocked |
-| Playwright | ⏭ blocked |
-| Web v2 production activation | ❌ Still intentionally disabled |
-| Full terminal ↔ web shared-authority cutover | ❌ Not yet |
+| Vercel deployment | PASS |
+| TypeScript | PASS |
+| Vite production build | PASS |
+| Cloud protocol | PASS |
+| `npm test` | FAIL |
+| Native-domain tests | FAIL |
+| UI audit | BLOCKED |
+| Docs check | BLOCKED |
+| Browser Playwright | BLOCKED |
+| Web v2 production activation | OFF |
+| Terminal v2 shared-authority adapter | INCOMPLETE |
+| Dual-runtime cutover | NOT READY |
 
-So this is **not a broken application**, but it is currently a **red release branch**.
+The documentation-only Product/Inventory commit did not change these failing gates.
 
-### Two immediate CI problems
+---
 
-The frontend failure has at least one concrete stale test. `tests/web-hospitality-source.test.mjs` still expects the old hard-coded:
+# 3. IMMEDIATE P0: GET MAIN GREEN
+
+Do this before accepting a release candidate.
+
+## 3.1 Frontend source-test repair
+
+`tests/web-hospitality-source.test.mjs` still expects the retired hardcoded Web tab array.
+
+Replace assertions against:
 
 ```text
 tabs=(['Home','POS', ...])
 ```
 
-architecture.
-
-But `WebBusinessApp` now correctly uses:
+with assertions against:
 
 ```text
 workspaceRegistry
-→ visibleWorkspaces(session)
-→ workspaceGroups(session)
+visibleWorkspaces()
+workspaceGroups()
+permission-aware workspace routing
 ```
 
-The test should be modernized, not the app reverted.
+Acceptance:
 
-There is also a native-test fixture contradiction introduced by the new required Room Stay setup. The shared `setup()` test helper now always configures `roomStayRatePlanId`, but a later test expects a reservation to fail because no room-stay rate has been configured. That post-Go-Live state is no longer normally reachable. The test needs to model either a legacy/corrupt state explicitly or stop expecting the old missing-rate condition.
+- Front Desk is registered.
+- Guest Accounts is registered.
+- Housekeeping is registered.
+- Rooms is registered.
+- Finance Controls is registered.
+- Administration is registered.
+- inaccessible workspaces are removed by permission logic.
+- hash routing cannot force an unauthorized workspace.
 
-Those are **P0 before further feature development**.
+Do not restore the old tab array to satisfy a stale test.
+
+## 3.2 Native room-stay fixture repair
+
+The shared native test fixture now configures room-stay settings before Go Live.
+
+A later test expecting a normally configured live business to have no rate is therefore contradictory.
+
+Refactor the test so it deliberately constructs:
+
+- a pre-policy database;
+- a legacy/corrupt state; or
+- an explicitly unconfigured pre-Go-Live state.
+
+Do not weaken production validation to satisfy the test.
+
+## 3.3 Required green pipeline
+
+Release work cannot close until:
+
+```text
+npm ci
+npm run lint
+npm run build
+npm test
+npm run audit:ui
+npm run docs:check
+npm run test:browser
+npm run test:native
+npm run test:cloud
+```
+
+all pass from the same commit.
 
 ---
 
-# Revised target architecture
+# 4. CRITICAL PRODUCT WORKSTREAM: PRODUCT + INVENTORY SIMPLIFICATION
 
-The earlier parity work already showed why keeping both products makes sense: the terminal owns SQLite, printer/scanner integration and full offline operation, while web uses the cloud/IndexedDB path and provides remote reach. :chatgpt-content-reference{index="0"}
+`PRODUCT-INVENTORY.MD` is now a primary implementation specification.
 
-The mistake would be letting those become **two independent truth systems**. The earlier audit correctly flagged concurrent legacy and v2 writers as dangerous. :chatgpt-content-reference{index="1"}
+This is not merely a cosmetic UX task.
 
-The permanent architecture should therefore be:
+It affects:
 
-```text
-                         SERVOS CLOUD
-                  PostgreSQL / Supabase v2
-             commands • versions • audit • change feed
-                 global coordination authority
-                         /             \
-                        /               \
-                       /                 \
-              SERVOS TERMINAL          SERVOS WEB
-              Tauri + React            React PWA
-              Rust + SQLite            IndexedDB
-                    │                       │
-           full local durability        local cache
-           physical printer             local drafts
-           scanner/device I/O           remote access
-           offline operations           multi-device access
-           local backup                 browser portability
-                    │                       │
-                    └──── same commands ────┘
-                         same permissions
-                         same invariants
-                         same receipts
-                         same audit model
-```
+- Catalog.
+- Inventory.
+- Procurement.
+- POS.
+- Recipes.
+- Kitchen operations.
+- Bar operations.
+- stock count.
+- receiving.
+- transfers.
+- waste.
+- costing.
+- barcode behavior.
+- imports.
+- Help & Training.
+- Terminal/Web parity.
 
-When everything is online, PostgreSQL arbitrates shared business resources.
+The product rule is:
 
-When connectivity disappears, the terminal remains operational using its local SQLite state plus previously issued offline authority/grants.
+> **ServOS stores technical units. People enter physical reality.**
 
-The web can initially fall back to durable drafts/queues. Later, selected web offline operations can use the same grant model where safe.
+The normal operator should not be required to calculate:
 
-That gives you real redundancy:
+- unit cost from pack cost;
+- cans from six-packs;
+- bottles from crates;
+- millilitres from litres;
+- grams from kilograms;
+- shot yield from bottle volume;
+- portion ingredient usage from batch production.
 
-**Internet dies → terminal works.**
-
-**Terminal hardware dies → web works.**
-
-**Browser crashes → terminal keeps trading.**
-
-**Office loses the local PC → cloud data/web remain available.**
-
-**Cloud temporarily disappears → terminal does not become a brick.**
-
-That is a much stronger product than choosing either extreme.
+ServOS performs the arithmetic and shows the result for confirmation.
 
 ---
 
-# One major documentation correction
+# 5. SMART ITEM WIZARD
 
-`SERVOS_WEB_REBUILD_MASTER_PLAN.md` currently says:
+Replace the ordinary operator experience of:
 
-> fully web-based
+```text
+New Product
+New Stock Item
+Link Stock Item
+Configure Base Unit
+Configure Scan Quantity
+Configure Cost
+Configure Recipe
+```
 
-and:
+with:
 
-> Tauri becomes optional rather than architectural.
+```text
++ ADD ITEM
+```
 
-It also says the installed-terminal architecture should eventually be retired.
+The wizard chooses the internal records based on what the operator is describing.
 
-That is now the **wrong end state**.
+## 5.1 Operator-facing item types
 
-Interestingly, `docs/SYSTEM_ARCHITECTURE.md` already contains a better target: Tauri/SQLite and Vercel/IndexedDB both submit versioned commands to shared PostgreSQL authority and can only finalize disconnected shared-resource work within reserved resources.
+Initial presets:
 
-That should become the canonical architecture.
+```text
+PACKAGED_DRINK
+PORTIONED_DRINK
+WEIGHT_INGREDIENT
+COUNT_INGREDIENT
+MENU_DISH
+BATCH_RECIPE
+RETAIL_ITEM
+SERVICE
+```
 
-I would rename/rewrite the master plan around:
+Friendly UI names:
 
-**ServOS Dual-Runtime Production Architecture**
+- Beer / Soda / Bottled Drink.
+- Spirit / Liquor.
+- Wine.
+- Keg / Dispenser Drink.
+- Ingredient bought by weight.
+- Ingredient bought by piece.
+- Menu Dish.
+- Batch Recipe.
+- Retail / Packaged Item.
+- Service / Non-stock Item.
 
-not:
+These are wizard templates, not rigid database entity types.
 
-**ServOS Web Rebuild replacing Terminal**
+## 5.2 Wizard architecture
+
+Create shared model/components:
+
+```text
+SmartItemWizard
+├── ItemTypeStep
+├── IdentityStep
+├── PurchasePackagingStep
+├── SellingBehaviorStep
+├── RecipeStep
+├── OpeningStockStep
+├── CalculationPreview
+├── SuspiciousInputWarning
+├── ReviewStep
+└── Save
+```
+
+The same domain model must drive Terminal and Web.
+
+Presentation may differ responsively, but calculations and payload generation must not.
 
 ---
 
-# Finish-line plan
+# 6. MEASUREMENT MODEL
 
-| Phase | Work | Exit condition |
-|---|---|---|
-| **0. Stabilize main** | Fix stale Node tests, repair Room Stay native fixture, run full CI | Every GitHub job green |
-| **1. Establish one truth contract** | Rebuild operation manifest from actual native/backend/web implementations; eliminate stale parity data | CI fails automatically when a command exists on one side but is untracked |
-| **2. Freeze dual-runtime architecture** | Rewrite master plan, system architecture, handoff and release docs around permanent Terminal + Web | No document says Tauri will be retired |
-| **3. Close web feature gaps** | Assets/Maintenance, inventory scanner session, atomic opening stock, folio edge cases, Import Apply, floorplan, lifecycle | Operational feature matrix effectively complete |
-| **4. Normalize UX** | Design system, dialogs, tables, forms, comboboxes, approvals, error states | Major workspaces use common components |
-| **5. Finish Web PWA** | icons, installability, SW update safety, IndexedDB recovery, activity/conflict UI | PWA survives refresh/restart/offline shell tests |
-| **6. Build Terminal v2 adapter** | Replace legacy snapshot uploader with BusinessCommandV2/change-feed synchronization | Terminal speaks same protocol as web |
-| **7. Implement offline authority** | signed device grants, stock/till/room allocations, numbering ranges, expiry/reconciliation | terminal can safely transact offline alongside web |
-| **8. Dual-client staging** | real Tauri + two browsers against isolated PostgreSQL | concurrency/replay/conflict tests pass |
-| **9. Data migration rehearsal** | map existing SQLite/Supabase records into v2 and reconcile control totals | zero unexplained differences |
-| **10. Production cutover** | fence legacy writer, enable v2 server, web flag, terminal adapter | only one business protocol writes shared truth |
-| **11. Physical + remote acceptance** | printer, scanner, offline shift, cloud outage, terminal outage, web failover, recovery | signed production acceptance |
-| **12. Release** | backups, monitoring, support docs, rollback procedures | ServOS dual-runtime production ready |
-
-## Phase 0 should happen immediately
-
-Before another large feature patch:
+Introduce:
 
 ```text
-Fix npm test
-↓
-Fix native-domain tests
-↓
-npm run verify
-↓
-test:cloud
-↓
-Playwright desktop + mobile
-↓
-green GitHub Actions
+measurementMode:
+COUNT
+WEIGHT
+VOLUME
 ```
 
-The latest code already passes lint/build/cloud, so this is not a huge detour.
+Canonical storage:
+
+```text
+COUNT  → piece
+WEIGHT → g
+VOLUME → ml
+```
+
+Friendly accepted entry units:
+
+```text
+COUNT
+piece
+bottle
+can
+packet
+tray
+box
+
+WEIGHT
+g
+kg
+
+VOLUME
+ml
+L
+```
+
+ServOS converts automatically.
+
+Examples:
+
+```text
+5 kg
+→ 5,000 g
+```
+
+```text
+1.5 L
+→ 1,500 ml
+```
+
+Do not expose canonical conversion mechanics in the normal wizard.
 
 ---
 
-# Phase 1: make parity measurable
+# 7. PURCHASE PACKAGING
 
-The current `operationManifest.ts` contains **37 tracked operations**, but it is already materially stale.
+Packaging becomes first-class.
 
-It currently labels these as web missing:
+Suggested contract:
 
-```text
-order.transfer
-order.merge
-order.discount
-order.compItem
-mpesa.reconcile
-folio.postService
-pos.roomCharge
-asset.maintenance
+```ts
+PurchasePackage {
+  id
+  label
+  measurementMode
+  quantity
+  canonicalQuantity
+  barcode?
+  preferred?
+}
 ```
 
-Yet current source already contains several of those:
+Examples:
 
 ```text
-WebPosView:
-order.transfer
-order.merge
-order.discount
-order.comp
-folio.room_charge
-credit.charge
+Coca-Cola
 
-WebFinancialControlsView:
-mpesa.reconcile
+Base:
+piece
 
-WebHospitalityViews:
-folio.postService
+Purchase packages:
+single can   = 1 piece
+six-pack     = 6 pieces
+crate        = 24 pieces
 ```
-
-So the manifest cannot currently be trusted as the parity gate.
-
-I would make parity generation automatic:
 
 ```text
-Native dispatcher operations
-        +
-PostgreSQL v2 dispatcher operations
-        +
-Web operation usage
-        ↓
-generated parity matrix
-```
+Jameson
 
-Every command should resolve to:
+Base:
+ml
+
+container:
+750 ml bottle
+
+case:
+12 × 750 ml
+```
 
 ```text
-operation
-domain
-permission
-native backend
-cloud backend
-terminal UI
-web UI
-offline eligibility
-approval requirement
-version requirements
-audit effects
-financial effects
-stock effects
-acceptance test
+Beef
+
+Base:
+g
+
+purchase package:
+5 kg pack = 5,000 g
 ```
 
-Then CI rejects untracked divergence.
+Multiple package barcodes must be supported.
 
-This will save an enormous amount of future forensic work.
+A scan can therefore mean:
+
+```text
+bottle barcode → 1 bottle
+pack barcode   → 6 bottles
+crate barcode  → 24 bottles
+```
+
+without operator arithmetic.
 
 ---
 
-# Phase 2: protect the two-client model from code drift
+# 8. PURCHASE PRICE UX
 
-Right now the bigger architectural risk is actually **repository drift**.
+Replace ambiguous cost fields with explicit language.
 
-`servos-` and `SERVEOS-WEB` are already changing separately.
-
-And `SERVEOS-WEB` itself still contains:
+Example:
 
 ```text
-src/native
-src-tauri
-native-tests
+How many cans are in one pack?
+6
+
+How much does the WHOLE PACK cost?
+KES 900
 ```
 
-while there is also a separate terminal repository.
-
-You do not want two manually maintained copies of your Rust business engine.
-
-The long-term structure should ideally become:
+Display:
 
 ```text
-packages/
-  servos-contracts
-  servos-domain
-  servos-permissions
-  servos-receipts
-  servos-test-fixtures
+ServOS calculated
 
-apps/
-  terminal
-  web
-
-cloud/
-  postgres-v2
+1 pack = 6 cans
+Cost per can = KES 150
 ```
 
-They can still be **two independently deployable applications**.
-
-Redundancy does not require duplicated source code.
-
-In fact, shared contracts make the redundancy safer.
-
-If keeping two repositories is operationally easier, create a versioned shared contracts package and require both repositories to declare:
+When necessary offer:
 
 ```text
-SERVOS_PROTOCOL_VERSION
-SERVOS_SCHEMA_VERSION
-SERVOS_PERMISSION_VERSION
+KES 900 is:
+
+● Price of the whole pack
+○ Price of one can
 ```
 
-The terminal must refuse an incompatible cloud protocol instead of silently corrupting data.
+Every ambiguous monetary entry must immediately show the interpreted result before Save.
 
 ---
 
-# Phase 3: remaining web parity
+# 9. SUSPICIOUS INPUT DETECTION
 
-Most giant domains are already present. The finish work should concentrate on the edges.
+The wizard should catch likely misentry without pretending to know better than the operator.
 
-### Assets / maintenance
-
-This is still the clearest web-domain gap.
-
-Web needs the native lifecycle:
+Examples:
 
 ```text
-asset assign
-return
-transfer
-inspect
-lost
-retire
-dispose
-commission
-
-maintenance report
-assign
-start
-complete
-cancel
+6-pack
+pack cost: KES 6,000
+selling price: KES 200/can
 ```
 
-plus asset barcode lookup and acquisition history.
-
-### Inventory
-
-Bring the terminal's very good scanner model to IndexedDB:
+Warn:
 
 ```text
-select Storage Place
-→ begin count
-→ scan continuously
-→ persist after every scan
-→ unknown barcode queue
-→ close browser
-→ reopen
-→ exact count resumes
-→ review
-→ one inventory.countLocation command
+This means each can costs KES 1,000,
+which is above the KES 200 selling price.
+
+Confirm the KES 6,000 pack cost?
 ```
 
-### Atomic new-item setup
+Other warnings:
 
-Web needs the equivalent of terminal:
+- 5 g entered where the configured package is normally kg.
+- portion larger than source container.
+- selling price below calculated ingredient cost.
+- impossible or zero package quantity.
+- total delivery price implying an unusually tiny unit cost.
+- duplicate barcode.
+- duplicate package definition.
+- recipe quantity greater than rational stock package size.
+
+Warnings should be explainable and usually overridable by an authorized user.
+
+---
+
+# 10. PORTIONED DRINKS
+
+Spirits, wine and keg products require a dedicated model.
+
+Example:
+
+```text
+Jameson
+Bottle: 750 ml
+Purchase cost: KES 1,800
+
+Sell as:
+30 ml Shot       KES 200
+60 ml Double     KES 350
+750 ml Bottle    KES 4,500
+```
+
+ServOS calculates:
+
+```text
+Shot cost        KES 72
+Double cost      KES 144
+Whole bottle     KES 1,800
+25 shots/bottle
+```
+
+## 10.1 Sealed and open stock
+
+A portioned product cannot be represented only by aggregate ml if whole sealed containers are also sellable.
+
+Track by stock location:
+
+```text
+sealedContainers
+openQuantity
+```
+
+Example:
+
+```text
+Jameson 750 ml
+
+8 sealed bottles
+420 ml open
+
+Total canonical volume:
+6,420 ml
+```
+
+Whole-bottle sale requires a sealed bottle.
+
+Shot sale may consume open quantity first.
+
+When the remaining open quantity cannot fulfil the serving, ServOS may automatically open one sealed bottle and transfer that bottle's volume into open quantity.
+
+Every transition must be recorded.
+
+---
+
+# 11. PACKAGED BEER / SODA
+
+Do not force volume stock tracking merely because the label says 500 ml.
+
+Ask:
+
+```text
+Do you sell part of an opened container?
+```
+
+If No:
+
+```text
+1 Tusker bottle = 1 piece
+```
+
+`500 ml` remains descriptive product size.
+
+If Yes:
+
+use VOLUME measurement mode.
+
+---
+
+# 12. GRAM-BASED FOOD INVENTORY
+
+Ingredient creation should look like:
+
+```text
+Beef
+
+How do you buy it?
+5 kg pack
+
+What does one pack cost?
+KES 3,500
+```
+
+ServOS derives:
+
+```text
+5 kg = 5,000 g
+cost per gram = KES 0.70
+```
+
+Do not ask the operator for cost per gram.
+
+Normal recipe configuration:
+
+```text
+Beef Stew
+
+Beef          200 g
+Tomato         80 g
+Onion          40 g
+Oil            20 ml
+Spices           8 g
+```
+
+ServOS calculates:
+
+- ingredient cost;
+- total dish cost;
+- gross difference;
+- theoretical portions available.
+
+---
+
+# 13. BATCH RECIPES
+
+Support two recipe modes.
+
+## Per-serving
+
+```text
+1 serving:
+Beef      200 g
+Potato    250 g
+```
+
+## Batch
+
+```text
+This batch uses:
+
+Rice      2 kg
+Oil       200 ml
+Salt      30 g
+
+This batch makes:
+20 portions
+```
+
+ServOS derives per-serving consumption.
+
+Do not require kitchen staff to divide batch quantities manually.
+
+---
+
+# 14. RECEIVE DELIVERY UX
+
+Receiving must operate in supplier packaging language.
+
+Example:
+
+```text
+Coca-Cola 330ml
+
+What arrived?
+4 packs
+
+Pack size:
+6 cans
+
+Supplier charged:
+KES 900 per pack
+
+ServOS will add:
+24 cans
+
+Total received value:
+KES 3,600
+
+Calculated cost:
+KES 150/can
+```
+
+Required backend effects:
+
+- stock movement;
+- inventory receipt;
+- supplier/reference evidence;
+- weighted-average costing;
+- audit;
+- synchronization event.
+
+Do not mutate quantity directly.
+
+---
+
+# 15. STOCK COUNT UX
+
+Counts use physical vocabulary.
+
+Examples:
+
+```text
+Coke
+
+Full six-packs: 3
+Loose cans:     4
+
+ServOS count:
+22 cans
+```
+
+```text
+Beef
+
+Full 5 kg packs: 2
+Loose/open:      1.2 kg
+
+ServOS count:
+11.2 kg
+```
+
+```text
+Jameson
+
+Sealed bottles: 8
+Open liquid:     420 ml
+```
+
+Web count sessions must become as durable as Terminal count sessions.
+
+Persist:
+
+- actor;
+- location;
+- count session ID;
+- baseline versions;
+- scanned counts;
+- manual counts;
+- unknown barcodes;
+- timestamps;
+- pending reviewed command.
+
+Use IndexedDB rather than only ephemeral React state.
+
+---
+
+# 16. ADMIN STOCK QUANTITY CORRECTION
+
+This is a required feature.
+
+There are legitimate cases where recorded stock is wrong because of:
+
+- opening quantity misentry;
+- receiving typo;
+- incorrect package conversion;
+- accidental extra zero;
+- migration/import error;
+- staff entry against the wrong location;
+- historical data conversion issue.
+
+An Admin must be able to correct the quantity quickly.
+
+However:
+
+> **“Edit quantity” is a UI convenience. It must never be a direct record overwrite.**
+
+## 16.1 UI
+
+From item detail:
+
+```text
+Stock
+Main Bar: 45 cans
+
+[ Count ]
+[ Transfer ]
+[ Waste ]
+
+ADMIN
+[ Correct quantity ]
+```
+
+Correction dialog:
+
+```text
+CORRECT STOCK QUANTITY
+
+Coca-Cola 330 ml
+Location: Main Bar
+
+Currently recorded:
+45 cans
+
+What should it be?
+[ 39 ] cans
+
+ServOS will record:
+-6 cans
+
+Why are you correcting it?
+[ Data entry mistake ▼ ]
+
+Note
+[ Delivery was entered as 5 packs instead of 4 ]
+
+────────────────────────────
+
+This does not delete the previous record.
+ServOS will add a correction to the stock history.
+
+[ Cancel ]
+[ Correct to 39 cans ]
+```
+
+## 16.2 Permission
+
+Introduce:
+
+```text
+inventory.correct_quantity
+```
+
+Default:
+
+```text
+Admin  → YES
+Manager → NO
+Server/operator → NO
+```
+
+This is intentionally separate from:
+
+```text
+inventory.count
+inventory.adjust
+inventory.receive
+inventory.transfer
+inventory.waste
+```
+
+so ordinary inventory management capability does not automatically grant authority to correct historical data.
+
+Future businesses may explicitly delegate the capability, but the default role policy remains Admin-only.
+
+## 16.3 Command
+
+Introduce canonical command:
+
+```text
+inventory.correctQuantity
+```
+
+Payload:
+
+```ts
+{
+  stockItemId,
+  locationId,
+  targetQuantity,
+  expectedVersion,
+  reasonCode,
+  reason,
+  reference?,
+  correctionContext?
+}
+```
+
+The server/native backend calculates:
+
+```text
+delta = targetQuantity - currentQuantity
+```
+
+Never trust a client-calculated delta as authority.
+
+## 16.4 Movement
+
+Create immutable:
+
+```text
+movementType = ADMIN_CORRECTION
+```
+
+Movement records:
+
+```text
+stockItemId
+locationId
+beforeQuantity
+afterQuantity
+quantityDelta
+baseUnit
+reasonCode
+reason
+reference
+actorId
+actorName
+deviceId
+sourceCommandId
+occurredAt
+```
+
+The resulting stock balance is derived through the same stock mutation boundary as ordinary inventory movements.
+
+Do not directly edit historical receipt/count/movement rows.
+
+## 16.5 Validation
+
+Require:
+
+- Admin permission.
+- non-negative target quantity.
+- active stock item.
+- active stock location.
+- expected version.
+- mandatory reason.
+- idempotent command ID.
+- full audit record.
+- Go Live state when correcting live stock.
+- conflict if stock changed since dialog opened.
+
+If current stock changes between opening and confirming:
+
+```text
+Stock changed from 45 to 43 while this correction was open.
+
+Review the latest quantity before correcting.
+```
+
+Do not silently apply the stale correction.
+
+## 16.6 Re-authentication
+
+For sensitive correction, require Admin re-authentication or PIN confirmation where available.
+
+This protects an unlocked Admin terminal.
+
+## 16.7 Human-unit support
+
+Corrections must use packaging-aware UI.
+
+Example:
+
+```text
+Recorded:
+3 six-packs + 5 loose cans
+= 23 cans
+
+Correct quantity:
+2 six-packs + 5 loose cans
+= 17 cans
+
+Adjustment:
+-6 cans
+```
+
+The operator never calculates the delta.
+
+## 16.8 Portion-controlled stock
+
+For sealed/open drink inventory:
+
+```text
+Recorded:
+5 sealed bottles
+420 ml open
+
+Correct to:
+4 sealed bottles
+390 ml open
+```
+
+ServOS records both correction dimensions and corresponding canonical delta.
+
+Do not collapse sealed-container state into aggregate volume if the item can be sold as a whole sealed container.
+
+## 16.9 Reporting
+
+Admin corrections must appear in:
+
+- stock movement history;
+- audit log;
+- item detail;
+- daily activity;
+- inventory variance reports;
+- synchronization history.
+
+Large or frequent corrections should be visible to the business owner.
+
+---
+
+# 17. EXISTING `inventory.adjust` CLEANUP
+
+Current Native code already contains an `inventory.adjust` path that sets a target quantity and writes a count-style adjustment.
+
+It currently checks `inventory.count`.
+
+That contract must be corrected during this sprint.
+
+Do not use the existing operation as an unrestricted direct-edit escape hatch.
+
+Migration strategy:
+
+```text
+inventory.adjust
+    ↓
+legacy compatibility wrapper
+    ↓
+inventory.correctQuantity
+```
+
+or explicitly retire it once both clients use the canonical command.
+
+Cloud v2 must implement the same operation.
+
+Parity manifest must contain it.
+
+---
+
+# 18. ITEM DETAIL PAGE
+
+Normal item details should answer operational questions.
+
+Example:
+
+```text
+JAMESON 750ML
+
+ON HAND
+8 sealed bottles
+420 ml open
+
+SELLING
+Shot · 30 ml         KES 200
+Double · 60 ml       KES 350
+Bottle · 750 ml      KES 4,500
+
+BUYING
+750 ml bottle
+Latest cost           KES 1,800
+
+YIELD
+25 shots / bottle
+
+COST
+Shot                  KES 72
+Double                KES 144
+Bottle                KES 1,800
+
+LOCATION
+Main Bar
+
+[ Receive ]
+[ Count ]
+[ Transfer ]
+[ Waste ]
+
+Admin:
+[ Correct quantity ]
+```
+
+Advanced technical details go behind:
+
+```text
+More
+→ Advanced
+```
+
+---
+
+# 19. WEB CATALOG REFACTOR
+
+Current Web exposes:
+
+```text
+New product
+New stock item
+New stock location
+```
+
+Replace the normal route with:
+
+```text
++ Add Item
+```
+
+Keep separate advanced management only for authorized managers/admins.
+
+Normal UI categories:
+
+```text
+ITEMS & MENU
+STOCK
+RECIPES
+ADVANCED
+```
+
+---
+
+# 20. ATOMIC CREATE CONTRACT
+
+Implement matching Terminal + Web backend command for Smart Item creation.
+
+Candidate:
+
+```text
+catalog.createItem
+```
+
+or evolve:
 
 ```text
 catalog.createWithOpeningStock
 ```
 
-One operation should create:
+Payload includes:
 
 ```text
-product
-stock master
-barcode
-stock link
-storage location association
+product/menu identity
+measurement mode
+canonical unit
+package definitions
+barcode aliases
+selling formats
+recipe
+stock location
 opening quantity
-opening movement
+opening cost
 ```
 
-No six-form pilgrimage.
+All effects must commit atomically.
 
-### Hospitality edge completion
+Either everything exists or nothing exists.
 
-Finish:
+---
+
+# 21. HELP & TRAINING REDESIGN
+
+The current Help Center must stop feeling like rendered README content.
+
+Keep Markdown/docs as maintainable source material if desired.
+
+Do not expose the raw presentation format.
+
+Home:
+
+```text
+HELP & TRAINING
+
+What are you trying to do?
+[ Search ]
+
+COMMON TASKS
+[ Make a sale ]
+[ Add an item ]
+[ Receive stock ]
+[ Count stock ]
+[ Sell shots ]
+[ Add food recipe ]
+[ Correct a stock mistake ]
+[ Refund ]
+[ M-Pesa ]
+[ Close day ]
+
+LEARN BY DOING
+▶ Add a six-pack
+▶ Sell a bottle by shots
+▶ Build a gram-based recipe
+▶ Correct a stock quantity
+```
+
+Help article structure:
+
+```ts
+{
+  title,
+  summary,
+  whenToUse,
+  example,
+  steps,
+  systemHandles,
+  commonMistakes,
+  relatedTasks,
+  guideId,
+  estimatedMinutes
+}
+```
+
+Render with:
+
+- task cards;
+- numbered steps;
+- examples;
+- screenshots/illustrations when available;
+- calculation cards;
+- warnings;
+- success state;
+- "Show me" action;
+- related tasks.
+
+Do not display a giant preformatted text block.
+
+---
+
+# 22. CONTEXTUAL HELP
+
+Complex inputs get embedded assistance.
+
+Examples:
+
+```text
+What does the whole pack cost? [?]
+```
+
+Popover:
+
+```text
+Enter what the supplier charges for the complete pack.
+
+Example:
+6 cans cost KES 900 total.
+
+Enter 900.
+ServOS calculates KES 150 per can.
+```
+
+For shot size:
+
+```text
+How much liquid one sale uses.
+
+Example:
+Single whisky shot = 30 ml.
+```
+
+This should answer the question without sending the operator away from their current workflow.
+
+---
+
+# 23. GUIDED PRODUCT TRAINING
+
+Add guidance definitions:
+
+```text
+inventory.add-packaged-item
+inventory.receive-pack
+inventory.stock-count
+inventory.admin-correction
+
+bar.sell-shots
+bar.sell-whole-bottle
+
+kitchen.add-weight-ingredient
+kitchen.create-recipe
+kitchen.create-batch-recipe
+```
+
+Guides must advance on committed business operations, not merely clicks.
+
+---
+
+# 24. PRODUCT/INVENTORY ACCEPTANCE SUITE
+
+Required automated/domain scenarios:
+
+### Packaging
+
+```text
+6-pack × 4
+→ 24 units
+```
+
+### Purchase costing
+
+```text
+6-pack costs KES 900
+→ unit cost KES 150
+```
+
+### Weight
+
+```text
+5 kg
+→ 5,000 g
+```
+
+### Volume
+
+```text
+1.5 L
+→ 1,500 ml
+```
+
+### Spirit yield
+
+```text
+750 ml / 30 ml
+→ 25 shots
+```
+
+### Whole bottle
+
+Selling whole bottle:
+
+```text
+sealed count -1
+open quantity unchanged
+```
+
+### Shot sale
+
+Selling 30 ml:
+
+```text
+open quantity -30 ml
+```
+
+with automatic bottle opening where required.
+
+### Recipe
+
+Selling one Beef Stew:
+
+```text
+beef -200g
+tomato -80g
+onion -40g
+oil -20ml
+```
+
+atomically.
+
+### Receiving
+
+```text
+4 × 6-pack
+→ +24 units
+```
+
+### Admin correction
+
+```text
+current = 45
+target = 39
+→ movement = -6
+→ final = 39
+→ movement type ADMIN_CORRECTION
+```
+
+### Correction concurrency
+
+```text
+Admin opens correction at v8
+sale changes stock to v9
+Admin confirms stale v8
+→ CONFLICT
+```
+
+### Correction idempotency
+
+Replay command:
+
+```text
+same command ID
+→ one correction only
+```
+
+---
+
+# 25. OTHER WEB PARITY WORK
+
+After the Product/Inventory vertical slice:
+
+## Assets / Maintenance
+
+Complete:
+
+```text
+asset.assign
+asset.return
+asset.transfer
+asset.inspect
+asset.lose
+asset.retire
+asset.dispose
+asset.commission
+
+maintenance.report
+maintenance.assign
+maintenance.start
+maintenance.complete
+maintenance.cancel
+```
+
+Include barcode/asset tag lookup.
+
+## Hospitality
+
+Complete remaining edge workflows:
 
 ```text
 stay.extend
 folio.refundDeposit
 folio.reverse
 reservation modification
-full charge reversal
-folio reopening rules
+full room-charge reversal
+folio reopen rules
 ```
 
-The core workflow is already strong.
-
-### Import Center
-
-Current browser UI stages imports but does not complete the entire review/apply journey.
+## Controlled Import
 
 Finish:
 
 ```text
-file
+upload/paste
 → map
 → validate
-→ dry run
+→ dry-run
 → error rows
-→ correction
-→ manager review
+→ correct
+→ review
 → admin.import.apply
-→ result summary
+→ result
 → audit
 ```
 
-### Floorplan
+## Floorplan
 
-The web can operate tables but still needs proper manager-side floorplan configuration.
+Implement Web manager editor.
 
 ---
 
-# Phase 4: complete the design system before UI sprawl returns
+# 26. DESIGN SYSTEM COMPLETION
 
-The new:
-
-```text
-design-system/components.tsx
-design-system/tokens.ts
-workspaceRegistry.ts
-```
-
-are the correct start.
-
-But most feature screens still have local copies of:
+Build/reuse:
 
 ```text
-button
-primary
-field
-panel
-modal
-table
-```
-
-Complete shared primitives for:
-
-```text
+Button
 Dialog
 Drawer
 FormField
@@ -440,12 +1414,14 @@ Select
 Combobox
 MoneyInput
 QuantityInput
-DateTime
+UnitInput
+PackageQuantityInput
+CalculationCard
+WarningCard
 DataTable
-Search
-FilterBar
 ActionMenu
 ConfirmDialog
+AdminReauthDialog
 ManagerApprovalDialog
 PermissionGate
 LoadingState
@@ -454,199 +1430,303 @@ ErrorState
 SyncState
 ```
 
-Then migrate modules domain by domain.
-
-This is not merely visual polish. It removes inconsistent destructive-action and financial-confirmation UX.
+`SmartItemWizard`, stock correction and Help should use these primitives.
 
 ---
 
-# Phase 5: make Web a proper installable second workstation
+# 27. CROSS-CLIENT PARITY LEDGER
 
-The PWA foundation is now good.
+The existing `operationManifest.ts` is stale.
 
-But `manifest.webmanifest` still has:
+Generate or validate the ledger against:
 
 ```text
-"icons": []
+Rust/native operations
+PostgreSQL v2 operations
+Web command callers
+Terminal UI callers
 ```
 
-Finish:
+Add fields:
 
 ```text
-192px icon
-512px icon
-maskable
+operation
+domain
+permission
+nativeBackend
+cloudBackend
+terminalUI
+webUI
+offlineEligibility
+requiresApproval
+requiresVersion
+auditEffect
+stockEffect
+financialEffect
+acceptanceTest
+```
+
+New Product/Inventory operations must be represented.
+
+At minimum:
+
+```text
+catalog.createItem
+inventory.receive
+inventory.count
+inventory.transfer
+inventory.waste
+inventory.correctQuantity
+recipe.save
+package.save
+barcodeAlias.save
+```
+
+---
+
+# 28. WEB PWA FINISH
+
+Complete:
+
+```text
+192 icon
+512 icon
+maskable icon
 favicon
 apple-touch icon
 install tests
 standalone tests
 offline shell tests
-safe-update tests
+update-while-busy protection
+recovery tests
 ```
 
-Keep the current safe SW approach where updates wait instead of hijacking a live transaction.
-
-That's exactly right.
+Do not activate a new service worker in the middle of a financial transaction.
 
 ---
 
-# Phase 6: the critical architectural milestone, Terminal v2 adapter
+# 29. TERMINAL V2 ADAPTER
 
-This is the real bridge to redundancy.
-
-Currently the terminal primarily understands:
+Terminal must eventually use the same shared protocol:
 
 ```text
-SQLite transaction
-→ legacy ordered uploader
-→ cloud replica
-```
-
-Web v2 understands:
-
-```text
-BusinessCommandV2
-→ PostgreSQL
-→ change feed
-```
-
-Those need to converge.
-
-Terminal should gain:
-
-```text
-SQLite local command
+SQLite command
 ↓
-BusinessCommandV2 envelope
+BusinessCommandV2
 ↓
 durable outbox
 ↓
-PostgreSQL execute
+PostgreSQL execution
 ↓
 acknowledgement
 ↓
-ordered change feed
+change feed
 ↓
 SQLite reconciliation
 ```
 
-Do **not** make the terminal upload arbitrary snapshots once v2 becomes live.
-
-The server must understand exactly which command caused each state transition.
+Legacy arbitrary snapshot authority must be fenced before the new shared writer becomes production authority.
 
 ---
 
-# Phase 7: maximum redundancy requires controlled offline authority
+# 30. OFFLINE AUTHORITY
 
-This is the part that makes your redundancy goal real rather than cosmetic.
+Terminal retains offline trading through signed/reserved authority.
 
-Before going offline, terminal receives signed allocations such as:
+Potential grants:
 
 ```text
 stock allocation
-till authority
-allowed service area
-room ownership/reservation lease
-receipt/order number range
-maximum discount/refund authority
-expiry
-policy version
-device ID
-signature
+till session
+outlet authority
+receipt-number range
+room lease
+discount ceiling
+refund ceiling
 ```
 
-The terminal can then finalize transactions locally within that envelope.
+Product/Inventory offline rules must understand packaging and canonical units.
 
-When connectivity returns:
+A grant for 24 cans must not accidentally become 24 six-packs.
 
-```text
-offline commands
-→ upload in sequence
-→ server verifies grant
-→ server consumes allocation
-→ change feed reconciles
-```
-
-If two systems attempt to consume the same shared resource, ServOS must conflict rather than invent inventory.
-
-The web can later receive the same capability for carefully selected operations.
+Canonical quantities remain authority beneath friendly packaging.
 
 ---
 
-# Phase 8: test redundancy itself
+# 31. DUAL-CLIENT STAGING
 
-Your acceptance suite should deliberately break things.
+Test at least:
 
-A proper ServOS release should prove these scenarios:
+```text
+Terminal A
+Web Browser B
+Web Browser C
+```
 
-| Failure | Expected behavior |
-|---|---|
-| Internet disappears | Terminal continues |
-| Supabase unavailable | Terminal continues within grants |
-| Terminal PC dies | Web remains operational |
-| Browser closes mid-draft | IndexedDB restores draft |
-| Browser loses internet | finalized financial actions block unless granted |
-| Printer fails | sale survives, receipt remains reprintable |
-| Scanner unplugged | manual entry remains available |
-| Terminal reconnects | outbox reconciles exactly once |
-| Two clients edit same record | stale writer conflicts |
-| Same command is replayed | result is idempotent |
-| Terminal returns after long outage | grant expiry/resource reconciliation works |
-| Vercel update arrives mid-sale | active workflow is not replaced |
-| Cloud data lost/corrupted | verified backup recovery exists |
-| Local SQLite damaged | restore + cloud reconciliation path exists |
+against isolated v2 staging.
 
-That is the meaning of “maximum redundancy”.
+Scenarios:
+
+- same product edited concurrently;
+- sale while Admin correction dialog is open;
+- inventory transfer while remote count is open;
+- room booking concurrency;
+- duplicate command replay;
+- terminal offline then reconnect;
+- browser refresh with draft;
+- device revocation;
+- service-worker update;
+- stale permissions;
+- stock allocation exhaustion.
 
 ---
 
-# Production cutover should be conservative
+# 32. DATA MIGRATION
 
-The final cutover sequence remains:
+Before production cutover reconcile:
 
 ```text
-Terminal v2 adapter tested
-Web v2 tested
+products
+stock items
+stock locations
+current quantities
+stock movements
+purchase receipts
+orders
+payments
+M-Pesa
+credit
+rooms
+folios
+assets
+staff
+```
+
+For inventory specifically verify:
+
+```text
+local quantity
+cloud quantity
+movement-derived quantity
+```
+
+Any unexplained difference blocks cutover.
+
+Misentries discovered during migration should use a dedicated migration reconciliation record or Admin correction, not silent row editing.
+
+---
+
+# 33. PRODUCTION CUTOVER
+
+Required order:
+
+```text
+CI green
 ↓
-Full business backup
+Product/Inventory acceptance green
+↓
+Terminal v2 adapter green
+↓
+Web v2 green
+↓
+Full local backup
 ↓
 Drain legacy outbox
 ↓
-Verify SQLite/cloud control totals
+Control-total reconciliation
 ↓
-Fence legacy snapshot writer
+Fence legacy writer
 ↓
 Migrate v2 state
 ↓
-Enable PostgreSQL command authority
+Enable cloud authority
 ↓
-Enable Terminal v2 client
+Enable Terminal v2
 ↓
-Enable Web v2 client
+Enable Web v2
 ↓
-Smoke tests
+Smoke sale
 ↓
-Reconcile sales / stock / cash / credit / rooms
+Smoke receive
+↓
+Smoke stock correction
+↓
+Smoke room booking
+↓
+Reconcile
 ↓
 Open business
 ```
 
-Never enable both the old uploader and the new transactional protocol simultaneously.
+Never run legacy snapshot authority and v2 transactional authority concurrently for the same business.
 
 ---
 
-# What I would call “finished”
+# 34. FINAL SPRINT EXECUTION ORDER
 
-ServOS is finished when **both clients can independently carry the business through a day while producing the same business truth**.
+Execute in this order:
 
-That means a sale made from Terminal appears on Web; a supplier delivery entered on Web appears locally on Terminal; a room checked in on Web cannot be double-booked at Terminal; a customer-credit payment entered at Terminal updates the same A/R ledger seen remotely; and every stock movement, journal, receipt, approval and audit record converges.
+```text
+P0  Repair CI
+P1  Product/Inventory domain contracts
+P2  SmartItemWizard
+P3  Packaging + measurement conversion
+P4  Atomic item creation
+P5  Receiving UX
+P6  Stock count UX
+P7  Admin Stock Correction
+P8  Spirit sealed/open inventory
+P9  Gram-based ingredients + recipes
+P10 Batch recipes
+P11 POS serving integration
+P12 Structured Help + product training
+P13 Cross-client parity tests
+P14 Remaining Web parity gaps
+P15 Design-system consolidation
+P16 PWA completion
+P17 Terminal v2 adapter
+P18 Offline authority
+P19 Dual-client staging
+P20 Data migration rehearsal
+P21 Physical hardware acceptance
+P22 Production cutover
+```
 
-The terminal should remain the **resilience machine**.
+Do not jump from Smart Item UI directly to production without proving its accounting effects.
 
-The web should remain the **reach and multi-device machine**.
+---
 
-PostgreSQL should become the **coordination machine**.
+# 35. DEFINITION OF DONE
 
-SQLite should remain the **local survival machine**.
+ServOS is finished when:
 
-That four-part architecture is the finish line I would now build toward, rather than any plan that eventually deletes the terminal.
+- a cashier can sell without understanding stock internals;
+- a bartender can sell a shot, double or bottle from one product;
+- a kitchen operator can build gram-based recipes without manual conversion;
+- a storekeeper can receive crates/packs/bags using real supplier packaging;
+- a storekeeper can count stock using packs plus loose units;
+- an Admin can correct a data-entry stock mistake without corrupting history;
+- every stock change leaves an immutable movement;
+- Terminal and Web converge on identical quantities;
+- duplicate commands are harmless;
+- stale updates conflict safely;
+- scanner and printer have physical acceptance evidence;
+- Terminal survives network loss;
+- Web survives terminal loss;
+- PostgreSQL coordinates shared truth;
+- SQLite provides local terminal resilience;
+- Help teaches tasks inside the application rather than displaying README-style documentation;
+- complete CI is green;
+- migration control totals reconcile exactly.
+
+The terminal is the resilience machine.
+
+The Web app is the reach and multi-device machine.
+
+PostgreSQL is the coordination machine.
+
+SQLite is the local survival machine.
+
+The operator should see the business.
+
+ServOS should see the mathematics.

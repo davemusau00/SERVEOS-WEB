@@ -1,448 +1,450 @@
-Yes. The current inventory model is technically capable, but too much of its internal accounting vocabulary leaks into the operator experience.
+# ServOS Product + Inventory
+## Operator-Friendly Item, Packaging, Portion, Recipe and Stock Management Specification
 
-The operator should never need to understand **stock master**, **base unit**, **scan unit quantity**, **average unit cost**, or manually work out how a six-pack becomes six cans. Those are ServOS problems.
+**Status:** Finish-line implementation specification  
+**Clients:** ServOS Terminal + ServOS Web  
+**Core principle:** **ServOS stores technical units. People enter physical reality.**
 
-The operator should answer questions such as:
+---
 
-> “I bought 4 six-packs.”  
-> “Each pack has 6 cans.”  
-> “The whole pack costs KES 900.”  
-> “I sell each can for KES 250.”
+# 1. OBJECTIVE
 
-ServOS should respond:
+The inventory engine may remain technically sophisticated.
 
-> **24 cans added. Cost per can: KES 150.**
+The operator experience must not be.
+
+An operator should never need to understand internal concepts such as:
+
+```text
+stock master
+canonical base unit
+scanUnitQuantity
+average cost per ml
+average cost per gram
+product → stock foreign-key relationship
+```
+
+to perform ordinary work.
+
+They should describe what happened in language matching the physical business.
+
+Example:
+
+```text
+I bought 4 six-packs.
+Each pack contains 6 cans.
+A pack costs KES 900.
+We sell each can for KES 250.
+```
+
+ServOS responds:
+
+```text
+24 cans received
+KES 150 cost per can
+KES 250 selling price
+```
 
 Likewise:
 
-> “I buy Jameson in 750 ml bottles for KES 1,800.”  
-> “We sell 30 ml shots, 60 ml doubles and whole bottles.”
-
-ServOS should figure out all the arithmetic, stock consumption and costing.
-
-This is exactly the kind of simplification we need now because the system already has substantial POS, inventory, procurement, credit, hospitality and administrative capability. :chatgpt-content-reference{index="0"}
-
-# 1. Stop making users create “Products” and “Stock Items”
-
-Internally those concepts should remain.
-
-Externally, the primary action becomes simply:
-
-## **+ Add Item**
-
-Then ServOS asks:
-
-| What are you adding? | Example |
-|---|---|
-| Packaged item | Beer, soda, bottled water |
-| Drink sold in portions | Whisky, vodka, wine, keg beer |
-| Food ingredient | Beef, chicken, rice, flour, potatoes |
-| Menu dish | Beef stew, chicken & chips, ugali |
-| Retail item | Cigarettes, snacks, toiletries |
-| Service / non-stock item | Laundry, room service fee |
-
-The system determines whether it needs a stock record, product record, recipe, serving definitions, or nothing at all.
-
-The current Native `QuickProductDialog` has already started down this road with drink/food/retail/service types, packaging, container size, stock creation and servings. That work should become the **canonical shared Item Wizard** rather than adding more fields to it.
-
----
-
-# 2. The central mental model should be three questions
-
-Every stocked thing can be explained to an operator with:
-
-### **How do you buy it?**
-
-### **How do you keep/count it?**
-
-### **How do you sell or use it?**
-
-That should drive the entire inventory engine.
-
-For example:
-
-| Item | Buy | Keep/Count | Sell/Use |
-|---|---|---|---|
-| Tusker | crate of 24 | bottles | bottle |
-| Coke | 6-pack | cans | can |
-| Jameson | 750 ml bottle / case | sealed bottles + opened ml | shot / double / bottle |
-| Wine | 750 ml bottle | sealed bottles + opened ml | glass / bottle |
-| Keg beer | 50 L keg | ml | 500 ml glass |
-| Beef | 5 kg pack | grams | recipe ingredient / 200 g portion |
-| Rice | 25 kg sack | grams | recipe ingredient |
-| Eggs | tray of 30 | pieces | recipe ingredient |
-| Chips | 10 kg potatoes | grams | menu recipe |
-| Cigarettes | carton / packet | packets or sticks | packet / stick |
-
-Everything underneath can still use canonical units.
-
-But operators never need to see the machinery unless they open **Advanced**.
-
----
-
-# 3. A six-pack should take seconds to add
-
-Current Web asks for things like:
-
-> Base unit  
-> Quantity represented by one scan  
-> Average unit cost
-
-That is backwards from how a person thinks.
-
-The new interaction should be:
-
 ```text
-ADD ITEM
-
-Coca-Cola 330ml
-────────────────────────────
-
-How do you receive it?
-
-[ Single ] [ Pack ] [ Crate / Case ]
-
-Pack ✓
-
-How many cans in one pack?
-[ 6 ]
-
-What does one full pack cost you?
-KES [ 900 ]
-
-Where do you keep it?
-[ Bar Store ▼ ]
-
-How do you sell it?
-● Individual cans
-
-Selling price per can
-KES [ 250 ]
-
-────────────────────────────
-SERVOS CALCULATED
-
-1 pack          = 6 cans
-Cost per can    = KES 150
-Selling price   = KES 250
-Gross difference = KES 100 / can
-
-[ Save item ]
+I buy Jameson in 750 ml bottles.
+A bottle costs KES 1,800.
+We sell 30 ml shots, 60 ml doubles and whole bottles.
 ```
 
-No division.
-
-No “average unit cost”.
-
-No “scan-unit quantity”.
-
-No stock linkage.
-
-ServOS produces those.
+ServOS handles the arithmetic.
 
 ---
 
-# 4. The purchase-price field needs to be idiot-resistant
+# 2. OPERATOR MENTAL MODEL
 
-Not because operators are idiots. Because price-entry ambiguity is terrible UI.
+Every item is described by three questions.
 
-If an operator says:
+## How do you buy it?
+
+Examples:
 
 ```text
-Pack contains: 6
-Cost: KES 900
+crate
+case
+six-pack
+bottle
+tray
+bag
+5 kg pack
+25 kg sack
+50 L keg
 ```
 
-there should be a clear selector:
+## How do you keep/count it?
+
+Examples:
+
+```text
+bottles
+cans
+pieces
+grams
+millilitres
+sealed bottles + open liquid
+```
+
+## How do you sell or use it?
+
+Examples:
+
+```text
+whole can
+whole bottle
+30 ml shot
+150 ml glass
+200 g ingredient portion
+recipe
+service
+```
+
+That is the operator-facing product model.
+
+ServOS derives the accounting model.
+
+---
+
+# 3. ONE PRIMARY ENTRY POINT
+
+Replace ordinary:
+
+```text
+New Product
+New Stock Item
+Link Product to Stock
+```
+
+with:
+
+# + Add Item
+
+The wizard asks:
+
+```text
+What are you adding?
+```
+
+Options:
+
+- Beer / soda / bottled drink.
+- Spirit / liquor.
+- Wine.
+- Keg / dispenser drink.
+- Ingredient bought by weight.
+- Ingredient bought by piece/count.
+- Menu dish.
+- Batch recipe.
+- Retail / packaged product.
+- Service / non-stock item.
+
+The wizard determines which internal records are needed.
+
+---
+
+# 4. SMART ITEM WIZARD
+
+Shared domain flow:
+
+```text
+ItemTypeStep
+↓
+IdentityStep
+↓
+PurchasePackagingStep
+↓
+SellingBehaviorStep
+↓
+RecipeStep when applicable
+↓
+OpeningStockStep
+↓
+CalculationPreview
+↓
+Review
+↓
+Atomic Save
+```
+
+Terminal and Web must share:
+
+- conversion functions;
+- validation;
+- calculated previews;
+- command payload construction;
+- product-type presets.
+
+Do not implement two different inventory semantics.
+
+---
+
+# 5. MEASUREMENT MODES
+
+Introduce:
+
+```text
+COUNT
+WEIGHT
+VOLUME
+```
+
+Canonical units:
+
+```text
+COUNT  → piece
+WEIGHT → gram
+VOLUME → millilitre
+```
+
+The operator may enter:
+
+```text
+COUNT
+pieces
+bottles
+cans
+packets
+trays
+
+WEIGHT
+g
+kg
+
+VOLUME
+ml
+L
+```
+
+ServOS canonicalizes.
+
+Examples:
+
+```text
+2.5 kg
+→ 2,500 g
+```
+
+```text
+1.5 L
+→ 1,500 ml
+```
+
+Canonical units are for calculations, persistence and synchronization.
+
+Friendly units are for humans.
+
+---
+
+# 6. PURCHASE PACKAGES
+
+Packaging is first-class business data.
+
+Example:
+
+```text
+COCA-COLA 330ML
+
+Base count:
+1 can
+
+Purchase packages:
+Single can = 1
+Six-pack   = 6
+Crate      = 24
+```
+
+Example:
+
+```text
+JAMESON 750ML
+
+Canonical:
+ml
+
+Physical container:
+Bottle = 750 ml
+
+Purchase package:
+Case = 12 bottles
+```
+
+Example:
+
+```text
+BEEF
+
+Canonical:
+g
+
+Purchase package:
+5 kg pack = 5,000 g
+```
+
+Suggested internal structure:
+
+```ts
+PurchasePackage {
+  id: string
+  name: string
+  packageType: string
+  measurementMode: 'COUNT' | 'WEIGHT' | 'VOLUME'
+  canonicalQuantity: number
+  containerCount?: number
+  barcode?: string
+  preferred?: boolean
+}
+```
+
+---
+
+# 7. MULTIPLE BARCODES PER ITEM
+
+An item may have:
+
+```text
+individual barcode
+pack barcode
+crate/case barcode
+supplier barcode
+internal barcode
+```
+
+Each alias knows how much stock it represents.
+
+Example:
+
+```text
+barcode A
+→ 1 can
+
+barcode B
+→ 6 cans
+
+barcode C
+→ 24 cans
+```
+
+Scanning during receiving automatically chooses the correct quantity conversion.
+
+Unknown barcode:
+
+```text
+NEW BARCODE
+
+6161100766013
+
+This barcode is not in ServOS.
+
+[ Add this item ]
+[ Link to existing item ]
+```
+
+The captured barcode pre-fills the wizard.
+
+---
+
+# 8. PACKAGE COST ENTRY
+
+Never ask a normal operator for:
+
+```text
+average unit cost
+```
+
+Ask:
+
+```text
+What does the pack cost you?
+```
+
+Example:
+
+```text
+Pack contains:
+6 cans
+
+Whole pack cost:
+KES 900
+```
+
+ServOS shows:
+
+```text
+ServOS calculated
+
+Pack quantity       6 cans
+Pack cost           KES 900
+Cost per can        KES 150
+```
+
+For ambiguous forms:
 
 ```text
 KES 900 is:
 
-● The price of the whole pack
-○ The price of one can
+● Cost of the entire pack
+○ Cost of one can
 ```
 
-Default to **whole pack** because the operator said they buy it as a pack.
-
-And immediately show:
-
-> **ServOS will record each can at KES 150 cost.**
-
-That confirmation sentence is critical.
-
-If they choose “price of one can”:
-
-> **ServOS will record this 6-pack at KES 5,400 total cost.**
-
-The operator will immediately catch the mistake.
+The selected interpretation must be visible before Save.
 
 ---
 
-# 5. Receiving stock becomes equally simple
+# 9. PACKAGE RECEIVING
 
-A delivery screen should not ask the storekeeper for normalized quantities.
+Receiving mirrors the physical supplier delivery.
 
-For Coke:
+Example:
 
 ```text
 COCA-COLA 330ML
 
 What arrived?
+4 six-packs
 
-[ 4 ] packs
-
-6 cans per pack
+Pack size:
+6 cans
 
 Supplier charged:
+KES 900 per pack
+```
 
-● KES [ 900 ] per pack
-○ KES [ 3,600 ] total for this line
+Preview:
 
-────────────────────────────
-
+```text
 ServOS will receive:
 
 4 packs
 24 cans
-KES 3,600 stock value
-KES 150 cost per can
 
-[ Receive 24 cans ]
+Supplier value:
+KES 3,600
+
+Calculated cost:
+KES 150 / can
 ```
 
-Whether they know multiplication is irrelevant.
+Commit performs:
 
-ServOS does it.
+- receipt validation;
+- package conversion;
+- stock movement;
+- receipt record;
+- weighted-average cost;
+- reference/invoice evidence;
+- audit;
+- synchronization event.
 
 ---
 
-# 6. Drinks need a special “opened container” model
+# 10. WEIGHT-BASED INGREDIENTS
 
-This is important.
-
-Tracking Jameson simply as `750 ml` is not sufficient if you sell both:
-
-- shots
-- whole bottles
-
-Imagine the system says there are 1,500 ml available.
-
-That could mean:
-
-```text
-2 sealed bottles
-```
-
-or:
-
-```text
-500 ml in bottle A
-500 ml in bottle B
-500 ml in bottle C
-```
-
-Those are **not commercially equivalent**.
-
-You can sell two whole bottles in the first case.
-
-You cannot sell two sealed bottles in the second case.
-
-So portioned drinks need two stock states:
-
-```text
-SEALED CONTAINERS
-+
-OPEN QUANTITY
-```
-
-For each location.
-
-Jameson could display:
-
-> **Jameson 750 ml**  
-> 8 sealed bottles  
-> 420 ml open  
-> ≈ 14 × 30 ml shots remaining in open stock
-
-That is far more useful to a bar operator than:
-
-> 6,420 ml
-
----
-
-# 7. Selling a shot should automatically open bottles
-
-Example configuration:
-
-```text
-Jameson
-Bottle: 750 ml
-Purchase cost: KES 1,800
-```
-
-Operator chooses:
-
-### How do you sell it?
-
-```text
-☑ Shot       30 ml    KES 200
-☑ Double     60 ml    KES 350
-☑ Bottle    750 ml    KES 4,500
-```
-
-ServOS calculates:
-
-| Selling option | Stock used | Cost |
-|---|---:|---:|
-| Shot | 30 ml | KES 72 |
-| Double | 60 ml | KES 144 |
-| Bottle | 1 sealed 750 ml bottle | KES 1,800 |
-
-It can also say:
-
-> **1 bottle contains 25 × 30 ml shots.**
-
-If the bartender sells a shot and there is 20 ml left in the current bottle:
-
-```text
-20 ml open
-+
-automatically open 1 sealed bottle
-↓
-770 ml available
-↓
-serve 30 ml
-↓
-740 ml remains open
-```
-
-No bartender performs this arithmetic.
-
-ServOS does.
-
----
-
-# 8. The POS becomes much cleaner too
-
-The cashier sees one Jameson tile.
-
-Tap it:
-
-```text
-JAMESON
-
-How are you selling it?
-
-┌────────────┐
-│ SHOT       │
-│ 30 ml      │
-│ KES 200    │
-└────────────┘
-
-┌────────────┐
-│ DOUBLE     │
-│ 60 ml      │
-│ KES 350    │
-└────────────┘
-
-┌────────────┐
-│ BOTTLE     │
-│ 750 ml     │
-│ KES 4,500  │
-└────────────┘
-```
-
-All three consume the same underlying Jameson inventory correctly.
-
-That is much better than creating “Jameson Shot”, “Jameson Double” and “Jameson Bottle” as unrelated products and then trying to keep stock synchronized.
-
----
-
-# 9. Give bars sensible presets
-
-When the operator selects:
-
-## Spirit / Liquor
-
-ServOS can immediately suggest:
-
-```text
-Bottle size:
-[ 750 ml ▼ ]
-
-Selling options:
-☑ Single shot    [30] ml
-☑ Double         [60] ml
-☐ Whole bottle
-```
-
-The business can have defaults:
-
-```text
-Default spirit shot     30 ml
-Default double           60 ml
-Default wine glass      150 ml
-Default beer glass      500 ml
-```
-
-Then adding another whisky becomes almost:
-
-```text
-Jameson
-750ml
-Cost 1800
-Shot 200
-Bottle 4500
-SAVE
-```
-
-That is the speed target.
-
----
-
-# 10. Beer and soda should not automatically use ml
-
-A 500 ml Tusker bottle normally does not need liquid-level tracking if nobody sells half a Tusker.
-
-So ServOS asks:
-
-> **Do you ever open this container and sell only part of it?**
-
-For beer:
-
-**No**
-
-ServOS tracks:
-
-```text
-1 bottle = 1 stock unit
-```
-
-The 500 ml is descriptive.
-
-For whisky:
-
-**Yes**
-
-ServOS tracks:
-
-```text
-1 bottle = 750 ml usable stock
-```
-
-This one question can eliminate a remarkable amount of configuration complexity.
-
----
-
-# 11. Gram-based food should use exactly the same philosophy
-
-Take beef.
-
-The operator knows:
-
-> “Supplier gives me a 5 kg pack and charges KES 3,500.”
-
-That is enough.
+Example:
 
 ```text
 ADD INGREDIENT
@@ -450,221 +452,449 @@ ADD INGREDIENT
 Beef
 
 How do you buy it?
+5 kg pack
 
-[ 5 ] [ kg ]
-
-What does that pack cost?
-KES [ 3,500 ]
-
-ServOS calculated:
-5 kg = 5,000 g
-Cost = KES 0.70 / g
-
-[ Save ]
+What does one pack cost?
+KES 3,500
 ```
 
-Internally:
+ServOS:
 
 ```text
-baseUnit = g
-quantity = 5000
-unitCost = 0.70
+5 kg = 5,000 g
+
+Cost per gram:
+KES 0.70
 ```
 
-But there is absolutely no reason to make the operator type those numbers.
+The user does not enter 5,000.
+
+The user does not calculate 0.70.
 
 ---
 
-# 12. Menu dishes then consume grams
+# 11. COUNT-BASED INGREDIENTS
 
-Take:
+Example:
 
-## Beef Stew
+```text
+Eggs
 
-The operator creates the menu item:
+How do you buy them?
+Tray
+
+Eggs per tray:
+30
+
+Tray cost:
+KES 450
+```
+
+ServOS:
+
+```text
+1 tray = 30 eggs
+Cost per egg = KES 15
+```
+
+A recipe can then consume:
+
+```text
+2 eggs
+```
+
+without additional conversion.
+
+---
+
+# 12. PORTIONED DRINK MODEL
+
+Portioned drinks include:
+
+- whisky;
+- gin;
+- vodka;
+- rum;
+- tequila;
+- wine by glass;
+- draft/keg beverages;
+- other liquids sold in measured servings.
+
+Example:
+
+```text
+Jameson
+
+Bottle:
+750 ml
+
+Purchase cost:
+KES 1,800
+```
+
+Selling formats:
+
+```text
+Single Shot     30 ml    KES 200
+Double          60 ml    KES 350
+Whole Bottle   750 ml    KES 4,500
+```
+
+ServOS calculates:
+
+```text
+Single cost:
+KES 72
+
+Double cost:
+KES 144
+
+Bottle cost:
+KES 1,800
+
+Theoretical single-shot yield:
+25
+```
+
+---
+
+# 13. SEALED CONTAINERS VS OPEN LIQUID
+
+A product that supports whole-container sales cannot use aggregate volume alone.
+
+These states differ:
+
+```text
+2 sealed × 750 ml bottles
+```
+
+and:
+
+```text
+3 opened bottles with 500 ml each
+```
+
+Both total 1,500 ml.
+
+Only the first state can satisfy two whole-bottle sales.
+
+Therefore portioned container stock tracks:
+
+```text
+sealedContainers
+openQuantity
+```
+
+per location.
+
+Display:
+
+```text
+JAMESON 750ML
+
+8 sealed bottles
+420 ml open
+
+Equivalent volume:
+6,420 ml
+```
+
+---
+
+# 14. AUTO-OPENING A CONTAINER
+
+If an operator sells:
+
+```text
+30 ml shot
+```
+
+and:
+
+```text
+open quantity = 20 ml
+sealed bottles = 8
+```
+
+ServOS may perform:
+
+```text
+open bottle
++750 ml open
+
+open quantity:
+770 ml
+
+serve:
+-30 ml
+
+remaining open:
+740 ml
+
+sealed bottles:
+7
+```
+
+The entire stock effect must be atomic.
+
+The operator never performs this arithmetic.
+
+---
+
+# 15. WHOLE BOTTLE SALES
+
+Whole-bottle sale consumes:
+
+```text
+1 sealed container
+```
+
+not merely:
+
+```text
+750 ml from total volume
+```
+
+If:
+
+```text
+sealed = 0
+open = 1,500 ml
+```
+
+a whole bottle sale must not succeed.
+
+ServOS may still have enough liquid for shots, but not a sealed bottle.
+
+---
+
+# 16. BEER AND SODA
+
+Do not track liquid volume when the product is always sold whole.
+
+Ask:
+
+```text
+Do you ever sell only part of an opened container?
+```
+
+For ordinary bottled beer:
+
+```text
+No
+```
+
+Therefore:
+
+```text
+measurementMode = COUNT
+```
+
+`500 ml` remains descriptive variant information.
+
+For whisky:
+
+```text
+Yes
+```
+
+Therefore:
+
+```text
+measurementMode = VOLUME
+```
+
+---
+
+# 17. MENU DISHES
+
+Example:
 
 ```text
 Beef Stew
 Selling price: KES 550
 ```
 
-Then:
-
-### What goes into one serving?
+Recipe:
 
 ```text
-Beef             200 g
-Tomatoes          80 g
-Onions             40 g
-Cooking oil        20 ml
-Spice mix           8 g
-```
-
-ServOS automatically calculates the plate cost.
-
-For example:
-
-```text
-Beef              KES 140
-Tomatoes            12
-Onions                8
-Oil                  10
-Spices                6
-────────────────────────
-Ingredient cost    KES 176
-
-Selling price      KES 550
-```
-
-The POS operator only sells:
-
-> Beef Stew × 1
-
-ServOS deducts the ingredients.
-
----
-
-# 13. But batch cooking needs an even easier mode
-
-Kitchen staff often do **not** think:
-
-> “Every plate contains 83 grams of dry rice.”
-
-They think:
-
-> “We cooked 2 kg rice and got about 20 portions.”
-
-So recipes need two modes.
-
-### Per-serving recipe
-
-```text
-1 plate:
-Beef 200g
-Potatoes 250g
-```
-
-### Batch recipe
-
-```text
-This batch uses:
-
-Rice      2 kg
-Oil       200 ml
-Salt      30 g
-
-This batch makes:
-[ 20 ] portions
+Beef          200 g
+Tomatoes       80 g
+Onion          40 g
+Oil            20 ml
+Spice Mix       8 g
 ```
 
 ServOS calculates:
 
+- ingredient cost;
+- total food cost;
+- theoretical gross difference;
+- stock availability;
+- theoretical portions.
+
+POS sale:
+
 ```text
-Rice per serving = 100g
-Oil per serving  = 10ml
-Salt per serving = 1.5g
+Beef Stew × 1
 ```
 
-Again, no division required.
-
-This is particularly useful for:
-
-- rice;
-- stew;
-- soups;
-- sauces;
-- pilau;
-- beans;
-- mashed potatoes;
-- dough;
-- cocktails made in batches;
-- juice;
-- sauces.
+atomically consumes the recipe ingredients.
 
 ---
 
-# 14. “How many portions can I sell?” becomes useful information
+# 18. BATCH RECIPES
 
-For 12 kg beef and a 200 g recipe portion:
+Support:
 
-ServOS should show:
+## Per-serving
 
-> **≈ 60 beef portions available**
+```text
+1 serving:
 
-For 8,400 ml whisky and a 30 ml shot:
+Beef       200 g
+Potato     250 g
+```
 
-> **≈ 280 shots equivalent**
+and:
 
-For potatoes:
+## Batch
 
-> **24.5 kg on hand**  
-> ≈ 98 × 250 g portions
+```text
+Rice       2 kg
+Oil        200 ml
+Salt        30 g
 
-These numbers are much more useful operationally than raw stock quantities alone.
+Batch yield:
+20 portions
+```
 
-You can still display the raw value underneath.
+ServOS derives:
+
+```text
+Rice per serving      100 g
+Oil per serving        10 ml
+Salt per serving      1.5 g
+```
+
+Kitchen staff do not perform division.
 
 ---
 
-# 15. Stock counting should use the same packaging language
+# 19. PORTIONS AVAILABLE
 
-Do not ask:
+Stock detail should provide operational estimates.
 
-> Counted quantity: `18450 ml`
-
-Ask:
+Example:
 
 ```text
-JAMESON 750ML
+Beef
+12 kg available
 
-Sealed bottles
-[ 8 ]
-
-Opened bottle remaining
-[ 420 ] ml
-
-ServOS count:
-6,420 ml total
-8 sealed bottles + 420 ml open
+At 200 g per serving:
+≈ 60 servings
 ```
 
-For Coke:
+```text
+Jameson
+8,400 ml equivalent
+
+At 30 ml per shot:
+≈ 280 shot equivalents
+```
+
+These are derived estimates.
+
+Always retain canonical stock quantity underneath for authoritative calculations.
+
+---
+
+# 20. STOCK COUNT
+
+Stock count uses package vocabulary.
+
+## Packaged item
 
 ```text
-Full 6-packs:
-[ 3 ]
+Coke
+
+Full six-packs:
+3
 
 Loose cans:
-[ 4 ]
+4
 
 ServOS count:
 22 cans
 ```
 
-For beef:
+## Weight
 
 ```text
-Full 5kg packs:
-[ 2 ]
+Beef
 
-Loose / open:
-[ 1.2 ] kg
+Full 5 kg packs:
+2
+
+Loose/open:
+1.2 kg
 
 ServOS count:
 11.2 kg
 ```
 
-That will make physical stocktaking dramatically faster.
+## Portion-controlled drink
+
+```text
+Jameson
+
+Sealed bottles:
+8
+
+Open liquid:
+420 ml
+```
+
+The committed count converts to canonical quantities and records adjustment movement(s).
 
 ---
 
-# 16. Transfer and waste need the same treatment
+# 21. TRANSFER
 
-Instead of:
+Transfer accepts operator-friendly units.
 
-> Quantity: 450
+Example:
 
-Use:
+```text
+Transfer Coke
+
+From:
+Main Store
+
+To:
+Main Bar
+
+2 six-packs
+3 loose cans
+
+ServOS will move:
+15 cans
+```
+
+Record:
+
+```text
+TRANSFER_OUT
+TRANSFER_IN
+```
+
+atomically.
+
+---
+
+# 22. WASTE
+
+Example:
 
 ```text
 Waste Jameson
@@ -676,248 +906,602 @@ What was lost?
 ○ Bottle
 
 Shots:
-[ 2 ]
+2
 
-Shot size: 30 ml
+Shot size:
+30 ml
+```
+
+ServOS:
+
+```text
+Waste:
+60 ml
+```
+
+Require reason:
+
+```text
+Spillage
+Breakage
+Spoilage
+Expired
+Kitchen loss
+Other
+```
+
+---
+
+# 23. ADMIN STOCK CORRECTION
+
+## Purpose
+
+The application must support intentional correction of stock quantities when the recorded quantity is wrong because of a data-entry or migration mistake.
+
+Typical examples:
+
+- operator entered 40 instead of 4;
+- six-pack was interpreted as one can;
+- crate quantity was entered twice;
+- opening inventory had the wrong figure;
+- migration/import conversion was incorrect;
+- receiving was entered against the wrong location;
+- an old external system supplied incorrect opening data.
+
+This is different from:
+
+- physical stock count;
+- waste;
+- receiving;
+- transfer.
+
+The user intent is:
+
+> **The recorded system quantity is wrong and an authorized Admin needs to correct it.**
+
+---
+
+# 24. ADMIN CORRECTION UX
+
+From item detail:
+
+```text
+Coca-Cola 330 ml
+
+MAIN BAR
+45 cans on hand
+
+[ Receive ]
+[ Count ]
+[ Transfer ]
+[ Waste ]
+
+ADMIN
+[ Correct recorded quantity ]
+```
+
+Dialog:
+
+```text
+CORRECT RECORDED QUANTITY
+
+Coca-Cola 330 ml
+Main Bar
+
+ServOS currently has:
+45 cans
+
+Correct quantity:
+[ 39 ] cans
+
+────────────────────────
 
 ServOS will record:
-60 ml waste
 
-Reason:
-[ Spillage ▼ ]
+Before        45
+After         39
+Difference    -6 cans
+
+Reason
+[ Data entry mistake ▼ ]
+
+Details
+[ Delivery was entered as 5 packs rather than 4 ]
+
+Reference
+[ Optional invoice / receipt / note ]
+
+────────────────────────
+
+The previous records will not be deleted.
+This correction will appear in stock history and audit.
+
+[ Cancel ]
+[ Correct to 39 cans ]
 ```
-
-Similarly:
-
-```text
-Transfer Coke
-
-[ 2 ] six-packs
-[ 3 ] loose cans
-
-Bar Store
-→ Main Bar
-
-Total:
-15 cans
-```
-
-Operators should stay in the **physical vocabulary of the store**.
 
 ---
 
-# 17. Average cost should almost disappear from the UI
+# 25. CORRECTION PERMISSION
 
-The current software exposes **Average unit cost**.
-
-I would hide it from normal item creation.
-
-Average cost is a result.
-
-Not ordinary user input.
-
-The operator inputs:
+Introduce:
 
 ```text
-What arrived?
-How much did you pay?
+inventory.correct_quantity
 ```
 
-ServOS calculates weighted average cost from receiving events.
+Default role policy:
 
-Only during initial setup/opening inventory do we need a cost.
+| Role | Correct quantity |
+|---|---|
+| Admin | Yes |
+| Manager | No |
+| Server / Operator | No |
 
-Even then:
+This must be distinct from:
 
-> “What did one case/bag/bottle cost?”
+```text
+inventory.count
+inventory.adjust
+inventory.receive
+inventory.transfer
+inventory.waste
+```
 
-not:
+because the ability to perform an ordinary stock count must not automatically allow historical data correction.
 
-> “Average cost per base unit?”
-
-Advanced accounting screens can expose the normalized number.
+The capability may later be delegated explicitly, but default policy remains Admin-only.
 
 ---
 
-# 18. SKU/code generation should disappear too
+# 26. CORRECTION COMMAND
 
-Current add-item flows ask for code/SKU.
+Canonical operation:
 
-For most businesses:
+```text
+inventory.correctQuantity
+```
 
-ServOS should generate it.
+Example payload:
+
+```ts
+{
+  stockItemId: "coke-330",
+  locationId: "main-bar",
+  targetQuantity: 39,
+  expectedVersion: 18,
+  reasonCode: "DATA_ENTRY_ERROR",
+  reason: "Delivery entered as five six-packs instead of four",
+  reference: "INV-3821"
+}
+```
+
+Backend calculates:
+
+```text
+current = authoritative quantity
+delta = target - current
+```
+
+The client does not determine authoritative delta.
+
+---
+
+# 27. CORRECTION MOVEMENT
+
+Never:
+
+```text
+UPDATE stockItems
+SET currentStock = ...
+```
+
+as an unaudited mutation.
+
+Instead produce:
+
+```text
+ADMIN_CORRECTION
+```
+
+with:
+
+```text
+stockItemId
+locationId
+
+beforeQuantity
+afterQuantity
+quantityDelta
+
+baseUnit
+
+reasonCode
+reason
+reference
+
+actorId
+actorName
+deviceId
+
+sourceCommandId
+occurredAt
+```
 
 Example:
 
 ```text
-Jameson 750ml
+beforeQuantity = 45
+afterQuantity  = 39
+quantityDelta  = -6
+movementType   = ADMIN_CORRECTION
+```
+
+The resulting current quantity changes through the inventory transaction boundary.
+
+---
+
+# 28. CORRECTION REASON CODES
+
+Initial set:
+
+```text
+DATA_ENTRY_ERROR
+OPENING_BALANCE_ERROR
+RECEIVING_ENTRY_ERROR
+PACKAGE_CONVERSION_ERROR
+WRONG_LOCATION
+IMPORT_ERROR
+MIGRATION_RECONCILIATION
+OTHER
+```
+
+A human-readable explanation remains mandatory.
+
+`OTHER` requires detailed notes.
+
+---
+
+# 29. ADMIN RE-AUTHENTICATION
+
+Because this action changes authoritative inventory without a physical count workflow, require confirmation of Admin identity.
+
+Terminal:
+
+```text
+Admin PIN
+```
+
+Web:
+
+- current authenticated Admin session;
+- sensitive-action re-authentication where supported;
+- otherwise explicit confirmation with short-lived approval token.
+
+Do not rely only on a button being hidden.
+
+Backend permission remains authoritative.
+
+---
+
+# 30. CORRECTION CONCURRENCY
+
+Correction must use optimistic concurrency.
+
+Scenario:
+
+```text
+Admin opens item.
+
+Current:
+45 cans
+version 18
+
+Cashier sells 2 cans.
+
+Current:
+43 cans
+version 19
+
+Admin submits:
+target 39
+expected version 18
+```
+
+Result:
+
+```text
+CONFLICT
+```
+
+UI:
+
+```text
+Stock changed while this correction was open.
+
+Previous:
+45
+
+Current:
+43
+
+Review the quantity again before correcting.
+```
+
+Do not apply:
+
+```text
+45 → 39
+```
+
+against stale information.
+
+---
+
+# 31. CORRECTION IDEMPOTENCY
+
+Each correction has stable command ID.
+
+Retrying after a network timeout must return the existing result.
+
+It must never apply the delta twice.
+
+---
+
+# 32. CORRECTION FOR PACKAGED STOCK
+
+The correction form should accept package quantities.
+
+Example:
+
+```text
+Recorded:
+3 six-packs + 5 loose cans
+
+ServOS:
+23 cans
+
+Correct:
+2 six-packs + 5 loose cans
+
+ServOS:
+17 cans
+
+Adjustment:
+-6 cans
+```
+
+Persist canonical result:
+
+```text
+17 pieces
+```
+
+with correction metadata.
+
+---
+
+# 33. CORRECTION FOR WEIGHT
+
+Example:
+
+```text
+Beef
+
+Recorded:
+12.5 kg
+
+Correct:
+11.8 kg
+
+ServOS adjustment:
+-700 g
+```
+
+Persist:
+
+```text
+target = 11,800 g
+delta  = -700 g
+```
+
+The Admin can work in kg.
+
+---
+
+# 34. CORRECTION FOR PORTIONED DRINKS
+
+Because sealed containers and open quantity have different commercial meanings, the correction screen must preserve them.
+
+Example:
+
+```text
+Jameson 750 ml
+
+Recorded:
+
+5 sealed bottles
+420 ml open
+
+Correct:
+
+4 sealed bottles
+390 ml open
+```
+
+Preview:
+
+```text
+Sealed:
+5 → 4
+
+Open:
+420 ml → 390 ml
+
+Equivalent canonical change:
+-780 ml
+```
+
+Record:
+
+- sealed before/after;
+- open before/after;
+- canonical delta;
+- reason;
+- actor.
+
+Do not reduce this to an unexplained `-780 ml` movement in the UI.
+
+---
+
+# 35. CORRECTION HISTORY
+
+Item detail:
+
+```text
+RECENT STOCK ACTIVITY
+
+Today 14:32
+ADMIN CORRECTION
+45 → 39 cans
+-6
+
+Admin:
+Jane Mwangi
+
+Reason:
+Delivery entry error
+
+Reference:
+INV-3821
+```
+
+Admin corrections appear in:
+
+- item history;
+- stock movement ledger;
+- audit;
+- daily activity;
+- Admin reports;
+- synchronization activity;
+- variance review.
+
+---
+
+# 36. EXISTING `inventory.adjust`
+
+Current Native code contains an `inventory.adjust` path that sets a counted target and emits a count adjustment.
+
+It currently checks `inventory.count`.
+
+That contract must not remain ambiguous.
+
+Migration approach:
+
+```text
+existing inventory.adjust
+↓
+compatibility wrapper / deprecated operation
+↓
+inventory.correctQuantity
+```
+
+The dedicated new operation owns Admin correction semantics.
+
+Do not reuse ordinary physical count permissions.
+
+Cloud v2 must gain matching semantics before Web exposes the action.
+
+---
+
+# 37. OPENING INVENTORY
+
+Opening stock remains setup-only.
+
+Operator experience:
+
+```text
+How much stock do you have right now?
+```
+
+using package-friendly quantities.
+
+Example:
+
+```text
+Coke
+
+12 full six-packs
+5 loose cans
+```
+
+ServOS derives:
+
+```text
+77 cans
+```
+
+Opening movement:
+
+```text
+OPENING_BALANCE
+```
+
+Opening stock must not be used as an after-Go-Live correction mechanism.
+
+After Go Live use:
+
+- Receive.
+- Count.
+- Waste.
+- Transfer.
+- Admin Correction.
+
+---
+
+# 38. COST MANAGEMENT
+
+Normal item creation should not expose normalized average cost.
+
+Cost changes after stock exists come from:
+
+- procurement receiving;
+- supplier receipts;
+- controlled corrections where specifically supported;
+- migration reconciliation.
+
+Average cost is calculated state.
+
+Advanced manager detail may display it.
+
+---
+
+# 39. SKU / INTERNAL CODE
+
+Generate automatically where possible.
+
+Example:
+
+```text
+Jameson 750 ml
 → JAM-750-001
 ```
 
-or simply a UUID-backed internal ID with a friendly short reference.
-
-Show:
+Display under:
 
 ```text
-Item code
-JAM-750-001
-
-[ Change ]
+More options
 ```
 
-under **More options**.
+Allow authorized override.
 
-Same for:
-
-- route;
-- tax class;
-- internal category codes;
-- stock linkage;
-- canonical unit.
-
-Only expose them when someone genuinely needs them.
+Normal operator need not invent internal identifiers.
 
 ---
 
-# 19. Barcodes should become an accelerator
+# 40. ITEM DETAIL
 
-When an unknown barcode is scanned during receiving:
-
-Instead of:
-
-> Unknown barcode.
-
-Do this:
-
-```text
-NEW BARCODE
-
-6161100766013
-
-This barcode is not in ServOS.
-
-[ Add this item ]
-```
-
-The Add Item flow starts with the barcode already filled.
-
-Likewise:
-
-```text
-Scan crate
-→ known purchase pack
-
-Scan bottle
-→ known individual unit
-```
-
-A stock item can eventually have multiple recognized codes:
-
-```text
-case barcode
-pack barcode
-individual bottle barcode
-```
-
-with each barcode knowing its conversion.
-
-That makes receiving nearly frictionless.
-
----
-
-# 20. Product creation and inventory creation should become one atomic action
-
-Native already has the beginning of this with its atomic stock creation path.
-
-Web still exposes:
-
-```text
-New Product
-New Stock Item
-New Stock Location
-```
-
-as distinct concepts.
-
-For ordinary operators, **New Product + New Stock Item should disappear**.
-
-They should see:
-
-> **Add Item**
-
-Behind the scenes:
-
-```text
-item wizard
-      ↓
-product
-+
-stock item
-+
-purchase packaging
-+
-selling options
-+
-barcode aliases
-+
-opening stock
-+
-cost
-+
-recipe/consumption configuration
-      ↓
-ONE transaction
-```
-
-If anything fails, none of it is created.
-
----
-
-# 21. Keep “Stock Items” only as an advanced manager view
-
-I would reorganize the whole area into:
-
-```text
-ITEMS & MENU
-
-[ All ] [ Drinks ] [ Food ] [ Ingredients ] [ Retail ]
-
-+ Add item
-
-
-STOCK
-
-On hand
-Low stock
-Count stock
-Receive delivery
-Transfer
-Waste
-
-
-RECIPES
-
-Menu dishes
-Drink portions
-Batch recipes
-
-
-ADVANCED
-
-Stock masters
-Packaging definitions
-Barcodes
-Cost history
-Archived items
-```
-
-Normal staff may never need Advanced.
-
----
-
-# 22. The item detail page should tell a story
-
-Instead of database-looking fields:
+Example:
 
 ```text
 JAMESON 750ML
@@ -927,626 +1511,598 @@ ON HAND
 420 ml open
 
 SELLING
-30 ml Shot       KES 200
-60 ml Double     KES 350
-750 ml Bottle    KES 4,500
+Single Shot       30 ml       KES 200
+Double            60 ml       KES 350
+Bottle           750 ml       KES 4,500
 
 BUYING
-1 bottle         750 ml
-Latest cost      KES 1,800
+750 ml bottle
+Latest cost                    KES 1,800
 
 YIELD
-25 shots / bottle
+25 single shots / bottle
 
 COST
-30 ml shot       KES 72
-60 ml double     KES 144
-Bottle           KES 1,800
+Single                         KES 72
+Double                         KES 144
+Bottle                         KES 1,800
 
 LOCATION
 Main Bar
 
-[ Receive ] [ Count ] [ Transfer ] [ Edit ]
+[ Receive ]
+[ Count ]
+[ Transfer ]
+[ Waste ]
+
+ADMIN
+[ Correct recorded quantity ]
 ```
 
-That is useful.
-
-A “stock master” page is not.
+Do not make the primary detail page look like a database row.
 
 ---
 
-# 23. Build calculations into every form
+# 41. INVENTORY NAVIGATION
 
-Forms should have a permanent **ServOS calculated** box.
-
-For six-pack:
-
-> **6 cans × KES 150 = KES 900**
-
-For 5 kg meat:
-
-> **5 kg = 5,000 g**  
-> Cost per 200 g portion = **KES 140**
-
-For whisky:
-
-> **750 ml ÷ 30 ml = 25 shots**
-
-The operator does not perform the calculation.
-
-But showing the calculation lets them verify that ServOS understood them.
-
-That distinction is important.
-
----
-
-# 24. Add intelligent mistake detection
-
-ServOS can catch common errors before saving.
-
-Examples:
-
-| Input | ServOS response |
-|---|---|
-| Six-pack cost KES 6,000, sale per can KES 200 | “This would make each can cost KES 1,000. Is KES 6,000 the pack price?” |
-| 750ml bottle, shot = 900ml | “A serving cannot be larger than the bottle.” |
-| 30ml shot cost > selling price | “You would sell below ingredient cost.” |
-| 5kg beef entered as 5g | “Did you mean 5 kg?” |
-| Case of 24 entered with quantity 1 | “Are you receiving 1 case or 1 bottle?” |
-| 20 cases × KES 900 entered as total KES 900 | “That means each case costs KES 45. Confirm?” |
-
-Don't block everything.
-
-Use confident warnings for suspicious numbers.
-
----
-
-# 25. The Help section needs a complete presentation rethink
-
-You are right about this.
-
-Current Web Help has a proper search/sidebar shell, but when you open an article the body is essentially rendered using:
+Recommended structure:
 
 ```text
-whitespace-pre-wrap
+ITEMS & MENU
+
+All
+Drinks
+Food
+Ingredients
+Retail
+
++ Add Item
+
+
+STOCK
+
+On Hand
+Low Stock
+Count Stock
+Receive Delivery
+Transfer
+Waste
+
+
+RECIPES
+
+Menu Dishes
+Drink Portions
+Batch Recipes
+
+
+ADVANCED
+
+Stock Masters
+Package Definitions
+Barcode Aliases
+Cost History
+Archived Items
+Admin Corrections
 ```
 
-So a document written like documentation still **looks like documentation**.
+Normal staff may never need Advanced.
 
-We should keep the documentation as the source of truth, but stop presenting the source format directly.
+---
 
-The Help Center should feel like another operational workspace.
+# 42. ROLE-SPECIFIC SIMPLICITY
 
-Something closer to:
+## Cashier
+
+Needs:
+
+- POS;
+- serving choices;
+- basic item availability;
+- contextual Help.
+
+Does not need:
+
+- package cost;
+- average cost;
+- recipe configuration;
+- stock correction.
+
+## Storekeeper
+
+Needs:
+
+- receive;
+- count;
+- transfer;
+- waste;
+- scanner.
+
+Does not need:
+
+- accounting internals;
+- menu layout;
+- Admin correction.
+
+## Kitchen / Bar Manager
+
+Needs:
+
+- Items & Menu;
+- recipes;
+- portions;
+- package definitions;
+- costs where permitted.
+
+## Admin
+
+Needs:
+
+- all configuration;
+- advanced inventory;
+- controlled correction;
+- imports;
+- audit;
+- reporting.
+
+---
+
+# 43. HELP CENTER
+
+Help must not look like README/Markdown output.
+
+Keep documentation files as a source if useful.
+
+Render structured application components.
+
+Home:
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ HELP & TRAINING                                             │
-│                                                             │
-│ 🔎 What are you trying to do?                              │
-│ [ Sell a shot, receive stock, refund, count bottles... ]   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│ COMMON TASKS                                                │
-│                                                             │
-│ [ Make a sale ] [ Receive stock ] [ Count stock ]          │
-│ [ Sell shots  ] [ Add food item ] [ M-Pesa ]               │
-│ [ Refund       ] [ Check in guest] [ Close day ]            │
-│                                                             │
-│ LEARN BY DOING                                              │
-│                                                             │
-│  ▶ Sell a bottle by shots                  3 min            │
-│  ▶ Add a six-pack correctly                2 min            │
-│  ▶ Set up a gram-based menu recipe         4 min            │
-│                                                             │
-│ YOUR ROLE                                                   │
-│ Cashier · 6 guides available · 4 completed                 │
-└─────────────────────────────────────────────────────────────┘
+HELP & TRAINING
+
+What are you trying to do?
+[ Search ]
+
+COMMON TASKS
+
+[ Add an item ]
+[ Receive delivery ]
+[ Count stock ]
+[ Correct stock mistake ]
+[ Sell a shot ]
+[ Sell whole bottle ]
+[ Add food ingredient ]
+[ Build a recipe ]
 ```
 
-Now it feels like software.
-
-Not GitHub.
-
 ---
 
-# 26. Help articles should become task cards
+# 44. STRUCTURED HELP CONTENT
 
-An article on selling shots should render roughly:
-
-## Sell liquor by the shot
-
-**Use this when:**  
-You buy a whole bottle but customers can purchase smaller servings.
-
-### Example
-
-> Jameson bottle: **750 ml**  
-> Shot: **30 ml**  
-> ServOS knows one bottle contains **25 shots**.
-
-### Do this
-
-**1. Open Items & Menu**  
-Press **Add Item**.
-
-**2. Choose Drink sold in portions**
-
-**3. Enter the bottle**  
-750 ml, KES 1,800.
-
-**4. Add selling options**  
-30 ml Shot, 60 ml Double, Whole Bottle.
-
-**5. Save**
-
-### ServOS handles
-
-✓ ml conversion  
-✓ cost per shot  
-✓ inventory deduction  
-✓ opening the next bottle  
-✓ whole-bottle stock  
-✓ margin calculation
-
-**[ Start guided setup ]**
-
-That is fundamentally different from dumping Markdown into a scroll area.
-
----
-
-# 27. Help content should be structured
-
-Instead of:
+Help entries move toward:
 
 ```ts
 {
-  body: "very long markdown-like string"
-}
-```
-
-move toward:
-
-```ts
-{
+  id,
   title,
   summary,
   whenToUse,
-
-  example: {...},
-
-  steps: [
-    {
-      title,
-      instruction,
-      target,
-      action
-    }
-  ],
-
-  systemHandles: [...],
-  commonMistakes: [...],
-  relatedTasks: [...],
-
+  example,
+  steps,
+  systemHandles,
+  commonMistakes,
+  relatedTasks,
   guideId,
   estimatedMinutes
 }
 ```
 
-The underlying documentation can still be generated from Markdown if we want.
+UI components:
 
-The UI should render **components**, not a giant text blob.
+- task title;
+- "when to use";
+- example card;
+- numbered action cards;
+- calculated result;
+- common mistake warning;
+- success definition;
+- Show Me;
+- related tasks.
+
+Avoid:
+
+```text
+whitespace-pre-wrap
+```
+
+as the primary article presentation.
 
 ---
 
-# 28. Context help becomes much more important
+# 45. EXAMPLE HELP: SELL LIQUOR BY SHOT
 
-Every complex input can have a small `?`.
+```text
+SELL LIQUOR BY THE SHOT
 
-For example:
+Use this when:
+You buy a full bottle but sell smaller measured servings.
 
-### What does one pack cost?
+Example:
 
-`[ ? ]`
+Jameson bottle    750 ml
+Single shot        30 ml
 
-Tap it:
+ServOS calculates:
+25 single shots / bottle
 
-> **Enter what you actually pay your supplier for the entire pack.**
->
-> Example: a six-pack costs KES 900. Enter **900**, not 150. ServOS calculates the KES 150 per-can cost.
+DO THIS
 
-Or:
+1. Add Item
+2. Choose Spirit / Liquor
+3. Enter 750 ml bottle
+4. Enter purchase cost
+5. Add 30 ml Single
+6. Add 60 ml Double
+7. Add Whole Bottle if offered
+8. Review ServOS calculation
+9. Save
 
-### Portion size
+SERVOS HANDLES
 
-> How much stock one sale uses.  
-> Example: one whisky shot may use 30 ml.
+✓ ml conversion
+✓ cost per shot
+✓ stock deduction
+✓ opening a new bottle
+✓ sealed bottle availability
+✓ whole bottle sales
+✓ margin calculations
 
-This should be a small popover.
-
-Not “go read chapter 17”.
+[ Show me ]
+```
 
 ---
 
-# 29. Add “show me” directly inside workflows
+# 46. CONTEXT HELP
 
-Help should sometimes launch a live guide.
-
-If the operator is adding Jameson:
+Example:
 
 ```text
-Need help with portions?
-
-[ Show me how shots work ]
+Whole pack cost [?]
 ```
 
-The guide points at the actual fields:
+Popover:
 
 ```text
-Bottle size
-↓
-Purchase cost
-↓
-Shot size
-↓
-Selling price
+Enter what your supplier charges for the complete pack.
+
+Example:
+
+6 cans cost KES 900.
+
+Enter:
+900
+
+ServOS calculates:
+KES 150 per can.
 ```
 
-and ServOS displays the result live.
+Example:
 
-The best help system is partly documentation and partly **driving instructor**.
+```text
+Serving size [?]
+```
+
+Popover:
+
+```text
+This is how much inventory one sale consumes.
+
+Example:
+
+Single whisky shot:
+30 ml
+```
+
+Help answers the immediate question without leaving the workflow.
 
 ---
 
-# 30. We should create several operator-focused templates
+# 47. “SHOW ME” TRAINING
 
-This is the one place I would intentionally use presets.
+Product/inventory guides:
 
-The initial set:
+```text
+inventory.add-item
+inventory.add-packaged-drink
+inventory.receive-delivery
+inventory.count-location
+inventory.transfer-stock
+inventory.record-waste
+inventory.admin-correction
 
-1. **Beer / soda sold whole**  
-   Packs/crates → individual bottles/cans.
+bar.configure-spirit
+bar.sell-shot
+bar.sell-whole-bottle
 
-2. **Spirits**  
-   Bottle/case → shot/double/bottle.
+kitchen.add-weight-ingredient
+kitchen.create-dish
+kitchen.create-batch
+```
 
-3. **Wine**  
-   Bottle/case → glass/bottle.
+Interactive guides advance after successful operations.
 
-4. **Keg / dispenser**  
-   Litre container → ml servings.
-
-5. **Food ingredient by weight**  
-   kg pack → grams → recipes.
-
-6. **Food ingredient by count**  
-   tray/box → pieces → recipes.
-
-7. **Menu dish**  
-   recipe ingredients → one selling unit.
-
-8. **Batch recipe**  
-   total ingredients → N portions.
-
-9. **Retail packaged item**  
-   carton/pack → pieces.
-
-10. **Service**  
-   no stock tracking.
-
-These are not database classes.
-
-They are **operator shortcuts**.
+A button click is not enough.
 
 ---
 
-# 31. The resulting 30-second flows
+# 48. ATOMIC ITEM CREATION
 
-### Adding a beer
-
-```text
-Add item
-→ Packaged drink
-→ Tusker 500ml
-→ Crate
-→ 20 bottles
-→ Crate costs 3,000
-→ Bottle sells 250
-→ Save
-```
-
-Done.
-
-### Adding whisky
+The final creation command should atomically create all applicable pieces:
 
 ```text
-Add item
-→ Spirit / portioned drink
-→ Jameson
-→ 750ml bottle
-→ Cost 1,800
-→ Shot 30ml / 200
-→ Double 60ml / 350
-→ Bottle 4,500
-→ Save
+product
+stock item
+measurement configuration
+package definitions
+barcode aliases
+selling formats
+recipe links
+opening inventory
+cost data
 ```
 
-Done.
-
-### Adding beef
+One failure:
 
 ```text
-Add item
-→ Ingredient by weight
-→ Beef
-→ 5 kg pack
-→ Pack costs 3,500
-→ Save
+ROLLBACK EVERYTHING
 ```
 
-Done.
+No orphaned product.
 
-### Adding Beef Stew
+No orphaned stock master.
 
-```text
-Add item
-→ Menu dish
-→ Beef Stew
-→ Price 550
-→ Beef 200g
-→ Tomato 80g
-→ Onion 40g
-→ Oil 20ml
-→ Save
-```
-
-Done.
-
-That is roughly the cognitive complexity I want.
+No product linked to a failed stock setup.
 
 ---
 
-# 32. What I would change in the current source
+# 49. WEB + TERMINAL PARITY
 
-The good news is we do **not** need to rip the inventory engine apart.
-
-The existing code already contains several of the right primitives:
+Every Product/Inventory workflow needs parity status:
 
 ```text
-baseUnit
-scanUnitQuantity
-containerQuantity
-containerUnit
-openingContainers
-servings
-portionVolume
-recipeIngredients
-average cost
-atomic product + stock creation
+Terminal UI
+Native backend
+Cloud backend
+Web UI
+Offline eligibility
+Acceptance test
 ```
 
-The problem is mainly that these primitives are being shown to humans too directly.
-
-I would build one shared domain component:
-
-## `SmartItemWizard`
-
-with:
+Particularly:
 
 ```text
-ItemTypeStep
-PurchasePackagingStep
-SellingBehaviorStep
-RecipeStep
-OpeningStockStep
-CalculationPreview
-ReviewAndSave
+Add Item
+Receive
+Count
+Transfer
+Waste
+Admin Correction
+Portioned drinks
+Recipes
+Batch recipes
+Barcode packages
 ```
-
-and reuse its model in both:
-
-```text
-Terminal
-Web
-```
-
-The backend receives the technical representation.
-
-The human never has to construct it.
 
 ---
 
-# 33. Add one abstraction that unlocks most of this
+# 50. ACCEPTANCE TESTS
 
-I would introduce:
+## Six-pack calculation
 
-## `measurementMode`
-
-Internally:
+Input:
 
 ```text
-COUNT
-WEIGHT
-VOLUME
+pack = 6
+packs received = 4
+pack cost = 900
 ```
 
-That maps automatically to:
+Expected:
 
 ```text
-COUNT  → piece
-WEIGHT → g
-VOLUME → ml
+quantity = 24
+unit cost = 150
+total = 3,600
 ```
 
-Then operators can enter units they understand:
+## Kilogram conversion
 
 ```text
-kg
-g
-
-L
-ml
-
-pack
-case
-crate
-bottle
-can
-piece
-tray
-bag
+5 kg
+→ 5,000 g
 ```
 
-ServOS canonicalizes.
-
-So:
-
-```text
-2.5 kg
-```
-
-becomes:
-
-```text
-2500 g
-```
-
-And:
+## Litre conversion
 
 ```text
 1.5 L
+→ 1,500 ml
 ```
 
-becomes:
+## Whisky yield
 
 ```text
-1500 ml
+750 ml / 30 ml
+→ 25
 ```
 
-without exposing that transformation.
+## Whole bottle
+
+```text
+sealed = 8
+sell bottle
+→ sealed = 7
+```
+
+## Shot
+
+```text
+open = 420 ml
+sell 30 ml
+→ open = 390 ml
+```
+
+## Automatic bottle open
+
+```text
+sealed = 8
+open = 20 ml
+sell = 30 ml
+
+→ sealed = 7
+→ open = 740 ml
+```
+
+## Recipe sale
+
+```text
+Beef Stew sale
+→ Beef -200 g
+→ Tomato -80 g
+→ Onion -40 g
+→ Oil -20 ml
+```
+
+## Admin correction
+
+```text
+current = 45
+target = 39
+
+→ ADMIN_CORRECTION
+→ delta -6
+→ final 39
+```
+
+## Stale correction
+
+```text
+dialog version 18
+current server version 19
+
+→ CONFLICT
+```
+
+## Duplicate correction retry
+
+```text
+same command ID twice
+
+→ one movement only
+```
+
+## Permission
+
+```text
+Admin
+→ allowed
+
+Manager default
+→ forbidden
+
+Server
+→ forbidden
+```
 
 ---
 
-# 34. Packaging should become first-class
-
-Introduce a reusable package definition:
+# 51. IMPLEMENTATION ORDER
 
 ```text
-Stock:
-Coca-Cola
-
-Base:
-piece
-
-Purchase packages:
-6-pack      = 6 pieces
-crate       = 24 pieces
-
-Scan aliases:
-individual barcode → 1 piece
-pack barcode       → 6 pieces
-crate barcode      → 24 pieces
+1. MeasurementMode domain types
+2. Conversion functions
+3. PurchasePackage contract
+4. Barcode alias contract
+5. SmartItemWizard state model
+6. CalculationPreview
+7. Packaged-drink flow
+8. Weight ingredient flow
+9. Atomic create command
+10. Receiving package UX
+11. Package-aware counts
+12. Package-aware transfer/waste
+13. inventory.correct_quantity permission
+14. inventory.correctQuantity backend
+15. Terminal Admin correction UI
+16. Web Admin correction UI
+17. Admin correction tests
+18. Sealed/open drink domain model
+19. Spirit serving integration
+20. Whole-bottle inventory rules
+21. Food recipes
+22. Batch recipes
+23. POS consumption integration
+24. Structured Help rendering
+25. Product/Inventory guides
+26. Full Terminal/Web parity suite
 ```
-
-For Jameson:
-
-```text
-Base:
-ml
-
-Physical container:
-750 ml bottle
-
-Case:
-12 × 750 ml
-```
-
-For beef:
-
-```text
-Base:
-g
-
-Purchase pack:
-5 kg = 5,000 g
-```
-
-Once this exists, receiving, counting, transfer, scanning and procurement all become easier.
 
 ---
 
-# 35. One more important improvement: role-specific simplicity
+# 52. NON-NEGOTIABLE INVENTORY RULES
 
-A cashier does not need:
+1. Every stock-changing business action leaves an immutable movement.
 
-```text
-average cost
-purchase packaging
-recipe configuration
-reorder rules
-```
+2. Never silently overwrite stock history.
 
-A storekeeper does not need:
+3. Admin correction changes the current balance through an audited correction movement.
 
-```text
-tax configuration
-menu layout
-```
+4. Package conversions are calculated by ServOS.
 
-A manager might.
+5. Costs are calculated from real purchase events wherever possible.
 
-So ServOS should progressively disclose functionality by permission.
+6. Canonical units remain authoritative beneath operator-friendly units.
 
-### Cashier
+7. Whole sealed containers and opened liquid remain distinguishable when commercially necessary.
 
-POS, basic help.
+8. Product creation involving stock must be atomic.
 
-### Storekeeper
+9. Duplicate commands must be idempotent.
 
-Receive, count, transfer, waste.
+10. Stale quantity changes must conflict.
 
-### Kitchen/Bar manager
+11. Terminal and Web must produce identical inventory results for identical commands.
 
-Items, recipes, portions.
-
-### Admin/Owner
-
-Costs, configuration, imports, reports.
-
-This makes the same application feel simpler without removing capability.
+12. Help should teach the operator inside the workflow.
 
 ---
 
-# The design principle I would lock in
+# FINAL PRODUCT PRINCIPLE
 
-> **ServOS stores technical units. People enter physical reality.**
+The bartender says:
 
-The database can know:
+> I sold a double.
 
-```text
-baseUnit = ml
-scanUnitQuantity = 750
-averageUnitCostMinorPerBaseUnit = ...
-```
+The kitchen manager says:
 
-The bartender should know:
+> One plate uses 200 g of beef.
 
-> “I bought 12 bottles for KES 21,600.”
+The storekeeper says:
 
-The kitchen manager should know:
+> I received four six-packs.
 
-> “This bag is 5 kg and costs KES 3,500.”
+The Admin says:
 
-The storekeeper should know:
+> This was keyed as 45 cans, but it should have been 39.
 
-> “I counted 3 crates and 7 loose bottles.”
+ServOS translates those statements into:
 
-The cashier should know:
+- canonical quantities;
+- inventory movements;
+- costs;
+- audit events;
+- synchronization commands;
+- reports;
+- historical evidence.
 
-> “Customer wants a double.”
-
-**ServOS should be the one doing the multiplication and division.**
-
-That should become a product-wide rule, not merely an inventory improvement.
-
-The strongest next implementation slice is therefore **Smart Item + Packaging + Serving/Recipe UX**, because it simultaneously improves Catalog, Inventory, Procurement, POS, stock counts, food costing, drink costing, imports and Help. After that, the current README-like Help renderer should be replaced by structured task cards and interactive “Show me” guides.
+**The person operates the business. ServOS handles the arithmetic and record integrity.**
