@@ -1,0 +1,18 @@
+import React from 'react';
+import { ArrowRight, CircleHelp, Wifi, WifiOff, X } from 'lucide-react';
+import { ds } from '../../design-system/tokens';
+import { StatusBadge } from '../../design-system/components';
+import type { WorkspaceTab } from './workspaceRegistry';
+
+export function ContextHelpDrawer({ open, workspace, online, permissions, onClose, onOpenHelp }: { open: boolean; workspace: WorkspaceTab; online: boolean; permissions: string[]; onClose: () => void; onOpenHelp: (query: string) => void }) {
+  if (!open) return null;
+  const query = workspace === 'POS' ? 'first sale' : workspace === 'Inventory' ? 'count stock' : workspace === 'Procurement' ? 'receive delivery' : workspace === 'Rooms' ? 'room reservation' : workspace === 'Guest Accounts' ? 'guest checkout' : workspace === 'Finance' ? 'close day' : workspace === 'Administration' ? 'import products' : workspace.toLowerCase();
+  return <div className="fixed inset-0 z-50 bg-black/60" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <aside role="dialog" aria-modal="true" aria-label={`${workspace} contextual help`} className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-slate-800 bg-slate-950 p-5 text-white shadow-2xl">
+      <div className="flex items-start justify-between gap-4"><div className="flex items-start gap-3"><span className="rounded-xl bg-amber-400/10 p-2 text-amber-300"><CircleHelp className="h-5 w-5" /></span><div><p className={ds.eyebrow}>CONTEXTUAL HELP</p><h2 className="mt-1 text-xl font-black">{workspace}</h2></div></div><button type="button" className={ds.button} aria-label="Close contextual help" onClick={onClose}><X className="h-4 w-4" /></button></div>
+      <div className="mt-5 flex flex-wrap gap-2"><StatusBadge tone={online ? 'success' : 'warning'}>{online ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}{online ? 'Online' : 'Offline'}</StatusBadge><StatusBadge tone="neutral">{permissions.includes('*') ? 'Full access' : `${permissions.length} permissions`}</StatusBadge></div>
+      <div className="mt-6 space-y-3"><h3 className="font-bold">Useful help for this workspace</h3><button type="button" className="flex w-full items-center justify-between rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-amber-500/50" onClick={() => { onClose(); onOpenHelp(query); }}><span><b>Search guides for {workspace}</b><span className="mt-1 block text-sm text-slate-400">Open the Help Center with relevant articles and walkthroughs.</span></span><ArrowRight className="h-4 w-4 shrink-0 text-amber-300" /></button><button type="button" className="flex w-full items-center justify-between rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-amber-500/50" onClick={() => { onClose(); onOpenHelp('troubleshooting'); }}><span><b>Common mistakes and fixes</b><span className="mt-1 block text-sm text-slate-400">Find operational troubleshooting without leaving ServOS.</span></span><ArrowRight className="h-4 w-4 shrink-0 text-amber-300" /></button></div>
+      <div className="mt-auto rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm leading-6 text-slate-400">Help content is available offline after it has been included in the application shell. Business changes still follow the current permission and synchronization rules.</div>
+    </aside>
+  </div>;
+}

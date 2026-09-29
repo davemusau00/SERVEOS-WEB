@@ -11,6 +11,7 @@ const ALLOWED=new Set(ASSETS);
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS))));
 // Do not force activation over active tabs. A new worker waits until the current
 // client releases it at a safe application boundary.
+self.addEventListener('message',event=>{if(event.data?.type==='SERVOS_ACTIVATE_UPDATE')self.skipWaiting()});
 self.addEventListener('activate',event=>event.waitUntil(self.clients.matchAll({type:'window'}).then(clients=>clients.forEach(client=>client.postMessage({type:'SERVOS_SW_READY',cache:CACHE})))));
 self.addEventListener('fetch',event=>{
  const req=event.request,url=new URL(req.url);
