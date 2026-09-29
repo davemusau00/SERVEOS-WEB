@@ -50,7 +50,7 @@ test('transactional browser waits for authorized snapshot before permission-gate
   assert.match(signIn,/heading',\{name:'Service workspace',exact:true\}/);
   assert.match(signIn,/String\.raw/);
   assert.match(signIn,/getByRole\('button',\{name:'POS',exact:true\}\)/);
-  assert.match(spec,/getByRole\('heading',\{name:'Master Data',exact:true\}\)/);
+  assert.match(spec,/getByRole\('heading',\{name:'Business master records',exact:true\}\)/);
 });
 
 

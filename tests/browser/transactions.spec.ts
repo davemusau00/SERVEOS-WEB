@@ -85,7 +85,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
    }
    await page.getByRole('button',{name:'Procurement',exact:true}).click();
   await expect(page.locator('main').getByRole('heading',{name:'Purchasing',exact:true})).toBeVisible();
-   await page.getByRole('button',{name:'Master Data',exact:true}).click();
+   await page.getByRole('button',{name:'Master data',exact:true}).click();
    await expect(page.locator('main')).not.toBeEmpty();
    await expect(page.locator('main').getByRole('heading',{name:'Master Data',exact:true})).toBeVisible();
    await page.getByRole('button',{name:'Refunds',exact:true}).click();
@@ -102,18 +102,18 @@ test.describe('transactional browser with PostgreSQL',()=>{
  test('two operators see committed room and asset records; response-loss retry preserves one command',async({page,browser},info)=>{
   test.setTimeout(120000);const context2=await browser.newContext({viewport:info.project.use.viewport});const other=await context2.newPage();
   await signIn(page,'first@example.test');await signIn(other,'second@example.test');
-  await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Master Data',exact:true})).toBeVisible();await page.getByRole('button',{name:'Add room type',exact:true}).click();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Business master records',exact:true})).toBeVisible();await page.getByRole('button',{name:'Add room type',exact:true}).click();
   let dialog=page.getByRole('dialog');await dialog.getByLabel('Room type',{exact:true}).fill('Double');await dialog.getByLabel('Maximum guests').fill('2');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('retained for retry');await page.getByRole('button',{name:'Synchronize',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('retained for retry');await page.getByLabel('Synchronize').click();
   await expect(page.getByText('Double',{exact:true})).toBeVisible();
   expect(sql("select count(*) from servos_v2.commands where request->'payload'->>'collection'='roomTypes';").trim()).toBe('1');
   await page.getByRole('button',{name:'Rooms',exact:true}).click();await page.getByRole('button',{name:'Add room',exact:true}).click();dialog=page.getByRole('dialog');
   await dialog.getByLabel('Room number').fill('101');await dialog.locator('select').selectOption({label:'Double'});await dialog.getByLabel('Guest capacity').fill('2');await dialog.getByLabel('Turnaround minutes').fill('30');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
-  await other.getByRole('button',{name:'Synchronize',exact:true}).click();await other.getByRole('button',{name:'Rooms',exact:true}).click();await expect(other.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
+  await other.getByLabel('Synchronize').click();await other.getByRole('button',{name:'Rooms',exact:true}).click();await expect(other.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Add asset category',exact:true}).click();dialog=page.getByRole('dialog');await dialog.getByLabel('Category name').fill('Equipment');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();await expect(page.getByText('Equipment',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Assets',exact:true}).click();await page.getByRole('button',{name:'Add asset',exact:true}).click();dialog=page.getByRole('dialog');await dialog.getByLabel('Asset name').fill('Guest television');await dialog.getByLabel('Unique asset tag').fill('TV-101');await dialog.locator('select').nth(0).selectOption({label:'Equipment'});await dialog.locator('select').nth(1).selectOption({label:'101'});await dialog.getByLabel('Acquisition cost (KES)').fill('25000');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Guest television · TV-101'})).toBeVisible();await other.getByRole('button',{name:'Synchronize',exact:true}).click();await other.getByRole('button',{name:'Assets',exact:true}).click();await expect(other.getByRole('heading',{name:'Guest television · TV-101'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Guest television · TV-101'})).toBeVisible();await other.getByLabel('Synchronize').click();await other.getByRole('button',{name:'Assets',exact:true}).click();await expect(other.getByRole('heading',{name:'Guest television · TV-101'})).toBeVisible();
   expect(sql("select data->>'purchaseCostMinor' from servos_v2.records where collection='assets';").trim()).toBe('2500000');
   await page.screenshot({path:info.outputPath('transactional-assets.png'),fullPage:true});
   await page.reload();await page.getByRole('button',{name:'Remote management',exact:true}).click();await page.getByLabel('Email',{exact:true}).fill('first@example.test');await page.getByLabel('Password',{exact:true}).fill('test-only');await page.getByRole('button',{name:'Sign in',exact:true}).click();await page.getByRole('button',{name:'Rooms',exact:true}).click();await expect(page.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
@@ -131,7 +131,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
    return result;
   }).toBe('NO_ERROR');
   await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='tillSessions' and data->>'status'='OPEN';").trim()).toBe('1');
-  await page.getByRole('button',{name:'Synchronize',exact:true}).click();
+  await page.getByLabel('Synchronize').click();
   await expect(page.getByText('No open till')).toHaveCount(0);
   await page.getByRole('button',{name:'Quick tab',exact:true}).click();
   await page.getByRole('button',{name:/Test Soda/}).click();
