@@ -5,7 +5,8 @@ const harness=buildSync({stdin:{contents:"export {BusinessStore} from './src/run
 
 test('offline shell reloads without caching business API responses',async({page,context})=>{
   await page.goto('/');
-  await page.evaluate(async()=>{await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready});
+  await page.evaluate(async()=>{await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;await new Promise<void>(resolve=>{if(navigator.serviceWorker.controller){resolve();return}const onChange=()=>{navigator.serviceWorker.removeEventListener('controllerchange',onChange);resolve()};navigator.serviceWorker.addEventListener('controllerchange',onChange);setTimeout(resolve,1000)})});
+  if(!(await page.evaluate(()=>!!navigator.serviceWorker.controller)))await page.reload();
   await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
   await page.route('**/private-business-response',route=>route.fulfill({contentType:'application/json',body:'{"private":true}'}));
   await page.evaluate(()=>fetch('/private-business-response',{headers:{Authorization:'Bearer test-only'}}));

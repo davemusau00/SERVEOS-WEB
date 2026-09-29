@@ -70,7 +70,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await page.getByLabel('Email',{exact:true}).fill(email);await page.getByLabel('Password',{exact:true}).fill('test-only');await page.getByRole('button',{name:'Sign in',exact:true}).click();
   await expect(page.getByRole('button',{name:'POS',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'POS',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Point of Sale',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Service workspace',exact:true})).toBeVisible();
   await expect(page.locator('body')).not.toContainText(String.raw`\n`);
  };
  test('authenticated workspace mounts Procurement, Master Data, Refunds, Settings, and KDS without blank panels or page errors',async({page})=>{
@@ -93,7 +93,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
    await expect(page.locator('main').getByRole('heading',{name:'Payments & refunds',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.locator('main')).not.toBeEmpty();
-  await expect(page.locator('main').getByRole('heading',{name:'Business master records',exact:true})).toBeVisible();
+  await expect(page.locator('main').getByRole('heading',{name:'Master Data',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'KDS',exact:true}).click();
   await expect(page.locator('main')).not.toBeEmpty();
   await expect(page.locator('main').getByRole('region',{name:'Kitchen and bar pass'}).getByRole('heading',{name:'Bar / Kitchen Pass',exact:true})).toBeVisible();
@@ -102,7 +102,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
  test('two operators see committed room and asset records; response-loss retry preserves one command',async({page,browser},info)=>{
   test.setTimeout(120000);const context2=await browser.newContext({viewport:info.project.use.viewport});const other=await context2.newPage();
   await signIn(page,'first@example.test');await signIn(other,'second@example.test');
-  await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Business master records',exact:true})).toBeVisible();await page.getByRole('button',{name:'Add room type',exact:true}).click();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Master Data',exact:true})).toBeVisible();await page.getByRole('button',{name:'Add room type',exact:true}).click();
   let dialog=page.getByRole('dialog');await dialog.getByLabel('Room type',{exact:true}).fill('Double');await dialog.getByLabel('Maximum guests').fill('2');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
   await expect(page.getByRole('alert')).toContainText('retained for retry');await page.getByRole('button',{name:'Synchronize',exact:true}).click();
   await expect(page.getByText('Double',{exact:true})).toBeVisible();
