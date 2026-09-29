@@ -6,12 +6,17 @@ const read=file=>readFileSync(file,'utf8');
 
 test('web hospitality splits Front Desk, Guest Accounts, Housekeeping, and Room Setup',()=>{
   const app=read('src/runtime/web/WebBusinessApp.tsx');
+  const registry=read('src/runtime/web/workspaceRegistry.ts');
   const view=read('src/runtime/web/WebHospitalityViews.tsx');
   assert.match(app,/WebFrontDeskView/);
   assert.match(app,/WebGuestAccountsView/);
   assert.match(app,/WebHousekeepingView/);
-  for(const tab of ['Front Desk','Guest Accounts','Housekeeping','Rooms'])assert.match(app,new RegExp(`['"]${tab}['"]`));
-  assert.match(app,/tabs=\(\['Home','POS'.*'Front Desk'.*'Guest Accounts'.*'Housekeeping'.*'Rooms'/s);
+  for(const tab of ['Front Desk','Guest Accounts','Housekeeping','Rooms','Finance Controls','Administration'])assert.match(registry,new RegExp(`id: ['"]${tab}['"]`));
+  assert.match(app,/workspaceRegistry/);
+  assert.match(app,/visibleWorkspaces/);
+  assert.match(app,/workspaceGroups/);
+  assert.match(registry,/workspace\.permission\.some\(permission=>allowed\(session,permission\)\)/);
+  assert.match(app,/visibleWorkspaces\(session\)\.some\(workspace=>workspace\.id===raw\)/);
   assert.match(view,/data-guide-anchor="web.front-desk"/);
   assert.match(view,/data-guide-anchor="web.guest-accounts"/);
   assert.match(view,/data-guide-anchor="web.housekeeping"/);

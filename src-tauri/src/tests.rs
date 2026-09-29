@@ -313,6 +313,10 @@ fn room_stay_policy_uses_one_rate_and_enforces_nightly_checkout_and_day_cutoff()
     run(&mut db,&s,"roomType.save",json!({"id":"stay-type","data":{"name":"Stay room","code":"STAY","maxGuests":2}}));
     run(&mut db,&s,"ratePlan.save",json!({"id":"stay-rate","data":{"name":"Room stay","roomTypeId":"stay-type","mode":"NIGHTLY","priceMinor":10000,"currency":"KES","taxBasisPoints":0}}));
     run(&mut db,&s,"room.save",json!({"id":"stay-room","data":{"number":"STAY-1","roomTypeId":"stay-type","capacity":2,"turnaroundMinutes":0}}));
+    let (property_version,mut property)=get(&db,"property","property").unwrap();
+    property["roomStayRoomTypeId"]=Value::Null;property["roomStayRatePlanId"]=Value::Null;
+    let mut clear_policy=cmd("record.save",json!({"collection":"property","id":"property","data":property}));
+    clear_policy.target_version=Some(property_version);execute(&mut db,&s.token,clear_policy).unwrap();
     let missing_rate=execute(&mut db,&s.token,cmd("roomReservation.create",json!({"id":"missing-rate","roomId":"stay-room","customerId":"stay-guest","guests":1,"stayType":"NIGHTLY","startsAt":"2030-01-01T14:00:00+03:00","endsAt":"2030-01-02T10:00:00+03:00"}))).unwrap_err();
     assert!(missing_rate.contains("VALIDATION_FAILED: configure the room stay rate in Settings"));
     let property_version=get(&db,"property","property").unwrap().0;
