@@ -1798,7 +1798,7 @@ fn room_execute(tx:&Transaction,user:&Session,cmd:&BusinessCommand,changes:&mut 
                 let customer_id=text(p,"customerId")?.to_string();
                 let (_,room)=get(tx,"rooms",&room_id)?;
                 let (_,property)=get(tx,"property","property")?;
-                let rate_id=property["roomStayRatePlanId"].as_str().map(str::to_string).or_else(||p.get("ratePlanId").and_then(Value::as_str).map(str::to_string)).ok_or("Configure the room stay rate in Settings")?;
+                let rate_id=property["roomStayRatePlanId"].as_str().map(str::to_string).or_else(||p.get("ratePlanId").and_then(Value::as_str).map(str::to_string)).ok_or("VALIDATION_FAILED: configure the room stay rate in Settings")?;
                 let (_,rate)=get(tx,"ratePlans",&rate_id)?;
                 get(tx,"customers",&customer_id)?;
                 if rate["roomTypeId"]!=room["roomTypeId"]{return Err("VALIDATION_FAILED: rate plan does not match room type".into());}
