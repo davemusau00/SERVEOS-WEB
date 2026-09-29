@@ -19,6 +19,6 @@ The codebase now contains the required bar-first source path. Development should
 
 Expand in dependency order:
 
-**Restaurant service → Procurement/AP → Production/batches → Accounting hardening → CRM → Host/reservations → Events/nightlife → Hotel PMS → HR/payroll → Guest ordering.**
+**Restaurant service → Procurement/AP → Production/batches *(deferred)* → Accounting hardening → CRM *(deferred)* → Host/reservations *(deferred)* → Events/nightlife *(deferred)* → Hotel PMS → HR/payroll *(deferred)* → Guest ordering.**
 
 Each new domain must reuse the same native capabilities, command deduplication, audit/outbox, reversal discipline and documentation Definition of Done.

@@ -30,6 +30,20 @@ Every mutation family identifies permission, state transition, effects and offli
 
 Receipts can ship on the legacy runtime. Never enable browser writes against the snapshot uploader. Actual production publication is a separate release step; source preparation does not imply deployment.
 
+## Deferred later-phase task list
+
+These domains remain part of the main implementation task list, but are intentionally deferred until the shared transaction, permissions, accounting, reporting, offline, and acceptance foundations are complete. They are not current release work and must not be represented as complete through preview-only UI.
+
+| Deferred task | Planned scope | Entry condition |
+|---|---|---|
+| Reservations and seating | reservations, floor plan, table/order integration, waitlist, host operations | Restaurant service foundation and shared reservation/table commands are accepted |
+| Waitlists | waitlist creation, quoted waits, notification, seating and cancellation lifecycle | Reservations and seating commands, capacity rules and host workflow are accepted |
+| Production and prep batches | production create/post/reverse, recipes, yields and stock effects | Procurement/inventory foundations and atomic production commands are accepted |
+| CRM and loyalty | customer records, loyalty rules, earn/redeem/reverse and source-linked rewards | Customer/credit model plus accounting and refund reversal rules are accepted |
+| Events and tickets | events, publishing, ticket sale/refund/admission, promoters and commissions | Event capacity, ticket identity and commission accounting commands are accepted |
+| HR and payroll | staff operations, shifts, leave, advances, payroll generation/approval/payment/reversal | HR permissions, effective-rule snapshots and payroll accounting controls are accepted |
+
+When work begins on any deferred task, it must follow the same completion definition below and must be tracked separately as implemented, locally verified, cloud verified, or physical-device verified.
 ## Completion definition
 
 Persistence, backend authorization, validation, conflicts, atomic effects, replay, failure feedback, offline eligibility, restart, second-user visibility, report parity and audit linkage. Update release state, coverage, RBAC, dictionary, guides and evidence per slice. Distinguish implemented, locally verified, cloud verified and physical-device verified. A successful slice does not complete the expansion.
