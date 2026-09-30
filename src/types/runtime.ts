@@ -36,7 +36,7 @@ export interface BusinessCommand {
   targetVersion?: number;
   payload: Record<string, unknown>;
 }
-export interface CommandResult { commandId: string; recordIds: string[]; auditReference: string; sequence: number }
+export interface CommandResult { commandId: string; recordIds: string[]; auditReference: string; sequence: number; syncPending?:boolean }
 export interface RuntimeSession { token: string; staffId: string; name: string; role: StaffRole }
 export interface RuntimeActor { id: string; name: string; role: StaffRole; permissions: Permission[] }
 export interface StoredRecord { collection: string; id: string; version: number; data: Record<string, any>; archived: boolean }

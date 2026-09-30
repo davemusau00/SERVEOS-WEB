@@ -302,15 +302,16 @@ pub fn acknowledge_native_v2_command(db:&mut Connection,result:&Value)->Result<V
 
 pub fn native_v2_snapshot(db:&Connection,token:&str,device_id:&str)->Result<Value>{
     let user=actor(db,token,false)?;
-    let (business_id,feed_cursor,policy,complete):(String,i64,Option<String>,i64)=db.query_row("SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete FROM native_v2_state WHERE device_id=?",[device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?))).map_err(error)?;
+    let (business_id,feed_cursor,policy,complete,updated_at):(String,i64,Option<String>,i64,String)=db.query_row("SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete,updated_at FROM native_v2_state WHERE device_id=?",[device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?))).map_err(error)?;
     if complete!=1{return Err("The v2 shadow baseline has not been installed".into());}
     let mut statement=db.prepare("SELECT collection,record_id,version,data,archived FROM native_v2_records ORDER BY collection,record_id").map_err(error)?;
     let records=statement.query_map([],|row|{
         let data:String=row.get(3)?;
-        Ok(json!({"collection":row.get::<_,String>(0)?,"id":row.get::<_,String>(1)?,"version":row.get::<_,i64>(2)?,"data":serde_json::from_str::<Value>(&data).unwrap_or(Value::Null),"archived":row.get::<_,i64>(4)?!=0}))
+        let data=serde_json::from_str::<Value>(&data).map_err(|error|rusqlite::Error::FromSqlConversionFailure(3,rusqlite::types::Type::Text,Box::new(error)))?;
+        Ok(json!({"collection":row.get::<_,String>(0)?,"id":row.get::<_,String>(1)?,"version":row.get::<_,i64>(2)?,"data":data,"archived":row.get::<_,i64>(4)?!=0}))
     }).map_err(error)?.collect::<std::result::Result<Vec<_>,_>>().map_err(error)?;
     let pending:i64=db.query_row("SELECT COUNT(*) FROM native_v2_outbox WHERE state='PENDING'",[],|row|row.get(0)).map_err(error)?;
-    Ok(json!({"records":records,"pendingCount":pending,"lastSync":meta(db,"last_sync")?,"lastBackup":meta(db,"last_backup")?,"terminalId":device_id,"installationStage":installation_stage(db)?,"actor":{"id":user.staff_id,"name":user.name,"role":user.role,"permissions":permissions(&user.role)},"v2":{"businessId":business_id,"feedCursor":feed_cursor,"policyVersion":policy}}))
+    Ok(json!({"records":records,"pendingCount":pending,"lastSync":updated_at,"lastBackup":meta(db,"last_backup")?,"terminalId":device_id,"installationStage":installation_stage(db)?,"actor":{"id":user.staff_id,"name":user.name,"role":user.role,"permissions":permissions(&user.role)},"v2":{"businessId":business_id,"feedCursor":feed_cursor,"policyVersion":policy}}))
 }
 
 

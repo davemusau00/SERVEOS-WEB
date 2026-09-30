@@ -191,18 +191,21 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     const request: BusinessCommand = { id: commandId || crypto.randomUUID(), schemaVersion: 1, operation, payload, targetVersion };
     const definition=operationByName(operation);
     const collection=typeof payload.collection==='string'?payload.collection:(definition?.collection.includes(' ')?'':definition?.collection||'');
-    const targetId=[payload.id,payload.recordId,payload.reservationId,payload.stayId,payload.folioId,payload.orderId,payload.paymentId,payload.purchaseOrderId,payload.roomId].find(value=>typeof value==='string'&&value.trim()) as string|undefined||request.id;
+    const candidateTargetId=[payload.id,payload.recordId,payload.reservationId,payload.stayId,payload.folioId,payload.orderId,payload.paymentId,payload.purchaseOrderId,payload.roomId].find(value=>typeof value==='string'&&value.trim());
+    const targetId=typeof candidateTargetId==='string'?candidateTargetId:request.id;
     const dependencies=collection?resolveOperationDependencies(operation,collection,targetId,payload,snapshot?.records||[]):[];
     const expectedByKey=new Map(dependencies.map(version=>[`${version.collection}:${version.id}`,version]));
     if(Array.isArray(payload.baseline))for(const raw of payload.baseline){if(raw&&typeof raw==='object'&&typeof raw.id==='string'&&Number.isSafeInteger(raw.version))expectedByKey.set(`${collection}:${raw.id}`,{collection,id:raw.id,version:Number(raw.version)});}
-    if(targetVersion!==undefined)expectedByKey.set(`${collection}:${targetId}`,{collection,id:targetId,version:targetVersion});
+    if(collection&&targetVersion!==undefined)expectedByKey.set(`${collection}:${targetId}`,{collection,id:targetId,version:targetVersion});
     const expectedVersions=[...expectedByKey.values()].sort((left,right)=>left.collection.localeCompare(right.collection)||left.id.localeCompare(right.id));
     let result: CommandResult;
     try { result = await invoke<CommandResult>('runtime_command', { token: session.token, command: request, expectedVersions }); }
     catch (e) { report(e); throw e; }
+    let syncWarning='';
+    if(result.syncPending){try{await invoke('runtime_v2_sync_replica');result.syncPending=false;}catch{syncWarning='Saved on the business server, but this terminal has not refreshed its shared view yet. Do not submit the same action again; reconnect and synchronize.';}}
     // The write has committed. A failed reload must not invite a second payment.
-    try { await refresh(); if (operation.startsWith('staff.')) await reloadStatus(); setError(''); }
-    catch (e) { setError(`Saved locally, but refresh failed. Reload before making another change. ${String(e)}`); }
+    try { await refresh(); if (operation.startsWith('staff.')) await reloadStatus(); setError(syncWarning); }
+    catch (e) { setError(syncWarning||`Saved locally, but refresh failed. Reload before making another change. ${String(e)}`); }
     nextSync.current = 0;
     window.dispatchEvent(new Event('servos:local-commit'));
     window.dispatchEvent(new CustomEvent('servos:command-committed', { detail: { operation, result, payload: Object.fromEntries(['orderId', 'locationId', 'supplierId', 'purchaseOrderId'].filter(key => typeof payload[key] === 'string').map(key => [key, payload[key]])) } }));

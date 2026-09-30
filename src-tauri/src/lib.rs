@@ -259,40 +259,62 @@ async fn runtime_v2_sync_replica(state:State<'_,Runtime>)->store::Result<Value>{
     let result=async {
         if !refresh_operator_auth_inner(&state,true).await? { return Err("Sign in online to synchronize the v2 replica".into()); }
         let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
-        let (url,key,terminal,business_id,feed_cursor,snapshot_policy,complete)={
-            let db=state.db.lock().map_err(|e|e.to_string())?;
-            let terminal=store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?;
-            let row:Option<(String,i64,Option<String>,i64)>=db.query_row("SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete FROM native_v2_state WHERE device_id=?",[&terminal],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(|e|e.to_string())?;
-            let (business,cursor,policy,installed)=row.ok_or("Authenticated v2 device state is missing")?;
-            (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,terminal,business,cursor,policy,installed==1)
-        };
-        if !complete{return Err("Install the authorized v2 shadow baseline before feed synchronization".into());}
-        let session=rpc(&url,&key,Some(&active.access_token),"servos_v2_session",json!({})).await?;
-        if session["actorId"].as_str()!=active.identity["actorId"].as_str()||session["businessId"].as_str()!=Some(business_id.as_str()){
-            return Err("Authenticated v2 identity changed; sign in again".into());
-        }
-        if session["policyVersion"].as_str()!=snapshot_policy.as_deref(){
-            return Err("V2 permissions changed since baseline. Reconcile and reinitialize the shadow snapshot before continuing".into());
-        }
-        let mut cursor=feed_cursor;
-        let mut total_changes=0usize;
-        for _ in 0..100 {
-            let page=rpc(&url,&key,Some(&active.access_token),"servos_v2_pull",json!({"after_sequence":cursor,"page_size":100})).await?;
-            let next=page["cursor"].as_i64().filter(|value|*value>=cursor).ok_or("Invalid v2 feed cursor")?;
-            let change_count=page["changes"].as_array().ok_or("V2 feed changes missing")?.len();
-            if page["hasMore"]==true&&next==cursor{return Err("V2 change feed made no progress".into());}
-            {
-                let mut db=state.db.lock().map_err(|e|e.to_string())?;
-                store::apply_native_v2_page(&mut db,&terminal,&page)?;
-            }
-            total_changes+=change_count;
-            cursor=next;
-            if page["hasMore"]!=true{return Ok(json!({"appliedChanges":total_changes,"cursor":cursor,"hasMore":false}));}
-        }
-        Ok(json!({"appliedChanges":total_changes,"cursor":cursor,"hasMore":true}))
+        flush_native_v2_pending(&state,&active).await?;
+        sync_native_v2_feed(&state,&active).await
     }.await;
     if let Ok(mut running)=state.syncing.lock(){*running=false;}
     result
+}
+async fn flush_native_v2_pending(state:&Runtime,active:&OperatorAuth)->store::Result<usize>{
+    let (url,key,terminal,expected_actor)={
+        let db=state.db.lock().map_err(|e|e.to_string())?;
+        (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?,store::text(&active.identity,"actorId")?.to_string())
+    };
+    let mut sent=0;
+    loop{
+        let queued={let db=state.db.lock().map_err(|e|e.to_string())?;store::next_native_v2_pending(&db,&terminal)?};
+        let Some((command_id,actor_id,envelope))=queued else{break};
+        if actor_id!=expected_actor{return Err("A queued v2 command belongs to another operator. Sign in as that operator and synchronize it first".into());}
+        {let db=state.db.lock().map_err(|e|e.to_string())?;store::mark_native_v2_attempt(&db,&command_id)?;}
+        let result=rpc(&url,&key,Some(&active.access_token),"servos_v2_execute",json!({"command":envelope})).await?;
+        if result["commandId"].as_str()!=Some(command_id.as_str()){return Err("Server acknowledged a different v2 command; the durable queue is retained".into());}
+        let status=result["status"].as_str().unwrap_or("").to_string();
+        {let mut db=state.db.lock().map_err(|e|e.to_string())?;store::acknowledge_native_v2_command(&mut db,&result)?;}
+        sent+=1;
+        if status!="SYNCHRONIZED"{
+            let detail=result["error"]["message"].as_str().unwrap_or("The server rejected this command");
+            return Err(format!("V2 command {status}: {detail}. The result is recorded; review before submitting a replacement."));
+        }
+    }
+    Ok(sent)
+}
+async fn sync_native_v2_feed(state:&Runtime,active:&OperatorAuth)->store::Result<Value>{
+    let (url,key,terminal,business_id,mut cursor,snapshot_policy,complete)={
+        let db=state.db.lock().map_err(|e|e.to_string())?;
+        let terminal=store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?;
+        let row:Option<(String,i64,Option<String>,i64)>=db.query_row("SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete FROM native_v2_state WHERE device_id=?",[&terminal],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(|e|e.to_string())?;
+        let (business,cursor,policy,installed)=row.ok_or("Authenticated v2 device state is missing")?;
+        (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,terminal,business,cursor,policy,installed==1)
+    };
+    if !complete{return Err("Install the authorized v2 shadow baseline before feed synchronization".into());}
+    let session=rpc(&url,&key,Some(&active.access_token),"servos_v2_session",json!({})).await?;
+    if session["actorId"].as_str()!=active.identity["actorId"].as_str()||session["businessId"].as_str()!=Some(business_id.as_str()){
+        return Err("Authenticated v2 identity changed; sign in again".into());
+    }
+    if session["policyVersion"].as_str()!=snapshot_policy.as_deref(){
+        return Err("V2 permissions changed since baseline. Reinstall the shadow snapshot before continuing".into());
+    }
+    let mut total_changes=0usize;
+    for _ in 0..100 {
+        let page=rpc(&url,&key,Some(&active.access_token),"servos_v2_pull",json!({"after_sequence":cursor,"page_size":100})).await?;
+        let next=page["cursor"].as_i64().filter(|value|*value>=cursor).ok_or("Invalid v2 feed cursor")?;
+        let change_count=page["changes"].as_array().ok_or("V2 feed changes missing")?.len();
+        if page["hasMore"]==true&&next==cursor{return Err("V2 change feed made no progress".into());}
+        {let mut db=state.db.lock().map_err(|e|e.to_string())?;store::apply_native_v2_page(&mut db,&terminal,&page)?;}
+        total_changes+=change_count;cursor=next;
+        if page["hasMore"]!=true{return Ok(json!({"appliedChanges":total_changes,"cursor":cursor,"hasMore":false}));}
+    }
+    Ok(json!({"appliedChanges":total_changes,"cursor":cursor,"hasMore":true}))
 }
 #[tauri::command]
 fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
@@ -320,7 +342,13 @@ fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
 }
 #[tauri::command]
 fn runtime_snapshot(state: State<Runtime>, token: String) -> store::Result<Value> {
+    let use_v2=state.operator_auth.lock().map_err(|e|e.to_string())?.as_ref().is_some_and(|auth|auth.identity["enabled"]==true);
     let db = state.db.lock().map_err(|e| e.to_string())?;
+    if use_v2{
+        let device=store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?;
+        let installed:Option<i64>=db.query_row("SELECT snapshot_complete FROM native_v2_state WHERE device_id=?",[&device],|row|row.get(0)).optional().map_err(|e|e.to_string())?;
+        if installed==Some(1){return store::native_v2_snapshot(&db,&token,&device);}
+    }
     store::snapshot(&db, &token)
 }
 #[tauri::command]
@@ -354,13 +382,61 @@ fn runtime_clear_inventory_count_draft(state: State<Runtime>, token: String, loc
     store::clear_inventory_count_draft(&db, &token, &location_id)
 }
 #[tauri::command]
-fn runtime_command(
-    state: State<Runtime>,
+async fn runtime_command(
+    state: State<'_,Runtime>,
     token: String,
     command: store::BusinessCommand,
+    expected_versions: Option<Value>,
 ) -> store::Result<Value> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
-    store::execute(&mut db, &token, command)
+    let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone();
+    if active.as_ref().is_some_and(|auth|auth.identity["enabled"]==true){
+        {
+            let mut running=state.syncing.lock().map_err(|e|e.to_string())?;
+            if *running{return Err("Another synchronization is already running".into());}
+            *running=true;
+        }
+        let result=async {
+            if !refresh_operator_auth_inner(&state,true).await? {return Err("Online operator authentication is required for shared v2 writes".into());}
+            let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
+            if active.identity["enabled"]!=true{
+                let mut db=state.db.lock().map_err(|e|e.to_string())?;
+                return store::execute(&mut db,&token,command);
+            }
+            let (url,key,terminal,business_id)={
+                let db=state.db.lock().map_err(|e|e.to_string())?;
+                (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?,store::text(&active.identity,"businessId")?.to_string())
+            };
+            let session=rpc(&url,&key,Some(&active.access_token),"servos_v2_session",json!({})).await?;
+            if session["enabled"]!=true{return Err("V2 authority changed during sign-in refresh; retry after synchronizing terminal state".into());}
+            if session["actorId"].as_str()!=active.identity["actorId"].as_str()||session["businessId"].as_str()!=Some(business_id.as_str()){
+                return Err("Authenticated v2 actor or business changed; sign in again".into());
+            }
+            flush_native_v2_pending(&state,&active).await?;
+            let versions=expected_versions.unwrap_or_else(||json!([]));
+            let envelope={
+                let mut db=state.db.lock().map_err(|e|e.to_string())?;
+                store::queue_native_v2_command(&mut db,&terminal,&business_id,store::text(&active.identity,"actorId")?,&command,&versions)?
+            };
+            let command_id=store::text(&envelope,"id")?.to_string();
+            let pending=store::next_native_v2_pending(&state.db.lock().map_err(|e|e.to_string())?,&terminal)?.ok_or("Durable v2 command queue entry disappeared")?;
+            if pending.0!=command_id{return Err("V2 command sequence changed before dispatch".into());}
+            {let db=state.db.lock().map_err(|e|e.to_string())?;store::mark_native_v2_attempt(&db,&command_id)?;}
+            let server_result=rpc(&url,&key,Some(&active.access_token),"servos_v2_execute",json!({"command":pending.2})).await?;
+            if server_result["commandId"].as_str()!=Some(command_id.as_str()){return Err("Server acknowledged a different v2 command; durable command retained".into());}
+            let status=server_result["status"].as_str().unwrap_or("").to_string();
+            let mut result={let mut db=state.db.lock().map_err(|e|e.to_string())?;store::acknowledge_native_v2_command(&mut db,&server_result)?};
+            if status!="SYNCHRONIZED"{
+                let detail=server_result["error"]["message"].as_str().unwrap_or("The server rejected this command");
+                return Err(format!("V2 command {status}: {detail}. The result is recorded; review before submitting a replacement."));
+            }
+            if sync_native_v2_feed(&state,&active).await.is_err(){result["syncPending"]=json!(true);}
+            Ok(result)
+        }.await;
+        if let Ok(mut running)=state.syncing.lock(){*running=false;}
+        return result;
+    }
+    let mut db=state.db.lock().map_err(|e|e.to_string())?;
+    store::execute(&mut db,&token,command)
 }
 #[tauri::command]
 fn runtime_manager_approve(state: State<Runtime>, token: String, approver_id: String, pin: String, permission: String, target: Option<String>) -> store::Result<Value> {
@@ -473,7 +549,18 @@ async fn runtime_sync(state: State<'_, Runtime>, token: String) -> store::Result
         }
         *running = true;
     }
-    let result = sync_inner(&state, &token).await;
+    let result=async {
+        let v2_active=state.operator_auth.lock().map_err(|e|e.to_string())?.as_ref().is_some_and(|auth|auth.identity["enabled"]==true);
+        if v2_active{
+            if !refresh_operator_auth_inner(&state,true).await?{return Err("Online operator authentication is required for v2 synchronization".into());}
+            let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
+            if active.identity["enabled"]==true{
+                flush_native_v2_pending(&state,&active).await?;
+                return sync_native_v2_feed(&state,&active).await;
+            }
+        }
+        sync_inner(&state,&token).await
+    }.await;
     if let Ok(mut running) = state.syncing.lock() {
         *running = false;
     }

@@ -36,6 +36,8 @@
     "verify": "npm run help:build && npm run verify:fast && npm run test:browser && npm run test:native:container && npm run audit:ui && npm run docs:check"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2.0.0",
     "@vitejs/plugin-react": "^6.1.1",
