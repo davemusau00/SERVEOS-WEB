@@ -62,6 +62,13 @@ export function addBusinessDays(date: string, days: number) {
   return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, '0')}-${String(value.getUTCDate()).padStart(2, '0')}`;
 }
 
+/** Build a UTC instant from a property-local calendar date offset and wall time. */
+export function businessDateTimeAfterBusinessDays(instant: string | number | Date, days: number, wallTime: string, timeZone = 'Africa/Nairobi') {
+  const localDate = addBusinessDays(businessDate(instant, timeZone), days);
+  if (!/^\d{2}:\d{2}$/.test(wallTime)) throw new RangeError('Enter a valid business wall time.');
+  return businessDateTimeToUtc(`${localDate}T${wallTime}`, timeZone);
+}
+
 /** Business-day UTC boundary used only for calendar display/interval bucketing. */
 export function businessDateStartUtc(date: string, timeZone = 'Africa/Nairobi') {
   return businessDateTimeToUtc(`${date}T00:00`, timeZone);

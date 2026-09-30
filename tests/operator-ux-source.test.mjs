@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { addBusinessDays, businessDateTimeInput, businessDateTimeToUtc, businessDate, businessDateStartUtc, formatBusinessDateTime } from '../src/utils/businessTime.ts';
+import { addBusinessDays, businessDateTimeAfterBusinessDays, businessDateTimeInput, businessDateTimeToUtc, businessDate, businessDateStartUtc, formatBusinessDateTime } from '../src/utils/businessTime.ts';
 
 test('business time conversion round-trips property wall time independently of host timezone', () => {
   const instant = businessDateTimeToUtc('2026-09-30T10:15', 'Africa/Nairobi');
@@ -23,6 +23,8 @@ test('hospitality calendar helpers use property dates rather than the host timez
   assert.throws(() => addBusinessDays('2026-02-30', 1), /valid business date/);
   assert.equal(businessDateStartUtc('2026-09-30', 'Pacific/Kiritimati'), '2026-09-29T10:00:00.000Z');
   assert.match(formatBusinessDateTime('2026-09-30T10:15:00.000Z', 'Pacific/Kiritimati'), /1 Oct 2026/);
+  const departure = businessDateTimeAfterBusinessDays('2026-09-30T20:00:00.000Z', 1, '10:00', 'Pacific/Kiritimati');
+  assert.equal(businessDateTimeInput(departure, 'Pacific/Kiritimati'), '2026-10-02T10:00');
 });
 
 test('reservation and manually recorded receipt flows use the property timezone contract', () => {
@@ -32,6 +34,7 @@ test('reservation and manually recorded receipt flows use the property timezone 
   assert.match(rooms, /businessDateTimeToUtc\(v\.startsAt,timeZone\)/);
   assert.match(rooms, /data-business-timezone=\{timeZone\}/);
   assert.match(web, /businessDateTimeToUtc\(values\[field\.key\]||'',propertyTimeZone\)/);
+  assert.match(web, /businessDateTimeAfterBusinessDays\(arrival,1,checkout,propertyTimeZone\)/);
   assert.match(finance, /businessDateTimeToUtc\(receipt\.receivedAt,timeZone\)/);
 });
 

@@ -459,7 +459,7 @@ Transaction outcome tests must prove:
 
 ### WP-12 — Apply one property-time contract everywhere
 
-**Priority:** P1. **Dependencies:** WP-04; supports WP-11, financial imports/reconciliation.
+**Priority:** P1. **Status:** IN_PROGRESS; shared TypeScript business-date departure derivation now avoids device-local arithmetic, while Rust support and cloud property-zone validation/usage remain open. **Dependencies:** WP-04; supports WP-11, financial imports/reconciliation.
 
 **Existing files:** `src/utils/businessTime.ts`, `src/design-system/controls.tsx` (`BusinessDateTimeField`), Native room/M-Pesa fields, Web editors, Rust `room_local_minutes`, `room_local_date`, expansion `021_room_stay_policy.sql`.
 
@@ -978,7 +978,7 @@ Original section numbers are retained here so none of the earlier forensic work 
 | 28 | Humans copy approval UUIDs | OPEN; token/initiator/target fields remain | WP-20; manager inbox/internal capability |
 | 29 | Staff creation requires Auth UUID | OPEN; normal binding form still exposes IDs | WP-21; trusted invitation acceptance linking |
 | 30 | Browser prompts/confirms | PARTIAL PROGRESS; production flows still need complete inventory | WP-19, WP-24; scoped zero-violation gate |
-| 31 | Time handling differs | PARTIAL PROGRESS; TS helper added, Rust +3/SQL Nairobi remain | WP-11–12; cross-language time fixtures |
+| 31 | Time handling differs | PARTIAL PROGRESS; shared TS departure derivation now uses property-local calendar arithmetic, but Rust and cloud reservation paths still require timezone convergence | WP-11–12; cross-language time fixtures |
 | 32 | Rate editor exposes basis points | OPEN; `addRate` still uses internal unit label | WP-22; percentage input/conversion |
 | 33 | Quick Product hardcodes tax class | OPEN; `A_STANDARD` remains | WP-07, WP-22; configured default/review |
 | 34 | Native POS mojibake | OPEN; current source matches remain | WP-26; reviewed UTF-8 normalization |

@@ -10,6 +10,8 @@ The Web inventory count flow now keeps its browser-local count session when the 
 
 Room policy and condition convergence now has forward cloud migration 025. `room.condition` requires `rooms.manage`, checks the room version, permits only `AVAILABLE` or `OUT_OF_ORDER`, rejects an active RESERVED/CHECKED_IN reservation from being taken out of order, and writes maintenance condition metadata without changing housekeeping state. Native and cloud room fixtures cover the same state-preservation and active-reservation denial outcomes. `npm run test:native` passed 71/71 and `npm run test:cloud:v2` passed through expansion 025; move, extension, checkout and complete cross-runtime time acceptance remain open under WP-11/WP-12.
 
+WP-12 now routes Web reservation default departure through `businessDateTimeAfterBusinessDays`, which converts the arrival instant to the configured property-local date, advances that calendar date, applies the configured checkout wall time, and converts exactly once to UTC. The regression suite proves this remains correct in `Pacific/Kiritimati` and continues rejecting invalid/ambiguous business wall times. Rust timezone interpretation and cloud reservation comparisons still contain the documented `Africa/Nairobi`/unsupported-zone boundary and require a later cross-runtime migration.
+
 ## DEV final sprint P0 local gate - 2026-09-30
 
 After `npm ci` (107 packages installed; 0 reported vulnerabilities), the following local checks passed on the same source state:
