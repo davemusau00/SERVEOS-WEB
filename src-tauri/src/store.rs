@@ -3103,7 +3103,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             }
         }
         "inventory.openingBalance" | "inventory.receive" | "inventory.adjust" | "inventory.waste" | "inventory.transfer" => {
-            let permission=match cmd.operation.as_str(){"inventory.receive"=>"inventory.receive","inventory.transfer"=>"inventory.transfer","inventory.waste"=>"inventory.waste","inventory.adjust"=>"inventory.count",_=>"inventory.adjust"};
+            let permission=match cmd.operation.as_str(){"inventory.receive"=>"inventory.receive","inventory.transfer"=>"inventory.transfer","inventory.waste"=>"inventory.waste","inventory.adjust"=>"inventory.adjust",_=>"inventory.adjust"};
             if !permissions(&user.role).contains(&permission){return Err(format!("Permission required: {permission}"));}
             let stock_id=text(p,"stockItemId")?;
             let location=text(p,"locationId")?;

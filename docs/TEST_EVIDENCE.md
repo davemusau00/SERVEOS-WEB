@@ -362,6 +362,10 @@ The Smart Item Wizard now captures supplier package label, contents as sale-cont
 
 Web PO drafting now attaches a saved package identity to STOCK lines, labels quantities/prices as packages, and shows remaining approved package and base-unit totals while receiving. Whole-package quantities are enforced in UI and native command validation; the receive dialog warns about over-receipts and requires the separate approval token before posting. PO package barcode scans increment the package count by one. Native and staged SQL PO creation validate package identity against the stock record; receipt posting preserves package quantities and converts them to base stock quantity and cost per base unit for inventory valuation and immutable stock movement. The operation manifest marks create/receive parity partial because hosted migration rollout and acceptance remain outstanding. Source only; tests remain deferred.
 
+### DEV final sprint P9 Admin stock correction — 2026-09-30
+
+Web Stock exposes a separate correction action to `inventory.adjust` permission holders, previews the absolute balance and delta, requires a reason, and queues `inventory.adjust`. Native and staged SQL sources emit `ADMIN_CORRECTION` movements and retain version checks. This source slice has not been verified; re-authentication and operator acceptance remain open.
+
 ### DEV final sprint current-source regression gate â€” 2026-09-30
 
 - `npm test` â€” passed 146/146; `npm run lint` and `npm run build` passed (existing Vite large-chunk warning remains).
