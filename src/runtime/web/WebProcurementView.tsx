@@ -13,6 +13,9 @@ type DraftLine={
   quantityOrdered:number;
   unitPriceMinor:number;
   stockItemId?:string;
+  purchasePackageId?:string;
+  purchasePackageName?:string;
+  quantityBasePerPackage?:number;
   expenseCategory?:string;
   description?:string;
   assetCategoryId?:string;
@@ -63,6 +66,7 @@ export function WebProcurementView({
   const [poLines,setPoLines]=useState<DraftLine[]>([]);
   const [lineKind,setLineKind]=useState<'STOCK'|'EXPENSE'|'ASSET'>('STOCK');
   const [stockId,setStockId]=useState('');
+  const [purchasePackageId,setPurchasePackageId]=useState('');
   const [expenseDescription,setExpenseDescription]=useState('');
   const [expenseCategory,setExpenseCategory]=useState('GENERAL');
   const [assetName,setAssetName]=useState('');
@@ -112,13 +116,14 @@ export function WebProcurementView({
 
   const addDraftLine=()=>{
     let qty:number;
-    try{qty=parseQuantity(lineQty,{min:Number.MIN_VALUE,integer:lineKind==='ASSET'})}catch{return}
+    try{qty=parseQuantity(lineQty,{min:Number.MIN_VALUE,integer:lineKind==='ASSET'||lineKind==='STOCK'&&Boolean(purchasePackageId)})}catch{return}
     const priceMinor=Math.round(Number(linePrice)*100);
     if(!Number.isFinite(priceMinor)||priceMinor<0)return;
     if(lineKind==='STOCK'){
       const item=stockItems.find(r=>r.id===stockId);if(!item)return;
       if(poLines.some(x=>x.treatment==='STOCK'&&x.stockItemId===stockId))return;
-      setPoLines(lines=>[...lines,{lineId:crypto.randomUUID(),treatment:'STOCK',displayName:String(data(item)?.name||item.id),stockItemId:stockId,quantityOrdered:qty,unitPriceMinor:priceMinor} as DraftLine]);
+      const pkg=Array.isArray(data(item)?.purchasePackages)?data(item)!.purchasePackages.find((value:any)=>value.id===purchasePackageId):undefined;
+      setPoLines(lines=>[...lines,{lineId:crypto.randomUUID(),treatment:'STOCK',displayName:String(data(item)?.name||item.id),stockItemId:stockId,...(pkg?{purchasePackageId:pkg.id,purchasePackageName:String(pkg.name),quantityBasePerPackage:Number(pkg.baseQuantity)}:{}),quantityOrdered:qty,unitPriceMinor:priceMinor} as DraftLine]);
     }else if(lineKind==='EXPENSE'){
       if(!expenseDescription.trim())return;
       setPoLines(lines=>[...lines,{lineId:crypto.randomUUID(),treatment:'EXPENSE',displayName:expenseDescription.trim(),description:expenseDescription.trim(),expenseCategory,quantityOrdered:qty,unitPriceMinor:priceMinor}]);
@@ -138,6 +143,7 @@ export function WebProcurementView({
       items:poLines.map(line=>({
         lineId:line.lineId,treatment:line.treatment,quantityOrdered:line.quantityOrdered,unitPriceMinor:line.unitPriceMinor,
         ...(line.stockItemId?{stockItemId:line.stockItemId}:{}),
+        ...(line.purchasePackageId?{purchasePackageId:line.purchasePackageId}:{}),
         ...(line.description?{description:line.description,expenseCategory:line.expenseCategory}:{}),
         ...(line.assetName?{assetName:line.assetName,assetCategoryId:line.assetCategoryId}:{})
       }))
@@ -161,7 +167,8 @@ export function WebProcurementView({
     const poLine=(data(receiving)?.items||[]).find((line:any)=>line.treatment==='STOCK'&&line.stockItemId===item.id);
     if(!poLine)return;
     const itemData=data(item)!;const scannedPackage=Array.isArray(itemData.purchasePackages)?itemData.purchasePackages.find((pkg:any)=>barcodeEquals(String(pkg.barcode||''),code)):undefined;
-    let increment:number;try{increment=parseQuantity(scannedPackage?.baseQuantity??poLine.scanUnitQuantity??itemData.scanUnitQuantity??1,{min:Number.MIN_VALUE})}catch{return}
+    if(scannedPackage&&poLine.purchasePackageId!==scannedPackage.id)return;
+    let increment:number;try{increment=parseQuantity(poLine.purchasePackageId?1:poLine.scanUnitQuantity??itemData.scanUnitQuantity??1,{min:Number.MIN_VALUE})}catch{return}
     setReceiptDraft(prev=>{
       const current=prev[poLine.lineId]||{delivered:0,rejected:0,reason:''};
       return {...prev,[poLine.lineId]:{...current,delivered:current.delivered+increment}};
@@ -176,7 +183,7 @@ export function WebProcurementView({
     const lines=(order.items||[]).map((line:any)=>{
       const draft=receiptDraft[line.lineId]||{delivered:0,rejected:0,reason:''};
       let delivered:number;let rejected:number;
-      try{delivered=parseQuantity(draft.delivered);rejected=parseQuantity(draft.rejected)}catch{return null}
+      try{delivered=parseQuantity(draft.delivered,{integer:Boolean(line?.purchasePackageId)});rejected=parseQuantity(draft.rejected,{integer:Boolean(line?.purchasePackageId)})}catch{return null}
       if(rejected>delivered)return null;
       return {
         lineId:line.lineId,
@@ -247,11 +254,12 @@ export function WebProcurementView({
 
   const openPoTotal=useMemo(()=>orders.filter(o=>['APPROVED','PARTIALLY_RECEIVED'].includes(String(data(o)?.status))).reduce((sum,o)=>sum+Number(data(o)?.grandTotalMinor||0),0),[orders]);
   const payableDue=useMemo(()=>payables.reduce((sum,p)=>sum+Number(data(p)?.amountDueMinor||0),0),[payables]);
+  const receiptHasOverage=Boolean(receiving&&(data(receiving)?.items||[]).some((line:any)=>{const draft=receiptDraft[line.lineId]||{delivered:0,rejected:0,reason:''};return Number(line.quantityReceived||0)+Math.max(0,Number(draft.delivered||0)-Number(draft.rejected||0))>Number(line.quantityOrdered||0)+0.000001}));
 
   return <section className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 className="flex items-center gap-2 text-xl font-bold"><Truck className="h-5 w-5 text-amber-300"/>Purchasing</h2><p className="mt-1 max-w-3xl text-sm text-slate-400">Create an order, check what arrived, and record supplier payments only after the money has actually been sent.</p></div>
-      <div className="flex gap-2">{canManage&&<><button disabled={disabled} className={button} onClick={()=>openSupplier()}>New supplier</button><button disabled={disabled||!suppliers.length} className={primary} onClick={()=>{setPoSupplier(suppliers[0]?.id||'');setPoLines([]);setStockId(stockItems[0]?.id||'');setAssetCategoryId(categories[0]?.id||'');setPoOpen(true)}}><Plus className="mr-1 inline h-4 w-4"/>New PO</button></>}</div>
+      <div className="flex gap-2">{canManage&&<><button disabled={disabled} className={button} onClick={()=>openSupplier()}>New supplier</button><button disabled={disabled||!suppliers.length} className={primary} onClick={()=>{setPoSupplier(suppliers[0]?.id||'');setPoLines([]);setStockId(stockItems[0]?.id||'');setPurchasePackageId(String(data(stockItems[0])?.purchasePackages?.[0]?.id||''));setAssetCategoryId(categories[0]?.id||'');setPoOpen(true)}}><Plus className="mr-1 inline h-4 w-4"/>New PO</button></>}</div>
     </div>
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -298,11 +306,11 @@ export function WebProcurementView({
       <div className="rounded-xl border border-slate-800 p-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm">Treatment<select className={field} value={lineKind} onChange={e=>setLineKind(e.target.value as any)}><option>STOCK</option><option>EXPENSE</option><option>ASSET</option></select></label>
-          {lineKind==='STOCK'&&<label className="text-sm">Stock item<select className={field} value={stockId} onChange={e=>setStockId(e.target.value)}>{stockItems.map(item=><option key={item.id} value={item.id}>{String(data(item)?.name)}</option>)}</select></label>}
+          {lineKind==='STOCK'&&<><label className="text-sm">Stock item<select className={field} value={stockId} onChange={e=>{const id=e.target.value;setStockId(id);const item=stockItems.find(value=>value.id===id);setPurchasePackageId(String(data(item)?.purchasePackages?.[0]?.id||''))}}>{stockItems.map(item=><option key={item.id} value={item.id}>{String(data(item)?.name)}</option>)}</select></label>{(Array.isArray(data(stockItems.find(item=>item.id===stockId))?.purchasePackages)&&data(stockItems.find(item=>item.id===stockId))!.purchasePackages.length>0)&&<label className="text-sm">Purchase package<select className={field} value={purchasePackageId} onChange={e=>setPurchasePackageId(e.target.value)}>{data(stockItems.find(item=>item.id===stockId))!.purchasePackages.map((pkg:any)=><option key={pkg.id} value={pkg.id}>{String(pkg.name)} · {Number(pkg.baseQuantity).toLocaleString()} {String(data(stockItems.find(item=>item.id===stockId))?.baseUnit||'units')}</option>)}</select></label>}</>}
           {lineKind==='EXPENSE'&&<><Input label="Expense description" value={expenseDescription} set={setExpenseDescription}/><label className="text-sm">Category<select className={field} value={expenseCategory} onChange={e=>setExpenseCategory(e.target.value)}><option>GENERAL</option><option>REPAIRS</option><option>MARKETING</option><option>UTILITIES</option></select></label></>}
           {lineKind==='ASSET'&&<><Input label="Asset name" value={assetName} set={setAssetName}/><label className="text-sm">Asset category<select className={field} value={assetCategoryId} onChange={e=>setAssetCategoryId(e.target.value)}>{categories.map(category=><option key={category.id} value={category.id}>{String(data(category)?.name)}</option>)}</select></label></>}
-          <label className="text-sm">Quantity<input type="number" min="0.001" step="0.001" className={field} value={lineQty} onChange={e=>setLineQty(Number(e.target.value))}/></label>
-          <label className="text-sm">Unit price (KES)<input type="number" min="0" step="0.01" className={field} value={linePrice} onChange={e=>setLinePrice(Number(e.target.value))}/></label>
+          <label className="text-sm">{lineKind==='STOCK'&&purchasePackageId?'Packages ordered':'Quantity'}<input type="number" min="0.001" step="0.001" className={field} value={lineQty} onChange={e=>setLineQty(Number(e.target.value))}/></label>
+          <label className="text-sm">{lineKind==='STOCK'&&purchasePackageId?'Price per package (KES)':'Unit price (KES)'}<input type="number" min="0" step="0.01" className={field} value={linePrice} onChange={e=>setLinePrice(Number(e.target.value))}/></label>
         </div>
         <button className={button+' mt-3'} onClick={addDraftLine}>Add line</button>
       </div>
@@ -311,13 +319,14 @@ export function WebProcurementView({
     </div></Modal>}
 
     {receiving&&<Modal title={`Receive ${String(data(receiving)?.poNumber)}`} onClose={()=>setReceiving(null)}><div className="space-y-4">
-      {(data(receiving)?.items||[]).map((line:any)=>{const d=receiptDraft[line.lineId]||{delivered:0,rejected:0,reason:''};return <div key={line.lineId} className="rounded-xl border border-slate-800 p-3"><div className="flex justify-between text-sm"><b>{String(line.displayName)}</b><Tag>{String(line.treatment)}</Tag></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="text-sm">Delivered<input type="number" min="0" step="0.001" className={field} value={d.delivered} onChange={e=>{try{const value=parseQuantity(e.target.value);setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,delivered:value}}))}catch{}}}/></label><label className="text-sm">Rejected<input type="number" min="0" step="0.001" className={field} value={d.rejected} onChange={e=>{try{const value=parseQuantity(e.target.value);setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,rejected:value}}))}catch{}}}/></label>{d.rejected>0&&<Input label="Rejection reason" value={d.reason} set={value=>setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,reason:value}}))}/>}</div><div className="mt-1 text-xs text-slate-500">Remaining approved quantity: {Math.max(0,Number(line.quantityOrdered||0)-Number(line.quantityReceived||0))}</div></div>})}
+      {receiptHasOverage&&<p role="alert" className="rounded-lg border border-amber-600/40 bg-amber-500/10 p-3 text-sm text-amber-100">Accepted quantities exceed the approved PO balance. A manager approval token is required; rejected units do not count as received stock.</p>}
+      {(data(receiving)?.items||[]).map((line:any)=>{const d=receiptDraft[line.lineId]||{delivered:0,rejected:0,reason:''};return <div key={line.lineId} className="rounded-xl border border-slate-800 p-3"><div className="flex justify-between text-sm"><b>{String(line.displayName)}{line.purchasePackageName?` · ${line.purchasePackageName}`:''}</b><Tag>{String(line.treatment)}</Tag></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="text-sm">{line.purchasePackageId?'Packages delivered':'Delivered quantity'}<input type="number" min="0" step="0.001" className={field} value={d.delivered} onChange={e=>{try{const value=parseQuantity(e.target.value);setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,delivered:value}}))}catch{}}}/></label><label className="text-sm">Rejected<input type="number" min="0" step="0.001" className={field} value={d.rejected} onChange={e=>{try{const value=parseQuantity(e.target.value);setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,rejected:value}}))}catch{}}}/></label>{d.rejected>0&&<Input label="Rejection reason" value={d.reason} set={value=>setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,reason:value}}))}/>}</div><div className="mt-1 text-xs text-slate-500">Remaining approved {line.purchasePackageId?'packages':'quantity'}: {Math.max(0,Number(line.quantityOrdered||0)-Number(line.quantityReceived||0))}{line.purchasePackageId?` · ${((Number(line.quantityOrdered||0)-Number(line.quantityReceived||0))*Number(line.quantityBasePerPackage||1)).toLocaleString()} ${String(line.quantityBaseUnit||'base units')} stock units`:''}</div></div>})}
       {(data(receiving)?.items||[]).some((line:any)=>line.treatment==='STOCK')&&<><label className="block text-sm">Receiving stock location<select className={field} value={receiptLocation} onChange={e=>setReceiptLocation(e.target.value)}>{locations.map(location=><option key={location.id} value={location.id}>{String(data(location)?.name)}</option>)}</select></label><label className="block text-sm"><Barcode className="mr-1 inline h-4 w-4"/>Scan stock barcode / SKU<input data-barcode-capture="true" className={field} value={scanCode} onChange={e=>setScanCode(e.target.value)}/></label><button className={button} disabled={!scanCode.trim()} onClick={()=>applyScan(scanCode)}>Apply typed scan</button></>}
       <Input label="Supplier invoice reference (optional until matching)" value={receiptInvoice} set={setReceiptInvoice}/>
       <Input label="Delivery note" value={receiptDeliveryNote} set={setReceiptDeliveryNote}/>
       <Input label="Manager approval token (required only when receiving above approved quantities)" value={receiptApprovalToken} set={setReceiptApprovalToken}/>
       <Input label="Receipt notes" value={receiptNotes} set={setReceiptNotes}/>
-      <button disabled={disabled} className={primary} onClick={()=>void postReceipt()}>Post GRN atomically</button>
+      <button disabled={disabled||receiptHasOverage&&!receiptApprovalToken.trim()} className={primary} onClick={()=>void postReceipt()}>Post GRN atomically</button>
     </div></Modal>}
 
     {matching&&<Modal title="Match supplier invoice" onClose={()=>setMatching(null)}><div className="space-y-3">

@@ -25,7 +25,7 @@ declare
  who uuid:=auth.uid();
 
  current_data jsonb; current_archived boolean;
- supplier jsonb; stock jsonb; order_data jsonb; line jsonb; stored_line jsonb;
+ supplier jsonb; stock jsonb; order_data jsonb; line jsonb; stored_line jsonb; purchase_package jsonb;
  receipt jsonb; payable jsonb; acquisition jsonb; next_data jsonb;
  items jsonb:='[]'; receipt_lines jsonb:='[]'; journal_lines jsonb:='[]'; changes jsonb:='[]';
 
@@ -34,9 +34,9 @@ declare
  invoice_number text; invoice_date text; due_date text; room_key text; asset_location_key text; tag text;
 
  qty numeric; delivered numeric; accepted numeric; rejected numeric; ordered numeric; received numeric;
- current_qty numeric; stock_total numeric;
+ current_qty numeric; stock_total numeric; quantity_base_per_package numeric; base_accepted numeric;
 
- old_cost bigint; next_cost bigint; unit_price bigint; line_total bigint; subtotal bigint:=0;
+ old_cost bigint; next_cost bigint; unit_price bigint; line_total bigint; base_unit_cost bigint; subtotal bigint:=0;
  stock_value bigint:=0; asset_value bigint:=0; expense_value bigint:=0; accepted_total bigint:=0;
  approval_by uuid;
  invoice_total bigint; payable_total bigint; amount bigint; due bigint; paid bigint; remaining bigint;
@@ -144,6 +144,14 @@ begin
    if treatment='STOCK' then
     stock_key:=servos_v2.required_text(line,'stockItemId');
     stock:=servos_v2.read_record('stockItems',stock_key);
+    purchase_package:=null;
+    quantity_base_per_package:=1;
+    if nullif(trim(line->>'purchasePackageId'),'') is not null then
+     select value into purchase_package from jsonb_array_elements(coalesce(stock->'purchasePackages','[]'::jsonb)) value where value->>'id'=line->>'purchasePackageId';
+     if purchase_package is null then raise exception 'VALIDATION_FAILED: purchase package does not belong to stock item';end if;
+     quantity_base_per_package:=(purchase_package->>'baseQuantity')::numeric;
+     if quantity_base_per_package<=0 or quantity_base_per_package>1000000000 or qty<>trunc(qty) then raise exception 'VALIDATION_FAILED: whole purchase packages and supported package size required';end if;
+    end if;
     if exists(
       select 1 from jsonb_array_elements(items) x
       where x->>'treatment'='STOCK' and x->>'stockItemId'=stock_key
@@ -153,8 +161,10 @@ begin
      'lineId',line_key,'treatment','STOCK','displayName',stock->>'name',
      'stockItemId',stock_key,
      'quantityOrdered',qty,'quantityDelivered',0,'quantityReceived',0,'quantityRejected',0,
-     'unitPriceMinor',unit_price,'unitSymbol',stock->>'baseUnit',
+     'unitPriceMinor',unit_price,'unitSymbol',coalesce(purchase_package->>'name',stock->>'baseUnit'),
      'scanUnitQuantity',coalesce(stock->'scanUnitQuantity','1'::jsonb),
+     'purchasePackageId',purchase_package->>'id','purchasePackageName',purchase_package->>'name',
+     'quantityBasePerPackage',quantity_base_per_package,'quantityBaseUnit',stock->>'baseUnit',
      'lineTotalMinor',line_total
     ));
    elsif treatment='EXPENSE' then
@@ -264,6 +274,8 @@ begin
     raise exception 'VALIDATION_FAILED: rejected quantity needs reason';
    end if;
 
+   if nullif(stored_line->>'purchasePackageId','') is not null and (delivered<>trunc(delivered) or accepted<>trunc(accepted) or rejected<>trunc(rejected)) then raise exception 'VALIDATION_FAILED: receipt quantities must be whole packages';end if;
+
    ordered:=(stored_line->>'quantityOrdered')::numeric;
    received:=coalesce((stored_line->>'quantityReceived')::numeric,0);
    if received+accepted>ordered+0.000001 then over_received:=true; end if;
@@ -365,11 +377,15 @@ begin
     from jsonb_each_text(coalesce(stock->'currentStock','{}'::jsonb));
 
     old_cost:=coalesce((stock->>'averageUnitCostMinor')::bigint,0);
-    next_cost:=round((stock_total*old_cost+accepted*unit_price)/(stock_total+accepted))::bigint;
+    quantity_base_per_package:=coalesce(nullif(stored_line->>'quantityBasePerPackage','')::numeric,1);
+    if quantity_base_per_package<=0 then raise exception 'VALIDATION_FAILED: purchase package quantity';end if;
+    base_accepted:=accepted*quantity_base_per_package;
+    base_unit_cost:=round(unit_price/quantity_base_per_package)::bigint;
+    next_cost:=round((stock_total*old_cost+accepted*unit_price)/(stock_total+base_accepted))::bigint;
 
     next_data:=jsonb_set(
       stock,'{currentStock}',
-      coalesce(stock->'currentStock','{}'::jsonb)||jsonb_build_object(location_key,current_qty+accepted),
+      coalesce(stock->'currentStock','{}'::jsonb)||jsonb_build_object(location_key,current_qty+base_accepted),
       true
     )||jsonb_build_object('averageUnitCostMinor',next_cost);
 
@@ -378,9 +394,9 @@ begin
       'stockMovements',
       'receipt-'||(command->>'id')||'-'||(line->>'lineId'),
       jsonb_build_object(
-       'stockItemId',stock_key,'locationId',location_key,'quantityDelta',accepted,
+       'stockItemId',stock_key,'locationId',location_key,'quantityDelta',base_accepted,
        'movementType','PURCHASE_RECEIPT','sourceId',key,'sourceCommandId',command->>'id',
-       'unitCostMinor',unit_price,'totalCostMinor',line_total,
+       'unitCostMinor',base_unit_cost,'totalCostMinor',line_total,
        'reason',receipt->>'grnNumber','baseUnit',stock->>'baseUnit',
        'occurredAt',now(),'actorId',who
       )

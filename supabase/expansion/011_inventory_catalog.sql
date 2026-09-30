@@ -37,6 +37,7 @@ declare
  current_archived boolean;
  next_data jsonb;
  stock jsonb;
+ purchase_packages jsonb;
  stock_key text;
  location_key text;
  target_key text;
@@ -116,6 +117,10 @@ begin
    scan_qty:=case when data ? 'scanUnitQuantity' then servos_v2.quantity_value(data,'scanUnitQuantity',false) else 1 end;
    reorder_qty:=case when data ? 'reorderLevel' then servos_v2.quantity_value(data,'reorderLevel',true) else 0 end;
    cost_minor:=case when data ? 'averageUnitCostMinor' then servos_v2.minor(data,'averageUnitCostMinor') else coalesce((current_data->>'averageUnitCostMinor')::bigint,0) end;
+   purchase_packages:=coalesce(data->'purchasePackages',current_data->'purchasePackages','[]'::jsonb);
+   if jsonb_typeof(purchase_packages) is distinct from 'array' or jsonb_array_length(purchase_packages)>50 then raise exception 'VALIDATION_FAILED: purchase packages';end if;
+   if exists(select 1 from jsonb_array_elements(purchase_packages) pkg where jsonb_typeof(pkg) is distinct from 'object' or nullif(trim(pkg->>'id'),'') is null or nullif(trim(pkg->>'name'),'') is null or coalesce((pkg->>'baseQuantity')::numeric,0)<=0 or coalesce(pkg->>'baseUnit','') not in ('piece','g','ml')) then raise exception 'VALIDATION_FAILED: purchase package definition';end if;
+   if exists(select 1 from jsonb_array_elements(purchase_packages) pkg group by pkg->>'id' having count(*)>1) then raise exception 'DUPLICATE_REFERENCE: purchase package id';end if;
    if exists(select 1 from servos_v2.records r where r.collection='stockItems' and r.id<>key and not r.archived and upper(r.data->>'code')=code_value) then raise exception 'DUPLICATE_REFERENCE: stock code';end if;
    barcode:=nullif(trim(data->>'barcode'),'');
    if barcode is not null and (length(barcode)>128 or exists(select 1 from servos_v2.records r where r.collection='stockItems' and r.id<>key and not r.archived and r.data->>'barcode'=barcode)) then raise exception 'DUPLICATE_REFERENCE: stock barcode';end if;
@@ -126,6 +131,7 @@ begin
    next_data:=jsonb_build_object(
     'name',trim(data->>'name'),'code',code_value,'baseUnit',base_unit,
     'scanUnitQuantity',scan_qty,'reorderLevel',reorder_qty,'averageUnitCostMinor',cost_minor,
+    'purchasePackages',purchase_packages,
     'currentStock',coalesce(current_data->'currentStock','{}'::jsonb)
    );
    if barcode is not null then next_data:=next_data||jsonb_build_object('barcode',barcode);end if;

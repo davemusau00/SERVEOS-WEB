@@ -2184,12 +2184,21 @@ fn procurement_create(tx: &Transaction, user: &Session, p: &Value, changes: &mut
                         if seen_stock.iter().any(|v|v==&stock_id) { return Err("Each stock item can appear only once on a purchase order".into()); }
                         seen_stock.push(stock_id.clone());
                         let (_,stock)=get(tx,"stockItems",&stock_id)?;
+                        let package_id=line.get("purchasePackageId").and_then(Value::as_str).map(str::trim).filter(|value|!value.is_empty());
+                        let purchase_package=if let Some(package_id)=package_id {
+                            Some(stock["purchasePackages"].as_array().and_then(|packages|packages.iter().find(|package|package["id"].as_str()==Some(package_id))).cloned().ok_or("Selected purchase package does not belong to this stock item")?)
+                        }else{None};
+                        let quantity_per_package=purchase_package.as_ref().and_then(|package|package["baseQuantity"].as_f64()).filter(|value|value.is_finite()&&*value>0.0).unwrap_or(1.0);
+                        if purchase_package.is_some()&&((quantity_ordered.round()-quantity_ordered).abs()>0.000001||quantity_per_package>1_000_000_000.0){return Err("VALIDATION_FAILED: purchase-package quantity must be a whole package within supported limits".into());}
+                        let unit_symbol=purchase_package.as_ref().and_then(|package|package["name"].as_str()).unwrap_or_else(||stock["baseUnit"].as_str().unwrap_or("unit"));
                         let scan_unit=stock["scanUnitQuantity"].as_f64().filter(|value|value.is_finite()&&*value>0.0).unwrap_or(1.0);
                         items.push(json!({
                             "lineId":line_id,"treatment":"STOCK","displayName":stock["name"],
                             "stockItemId":stock_id,"stockItemName":stock["name"],"quantityOrdered":quantity_ordered,
                             "quantityDelivered":0,"quantityReceived":0,"quantityRejected":0,"unitPrice":unit_price,
-                            "unitSymbol":stock["baseUnit"],"scanUnitQuantity":scan_unit,"lineTotal":line_total
+                            "unitSymbol":unit_symbol,"scanUnitQuantity":scan_unit,
+                            "purchasePackageId":package_id,"purchasePackageName":purchase_package.as_ref().map(|package|package["name"].clone()),
+                            "quantityBasePerPackage":quantity_per_package,"quantityBaseUnit":stock["baseUnit"],"lineTotal":line_total
                         }));
                     }
                     "EXPENSE"=>{
@@ -2286,6 +2295,7 @@ fn procurement_receive(tx: &Transaction, user: &Session, cmd: &BusinessCommand, 
                 let previously_accepted=order_items[index]["quantityReceived"].as_f64().unwrap_or(0.0);
                 let previously_delivered=order_items[index]["quantityDelivered"].as_f64().unwrap_or(0.0);
                 let previously_rejected=order_items[index]["quantityRejected"].as_f64().unwrap_or(0.0);
+                if order_items[index].get("purchasePackageId").and_then(Value::as_str).is_some()&&[delivered,accepted,rejected].iter().any(|value|(value.round()-*value).abs()>0.000001){return Err("VALIDATION_FAILED: purchase-package receipt quantities must be whole packages".into());}
                 if previously_accepted+accepted>ordered+0.000001 { over_received=true; }
                 let treatment=order_items[index].get("treatment").and_then(Value::as_str).unwrap_or("STOCK").to_ascii_uppercase();
                 if treatment=="ASSET" && ((accepted.round()-accepted).abs()>0.000001||(delivered.round()-delivered).abs()>0.000001||(rejected.round()-rejected).abs()>0.000001){
@@ -2324,6 +2334,8 @@ fn procurement_receive(tx: &Transaction, user: &Session, cmd: &BusinessCommand, 
                     "expenseAccountName":order_items[index].get("expenseAccountName").cloned().unwrap_or(Value::Null),
                     "quantityDelivered":delivered,"quantityAccepted":accepted,"quantityRejected":rejected,
                     "unitSymbol":order_items[index]["unitSymbol"],"unitCost":unit_price,
+                    "purchasePackageId":order_items[index]["purchasePackageId"],"purchasePackageName":order_items[index]["purchasePackageName"],
+                    "quantityBasePerPackage":order_items[index]["quantityBasePerPackage"],"quantityBaseUnit":order_items[index]["quantityBaseUnit"],
                     "acceptedValue":line_value as f64/100.0,"rejectionReason":rejection_reason
                 }));
             }
@@ -2355,22 +2367,26 @@ fn procurement_receive(tx: &Transaction, user: &Session, cmd: &BusinessCommand, 
                 let treatment=line["treatment"].as_str().unwrap_or("STOCK");
                 if treatment=="STOCK"{
                     let stock_id=text(line,"stockItemId")?.to_string();
-                    let unit_cost=line["unitCost"].as_f64().unwrap_or(0.0);
+                    let package_count=accepted;
+                    let base_per_package=line["quantityBasePerPackage"].as_f64().filter(|value|value.is_finite()&&*value>0.0).unwrap_or(1.0);
+                    let base_accepted=package_count*base_per_package;
+                    let package_cost=line["unitCost"].as_f64().unwrap_or(0.0);
+                    let unit_cost=package_cost/base_per_package;
                     let location=location_id.as_deref().ok_or("Stock receipt location missing")?;
                     let (_,mut stock)=get(tx,"stockItems",&stock_id)?;
                     let stock_total=stock["currentStock"].as_object().map(|locations|locations.values().map(|value|value.as_f64().unwrap_or(0.0)).sum::<f64>()).unwrap_or(0.0);
                     let old_cost=stock["averageUnitCost"].as_f64().unwrap_or(0.0);
-                    let next_cost=if stock_total+accepted>0.0 { ((stock_total*old_cost+accepted*unit_cost)/(stock_total+accepted)*1_000_000.0).round()/1_000_000.0 } else { unit_cost };
+                    let next_cost=if stock_total+base_accepted>0.0 { ((stock_total*old_cost+base_accepted*unit_cost)/(stock_total+base_accepted)*1_000_000.0).round()/1_000_000.0 } else { unit_cost };
                     stock["averageUnitCost"]=json!(next_cost);
                     put(tx,"stockItems",&stock_id,stock,changes)?;
                     let inventory_receipt_id=id();
                     put(tx,"inventoryReceipts",&inventory_receipt_id,json!({
                         "id":inventory_receipt_id,"goodsReceiptId":receipt_id,"purchaseOrderId":order_id,
-                        "purchaseLineId":line["lineId"],"stockItemId":stock_id,"locationId":location,"quantity":accepted,"unitCost":unit_cost,
+                        "purchaseLineId":line["lineId"],"stockItemId":stock_id,"locationId":location,"quantity":base_accepted,"packageCount":package_count,"packageCost":package_cost,"unitCost":unit_cost,
                         "supplierId":supplier_id,"reference":grn_number,"supplierInvoiceNumber":invoice_reference,
                         "receivedAt":receipt_time,"receivedBy":user.staff_id
                     }),changes)?;
-                    stock_delta_with_cost(tx,user,&stock_id,location,accepted,"PURCHASE_RECEIPT",&receipt_id,&grn_number,Some(unit_cost),changes)?;
+                    stock_delta_with_cost(tx,user,&stock_id,location,base_accepted,"PURCHASE_RECEIPT",&receipt_id,&grn_number,Some(unit_cost),changes)?;
                 }else if treatment=="ASSET"{
                     let units=accepted.round() as i64;
                     let unit_cost_minor=(line["unitCost"].as_f64().unwrap_or(0.0)*100.0).round() as i64;

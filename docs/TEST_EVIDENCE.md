@@ -358,6 +358,10 @@ Native Catalog Add Item now presents four stages and ten product/ingredient/serv
 
 The Smart Item Wizard now captures supplier package label, contents as sale-container count or canonical stock units, optional package barcode, package price, and opening package count. The native payload derives scan quantity, average cost per stock unit, and opening balance quantity and persists a normalized package definition. Web stock count and PO receiving scanners match saved package barcodes and increment by canonical package base quantity. This is source-only evidence: no verification has been run; package administration and complete P5 acceptance remain deferred to the final test stage.
 
+### DEV final sprint P7 package-aware procurement — 2026-09-30
+
+Web PO drafting now attaches a saved package identity to STOCK lines, labels quantities/prices as packages, and shows remaining approved package and base-unit totals while receiving. Whole-package quantities are enforced in UI and native command validation; the receive dialog warns about over-receipts and requires the separate approval token before posting. PO package barcode scans increment the package count by one. Native and staged SQL PO creation validate package identity against the stock record; receipt posting preserves package quantities and converts them to base stock quantity and cost per base unit for inventory valuation and immutable stock movement. The operation manifest marks create/receive parity partial because hosted migration rollout and acceptance remain outstanding. Source only; tests remain deferred.
+
 ### DEV final sprint current-source regression gate â€” 2026-09-30
 
 - `npm test` â€” passed 146/146; `npm run lint` and `npm run build` passed (existing Vite large-chunk warning remains).

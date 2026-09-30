@@ -26,14 +26,14 @@ export function WebCatalogView({records,session,disabled,command}:{records:Busin
  const open=(next:'PRODUCT'|'STOCK'|'LOCATION',record?:BusinessRecord)=>{
   setKind(next);setEditing(record||null);setValidationError('');const d=data(record)||{};
   if(next==='PRODUCT')setForm({name:d.name||'',code:d.code||'',price:Number(d.priceMinor||0)/100,category:d.category||'GENERAL',routeTo:d.routeTo||'BAR',stockItemId:d.stockItemId||'',barcode:d.barcode||'',favorite:!!d.favorite,taxClassId:d.taxClassId||''});
-  if(next==='STOCK')setForm({name:d.name||'',code:d.code||'',baseUnit:d.baseUnit||'unit',barcode:d.barcode||'',scanUnitQuantity:Number(d.scanUnitQuantity||1),reorderLevel:Number(d.reorderLevel||0),averageUnitCost:Number(d.averageUnitCostMinor||0)/100});
+  if(next==='STOCK')setForm({name:d.name||'',code:d.code||'',baseUnit:d.baseUnit||'unit',barcode:d.barcode||'',purchasePackages:Array.isArray(d.purchasePackages)?d.purchasePackages:[],scanUnitQuantity:Number(d.scanUnitQuantity||1),reorderLevel:Number(d.reorderLevel||0),averageUnitCost:Number(d.averageUnitCostMinor||0)/100});
   if(next==='LOCATION')setForm({name:d.name||'',code:d.code||'',type:d.type||'STORE'});
  };
  const save=async()=>{
   setValidationError('');
   const id=editing?.id||crypto.randomUUID();
   if(kind==='PRODUCT')await command('product.save','products',id,{id,data:{name:String(form.name||'').trim(),code:String(form.code||'').trim(),priceMinor:Math.round(Number(form.price||0)*100),category:String(form.category||'GENERAL').trim(),routeTo:String(form.routeTo||'BAR'),stockItemId:String(form.stockItemId||'').trim()||undefined,barcode:String(form.barcode||'').trim()||undefined,favorite:!!form.favorite,taxClassId:String(form.taxClassId||'')}});
-  if(kind==='STOCK'){try{const scanUnitQuantity=parseQuantity(form.scanUnitQuantity,{min:Number.MIN_VALUE});const reorderLevel=parseQuantity(form.reorderLevel);await command('stockItem.save','stockItems',id,{id,data:{name:String(form.name||'').trim(),code:String(form.code||'').trim(),baseUnit:String(form.baseUnit||'unit').trim(),barcode:String(form.barcode||'').trim()||undefined,scanUnitQuantity,reorderLevel,averageUnitCostMinor:Math.round(Number(form.averageUnitCost||0)*100)}})}catch(error){setValidationError(error instanceof Error?error.message:'Enter valid quantity values.');return}}
+  if(kind==='STOCK'){try{const scanUnitQuantity=parseQuantity(form.scanUnitQuantity,{min:Number.MIN_VALUE});const reorderLevel=parseQuantity(form.reorderLevel);await command('stockItem.save','stockItems',id,{id,data:{name:String(form.name||'').trim(),code:String(form.code||'').trim(),baseUnit:String(form.baseUnit||'unit').trim(),barcode:String(form.barcode||'').trim()||undefined,purchasePackages:Array.isArray(form.purchasePackages)?form.purchasePackages:[],scanUnitQuantity,reorderLevel,averageUnitCostMinor:Math.round(Number(form.averageUnitCost||0)*100)}})}catch(error){setValidationError(error instanceof Error?error.message:'Enter valid quantity values.');return}}
   if(kind==='LOCATION')await command('stockLocation.save','stockLocations',id,{id,data:{name:String(form.name||'').trim(),code:String(form.code||'').trim(),type:String(form.type||'STORE')}});
   setKind(null);setEditing(null);
  };

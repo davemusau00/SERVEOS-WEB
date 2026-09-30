@@ -81,6 +81,8 @@ For each line select:
 
 For STOCK choose a stock master. For EXPENSE choose the controlled expense category and description. For ASSET choose the asset category and asset/model name. ASSET quantities must be whole units.
 
+For STOCK items with saved purchase packages, select the supplier package and enter whole packages ordered and the price per package. The package size is shown in canonical stock units. Items without a saved package retain the legacy base-unit quantity and price workflow. Package scans during receiving add one package to the PO line; the inventory count scanner adds the package's full base-unit quantity.
+
 The existing stock-only PO action remains backward compatible and is stored as STOCK treatment.
 
 ### Receive a mixed purchase order
@@ -108,6 +110,8 @@ All accepted treatments credit one Accounts Payable liability and belong to the 
 Invoice matching now follows stable purchase-line IDs rather than assuming every GRN line has a stock item.
 
 Quantity, unit cost and total must still match the accepted GRN and approved PO exactly.
+
+For a package-based stock line, the approved PO and invoice quantities are package counts. The GRN stores both accepted package count and its converted canonical stock quantity; inventory cost is averaged per canonical base unit. A package scan must match the package selected on the PO line.
 
 ### Commission a procured asset
 
