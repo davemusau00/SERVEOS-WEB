@@ -12,7 +12,14 @@ export function resolveOperationDependencies(operation: string, collection: stri
     const record = byKey.get(key(target, targetId));
     dependencies.set(key(target, targetId), { collection: target, id: targetId, version: record?.version ?? 0 });
   };
-  add(collection, id);
+  if (operation !== 'floorplan.save') add(collection, id);
+  if (operation === 'floorplan.save') {
+    add('outlets', payload.outletId);
+    const baseline = Array.isArray(payload.baseline) ? payload.baseline : [];
+    for (const entry of baseline) if (entry && typeof entry === 'object') add('tables', (entry as Record<string, unknown>).id);
+    const tables = Array.isArray(payload.tables) ? payload.tables : [];
+    for (const entry of tables) if (entry && typeof entry === 'object') add('tables', (entry as Record<string, unknown>).id);
+  }
   if (operation === 'catalog.createWithOpeningStock') {
     // The browser persists generated IDs in the payload so drafts and retries
     // keep the same targets. Server fallbacks are deterministic for native

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T22:29:10.778Z",
+  "generatedAt": "2026-09-30T22:50:00.105Z",
   "source": "docs/user-guide",
   "count": 40,
   "articles": [
@@ -841,12 +841,12 @@
       "summary": "The floorplan saves the complete outlet layout atomically and preserves active table ownership.",
       "example": "",
       "steps": [
-        "Choose the service outlet, add/edit/remove unoccupied tables and save.",
-        "Active tables cannot be removed.",
-        "Each save includes baseline record versions so stale editors cannot overwrite a newer layout."
+        "In the installed terminal or the Web Floorplan workspace, choose a service outlet, add or edit table labels, capacity, section, shape, position, minimum spend and assigned server, then save the complete layout.",
+        "A table with an active order cannot be removed; its order and operational state are preserved while layout settings are saved.",
+        "Each save includes baseline versions, so reload the latest layout if another operator changed the outlet while you were editing."
       ],
       "systemHandles": [
-        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+        "All business mutations go through the authorized native command or queued online `floorplan.save` operation. Each save is atomic across the outlet layout; offline Web edits remain local drafts until the business server can accept them."
       ],
       "commonMistakes": [
         "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
@@ -854,7 +854,7 @@
       "relatedTasks": [],
       "guideId": "",
       "estimatedMinutes": 1,
-      "body": "Section: Floor Plan\nRoles: Admin, Manager\nPermission: floorplan.manage\nScreen: floorplan\nKeywords: floorplan, floor plan, ServOS\n\n## Overview\n\nThe floorplan saves the complete outlet layout atomically and preserves active table ownership.\n\n## Procedure\n\nChoose the service outlet, add/edit/remove unoccupied tables and save. Active tables cannot be removed. Each save includes baseline record versions so stale editors cannot overwrite a newer layout.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
+      "body": "Section: Floor Plan\nRoles: Admin, Manager\nPermission: floorplan.manage\nScreen: floorplan\nKeywords: floorplan, floor plan, ServOS\n\n## Overview\n\nThe floorplan saves the complete outlet layout atomically and preserves active table ownership.\n\n## Procedure\n\nIn the installed terminal or the Web Floorplan workspace, choose a service outlet, add or edit table labels, capacity, section, shape, position, minimum spend and assigned server, then save the complete layout. A table with an active order cannot be removed; its order and operational state are preserved while layout settings are saved. Each save includes baseline versions, so reload the latest layout if another operator changed the outlet while you were editing.\n\n## What ServOS records\n\nAll business mutations go through the authorized native command or queued online `floorplan.save` operation. Each save is atomic across the outlet layout; offline Web edits remain local drafts until the business server can accept them.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "floorplan",
         "floor plan",

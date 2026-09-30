@@ -1,9 +1,9 @@
-import { Activity, BedDouble, Boxes, ClipboardCheck, CreditCard, HelpCircle, Home, LogIn, Martini, PackageSearch, Settings, ShieldCheck, Truck, Users, WalletCards } from 'lucide-react';
+import { Activity, BedDouble, Boxes, ClipboardCheck, CreditCard, HelpCircle, Home, LayoutGrid, LogIn, Martini, PackageSearch, Settings, ShieldCheck, Truck, Users, WalletCards, Wrench } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { WebSession } from './session';
 import { allowed } from './session';
 
-export type WorkspaceTab = 'Home' | 'POS' | 'KDS' | 'Catalog' | 'Inventory' | 'Procurement' | 'Front Desk' | 'Guest Accounts' | 'Housekeeping' | 'Rooms' | 'Assets' | 'Master Data' | 'Refunds' | 'Finance Controls' | 'Settings' | 'Finance' | 'Staff' | 'Administration' | 'Activity' | 'Help';
+export type WorkspaceTab = 'Home' | 'POS' | 'KDS' | 'Catalog' | 'Inventory' | 'Procurement' | 'Front Desk' | 'Guest Accounts' | 'Housekeeping' | 'Rooms' | 'Maintenance' | 'Floorplan' | 'Assets' | 'Master Data' | 'Refunds' | 'Finance Controls' | 'Settings' | 'Finance' | 'Staff' | 'Administration' | 'Activity' | 'Help';
 
 export type WorkspaceDefinition = { id: WorkspaceTab; label: string; description: string; permission: string[]; icon: LucideIcon; group: 'Start' | 'Operations' | 'Management' | 'System' };
 
@@ -17,6 +17,8 @@ export const workspaces: WorkspaceDefinition[] = [
   { id: 'Front Desk', label: 'Front Desk', description: 'Manage arrivals, stays, departures, and room moves.', permission: ['rooms.view', 'rooms.operate'], icon: LogIn, group: 'Operations' },
   { id: 'Guest Accounts', label: 'Guest Accounts', description: 'Manage folios, deposits, services, and settlement.', permission: ['folio.view', 'folio.manage', 'payment.record'], icon: WalletCards, group: 'Operations' },
   { id: 'Housekeeping', label: 'Housekeeping', description: 'Move rooms through readiness and maintenance states.', permission: ['rooms.view', 'rooms.operate'], icon: ClipboardCheck, group: 'Operations' },
+  { id: 'Maintenance', label: 'Maintenance', description: 'Report and track asset repairs.', permission: ['maintenance.view', 'maintenance.manage'], icon: Wrench, group: 'Operations' },
+  { id: 'Floorplan', label: 'Floorplan', description: 'Arrange tables and preserve active table ownership.', permission: ['floorplan.view', 'floorplan.manage'], icon: LayoutGrid, group: 'Operations' },
   { id: 'Rooms', label: 'Rooms & rates', description: 'Set up rooms, rates, reservations, and availability.', permission: ['rooms.view', 'rooms.manage', 'rooms.operate'], icon: BedDouble, group: 'Operations' },
   { id: 'Catalog', label: 'Catalog', description: 'Manage products, prices, portions, and modifiers.', permission: ['catalog.view', 'catalog.manage'], icon: PackageSearch, group: 'Management' },
   { id: 'Assets', label: 'Assets', description: 'Track property items and operational history.', permission: ['assets.view', 'assets.manage'], icon: ShieldCheck, group: 'Management' },

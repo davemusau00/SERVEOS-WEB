@@ -42,6 +42,10 @@ P18 has started: generated `docs/generated/OPERATION_PARITY_LEDGER.{md,json}` ca
 
 P19 has started: corrected parity entries now reflect existing Web service posting, folio settlement and POS room-charge flows. Guest Accounts now exposes authorized, reason-required reversal of an unreversed unpaid folio charge; the backend remains authoritative and rejects paid-charge reversal. Broader parity gaps and acceptance remain open; source unverified.
 
+P19 maintenance continuation adds a Maintenance workspace for queued asset report, assign, start, complete, and cancel commands, with staff assignment and optional supplier-invoice service cost. It corrects the manifest to the real `maintenance.*` command family and removes the unsupported `asset.maintenance` alias. Web part-stock issue entry and all runtime acceptance remain open; source unverified.
+
+P19 floorplan continuation adds a permission-gated Web outlet editor and staged atomic `floorplan.save` handler. Web resolves optimistic baselines for the outlet and all table IDs; PostgreSQL serializes saves by outlet, checks baseline versions, preserves active order state, and rejects occupied-table removal. Disposable SQL acceptance is authored and wired but not run. This is source implementation only; staged migration, native/Web runtime and acceptance evidence remain open.
+
 P20 has started: Guest Accounts reversal consumes shared FormField, BusyButton and BlockerCard controls. Application-wide style consolidation and operator UX acceptance remain open; source unverified.
 
 P21 source inventory: manifest/icons, offline-shell caching guard, update-ready flow and busy/sync update protection are present, with dedicated PWA/browser source tests. These checks were not run during this pass; packaged install/standalone and live offline acceptance remain open.

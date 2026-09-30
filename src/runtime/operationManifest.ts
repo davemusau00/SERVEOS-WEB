@@ -61,6 +61,10 @@ const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'ap
   { operation: 'asset.commission', domain: 'Assets', permission: 'assets.manage', collection: 'assetAcquisitions', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'assetCategory.save', domain: 'Assets', permission: 'assets.manage', collection: 'assetCategories', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'maintenance.report', domain: 'Assets', permission: 'maintenance.manage', collection: 'maintenanceOrders', native: 'implemented', backend: 'implemented', web: 'implemented' },
+  { operation: 'maintenance.assign', domain: 'Assets', permission: 'maintenance.manage', collection: 'maintenanceOrders', native: 'implemented', backend: 'implemented', web: 'implemented' },
+  { operation: 'maintenance.start', domain: 'Assets', permission: 'maintenance.manage', collection: 'maintenanceOrders', native: 'implemented', backend: 'implemented', web: 'implemented' },
+  { operation: 'maintenance.complete', domain: 'Assets', permission: 'maintenance.manage', collection: 'maintenanceOrders', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Web completion records repair resolution and optional supplier invoice cost; part consumption is not yet exposed in the Web form.' },
+  { operation: 'maintenance.cancel', domain: 'Assets', permission: 'maintenance.manage', collection: 'maintenanceOrders', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'room.save', domain: 'Rooms', permission: 'rooms.manage', collection: 'rooms', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'room.block', domain: 'Rooms', permission: 'rooms.manage', collection: 'roomBlocks', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'room.unblock', domain: 'Rooms', permission: 'rooms.manage', collection: 'roomBlocks', native: 'implemented', backend: 'implemented', web: 'implemented' },
@@ -109,7 +113,6 @@ const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'ap
   { operation: 'closeDay.generate', domain: 'Finance', permission: 'reports.view', collection: 'closeDayReports', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'staff.create', domain: 'Staff', permission: 'staff.create', collection: 'employees', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'device.revoke', domain: 'Staff', permission: 'devices.manage', collection: 'deviceEvents', native: 'blocked', backend: 'implemented', web: 'implemented', notes: 'Native v2 desktop adapter is not connected yet.' },
-  { operation: 'asset.maintenance', domain: 'Assets', permission: 'maintenance.manage', collection: 'maintenanceOrders', native: 'implemented', backend: 'implemented', web: 'missing' },
   { operation: 'runtime.print_receipt', domain: 'Administration', permission: 'pos.sell', collection: 'receiptDocuments', native: 'implemented', backend: 'blocked', web: 'blocked', notes: 'Browser uses OS/PDF printing; direct terminal printer access is native/agent-only.' },
   { operation: 'runtime.backup', domain: 'Administration', permission: 'backup.create', collection: 'metadata', native: 'implemented', backend: 'blocked', web: 'blocked', notes: 'SQLite backup is local terminal authority.' },
 ];
@@ -117,14 +120,14 @@ const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'ap
 /** Unknown is intentional until a workflow has evidence in the parity and operator audit. */
 export const WEB_OPERATION_MANIFEST: readonly OperationDefinition[] = operationDefinitions.map(item => ({
   ...item,
-  offlineEligibility: item.web === 'blocked' ? 'blocked' : 'unknown',
-  approval: item.notes?.toLowerCase().includes('approval') ? 'conditional' : 'unknown',
-  versioning: 'unknown',
-  auditEffect: 'unknown',
-  stockEffect: 'unknown',
-  financialEffect: 'unknown',
-  acceptanceTest: `Add or maintain acceptance coverage for ${item.operation} across permission, persistence, conflict, and recovery behavior.`,
-  operatorUxStatus: item.web === 'implemented' ? 'unreviewed' : 'blocked-by-domain',
+  offlineEligibility: item.operation === 'floorplan.save' ? 'online-only' : item.web === 'blocked' ? 'blocked' : 'unknown',
+  approval: item.operation === 'floorplan.save' ? 'none' : item.notes?.toLowerCase().includes('approval') ? 'conditional' : 'unknown',
+  versioning: item.operation === 'floorplan.save' ? 'required' : 'unknown',
+  auditEffect: item.operation === 'floorplan.save' ? 'required' : 'unknown',
+  stockEffect: item.operation === 'floorplan.save' ? 'none' : 'unknown',
+  financialEffect: item.operation === 'floorplan.save' ? 'none' : 'unknown',
+  acceptanceTest: item.operation === 'floorplan.save' ? 'Verify atomic full-outlet save, optimistic baseline, occupied-table preservation, removal rejection, authorization, replay, and cross-client visibility.' : `Add or maintain acceptance coverage for ${item.operation} across permission, persistence, conflict, and recovery behavior.`,
+  operatorUxStatus: item.operation === 'floorplan.save' ? 'implemented' : item.web === 'implemented' ? 'unreviewed' : 'blocked-by-domain',
 }));
 
 export const operationByName = (operation: string) => WEB_OPERATION_MANIFEST.find(item => item.operation === operation);

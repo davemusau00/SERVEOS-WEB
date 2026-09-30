@@ -452,6 +452,14 @@ Source inspection confirmed Web folio service posting/settlement and POS room ch
 
 The new Guest Accounts reversal workflow now uses the common form-field, busy-button, and blocker-card primitives. Source-only change; no lint, tests, build, browser or accessibility verification was run.
 
+### DEV final sprint P19 Web asset maintenance parity — 2026-10-01
+
+Added `tests/web-maintenance-source.test.mjs` to assert the dedicated Maintenance workspace, permission discovery, exact staged/native `maintenance.*` operation names, queued command boundary, and honest empty-parts limitation. The parity generator completed and materialized 85 operation entries; `git diff --check` passed. The focused source test, lint, typecheck, build, native, browser, and cloud tests were not run; this is source-level progress only.
+
+### DEV final sprint P19 Web floorplan parity — 2026-10-01
+
+Added the Web Floorplan editor, dependency resolution for every baseline/new table and outlet, staged expansion 038, a disposable PostgreSQL acceptance fixture, and browser/cloud harness wiring. The Help index generator ran and emitted 40 articles after updating the floorplan guide. No SQL, Node, browser, lint, typecheck, or production build tests were executed; the migration and acceptance remain unverified.
+
 ### DEV final sprint P21 PWA source inventory — 2026-09-30
 
 Read-only inspection confirmed PWA manifest/icon assets, the Web shell plugin, update-safe activation, and dedicated PWA asset/service-worker browser tests already exist. This is source inspection only; the PWA tests and installed/standalone acceptance were not run.

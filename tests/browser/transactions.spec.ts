@@ -20,7 +20,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
    await new Promise(r=>setTimeout(r,1000));
   }
   if(!databaseReady)throw new Error('Disposable PostgreSQL did not accept SQL connections within 60 seconds.');
-   const files=['tests/supabase/bootstrap.sql',...['supabase/migrations','supabase/expansion'].flatMap(dir=>readdirSync(dir).filter(f=>f.endsWith('.sql')).sort().map(f=>`${dir}/${f}`)),'tests/supabase/financial-controls.sql'];
+   const files=['tests/supabase/bootstrap.sql',...['supabase/migrations','supabase/expansion'].flatMap(dir=>readdirSync(dir).filter(f=>f.endsWith('.sql')).sort().map(f=>`${dir}/${f}`)),'tests/supabase/financial-controls.sql','tests/supabase/floorplan.sql'];
   sql(files.map(f=>readFileSync(f,'utf8')).join('\n'));
    sql(`
    reset role;
