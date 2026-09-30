@@ -206,13 +206,11 @@ async fn runtime_refresh_operator_auth(state:State<'_,Runtime>,force_refresh:boo
 async fn runtime_v2_install_snapshot(state:State<'_,Runtime>)->store::Result<Value>{
     if !refresh_operator_auth_inner(&state,true).await? { return Err("Sign in online to initialize the v2 replica".into()); }
     let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
-    let (url,key,terminal,already_installed)={
+    let (url,key,terminal)={
         let db=state.db.lock().map_err(|e|e.to_string())?;
         let terminal=store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?;
-        let installed:Option<i64>=db.query_row("SELECT snapshot_complete FROM native_v2_state WHERE device_id=?",[&terminal],|r|r.get(0)).optional().map_err(|e|e.to_string())?;
-        (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,terminal,installed==Some(1))
+        (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,terminal)
     };
-    if already_installed { return Err("V2 baseline already exists; use feed reconciliation".into()); }
     let session=rpc(&url,&key,Some(&active.access_token),"servos_v2_session",json!({})).await?;
     let business_id=store::text(&session,"businessId")?.to_string();
     let actor_id=store::text(&session,"actorId")?;
@@ -250,6 +248,51 @@ async fn runtime_v2_install_snapshot(state:State<'_,Runtime>)->store::Result<Val
         }
     }
     Err("V2 snapshot exceeded the 200-page safety limit; no baseline installed".into())
+}
+#[tauri::command]
+async fn runtime_v2_sync_replica(state:State<'_,Runtime>)->store::Result<Value>{
+    {
+        let mut running=state.syncing.lock().map_err(|e|e.to_string())?;
+        if *running{return Err("Another synchronization is already running".into());}
+        *running=true;
+    }
+    let result=async {
+        if !refresh_operator_auth_inner(&state,true).await? { return Err("Sign in online to synchronize the v2 replica".into()); }
+        let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
+        let (url,key,terminal,business_id,feed_cursor,snapshot_policy,complete)={
+            let db=state.db.lock().map_err(|e|e.to_string())?;
+            let terminal=store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?;
+            let row:Option<(String,i64,Option<String>,i64)>=db.query_row("SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete FROM native_v2_state WHERE device_id=?",[&terminal],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(|e|e.to_string())?;
+            let (business,cursor,policy,installed)=row.ok_or("Authenticated v2 device state is missing")?;
+            (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,terminal,business,cursor,policy,installed==1)
+        };
+        if !complete{return Err("Install the authorized v2 shadow baseline before feed synchronization".into());}
+        let session=rpc(&url,&key,Some(&active.access_token),"servos_v2_session",json!({})).await?;
+        if session["actorId"].as_str()!=active.identity["actorId"].as_str()||session["businessId"].as_str()!=Some(business_id.as_str()){
+            return Err("Authenticated v2 identity changed; sign in again".into());
+        }
+        if session["policyVersion"].as_str()!=snapshot_policy.as_deref(){
+            return Err("V2 permissions changed since baseline. Reconcile and reinitialize the shadow snapshot before continuing".into());
+        }
+        let mut cursor=feed_cursor;
+        let mut total_changes=0usize;
+        for _ in 0..100 {
+            let page=rpc(&url,&key,Some(&active.access_token),"servos_v2_pull",json!({"after_sequence":cursor,"page_size":100})).await?;
+            let next=page["cursor"].as_i64().filter(|value|*value>=cursor).ok_or("Invalid v2 feed cursor")?;
+            let change_count=page["changes"].as_array().ok_or("V2 feed changes missing")?.len();
+            if page["hasMore"]==true&&next==cursor{return Err("V2 change feed made no progress".into());}
+            {
+                let mut db=state.db.lock().map_err(|e|e.to_string())?;
+                store::apply_native_v2_page(&mut db,&terminal,&page)?;
+            }
+            total_changes+=change_count;
+            cursor=next;
+            if page["hasMore"]!=true{return Ok(json!({"appliedChanges":total_changes,"cursor":cursor,"hasMore":false}));}
+        }
+        Ok(json!({"appliedChanges":total_changes,"cursor":cursor,"hasMore":true}))
+    }.await;
+    if let Ok(mut running)=state.syncing.lock(){*running=false;}
+    result
 }
 #[tauri::command]
 fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
@@ -1175,6 +1218,7 @@ pub fn run() {
             runtime_login_offline,
             runtime_refresh_operator_auth,
             runtime_v2_install_snapshot,
+            runtime_v2_sync_replica,
             runtime_lock,
             runtime_snapshot,
             runtime_guidance_progress,

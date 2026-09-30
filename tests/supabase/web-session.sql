@@ -45,9 +45,11 @@ do $$declare session jsonb;progress jsonb;begin
   perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
 end$$;
 update servos_v2.members set permissions=array['records.view'] where user_id=auth.uid();
+update servos_v2.control set enabled=false;
 set local role authenticated;
-do $$declare page jsonb;begin
+do $$declare page jsonb;session jsonb;begin
  page:=public.servos_v2_snapshot();if jsonb_array_length(page->'records')<>2 then raise exception 'Snapshot leaked private employee';end if;
+ session:=public.servos_v2_session();if session->>'enabled'<>'false' then raise exception 'Snapshot test did not keep v2 command authority disabled';end if;
 end$$;
 reset role;
 update servos_v2.members set active=false where user_id=auth.uid();

@@ -3,6 +3,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { flushLocalWork } from './localWork';
 import { Dialog } from '../design-system/controls';
+import { operationByName } from './operationManifest';
+import { resolveOperationDependencies } from './web/dependencies';
 import type { ReceiptResponse, ReceiptSummary } from '../types/receipt';
 import type { ImportApplyPlan, ImportBatchDetail, ImportBatchSummary, StageImportInput } from '../types/imports';
 import type { BusinessCommand, CommandResult, IntakeProfile, ManagerApproval, Permission, PrinterJobResult, ProductionHealthAudit, ReconciliationReport, RuntimeSession, RuntimeSnapshot, RuntimeStatus, TerminalAcceptanceStatus } from '../types/runtime';
@@ -54,6 +56,7 @@ interface RuntimeContextValue {
   approve: (approverId: string, pin: string, permission: Permission, target?: string) => Promise<ManagerApproval>;
   sync: () => Promise<void>;
   installV2Snapshot: () => Promise<{ installed:boolean; records:number; cursor:number; policyVersion:string; pageCount:number }>;
+  syncV2Replica: () => Promise<{ appliedChanges:number; cursor:number; hasMore:boolean }>;
   backup: () => Promise<string>;
   healthAudit: () => Promise<ProductionHealthAudit>;
   acceptanceStatus: () => Promise<TerminalAcceptanceStatus>;
@@ -186,8 +189,16 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
   const command = useCallback(async (operation: string, payload: Record<string, unknown> = {}, targetVersion?: number, commandId?: string) => {
     if (!session) throw new Error('Unlock the terminal first');
     const request: BusinessCommand = { id: commandId || crypto.randomUUID(), schemaVersion: 1, operation, payload, targetVersion };
+    const definition=operationByName(operation);
+    const collection=typeof payload.collection==='string'?payload.collection:(definition?.collection.includes(' ')?'':definition?.collection||'');
+    const targetId=[payload.id,payload.recordId,payload.reservationId,payload.stayId,payload.folioId,payload.orderId,payload.paymentId,payload.purchaseOrderId,payload.roomId].find(value=>typeof value==='string'&&value.trim()) as string|undefined||request.id;
+    const dependencies=collection?resolveOperationDependencies(operation,collection,targetId,payload,snapshot?.records||[]):[];
+    const expectedByKey=new Map(dependencies.map(version=>[`${version.collection}:${version.id}`,version]));
+    if(Array.isArray(payload.baseline))for(const raw of payload.baseline){if(raw&&typeof raw==='object'&&typeof raw.id==='string'&&Number.isSafeInteger(raw.version))expectedByKey.set(`${collection}:${raw.id}`,{collection,id:raw.id,version:Number(raw.version)});}
+    if(targetVersion!==undefined)expectedByKey.set(`${collection}:${targetId}`,{collection,id:targetId,version:targetVersion});
+    const expectedVersions=[...expectedByKey.values()].sort((left,right)=>left.collection.localeCompare(right.collection)||left.id.localeCompare(right.id));
     let result: CommandResult;
-    try { result = await invoke<CommandResult>('runtime_command', { token: session.token, command: request }); }
+    try { result = await invoke<CommandResult>('runtime_command', { token: session.token, command: request, expectedVersions }); }
     catch (e) { report(e); throw e; }
     // The write has committed. A failed reload must not invite a second payment.
     try { await refresh(); if (operation.startsWith('staff.')) await reloadStatus(); setError(''); }
@@ -196,7 +207,7 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     window.dispatchEvent(new Event('servos:local-commit'));
     window.dispatchEvent(new CustomEvent('servos:command-committed', { detail: { operation, result, payload: Object.fromEntries(['orderId', 'locationId', 'supplierId', 'purchaseOrderId'].filter(key => typeof payload[key] === 'string').map(key => [key, payload[key]])) } }));
     return result;
-  }, [session, refresh, report, reloadStatus]);
+  }, [session, snapshot, refresh, report, reloadStatus]);
   const guidanceProgress = async () => {
     if (!session) throw new Error('Unlock the terminal first');
     return invoke<GuidanceProgress[]>('runtime_guidance_progress', { token: session.token });
@@ -231,6 +242,10 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
   }, [session, refresh, report]);
   const installV2Snapshot = async () => {
     try { return await invoke<{ installed:boolean; records:number; cursor:number; policyVersion:string; pageCount:number }>('runtime_v2_install_snapshot'); }
+    catch (e) { report(e); throw e; }
+  };
+  const syncV2Replica = async () => {
+    try { return await invoke<{ appliedChanges:number; cursor:number; hasMore:boolean }>('runtime_v2_sync_replica'); }
     catch (e) { report(e); throw e; }
   };
   const backup = async () => {
@@ -333,5 +348,5 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     return () => { clearInterval(timer); window.removeEventListener('pointerdown', active); window.removeEventListener('keydown', active); window.removeEventListener('online', resume); window.removeEventListener('servos:local-commit', resume); document.removeEventListener('visibilitychange', resume); };
   }, [session, sync, lock, report]);
 
-  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, installV2Snapshot, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
+  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, installV2Snapshot, syncV2Replica, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
 };

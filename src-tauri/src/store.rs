@@ -219,8 +219,8 @@ pub fn apply_native_v2_page(db: &mut Connection, device_id: &str, page: &Value) 
     Ok(())
 }
 
-/// Install a stable authorized server snapshot as the isolated v2 baseline.
-/// Replacing an already-installed baseline is intentionally rejected.
+/// Install or refresh a stable authorized server snapshot as the isolated v2
+/// baseline. A refresh is blocked while any v2 command awaits acknowledgement.
 pub fn install_native_v2_snapshot(db: &mut Connection, device_id: &str, business_id: &str, cursor: i64, policy: &str, records: &[Value]) -> Result<()> {
     if cursor < 0 || policy.trim().is_empty() || records.len() > 100_000 {
         return Err("Invalid or oversized v2 baseline snapshot".into());
@@ -231,8 +231,10 @@ pub fn install_native_v2_snapshot(db: &mut Connection, device_id: &str, business
         [device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
     ).map_err(error)?;
     if stored_business != business_id { return Err("V2 snapshot business does not match paired terminal".into()); }
-    if complete != 0 { return Err("V2 baseline is already installed; use feed reconciliation".into()); }
+    let pending:i64=tx.query_row("SELECT COUNT(*) FROM native_v2_outbox WHERE state='PENDING'",[],|row|row.get(0)).map_err(error)?;
+    if pending>0 { return Err("V2 snapshot refresh is blocked while commands await acknowledgement".into()); }
     if cursor < previous_cursor { return Err("V2 snapshot cursor moved behind the authenticated identity cursor".into()); }
+    if complete==1 { tx.execute("DELETE FROM native_v2_records",[]).map_err(error)?; }
     for record in records {
         let collection=text(record,"collection")?;
         let record_id=text(record,"id")?;
@@ -246,6 +248,69 @@ pub fn install_native_v2_snapshot(db: &mut Connection, device_id: &str, business
         params![cursor,policy,now(),device_id]).map_err(error)?;
     tx.commit().map_err(error)?;
     Ok(())
+}
+
+pub fn queue_native_v2_command(db:&mut Connection,device_id:&str,business_id:&str,actor_id:&str,command:&BusinessCommand,expected_versions:&Value)->Result<Value>{
+    if Uuid::parse_str(device_id).is_err()||Uuid::parse_str(actor_id).is_err()||Uuid::parse_str(&command.id).is_err(){return Err("Invalid v2 command identity".into());}
+    let versions=expected_versions.as_array().ok_or("Command concurrency baseline is missing")?;
+    let mut unique=std::collections::HashSet::new();
+    for version in versions{
+        let collection=text(version,"collection")?;let record_id=text(version,"id")?;
+        if version["version"].as_i64().filter(|value|*value>=0).is_none()||!unique.insert(format!("{collection}:{record_id}")){return Err("Invalid or duplicate expected-version entry".into());}
+    }
+    let tx=db.transaction().map_err(error)?;
+    let state:Option<(String,i64,i64)>=tx.query_row("SELECT business_id,last_sequence,snapshot_complete FROM native_v2_state WHERE device_id=?",[device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).optional().map_err(error)?;
+    let (stored_business,last_sequence,snapshot_complete)=state.ok_or("V2 device state is not initialized")?;
+    if stored_business!=business_id{return Err("V2 command business does not match paired terminal".into());}
+    if snapshot_complete!=1{return Err("Install a complete v2 baseline before submitting shared commands".into());}
+    let legacy_pending:i64=tx.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|row|row.get(0)).map_err(error)?;
+    if legacy_pending>0{return Err("V2 writes are blocked until the legacy outbox is drained and reconciled".into());}
+    let v2_pending:i64=tx.query_row("SELECT COUNT(*) FROM native_v2_outbox WHERE device_id=? AND state='PENDING'",[device_id],|row|row.get(0)).map_err(error)?;
+    if v2_pending>0{return Err("A v2 command is awaiting acknowledgement; synchronize it before submitting another".into());}
+    let client_sequence=last_sequence.checked_add(1).ok_or("V2 command sequence exhausted")?;
+    let envelope=json!({"id":command.id,"schemaVersion":2,"deviceId":device_id,"actorId":actor_id,"operation":command.operation,"payload":command.payload,"expectedVersions":expected_versions,"allocationRefs":[],"clientSequence":client_sequence,"occurredAt":now()});
+    tx.execute("INSERT INTO native_v2_outbox(command_id,device_id,actor_id,client_sequence,envelope,state,created_at) VALUES(?,?,?,?,?,'PENDING',?)",params![command.id,device_id,actor_id,client_sequence,envelope.to_string(),now()]).map_err(error)?;
+    tx.commit().map_err(error)?;
+    Ok(envelope)
+}
+
+pub fn next_native_v2_pending(db:&Connection,device_id:&str)->Result<Option<(String,String,Value)>>{
+    let row:Option<(String,String,String)>=db.query_row("SELECT command_id,actor_id,envelope FROM native_v2_outbox WHERE device_id=? AND state='PENDING' ORDER BY client_sequence LIMIT 1",[device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).optional().map_err(error)?;
+    row.map(|(command_id,actor_id,envelope)|Ok((command_id,actor_id,serde_json::from_str(&envelope).map_err(error)?))).transpose()
+}
+
+pub fn mark_native_v2_attempt(db:&Connection,command_id:&str)->Result<()>{
+    db.execute("UPDATE native_v2_outbox SET attempts=attempts+1 WHERE command_id=? AND state='PENDING'",[command_id]).map_err(error)?;
+    Ok(())
+}
+
+pub fn acknowledge_native_v2_command(db:&mut Connection,result:&Value)->Result<Value>{
+    let command_id=text(result,"commandId")?;
+    let status=text(result,"status")?;
+    let state=match status{"SYNCHRONIZED"=>"SYNCHRONIZED","CONFLICT"=>"CONFLICT","REJECTED"=>"REJECTED",_=>return Err("Server returned an unknown v2 command status".into())};
+    let tx=db.transaction().map_err(error)?;
+    let queued:Option<(String,String,i64,String)>=tx.query_row("SELECT device_id,actor_id,client_sequence,envelope FROM native_v2_outbox WHERE command_id=? AND state='PENDING'",[command_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?))).optional().map_err(error)?;
+    let (device_id,actor_id,client_sequence,envelope)=queued.ok_or("V2 acknowledgement has no matching pending command")?;
+    let envelope:Value=serde_json::from_str(&envelope).map_err(error)?;
+    if result["commandId"].as_str()!=Some(command_id)||envelope["actorId"].as_str()!=Some(actor_id.as_str()){return Err("V2 acknowledgement identity mismatch".into());}
+    let server_sequence=result.get("serverSequence").and_then(Value::as_i64);
+    tx.execute("UPDATE native_v2_outbox SET state=?,result=?,server_sequence=?,acknowledged_at=? WHERE command_id=?",params![state,result.to_string(),server_sequence,now(),command_id]).map_err(error)?;
+    tx.execute("UPDATE native_v2_state SET last_sequence=MAX(last_sequence,?),updated_at=? WHERE device_id=?",params![client_sequence,now(),device_id]).map_err(error)?;
+    tx.commit().map_err(error)?;
+    Ok(json!({"commandId":command_id,"recordIds":result["recordVersions"].as_array().into_iter().flatten().filter_map(|entry|entry["id"].as_str()).collect::<Vec<_>>(),"auditReference":result["auditReference"],"sequence":server_sequence.unwrap_or(client_sequence)}))
+}
+
+pub fn native_v2_snapshot(db:&Connection,token:&str,device_id:&str)->Result<Value>{
+    let user=actor(db,token,false)?;
+    let (business_id,feed_cursor,policy,complete):(String,i64,Option<String>,i64)=db.query_row("SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete FROM native_v2_state WHERE device_id=?",[device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?))).map_err(error)?;
+    if complete!=1{return Err("The v2 shadow baseline has not been installed".into());}
+    let mut statement=db.prepare("SELECT collection,record_id,version,data,archived FROM native_v2_records ORDER BY collection,record_id").map_err(error)?;
+    let records=statement.query_map([],|row|{
+        let data:String=row.get(3)?;
+        Ok(json!({"collection":row.get::<_,String>(0)?,"id":row.get::<_,String>(1)?,"version":row.get::<_,i64>(2)?,"data":serde_json::from_str::<Value>(&data).unwrap_or(Value::Null),"archived":row.get::<_,i64>(4)?!=0}))
+    }).map_err(error)?.collect::<std::result::Result<Vec<_>,_>>().map_err(error)?;
+    let pending:i64=db.query_row("SELECT COUNT(*) FROM native_v2_outbox WHERE state='PENDING'",[],|row|row.get(0)).map_err(error)?;
+    Ok(json!({"records":records,"pendingCount":pending,"lastSync":meta(db,"last_sync")?,"lastBackup":meta(db,"last_backup")?,"terminalId":device_id,"installationStage":installation_stage(db)?,"actor":{"id":user.staff_id,"name":user.name,"role":user.role,"permissions":permissions(&user.role)},"v2":{"businessId":business_id,"feedCursor":feed_cursor,"policyVersion":policy}}))
 }
 
 

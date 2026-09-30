@@ -11,7 +11,7 @@ This guide configures individual business accounts on an installed ServOS termin
 - During first enrollment, the initial local Administrator's stable ID is `auth:<Auth UUID>`, matching the staged owner-profile backfill. For every other operator, bind the Auth user to the exact stable Staff ID from the terminal's staff record; do not guess or use an email/name as the ID.
 - Confirm the business membership and operator permissions are active. Permissions are resolved from the authenticated server session and role profile, not from a terminal role selector.
 - The native source now contains SQLite schema 14 for separate v2 device sequence/feed state, an empty command outbox, and an isolated shadow-record replica. The feed-page applier does not update legacy operational records. This is dormant protocol storage, not a v2 writer; the migration has not been applied to a packaged terminal by this guide.
-- After staging has applied migration 029, an authorized operator can install the one-time v2 shadow baseline from the terminal's reconciliation panel. The snapshot RPC is read-only and available while shared v2 writes remain disabled. Confirm the reported record count/cursor and separately reconcile the migration; do not enable v2 from this step.
+- After staging has applied migration 029, an authorized operator can install or refresh the v2 shadow baseline and pull its change feed from the terminal's reconciliation panel. Snapshot and feed RPCs are read-only; snapshot replacement refuses to run while any v2 command awaits acknowledgement. Confirm the reported record count/cursor and separately reconcile the migration; do not enable v2 from this step.
 
 ## Invite and bind operators
 

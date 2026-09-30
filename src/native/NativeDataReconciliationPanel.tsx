@@ -13,7 +13,9 @@ export function NativeDataReconciliationPanel(){
   const [open,setOpen]=useState(false);
   const [busy,setBusy]=useState(false);
   const [snapshotBusy,setSnapshotBusy]=useState(false);
+  const [feedBusy,setFeedBusy]=useState(false);
   const [snapshotResult,setSnapshotResult]=useState<{records:number;cursor:number;pageCount:number}|null>(null);
+  const [feedResult,setFeedResult]=useState<{appliedChanges:number;cursor:number;hasMore:boolean}|null>(null);
   const [message,setMessage]=useState('');
   const differences=useMemo(()=>report?.records.filter(r=>r.classification!=='MATCHED')||[],[report]);
   const compare=async()=>{
@@ -28,14 +30,22 @@ export function NativeDataReconciliationPanel(){
     catch(e){setMessage(String(e))}
     finally{setSnapshotBusy(false)}
   };
+  const syncV2Replica=async()=>{
+    setFeedBusy(true);setMessage('');setFeedResult(null);
+    try{setFeedResult(await runtime.syncV2Replica())}
+    catch(e){setMessage(String(e))}
+    finally{setFeedBusy(false)}
+  };
   return <section className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 className="font-bold text-sky-200">Local ↔ cloud reconciliation</h2><p className="mt-1 max-w-3xl text-xs text-slate-400">Compares SQLite with the legacy Supabase replica without repairing either side. Same-version content is compared semantically inside the native process; business payloads are not displayed in this report.</p></div>
       <button className={buttonClass} disabled={busy} onClick={()=>void compare()}>{busy?'Comparing…':'Compare local ↔ cloud'}</button>
     </div>
     <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-200">Prepare staged v2 shadow baseline</h3><p className="mt-1 max-w-3xl text-xs text-slate-400">Requires an online Auth-bound operator and the read-only snapshot migration. Copies only to isolated v2 shadow storage; the legacy records and write authority are unchanged. Safe to run only once per paired terminal.</p></div><button className={buttonClass} disabled={busy||snapshotBusy||runtime.session?.staffId!==runtime.snapshot?.actor.id} onClick={()=>void prepareV2Snapshot()}>{snapshotBusy?'Loading authorized snapshot…':'Install v2 shadow snapshot'}</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-200">Prepare staged v2 shadow baseline</h3><p className="mt-1 max-w-3xl text-xs text-slate-400">Requires an online Auth-bound operator and the read-only snapshot migration. Copies only to isolated v2 shadow storage; the legacy records and write authority are unchanged. Refresh is blocked while v2 commands await acknowledgement.</p></div><button className={buttonClass} disabled={busy||snapshotBusy||feedBusy||!runtime.session||runtime.session.staffId!==runtime.snapshot?.actor.id} onClick={()=>void prepareV2Snapshot()}>{snapshotBusy?'Loading authorized snapshot…':'Install or refresh v2 shadow snapshot'}</button></div>
       {snapshotResult&&<p className="mt-3 text-xs text-emerald-200" role="status">Shadow baseline installed: {snapshotResult.records.toLocaleString()} records at feed cursor {snapshotResult.cursor} ({snapshotResult.pageCount} pages). V2 writes remain separately gated.</p>}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3"><p className="text-xs text-slate-400">Refresh the isolated shadow replica from the authenticated v2 change feed. This does not update terminal operations or enable v2 writes.</p><button className={buttonClass} disabled={busy||snapshotBusy||feedBusy||!runtime.session||runtime.session.staffId!==runtime.snapshot?.actor.id} onClick={()=>void syncV2Replica()}>{feedBusy?'Applying v2 feed…':'Refresh v2 shadow feed'}</button></div>
+      {feedResult&&<p className="mt-3 text-xs text-emerald-200" role="status">Applied {feedResult.appliedChanges} feed change(s); shadow cursor is {feedResult.cursor}{feedResult.hasMore?' · more changes remain; refresh again':''}.</p>}
     </div>
     {message&&<p role="alert" className="mt-3 rounded-lg bg-slate-950 p-3 text-xs text-rose-200">{message}</p>}
     {report&&<div className="mt-4">
