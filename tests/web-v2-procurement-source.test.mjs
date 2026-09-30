@@ -28,6 +28,9 @@ test('web procurement workspace uses BusinessCommandV2 queue rather than direct 
   assert.match(ui,/purchaseOrder\.create/);
   assert.match(ui,/purchaseOrder\.receive/);
   assert.match(ui,/supplierPayable\.matchInvoice/);
+  assert.match(ui,/invoiceReviewed/);
+  assert.match(ui,/compared the supplier invoice with the approved purchase order and accepted goods receipt/);
+  assert.match(ui,/!invoiceReviewed/);
   assert.match(ui,/supplierPayable\.pay/);
   assert.match(ui,/asset\.commission/);
   assert.match(ui,/useBarcodeScanner/);

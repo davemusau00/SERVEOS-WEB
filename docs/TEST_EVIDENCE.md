@@ -418,6 +418,12 @@ P12 Web batch-authoring continuation (2026-10-01): Smart Item now has a BATCH se
 
 P13 BATCH modifier inventory continuation (2026-10-01): expansion 037 rebuilds staged BATCH item inventory snapshots from prepared portion stock plus positive ingredient adjustments from selected modifiers; each adjustment stock master is read and version-checked. Web `order.addItem` dependencies include selected modifier ingredient stock IDs. Source assertion authored; no SQL execution, migration, test, build or runtime evidence is claimed.
 
+P14 explicit till-count continuation (2026-10-01): Web close no longer treats expected cash as a physical count and keys count/variance drafts by open till and actor. `tests/p14-till-explicit-count-source.test.mjs` was authored but intentionally not executed. No browser, native, SQL, build or lint evidence is claimed.
+
+P15 invoice review continuation (2026-10-01): Web now requires an explicit confirmation that invoice quantities/prices were compared to the approved PO and accepted GRN before sending the exact-match command. `tests/web-v2-procurement-source.test.mjs` was updated but intentionally not run. No runtime, server, browser, migration, or accounting acceptance evidence is claimed.
+
+P16 stable staff-key continuation (2026-10-01): Auth-to-staff binding generates a visible read-only UUID and reuses it as both the command target and persisted staff ID; new forms receive a fresh ID only after confirmed success. `tests/web-admin-generated-staff-id-source.test.mjs` was authored but intentionally not executed. No browser, backend, identity, build or lint evidence is claimed.
+
 ### DEV final sprint P14 till variance and payment recovery source slice â€” 2026-09-30
 
 Web Finance now previews expected drawer cash, counted cash and variance, accepts an explicit zero, requires a reason for any non-zero variance, and blocks authority-required closure when the actor lacks `till.override_variance`. Native and staged close handlers apply `tillPolicy.varianceThreshold` (KES), requiring override permission only when the absolute variance exceeds the tolerance. Web POS/Finance/Refunds use an operator-facing protocol error formatter. No tests, build, lint, or runtime checks were run; payment/cash-up acceptance remains deferred.

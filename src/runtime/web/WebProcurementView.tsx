@@ -88,6 +88,7 @@ export function WebProcurementView({
   const [invoiceNumber,setInvoiceNumber]=useState('');
   const [invoiceDate,setInvoiceDate]=useState(today());
   const [invoiceDue,setInvoiceDue]=useState(today());
+  const [invoiceReviewed,setInvoiceReviewed]=useState(false);
 
   const [paying,setPaying]=useState<BusinessRecord|null>(null);
   const [payAmount,setPayAmount]=useState(0);
@@ -216,6 +217,7 @@ export function WebProcurementView({
 
   const beginMatch=(payable:BusinessRecord)=>{
     setMatching(payable);
+    setInvoiceReviewed(false);
     setInvoiceNumber(String(data(payable)?.supplierInvoiceNumber||''));
     const terms=Number(data(record(records,'suppliers',String(data(payable)?.supplierId)))?.paymentTermsDays||0);
     const d=new Date();const due=new Date();due.setDate(due.getDate()+Math.max(0,terms));
@@ -223,7 +225,7 @@ export function WebProcurementView({
   };
 
   const matchInvoice=async()=>{
-    if(!matching)return;
+    if(!matching||!invoiceReviewed)return;
     const p=data(matching)!;
     const receipt=record(records,'goodsReceipts',String(p.goodsReceiptId));if(!receipt)return;
     const lines=(data(receipt)?.lines||[]).filter((line:any)=>Number(line.quantityAccepted)>0).map((line:any)=>({
@@ -346,8 +348,9 @@ export function WebProcurementView({
       <Input label="Invoice number" value={invoiceNumber} set={setInvoiceNumber}/>
       <label className="block text-sm">Invoice date<input type="date" className={field} value={invoiceDate} onChange={e=>setInvoiceDate(e.target.value)}/></label>
       <label className="block text-sm">Due date<input type="date" className={field} value={invoiceDue} onChange={e=>setInvoiceDue(e.target.value)}/></label>
-      <div className="rounded-lg bg-slate-950 p-3 text-sm">Exact three-way amount: <b>{money(data(matching)?.amountMinor)}</b><br/><span className="text-xs text-slate-500">The server compares every accepted GRN line to its approved PO quantity and price.</span></div>
-      <button disabled={disabled||!invoiceNumber.trim()} className={primary} onClick={()=>void matchInvoice()}>Match invoice</button>
+      <div className="rounded-lg bg-slate-950 p-3 text-sm">Expected invoice total: <b>{money(data(matching)?.amountMinor)}</b><br/><span className="text-xs text-slate-500">The server compares each invoice line with accepted GRN quantities and approved PO prices. Any mismatch blocks matching and payment.</span></div>
+      <label className="flex items-start gap-2 rounded-lg border border-slate-800 p-3 text-sm"><input type="checkbox" checked={invoiceReviewed} onChange={event=>setInvoiceReviewed(event.target.checked)}/><span>I compared the supplier invoice with the approved purchase order and accepted goods receipt, including quantities and unit prices.</span></label>
+      <button disabled={disabled||!invoiceNumber.trim()||!invoiceReviewed} className={primary} onClick={()=>void matchInvoice()}>Match invoice</button>
     </div></Modal>}
 
     {paying&&<Modal title="Record supplier payment" onClose={()=>setPaying(null)}><div className="space-y-3">
