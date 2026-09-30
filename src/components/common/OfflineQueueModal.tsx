@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { isNative } from '../../runtime/RuntimeProvider';
+import { Dialog } from '../../design-system/controls';
 import { NativeQueuePanel } from '../../runtime/NativeQueuePanel';
 import { useServOS } from '../../context/ServOSContext';
 import { 
@@ -53,6 +54,7 @@ export const OfflineQueueModal: React.FC<OfflineQueueModalProps> = ({ isOpen, on
   }>>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'QUEUE' | 'LOGS'>('QUEUE');
+  const [confirmClear,setConfirmClear]=useState(false);
 
   const loadData = async () => {
     try {
@@ -86,12 +88,7 @@ export const OfflineQueueModal: React.FC<OfflineQueueModalProps> = ({ isOpen, on
     await loadData();
   };
 
-  const handleClearAll = async () => {
-    if (window.confirm('Are you sure you want to clear all pending offline transactions?')) {
-      await clearAllOfflineOperations();
-      await loadData();
-    }
-  };
+  const handleClearAll = async () => { await clearAllOfflineOperations(); await loadData(); setConfirmClear(false); };
 
   const getOpIcon = (type: string) => {
     switch (type) {
@@ -295,7 +292,7 @@ export const OfflineQueueModal: React.FC<OfflineQueueModalProps> = ({ isOpen, on
           <div className="flex items-center gap-2 w-full sm:w-auto">
             {queuedOps.length > 0 && (
               <button
-                onClick={handleClearAll}
+                onClick={() => setConfirmClear(true)}
                 className="px-3 py-1.5 text-slate-400 hover:text-rose-400 text-xs transition-colors"
               >
                 Clear Queue
@@ -310,6 +307,7 @@ export const OfflineQueueModal: React.FC<OfflineQueueModalProps> = ({ isOpen, on
           </div>
         </div>
       </div>
+      {confirmClear && <Dialog title="Clear pending offline transactions?" onClose={() => setConfirmClear(false)}><p className="text-sm text-amber-100">This removes every pending local transaction from this browser. Any unsynchronized work will be lost.</p><div className="mt-4 flex justify-end gap-2"><button className="rounded-lg border border-slate-700 px-3 py-2 text-sm" onClick={() => setConfirmClear(false)}>Keep queue</button><button className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-bold text-white" onClick={() => void handleClearAll()}>Clear pending work</button></div></Dialog>}
     </div>
   );
 };

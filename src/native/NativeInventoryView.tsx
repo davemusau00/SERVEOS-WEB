@@ -198,6 +198,7 @@ const ScannerCountSession = ({ stocks, products, locationId, locationName, onBac
   const [resolution, setResolution] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState('');
   const [problem, setProblem] = useState('');
+  const [discardKind,setDiscardKind]=useState<'saved-draft'|'active-session'|null>(null);
   const snapshotOf = (item: any) => ({ name: String(item.name), baseUnit: String(item.baseUnit), scanUnitQuantity: Number(item.scanUnitQuantity) > 0 ? Number(item.scanUnitQuantity) : 1, expectedQuantity: Number(item.currentStock?.[locationId] || 0) });
   const changed = stocks.filter(item => !baseline[item.id] || Object.entries(snapshotOf(item)).some(([key, value]) => baseline[item.id][key as keyof typeof baseline[string]] !== value));
   const rows = stocks.map(item => ({ item, expected: baseline[item.id]?.expectedQuantity ?? Number(item.currentStock?.[locationId] || 0), counted: counts[item.id] }));
@@ -317,13 +318,10 @@ const ScannerCountSession = ({ stocks, products, locationId, locationName, onBac
     finally { submitting.current = false; setBusy(false); }
   };
 
-  if (!loaded) return <div className="rounded-xl bg-slate-950 p-4 text-sm text-slate-400">{problem ? <><p role="alert">Draft could not be loaded: {problem}. Editing is blocked to protect saved work.</p><button className={buttonClass} onClick={() => { setProblem(''); setLoadAttempt(value => value + 1); }}>Retry loading draft</button><button className={buttonClass} onClick={() => { if (window.confirm('Permanently discard the saved count at this Storage Place?')) void runtime.clearInventoryCountDraft(locationId).then(() => setLoadAttempt(value => value + 1)).catch(cause => setProblem(String(cause))); }}>Discard saved draft</button></> : 'Loading saved scanner session…'}</div>;
+  if (!loaded) return <><div className="rounded-xl bg-slate-950 p-4 text-sm text-slate-400">{problem ? <><p role="alert">Draft could not be loaded: {problem}. Editing is blocked to protect saved work.</p><button className={buttonClass} onClick={() => { setProblem(''); setLoadAttempt(value => value + 1); }}>Retry loading draft</button><button className={buttonClass} onClick={() => setDiscardKind('saved-draft')}>Discard saved draft</button></> : 'Loading saved scanner session…'}</div>{discardKind&&<ActionDialog title="Discard saved count draft" onClose={()=>setDiscardKind(null)}><p className="text-sm text-amber-100">Permanently remove the saved count draft for this Storage Place? No inventory has been changed.</p><div className="mt-4 flex justify-end gap-2"><button className={buttonClass} onClick={()=>setDiscardKind(null)}>Keep draft</button><button className={primaryButtonClass} onClick={()=>void runtime.clearInventoryCountDraft(locationId).then(()=>{setDiscardKind(null);setLoadAttempt(value=>value+1)}).catch(cause=>setProblem(String(cause)))}>Discard draft</button></div></ActionDialog>}</>;
   return <section className="rounded-xl border border-amber-500/25 bg-slate-950/70 p-3 sm:p-4">
     {problem && <p role="alert" className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">{problem}</p>}
-    {problem && <button className={buttonClass} disabled={busy} onClick={() => {
-      if (!window.confirm('Discard this saved count and recount? This does not undo any count already committed.')) return;
-      void queue.current.then(() => runtime.clearInventoryCountDraft(locationId)).then(() => { committed.current = true; saveFailure.current = null; onBack(); }).catch(cause => setProblem(String(cause)));
-    }}>Discard session and recount</button>}
+    {problem && <button className={buttonClass} disabled={busy} onClick={() => setDiscardKind('active-session')}>Discard session and recount</button>}
     {changed.length > 0 && !pending && <p role="alert" className="mb-3 text-amber-200">Inventory or item details changed for {changed.length} items. <button className={buttonClass} onClick={recountChanged}>Recount changed items</button></p>}
     <p role="status" className="mb-2 text-xs text-slate-400">{saveStatus}</p>
     {Boolean(saveFailure.current) && <button className={buttonClass} onClick={() => void enqueue({ sessionId: sessionId.current, revision: revision.current, baseline, locationId, counts, scanCounts, unknownScans, ...(pending ? { pendingCommand: pending } : {}) }).catch(() => {})}>Retry saving draft</button>}
@@ -339,6 +337,7 @@ const ScannerCountSession = ({ stocks, products, locationId, locationName, onBac
       <div className="max-h-[42vh] space-y-2 overflow-auto">{rows.map(({ item, expected, counted }) => { const variance=(counted || 0)-expected; return <div key={item.id} className="flex justify-between gap-3 rounded-lg bg-slate-900 p-3 text-sm"><span>{item.name}<span className="ml-2 text-xs text-slate-500">{expected.toLocaleString()} → {counted?.toLocaleString()} {item.baseUnit}</span></span><b className={variance===0?'text-emerald-300':variance<0?'text-rose-300':'text-amber-300'}>{variance>0?'+':''}{variance.toLocaleString()}</b></div>; })}</div>
       <div className="mt-4 flex flex-wrap justify-between gap-2"><button className={buttonClass} disabled={busy || Boolean(pending)} onClick={() => { setStage('SCAN'); setActive(true); }}>Back to session</button><button className={primaryButtonClass} disabled={busy} onClick={() => void commit()}>{busy ? 'Confirming?' : pending ? 'Retry Confirm Count' : 'Confirm Count'}</button></div>
     </>}
+    {discardKind==='active-session'&&<ActionDialog title="Discard count session" onClose={()=>setDiscardKind(null)}><p className="text-sm text-amber-100">Discard this saved count draft and start over? This does not undo any count that has already been committed.</p><div className="mt-4 flex justify-end gap-2"><button className={buttonClass} onClick={()=>setDiscardKind(null)}>Keep session</button><button className={primaryButtonClass} onClick={()=>void queue.current.then(()=>runtime.clearInventoryCountDraft(locationId)).then(()=>{committed.current=true;saveFailure.current=null;setDiscardKind(null);onBack()}).catch(cause=>{setDiscardKind(null);setProblem(String(cause))})}>Discard and recount</button></div></ActionDialog>}
   </section>;
 };
 
