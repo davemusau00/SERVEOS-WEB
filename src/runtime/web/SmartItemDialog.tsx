@@ -122,7 +122,6 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
       taxClassId: 'A_STANDARD',
       favorite: false,
       barcode: barcode.trim(),
-      portionVolume: calculation?.sale || 1,
       portionVolume: isSealedContainer && calculation ? calculation.pkg.baseQuantity / unitsPerPackage : calculation?.sale || 1,
       portions: isSealedContainer && calculation ? [
         { id: 'serving', name: itemType === 'WINE' ? 'Glass' : 'Pour', volume: calculation.sale, priceMinor: Math.round(Number(price) * 100) },
@@ -158,7 +157,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
         setError('This role cannot create the sellable item. Ask an Admin for catalog access.');
         return;
       }
-      if (!name.trim() || !code.trim() || !locationId || !calculation || setupKind === 'STOCKED' && (!Number.isFinite(price) || price < 0)) {
+      if (!name.trim() || !code.trim() || !locationId || !calculation || setupKind === 'STOCKED' && (!Number.isFinite(price) || price < 0 || !Number.isFinite(wholeContainerPrice) || wholeContainerPrice < 0)) {
         setError('Complete the required item, package, price, and storage details with valid quantities.');
         return;
       }
@@ -323,7 +322,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
       {step === 3 && <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
         <h3 className="font-bold">Review before saving</h3><p>{name} - {code}</p>
         <p>{setupKind === 'STOCK_ONLY' ? 'Stock-only item' : `${setupKind === 'RECIPE' ? 'Recipe item' : 'Sellable at ' + cash(price)} - ${routeTo}`}</p>
-        {setupKind === 'RECIPE' ? <p>{recipeIngredients.length} recipe ingredient(s); estimated cost {Number.isFinite(recipeCostMinor) ? cash(recipeCostMinor / 100) : 'unavailable'} per sale.</p> : <p>{calculation ? `${purchaseName}: ${calculation.pkg.baseQuantity} ${baseUnit} per package; ${openingPackages} packages opened as ${calculation.opening} ${baseUnit}.` : 'Package details are incomplete.'}</p>}
+        {setupKind === 'RECIPE' ? <p>{recipeIngredients.length} recipe ingredient(s); estimated cost {Number.isFinite(recipeCostMinor) ? cash(recipeCostMinor / 100) : 'unavailable'} per sale.</p> : <p>{calculation ? `${purchaseName}: ${calculation.pkg.baseQuantity} ${baseUnit} per package; ${openingPackages} packages opened as ${calculation.opening} ${baseUnit}.${isSealedContainer ? ` ${unitsPerPackage} sealed bottles at ${contents} ml each; ${saleQuantity} ml per pour${wholeContainerPrice > 0 ? `; whole bottle ${cash(wholeContainerPrice)}` : ''}.` : ''}` : 'Package details are incomplete.'}</p>}
         <p className="text-xs text-slate-400">{setupKind === 'RECIPE' ? 'The validated product.save command records the menu item and recipe. Ingredient stock is consumed when the order is fired.' : 'The server creates the catalog record, stock master, link, and optional opening movement atomically. A rejection leaves all of them unchanged.'}</p>
       </div>}
       {error && <p role="alert" className="rounded-lg border border-rose-800 p-3 text-sm text-rose-200">{error}</p>}
