@@ -110,12 +110,13 @@ async fn runtime_login(
         let db = state.db.lock().map_err(|e| e.to_string())?;
         store::login(&db, &staff_id, &pin)?
     };
-    let (url,key,terminal) = {
+    let config:store::Result<(String,String,String)> = (|| {
         let db=state.db.lock().map_err(|e|e.to_string())?;
-        (store::meta(&db,"cloud_url")?.ok_or("Terminal is not connected to its business server")?,
+        Ok((store::meta(&db,"cloud_url")?.ok_or("Terminal is not connected to its business server")?,
          store::meta(&db,"cloud_key")?.ok_or("Terminal is not connected to its business server")?,
-         store::meta(&db,"terminal_id")?.ok_or("Terminal has not been paired")?)
-    };
+         store::meta(&db,"terminal_id")?.ok_or("Terminal has not been paired")?))
+    })();
+    let (url,key,terminal)=match config {Ok(value)=>value,Err(error)=>{let _=state.db.lock().map(|db|db.execute("DELETE FROM sessions WHERE token=?",[&local.token]));return Err(error)}};
     let auth_result=async {
         let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build().map_err(|e|e.to_string())?;
         let response=client.post(format!("{url}/auth/v1/token?grant_type=password"))

@@ -47,7 +47,7 @@ begin
  perform 1 from servos_v2.control where singleton and enabled for update;
  if not found then raise exception 'PROTOCOL_DISABLED: migration acceptance required';end if;
  select * into device from servos_v2.devices d where d.id=device_id for update;
- if not found or not device.active then raise exception 'DEVICE_REVOKED' using errcode='42501';end if;
+ if not found or not device.active or device.owner_id<>who then raise exception 'DEVICE_REVOKED or not owned' using errcode='42501';end if;
  select * into previous from servos_v2.commands c where c.id=command_id;
  if found then
   if previous.request<>command or previous.actor_id<>who or previous.device_id<>device_id then raise exception 'REPLAY_MISMATCH';end if;
