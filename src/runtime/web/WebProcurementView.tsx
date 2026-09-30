@@ -3,6 +3,7 @@ import {Barcode,Boxes,ClipboardCheck,CreditCard,PackageCheck,Plus,Truck} from 'l
 import {barcodeEquals,useBarcodeScanner} from '../../hooks/useBarcodeScanner';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import {parseQuantity} from '../../utils/fiscal';
+import {Dialog} from '../../design-system/controls';
 
 type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
 type DraftLine={
@@ -352,4 +353,4 @@ const Metric=({icon,label,value}:{icon:React.ReactNode;label:string;value:string
 const Empty=({children}:{children:React.ReactNode})=><div className="rounded-xl border border-dashed border-slate-800 p-8 text-center text-sm text-slate-500">{children}</div>;
 const Tag=({children}:{children:React.ReactNode})=><span className="ml-1 rounded bg-slate-800 px-2 py-0.5 text-[10px] font-black text-slate-300">{children}</span>;
 const Input=({label,value,set}:{label:string;value:string;set:(value:string)=>void})=><label className="block text-sm">{label}<input className={field} value={value} onChange={e=>set(e.target.value)}/></label>;
-const Modal=({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode})=><div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-4"><section role="dialog" aria-modal="true" aria-label={title} className="mx-auto my-8 max-w-3xl rounded-xl border border-slate-700 bg-slate-900 p-5"><div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-lg font-bold">{title}</h3><button className={button} onClick={onClose}>Close</button></div>{children}</section></div>;
+const Modal=({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode})=><Dialog title={title} onClose={onClose}>{children}</Dialog>;

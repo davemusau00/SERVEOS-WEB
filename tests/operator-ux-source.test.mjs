@@ -122,3 +122,44 @@ test('shared Drawer traps focus and restores it after Escape or close',()=>{
   assert.match(drawer, /previous\?\.focus\(\)/);
   assert.match(drawer, /event\.key !== 'Tab'/);
 });
+
+test('staged Web modal consumers use the shared Dialog boundary',()=>{
+  for (const file of ['src/runtime/web/WebCatalogInventory.tsx', 'src/runtime/web/WebProcurementView.tsx', 'src/runtime/web/WebRefundsView.tsx', 'src/runtime/web/WebPosView.tsx', 'src/runtime/web/WebFinancialControlsView.tsx']) {
+    const source = readFileSync(file, 'utf8');
+    assert.match(source, /import \{Dialog\}/);
+    assert.match(source, /<Dialog title=\{title\} onClose=\{onClose\}>/);
+    assert.doesNotMatch(source, /<section role="dialog" aria-modal="true"/);
+  }
+});
+
+test('WebBusinessApp editor keeps actions in the shared footer and associates them with its form',()=>{
+  const source = readFileSync('src/runtime/web/WebBusinessApp.tsx','utf8');
+  assert.match(source, /<Dialog title=\{editor\.title\}/);
+  assert.match(source, /id="workflow-editor-form"/);
+  assert.match(source, /form="workflow-editor-form"/);
+  assert.match(source, /onClose=\{\(\)=>\{if\(!busy\)setEditor\(null\)\}\}/);
+  assert.doesNotMatch(source, /<form role="dialog" aria-modal="true"/);
+});
+
+test('WebBusinessApp entity select fields use SearchCombobox IDs',()=>{
+  const source = readFileSync('src/runtime/web/WebBusinessApp.tsx','utf8');
+  assert.match(source, /import \{Dialog,SearchCombobox\}/);
+  assert.match(source, /<SearchCombobox options=\{\[/);
+  assert.match(source, /onValueChange=\{value=>setValues/);
+  assert.match(source, /id:option\.value/);
+});
+
+test('Web staff role controls use searchable labels while preserving role IDs',()=>{
+  const source = readFileSync('src/runtime/web/WebStaffAdminView.tsx','utf8');
+  assert.match(source, /import \{SearchCombobox\}/);
+  assert.match(source, /options=\{roles\.map\(value=>\(\{id:value,label:value\}\)\)\}/);
+  assert.match(source, /onValueChange=\{role=>void run\('staff\.update'/);
+  assert.doesNotMatch(source, /<select[^>]+Change \$\{String\(person\.data\.name\)\}/);
+});
+
+test('contextual help uses the shared Drawer accessibility boundary',()=>{
+  const source = readFileSync('src/runtime/web/ContextHelpDrawer.tsx','utf8');
+  assert.match(source, /import \{ Drawer \}/);
+  assert.match(source, /<Drawer title=\{`\$\{workspace\} contextual help`\}/);
+  assert.doesNotMatch(source, /<aside role="dialog"/);
+});

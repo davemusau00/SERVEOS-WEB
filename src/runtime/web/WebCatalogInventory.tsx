@@ -3,6 +3,7 @@ import {AlertTriangle,ArrowRightLeft,Boxes,PackageCheck,Search} from 'lucide-rea
 import {useBarcodeScanner,barcodeEquals} from '../../hooks/useBarcodeScanner';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import {parseQuantity} from '../../utils/fiscal';
+import {Dialog} from '../../design-system/controls';
 
 type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
 const field='w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-amber-400';
@@ -109,4 +110,4 @@ const Panel=({title,children}:{title:string;children:React.ReactNode})=><section
 const Metric=({icon,label,value}:{icon:React.ReactNode;label:string;value:string})=><div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="flex items-center gap-2 text-xs uppercase text-slate-500">{icon}{label}</div><div className="mt-2 text-2xl font-black">{value}</div></div>;
 const Fact=({label,value}:{label:string;value:string})=><div className="rounded-lg bg-slate-950 p-3"><div className="text-[10px] uppercase text-slate-600">{label}</div><div className="font-semibold">{value}</div></div>;
 const Restore=({label,disabled,onRestore}:{record:BusinessRecord;label:string;disabled:boolean;onRestore:()=>Promise<void>})=><div className="flex items-center justify-between rounded-lg bg-slate-950 p-2 text-sm"><span>{label}</span><button disabled={disabled} className={button} onClick={()=>void onRestore()}>Reactivate</button></div>;
-const Modal=({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode})=><div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-4"><section role="dialog" aria-modal="true" aria-label={title} className="mx-auto my-8 max-w-xl rounded-xl border border-slate-700 bg-slate-900 p-5"><div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-bold">{title}</h3><button className={button} onClick={onClose}>Close</button></div>{children}</section></div>;
+const Modal=({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode})=><Dialog title={title} onClose={onClose}>{children}</Dialog>;

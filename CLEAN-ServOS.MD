@@ -1338,7 +1338,7 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | WP-16 | OPEN | — | Verified artifact + restore | — |
 | WP-17 | OPEN | — | Safe typed CSV/string serialization | — |
 | WP-18 | OPEN | — | Purge/session/revocation policy | — |
-| WP-19 | PARTIAL PROGRESS | 2026-09-30 | Native `ActionDialog` forwards the shared footer and prevents wrapper dismissal while busy; legacy prompt/confirm consumers and close-failure recovery use typed dialogs; shared `SearchCombobox` has option/listbox/keyboard states; shared `Drawer` now traps/restores focus; focused source tests, 135-test suite, lint and docs checks pass | Guest/product/supplier/room caller migration, full custom-overlay migration, focus/inertness and target-viewport acceptance remain |
+| WP-19 | PARTIAL PROGRESS | 2026-09-30 | Native `ActionDialog` forwards the shared footer and prevents wrapper dismissal while busy; legacy prompt/confirm consumers and close-failure recovery use typed dialogs; shared `SearchCombobox` has option/listbox/keyboard states; shared `Drawer` now traps/restores focus and contextual help uses it; staged Web modal wrappers and the main workflow editor use shared `Dialog`; generic editor and staff role selectors use `SearchCombobox`; focused source tests, 140-test suite, lint and docs checks pass | Remaining standalone selector migration, custom-overlay migration, focus/inertness and target-viewport acceptance remain |
 | WP-20 | OPEN | — | Approval request/consumption scope | — |
 | WP-21 | OPEN | — | Invitation acceptance/identity | — |
 | WP-22 | OPEN | — | Exact fiscal/unit conversion | — |

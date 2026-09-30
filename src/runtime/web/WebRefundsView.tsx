@@ -1,6 +1,7 @@
 import React,{useState} from 'react';
 import type {BusinessRecord,WebSession} from './session';
 import {allowed} from './session';
+import {Dialog} from '../../design-system/controls';
 
 type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
 const field='w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white';
@@ -31,4 +32,4 @@ export function WebRefundsView({records,session,disabled,command}:{records:Busin
  </section>;
 }
 
-const Modal=({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode})=><div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-4"><section role="dialog" aria-modal="true" aria-label={title} className="mx-auto my-8 max-w-xl rounded-xl border border-slate-700 bg-slate-900 p-5"><div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-bold">{title}</h3><button className={button} onClick={onClose}>Close</button></div>{children}</section></div>;
+const Modal=({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode})=><Dialog title={title} onClose={onClose}>{children}</Dialog>;
