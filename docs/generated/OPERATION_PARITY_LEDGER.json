@@ -164,8 +164,9 @@
       "permission": "credit.charge",
       "collection": "creditLedger",
       "native": "implemented",
-      "backend": "implemented",
+      "backend": "missing",
       "web": "missing",
+      "notes": "The Web/PostgreSQL protocol uses the distinct operation name credit.charge; do not treat that as exact command-name parity. Acceptance must verify equivalent customer balance and order effects across both contracts.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
@@ -174,6 +175,24 @@
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for customerCredit.charge across permission, persistence, conflict, and recovery behavior.",
       "operatorUxStatus": "blocked-by-domain"
+    },
+    {
+      "operation": "credit.charge",
+      "domain": "Finance",
+      "permission": "credit.charge",
+      "collection": "orders",
+      "native": "missing",
+      "backend": "implemented",
+      "web": "implemented",
+      "notes": "Staged Web POS records customer credit against an order; native uses customerCredit.charge. Cross-runtime effect and payload parity remain to be accepted.",
+      "offlineEligibility": "unknown",
+      "approval": "unknown",
+      "versioning": "unknown",
+      "auditEffect": "unknown",
+      "stockEffect": "unknown",
+      "financialEffect": "unknown",
+      "acceptanceTest": "Add or maintain acceptance coverage for credit.charge across permission, persistence, conflict, and recovery behavior.",
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "inventory.openingBalance",
@@ -252,7 +271,8 @@
       "collection": "mpesaReceipts",
       "native": "implemented",
       "backend": "implemented",
-      "web": "missing",
+      "web": "implemented",
+      "notes": "Web Finance Controls records manual statement amount/reference and reason; no provider or STK success is asserted.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
@@ -260,7 +280,7 @@
       "stockEffect": "unknown",
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for mpesa.discrepancy across permission, persistence, conflict, and recovery behavior.",
-      "operatorUxStatus": "blocked-by-domain"
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "mpesa.discrepancy.resolve",
@@ -269,7 +289,8 @@
       "collection": "mpesaDiscrepancies",
       "native": "implemented",
       "backend": "implemented",
-      "web": "missing",
+      "web": "implemented",
+      "notes": "Web Finance Controls records an explicit outcome and resolution note; server validates the open discrepancy.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
@@ -277,7 +298,7 @@
       "stockEffect": "unknown",
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for mpesa.discrepancy.resolve across permission, persistence, conflict, and recovery behavior.",
-      "operatorUxStatus": "blocked-by-domain"
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "till.open",
@@ -802,7 +823,8 @@
       "collection": "orders",
       "native": "implemented",
       "backend": "implemented",
-      "web": "missing",
+      "web": "implemented",
+      "notes": "Web POS queues the transfer command with source/target table IDs; server rejects occupied destinations.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
@@ -810,7 +832,7 @@
       "stockEffect": "unknown",
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for order.transfer across permission, persistence, conflict, and recovery behavior.",
-      "operatorUxStatus": "blocked-by-domain"
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "order.merge",
@@ -819,7 +841,8 @@
       "collection": "orders",
       "native": "implemented",
       "backend": "implemented",
-      "web": "missing",
+      "web": "implemented",
+      "notes": "Web POS queues a merge command with source/target table and order IDs; server remains authoritative for merge rules.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
@@ -827,7 +850,7 @@
       "stockEffect": "unknown",
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for order.merge across permission, persistence, conflict, and recovery behavior.",
-      "operatorUxStatus": "blocked-by-domain"
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "order.discount",
@@ -836,8 +859,8 @@
       "collection": "orders",
       "native": "implemented",
       "backend": "implemented",
-      "web": "missing",
-      "notes": "Requires protected reason/approval UX.",
+      "web": "partial",
+      "notes": "Web collects percentage and reason, but does not yet provide the required manager-approval token flow for non-manager actors.",
       "offlineEligibility": "unknown",
       "approval": "conditional",
       "versioning": "unknown",
@@ -848,16 +871,34 @@
       "operatorUxStatus": "blocked-by-domain"
     },
     {
+      "operation": "order.comp",
+      "domain": "POS",
+      "permission": "order.comp",
+      "collection": "orders",
+      "native": "missing",
+      "backend": "implemented",
+      "web": "partial",
+      "notes": "Staged Web supports an order-level comp with reason; non-manager approval-token UX is missing. Native currently exposes item-level order.compItem instead.",
+      "offlineEligibility": "unknown",
+      "approval": "conditional",
+      "versioning": "unknown",
+      "auditEffect": "unknown",
+      "stockEffect": "unknown",
+      "financialEffect": "unknown",
+      "acceptanceTest": "Add or maintain acceptance coverage for order.comp across permission, persistence, conflict, and recovery behavior.",
+      "operatorUxStatus": "blocked-by-domain"
+    },
+    {
       "operation": "order.compItem",
       "domain": "POS",
       "permission": "order.comp",
       "collection": "orders",
       "native": "implemented",
-      "backend": "implemented",
+      "backend": "missing",
       "web": "missing",
-      "notes": "Requires protected reason/approval UX.",
+      "notes": "Native supports item-level comps; staged SQL/Web currently implement order-level order.comp, which is not equivalent item-level parity.",
       "offlineEligibility": "unknown",
-      "approval": "conditional",
+      "approval": "unknown",
       "versioning": "unknown",
       "auditEffect": "unknown",
       "stockEffect": "unknown",
@@ -958,9 +999,9 @@
       "permission": "mpesa.reconcile",
       "collection": "mpesaReceipts",
       "native": "implemented",
-      "backend": "partial",
-      "web": "missing",
-      "notes": "Manual evidence and discrepancy resolution need a dedicated web workspace.",
+      "backend": "implemented",
+      "web": "implemented",
+      "notes": "Web Finance Controls supports manual statement amount/reference/notes and reconciliation; unresolved or unaccepted discrepancies remain blocked. No M-Pesa provider success is asserted.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
@@ -968,7 +1009,7 @@
       "stockEffect": "unknown",
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for mpesa.reconcile across permission, persistence, conflict, and recovery behavior.",
-      "operatorUxStatus": "blocked-by-domain"
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "inventory.countLocation",

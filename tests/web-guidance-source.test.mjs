@@ -49,6 +49,30 @@ test('web command editors remain available until synchronization is confirmed', 
   assert.doesNotMatch(submit, /enqueue\(operation,payload,baselines\);setEditor\(null\)/);
 });
 
+test('web task guides resume by guide ID and only complete on a server-confirmed command',()=>{
+  const app=read('src/runtime/web/WebBusinessApp.tsx');
+  const guidance=read('src/runtime/web/WebGuidanceViews.tsx');
+  const generated=read('src/generated/help-index.json');
+  const stockGuide=read('src/guidance/core.ts');
+  assert.match(app,/entry\.state==='SYNCHRONIZED'[\s\S]*setCommittedOperation\(\{id:entry\.id,operation:entry\.command\.operation\}\)/);
+  assert.match(app,/committedOperation=\{committedOperation\}/);
+  assert.match(guidance,/selectedGuideId/);
+  assert.match(guidance,/initialGuide=GUIDES\.find/);
+  assert.match(app,/Count stock':'stock\.count/);
+  assert.match(guidance,/progress\.state!=='IN_PROGRESS'[\s\S]*currentStepId:steps\[0\]/);
+  assert.match(app,/const startTour=\(guideId='servos\.core'\)[\s\S]*guide\.permissions/);
+  assert.match(app,/Guide progress could not be saved to your account/);
+  assert.match(guidance,/seenCommit\.current===committedOperation\.id/);
+  assert.match(guidance,/successOperations\?\.includes\(committedOperation\.operation\)/);
+  assert.match(guidance,/successOperations\?\.length&&!committed/);
+  assert.match(generated,/"guideId": "servos\.core"/);
+  assert.match(generated,/"guideId": "pos\.first-sale"/);
+  assert.match(generated,/"guideId": "stock\.count"/);
+  assert.match(generated,/"guideId": "stock\.receive"/);
+  assert.match(stockGuide,/articleId: '21-stocktake'/);
+  assert.doesNotMatch(guidance,/onClick=\{\(\)=>move\(step\+1\)\}[^}]*successOperations/);
+});
+
 test('activity recovery never instructs operators to resend immutable commands', () => {
   const activity = read('src/runtime/web/ActivitySyncCenter.tsx');
   assert.match(activity, /reopen the saved workflow and submit a new command with fresh versions/);

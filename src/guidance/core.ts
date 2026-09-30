@@ -29,8 +29,8 @@ export const CORE_GUIDE: GuideDefinition = {
   steps: [
     { id: 'workspace', title: 'Your workspace', description: 'Your available workspaces are listed here. ServOS only shows areas your staff account can access.', target: 'navigation.home', webTab: 'Home' },
     { id: 'status', title: 'Local status', description: 'This status shows connectivity and queued changes. Sales and other enabled local operations continue when offline.', target: 'shell.status', webTab: 'Home' },
-    { id: 'help', title: 'Help when you need it', description: 'Open searchable operating instructions and return to this tour from Help.', target: 'shell.help', articleId: 'getting-started', webTab: 'Help' },
-    { id: 'staff', title: 'Staff session', description: 'Lock the terminal when handing it to another staff member. Each person signs in with their own PIN.', target: 'shell.lock', articleId: 'rbac', webTab: 'Home' },
+    { id: 'help', title: 'Help when you need it', description: 'Open searchable operating instructions and return to this tour from Help.', target: 'shell.help', articleId: '01-getting-started', webTab: 'Help' },
+    { id: 'staff', title: 'Staff session', description: 'Lock the terminal when handing it to another staff member. Online, each operator signs in with their own Auth account; local PIN unlock remains the existing offline/legacy path.', target: 'shell.lock', articleId: '05-rbac', webTab: 'Home' },
   ],
 };
 
@@ -39,7 +39,7 @@ export const GUIDES: GuideDefinition[] = [CORE_GUIDE,
     { id: 'sell', title: 'Complete a sale', description: 'Open a tab and add the requested items. Choose Take payment and confirm the money actually received. This step finishes only after your selected tab has a committed payment.', interaction: 'practice', route: { screen: 'pos' }, articleId: 'pos-tabs', successOperations: ['payment.record', 'payment.split'] },
   ] },
   { id: 'stock.count', version: 1, title: 'Count stock', description: 'Count a Storage Place, review differences and confirm.', permissions: ['inventory.view', 'inventory.count'], steps: [
-    { id: 'count', title: 'Count a Storage Place', description: 'Choose Count stock, select a Storage Place, and enter quantities or scan packages. Review every item before confirming. Drafts do not complete this guide.', interaction: 'practice', route: { screen: 'inventory' }, articleId: 'inventory', successOperations: ['inventory.countLocation'] },
+    { id: 'count', title: 'Count a Storage Place', description: 'Choose Count stock, select a Storage Place, and enter quantities or scan packages. Review every item before confirming. Drafts do not complete this guide.', interaction: 'practice', route: { screen: 'inventory' }, articleId: '21-stocktake', successOperations: ['inventory.countLocation'] },
   ] },
   { id: 'stock.receive', version: 1, title: 'Receive a delivery', description: 'Check delivered and rejected quantities before receiving.', permissions: ['procurement.view', 'procurement.receive'], steps: [
     { id: 'receive', title: 'Record a real delivery', description: 'Choose the supplier or an approved purchase order. Enter the reference, Storage Place, quantities and cost. Review and confirm only what arrived. This guide completes after that receipt commits.', interaction: 'practice', route: { screen: 'procurement', action: 'receive-delivery' }, target: 'stock.receive', articleId: '19-receiving', successOperations: ['purchaseOrder.receive', 'procurement.receiveDelivery'] },

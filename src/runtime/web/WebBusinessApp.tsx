@@ -31,6 +31,7 @@ import {ds} from '../../design-system/tokens';
 import {businessDateTimeAfterBusinessDays,businessDateTimeInput,businessDateTimeToUtc} from '../../utils/businessTime';
 import {parseMoneyToMinor,parsePercentToBasisPoints} from '../../utils/fiscal.js';
 import {canSeeWorkspace,visibleWorkspaces,workspaceById,workspaceGroups} from './workspaceRegistry';
+import {GUIDES} from '../../guidance/core';
 import {Dialog,SearchCombobox} from '../../design-system/controls';
 type Values=Record<string,string>;
 type Field={key:string;label:string;type?:'text'|'number'|'money'|'datetime-local'|'select';options?:Array<{value:string;label:string}>;value?:string;optional?:boolean};
@@ -49,9 +50,9 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
  const [session,setSession]=useState(initialSession);const [records,setRecords]=useState<BusinessRecord[]>([]);const [queue,setQueue]=useState<QueuedCommand[]>([]);
  const [drafts,setDrafts]=useState<WorkflowDraft[]>([]);
  const initialTab=()=>{const raw=decodeURIComponent(window.location.hash.replace(/^#\/?/,'').split('/')[0]||'Home');return visibleWorkspaces(initialSession).some(workspace=>workspace.id===raw)?raw as WorkspaceTab:'Home'};
- const [tab,setTab]=useState<WorkspaceTab>(initialTab);const [helpQuery,setHelpQuery]=useState('');const [helpDrawerOpen,setHelpDrawerOpen]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');const [ready,setReady]=useState(false);const [busy,setBusy]=useState(false);const [syncing,setSyncing]=useState(false);const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine);const [updateReady,setUpdateReady]=useState(false);const [tourOpen,setTourOpen]=useState(false);const [guidance,setGuidance]=useState<WebGuidanceProgress[]>([]);const [lifecycleRefresh,setLifecycleRefresh]=useState(0);
+ const [tab,setTab]=useState<WorkspaceTab>(initialTab);const [helpQuery,setHelpQuery]=useState('');const [helpDrawerOpen,setHelpDrawerOpen]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');const [ready,setReady]=useState(false);const [busy,setBusy]=useState(false);const [syncing,setSyncing]=useState(false);const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine);const [updateReady,setUpdateReady]=useState(false);const [tourOpen,setTourOpen]=useState(false);const [tourGuideId,setTourGuideId]=useState('servos.core');const [committedOperation,setCommittedOperation]=useState<{id:string;operation:string}|null>(null);const [guidance,setGuidance]=useState<WebGuidanceProgress[]>([]);const [lifecycleRefresh,setLifecycleRefresh]=useState(0);
  const [editor,setEditor]=useState<Editor|null>(null);const [values,setValues]=useState<Values>({});
- const store=useRef<BusinessStore|null>(null);const rpcRef=useRef(rpc);rpcRef.current=rpc;const sessionRef=useRef(session);sessionRef.current=session;
+ const store=useRef<BusinessStore|null>(null);const committedCommands=useRef(new Set<string>());const rpcRef=useRef(rpc);rpcRef.current=rpc;const sessionRef=useRef(session);sessionRef.current=session;
  const syncRef=useRef<()=>Promise<void>>(async()=>{});
  const refresh=async()=>{if(!store.current)return;const [r,q,d]=await Promise.all([store.current.records(),store.current.queue(),store.current.drafts()]);setRecords(r);setQueue(q);setDrafts(d)};
   useEffect(()=>{
@@ -69,13 +70,13 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
     setReady(false);setRecords([]);await navigator.locks.request(`servos-v2-sync:${opened.scope}:${opened.deviceId}:${opened.actorId}`,()=>loadAuthorizedSnapshot(opened!,rpcRef.current,latest));needsSnapshot=false;
    }
    await synchronizeStore(opened,{execute:command=>rpcRef.current('rpc/servos_v2_execute',{command}),pull:cursor=>rpcRef.current('rpc/servos_v2_pull',{after_sequence:cursor,page_size:100})});
-   if(!stopped){await refresh();const synchronized=(await opened.queue()).filter(entry=>entry.state==='SYNCHRONIZED');const countKey=`servos-web-count:${latest.businessId}:${latest.actorId}`;for(const entry of synchronized){if(entry.command.operation==='inventory.countLocation'&&entry.command.payload.sessionId===countKey){localStorage.removeItem(countKey);localStorage.removeItem(`${countKey}:unknown`)}}setReady(true);setError('')}
+   if(!stopped){await refresh();const synchronized=(await opened.queue()).filter(entry=>entry.state==='SYNCHRONIZED');const countKey=`servos-web-count:${latest.businessId}:${latest.actorId}`;for(const entry of synchronized){if(entry.command.operation==='inventory.countLocation'&&entry.command.payload.sessionId===countKey){localStorage.removeItem(countKey);localStorage.removeItem(`${countKey}:unknown`)}if(!committedCommands.current.has(entry.id)){committedCommands.current.add(entry.id);setCommittedOperation({id:entry.id,operation:entry.command.operation})}}setReady(true);setError('')}
   };
   syncRef.current=run;
   void(async()=>{try{
    const latest=await rpcRef.current('rpc/servos_v2_session',{}) as WebSession;
    if(latest.lifecycleStage&&latest.lifecycleStage!=='LIVE'){await run();return}
-   opened=await openWebDevice(initialSession,rpcRef.current);if(stopped){opened.close();return}store.current=opened;
+   opened=await openWebDevice(initialSession,rpcRef.current);if(stopped){opened.close();return}store.current=opened;for(const entry of await opened.queue())if(entry.state==='SYNCHRONIZED')committedCommands.current.add(entry.id);
    automatic=startAutomaticSync(run,e=>{if(!stopped){setError(String(e));if((e as {status?:number}).status===403){setReady(false);setRecords([])}}});
   }catch(e){if(!stopped)setError(String(e))}})();
   return()=>{stopped=true;automatic?.stop();opened?.close();store.current=null};
@@ -88,7 +89,8 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
   useEffect(()=>{const nextHash=`#/${encodeURIComponent(tab)}`;if(window.location.hash!==nextHash)window.history.replaceState(null,'',nextHash)},[tab]);
   const activateUpdate=async()=>{if(busy||syncing)return;const registration=await navigator.serviceWorker?.getRegistration();const worker=registration?.waiting;if(!worker){window.location.reload();return}const reload=()=>window.location.reload();navigator.serviceWorker.addEventListener('controllerchange',reload,{once:true});worker.postMessage({type:'SERVOS_ACTIVATE_UPDATE'});};
  useEffect(()=>{let active=true;void rpcRef.current('rpc/servos_v2_guidance_progress',{}).then(rows=>{if(active)setGuidance(Array.isArray(rows)?rows:[])}).catch(()=>undefined);return()=>{active=false}},[session.businessId,session.actorId]);
- const saveGuidance=async(next:WebGuidanceProgress)=>{setGuidance(rows=>[next,...rows.filter(row=>row.guideId!==next.guideId)]);try{const saved=await rpcRef.current('rpc/servos_v2_guidance_save',{progress:next});setGuidance(rows=>[saved,...rows.filter(row=>row.guideId!==saved.guideId)])}catch{ /* local progress keeps the tour usable during an outage */ }};
+ const saveGuidance=async(next:WebGuidanceProgress)=>{setGuidance(rows=>[next,...rows.filter(row=>row.guideId!==next.guideId)]);try{const saved=await rpcRef.current('rpc/servos_v2_guidance_save',{progress:next});setGuidance(rows=>[saved,...rows.filter(row=>row.guideId!==saved.guideId)]);setNotice('')}catch{setNotice('Guide progress could not be saved to your account. It may not resume on another device; ask an Admin to check Web guidance setup.')}};
+ const startTour=(guideId='servos.core')=>{const guide=GUIDES.find(item=>item.id===guideId);if(!guide||(guide.permissions||[]).some(permission=>!session.permissions.includes('*')&&!session.permissions.includes(permission))){setNotice('Your account is not allowed to open this guide. Ask an Admin to review your assigned work.');return}setTourGuideId(guide.id);setTourOpen(true)};
  const active=(collection:string)=>records.filter(r=>r.collection===collection&&!r.archived);
  const property=active('property')[0];
  const allNightlyRates=active('ratePlans').filter(record=>record.data.mode==='NIGHTLY');
@@ -155,8 +157,8 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
   <React.Suspense fallback={<section className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><div className="flex items-start gap-3"><RefreshCw className="h-5 w-5 animate-spin text-amber-300"/><div><h2 className="font-bold">Opening workspace</h2><p className="mt-1 text-sm text-slate-400">Loading the tools for this workspace…</p></div></div></section>}>
   {session.lifecycleStage&&session.lifecycleStage!=='LIVE'?<WebLifecycleView session={session} rpc={rpcRef.current} onUpdated={next=>{setSession(next);setLifecycleRefresh(value=>value+1)}}/>:<>{ready&&<WebStaffWelcome session={session} onDismiss={()=>undefined} onStartTour={()=>setTourOpen(true)}/>} {!ready&&<section className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><div className="flex items-start gap-3"><Wifi className="mt-1 h-5 w-5 text-amber-300"/><div><h2 className="font-bold">Preparing your workspace</h2><p className="mt-1 text-sm text-slate-400">Online sign-in, device registration, and an authorized business snapshot are required before operations can begin.</p></div></div></section>}</>}
   <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-4 shadow-xl shadow-black/10 sm:p-5">
-  {ready&&tab==='Home'&&<WebStartHere permissions={session.permissions} onNavigate={next=>setTab(next as WorkspaceTab)} onQuickAdd={quickAdd} onOpenHelp={query=>{setHelpQuery(query||'');setTab('Help')}} onStartTour={()=>setTourOpen(true)}/>}
-  {ready&&tab==='Help'&&<WebHelpView initialQuery={helpQuery} progress={guidance} onStartTour={()=>setTourOpen(true)} onRestartGuide={guideId=>void saveGuidance({guideId,guideVersion:1,state:'IN_PROGRESS',currentStepId:null,completedStepIds:[]})}/>}
+  {ready&&tab==='Home'&&<WebStartHere permissions={session.permissions} onNavigate={next=>setTab(next as WorkspaceTab)} onQuickAdd={quickAdd} onOpenHelp={query=>{const guideIds:Record<string,string>={'Getting around ServOS':'servos.core','Make your first sale':'pos.first-sale','Count stock':'stock.count','Receive a delivery':'stock.receive'};setHelpQuery(guideIds[query||'']||query||'');setTab('Help')}} onStartTour={()=>{setTourGuideId('servos.core');setTourOpen(true)}}/>}
+  {ready&&tab==='Help'&&<WebHelpView initialQuery={helpQuery} permissions={session.permissions} progress={guidance} onStartTour={startTour} onRestartGuide={guideId=>void saveGuidance({guideId,guideVersion:1,state:'IN_PROGRESS',currentStepId:null,completedStepIds:[]})}/>}
   {ready&&tab==='POS'&&<WebPosView records={records} session={session} disabled={disabled} command={submit}/>}
   {ready&&tab==='KDS'&&<WebKDSView records={records} session={session} disabled={disabled} command={submit}/>}
   {ready&&tab==='Catalog'&&<WebCatalogView records={records} session={session} disabled={disabled} command={submit}/>}
@@ -184,5 +186,5 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
   {ready&&tab==='Master Data'&&<WebMasterDataView records={records} session={session} disabled={disabled} command={submit}/>}
    {ready&&tab==='Refunds'&&<WebRefundsView records={records} session={session} disabled={disabled} command={submit}/>}
   </div></React.Suspense>
-   </div></main></div>{helpDrawerOpen&&<ContextHelpDrawer open workspace={tab} online={online} permissions={session.permissions} onClose={()=>setHelpDrawerOpen(false)} onOpenHelp={query=>{setHelpQuery(query);setTab('Help')}}/>}{tourOpen&&<WebGuidedTour progress={guidance.find(row=>row.guideId==='servos.core')} onProgress={saveGuidance} onNavigate={next=>setTab(next as WorkspaceTab)} onClose={()=>setTourOpen(false)}/>}</div>;
+   </div></main></div>{helpDrawerOpen&&<ContextHelpDrawer open workspace={tab} online={online} permissions={session.permissions} onClose={()=>setHelpDrawerOpen(false)} onOpenHelp={query=>{setHelpQuery(query);setTab('Help')}}/>}{tourOpen&&<WebGuidedTour guideId={tourGuideId} committedOperation={committedOperation} progress={guidance.find(row=>row.guideId===tourGuideId)} onProgress={saveGuidance} onNavigate={next=>setTab(next as WorkspaceTab)} onOperation={operation=>setTab(operation.startsWith('inventory.')?'Inventory':operation.startsWith('procurement.')||operation.startsWith('purchaseOrder.')?'Procurement':'POS')} onClose={()=>{setTourOpen(false);setTourGuideId('servos.core')}}/>}</div>;
 }

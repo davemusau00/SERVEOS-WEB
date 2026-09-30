@@ -102,6 +102,22 @@ test('operation parity manifest includes acceptance and operator audit metadata'
   assert.match(manifest, /Unknown is intentional until a workflow has evidence/);
 });
 
+test('parity ledger distinguishes implemented Web flows from different operation contracts',()=>{
+  const manifest=readFileSync('src/runtime/operationManifest.ts','utf8');
+  const pos=readFileSync('src/runtime/web/WebPosView.tsx','utf8');
+  const finance=readFileSync('src/runtime/web/WebFinancialControlsView.tsx','utf8');
+  assert.match(pos,/posDialog==='MOVE'\?'order\.transfer'/);
+  assert.match(pos,/posDialog==='MERGE'\?'order\.merge'/);
+  assert.match(manifest,/operation: 'order\.transfer'.*web: 'implemented'/);
+  assert.match(manifest,/operation: 'order\.merge'.*web: 'implemented'/);
+  assert.match(manifest,/operation: 'order\.discount'.*web: 'partial'.*manager-approval token/);
+  assert.match(manifest,/operation: 'order\.compItem'.*backend: 'missing'.*web: 'missing'/);
+  assert.match(finance,/mpesa\.discrepancy/);
+  assert.match(finance,/mpesa\.discrepancy\.resolve/);
+  assert.match(manifest,/operation: 'credit\.charge'.*native: 'missing'.*backend: 'implemented'.*web: 'implemented'/);
+  assert.match(manifest,/operation: 'customerCredit\.charge'.*backend: 'missing'.*web: 'missing'/);
+});
+
 test('shared design controls and generated operator audit are part of the P0/P1 contract', () => {
   const controls = readFileSync('src/design-system/controls.tsx', 'utf8');
   const audit = readFileSync('scripts/audit-ui.mjs', 'utf8');

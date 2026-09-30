@@ -4,6 +4,7 @@ Section: Procurement
 Roles: Admin, Manager, Server
 Permission: procurement.view, procurement.manage, procurement.receive
 Screen: procurement
+Guide: stock.receive
 Keywords: purchase order, procurement, GRN, goods receipt, barcode scanner, ServOS
 
 ## Overview

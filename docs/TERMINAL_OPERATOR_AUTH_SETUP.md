@@ -18,7 +18,7 @@ This guide configures individual business accounts on an installed ServOS termin
 
 1. In ServOS Administration → Auth, choose **Invite staff member** and send an invitation to each operator's individual work email. This uses the existing ServOS invitation action backed by Supabase Auth; do not create a shared cashier account.
 2. Have each operator accept the invitation and set their own password. Supabase Auth owns password recovery; an Admin must never collect or set the operator's password.
-3. In ServOS Staff, choose **Bind invited Auth user** and enter the invited user's Auth UUID, the existing terminal Staff ID, display name, and approved role. The stable Staff ID must exactly match the local record; email and name are not identifiers. Assign outlet/service-area scope and least-privilege permissions.
+3. In ServOS Staff, choose **Bind invited Auth user** and enter the invited user's Auth UUID, the existing terminal Staff ID, display name, and approved role. The form accepts the existing ID; use **Generate ID for new staff** only when creating a genuinely new local staff record as part of the same setup. The stable Staff ID must exactly match the local record; email and name are not identifiers. Assign outlet/service-area scope and least-privilege permissions.
 4. Verify the Auth UUID maps to exactly one active server staff profile, with `staff_profiles.staff_id` equal to the local Staff ID and an active business membership. The server derives the actor and permissions from this authenticated identity, not from a role selector or device credential.
 5. The operator signs in as themselves each time they take over the terminal. Never leave a shared operator account active.
 
@@ -40,7 +40,7 @@ This guide configures individual business accounts on an installed ServOS termin
 ## First-use runbook
 
 1. Configure a staging build with the project's URL and **publishable** key, complete normal owner enrollment, and verify the terminal ID survives restart. Never put a service-role/secret key in the terminal build.
-2. Invite operators in ServOS Administration → Auth, have them accept, then bind each Auth UUID to the matching existing local Staff ID in Staff. Verify membership and permission scope.
+2. Invite operators in ServOS Administration → Auth, have them accept, then bind each Auth UUID to the matching existing local Staff ID in Staff. Copy the ID from the terminal's existing staff record exactly; do not accept the generated suggestion for an existing operator. Verify membership and permission scope.
 3. Sign in as the authorized Admin once to commission the DESKTOP device pairing. Confirm its ID equals the enrolled terminal ID, then sign out.
 4. Have each operator select their matching local staff record and sign in with their own Auth account (without entering a local PIN). Confirm the actor and permissions change while the paired device ID stays the same. Verify an operation outside the operator's grants is denied.
 5. Restart and verify session renewal succeeds without moving credentials into SQLite. Sign out and verify the active operator is cleared. Do not inspect, export, or copy OS-vault contents.

@@ -4,6 +4,7 @@ Section: POS
 Roles: Admin, Manager, Server
 Permission: pos.sell
 Screen: pos
+Guide: pos.first-sale
 Keywords: running bar tabs, pos, ServOS
 
 ## Overview

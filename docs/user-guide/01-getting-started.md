@@ -4,6 +4,7 @@ Section: Getting Started
 Roles: Admin, Manager, Server
 Permission: help.view
 Screen: help
+Guide: servos.core
 Keywords: getting started, getting started, ServOS
 
 ## Overview
@@ -12,7 +13,7 @@ ServOS runs one business from one installed terminal. Local SQLite remains autho
 
 ## Procedure
 
-Unlock with your own PIN. Use the left navigation for permitted workspaces. Watch the pending-sync indicator, but continue local trading when offline. Use Change Staff / Lock whenever another person takes over the terminal.
+When online, sign in with your own invited business account. When the server is unavailable, use your local PIN for the existing SQLite/legacy path. Use the left navigation for permitted workspaces. Watch the pending-sync indicator, but continue supported local trading when offline. Lock or switch staff whenever another person takes over the terminal.
 
 ## What ServOS records
 

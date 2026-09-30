@@ -4,6 +4,7 @@ Section: Stocktake
 Roles: Admin, Manager
 Permission: inventory.count
 Screen: inventory
+Guide: stock.count
 Keywords: physical stocktake, stocktake, ServOS
 
 ## Overview
