@@ -19,6 +19,7 @@ test('Web floorplan is discoverable and submits one versioned atomic command',()
  assert.match(dependencies,/operation === 'floorplan\.save'/);
  assert.match(dependencies,/add\('tables', \(entry as Record<string, unknown>\)\.id\)/);
  assert.match(dispatch,/operation'='floorplan\.save' then return servos_v2\.apply_floorplan/);
+ assert.match(dispatch,/operation' like 'admin\.%'.*servos_v2\.apply_admin_operations/);
  assert.match(dispatch,/assert_version\(command,'tables',current_row\.id\)/);
  assert.match(dispatch,/cannot remove a table with an active order/);
  assert.match(acceptance,/replay changed the result/);

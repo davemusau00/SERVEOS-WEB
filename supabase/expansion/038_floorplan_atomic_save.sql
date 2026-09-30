@@ -76,6 +76,7 @@ end$$;
 create or replace function servos_v2.dispatch(command jsonb) returns jsonb language plpgsql set search_path='' as $$
 begin
  if coalesce((command->>'offlineFinalized')::boolean,false) then raise exception 'PROTOCOL_UNSUPPORTED: signed offline grants required';end if;
+ if command->>'operation' like 'admin.%' or command->>'operation'='business.settings.save' or command->>'operation'='backup.request' then return servos_v2.apply_admin_operations(command);end if;
  if command->>'operation'='floorplan.save' then return servos_v2.apply_floorplan(command);end if;
  if command->>'operation' like 'payment.%' or command->>'operation' like 'till.%' then return servos_v2.apply_payments(command);end if;
  if command->>'operation' in ('record.save','record.archive','record.reactivate') then return servos_v2.apply_master(command);end if;
