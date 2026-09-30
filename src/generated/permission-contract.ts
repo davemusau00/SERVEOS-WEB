@@ -203,7 +203,7 @@ export const ROLE_PERMISSION_MODES = Object.freeze({
       "records.view"
     ]
   }
-}) as const;
+});
 export const IMPLICIT_PERMISSIONS = Object.freeze([
   "devices.register",
   "records.view"

@@ -4,6 +4,7 @@ export interface RecordVersion { collection:string; id:string; version:number }
 export interface AllocationReference { id:string; version:number }
 export interface BusinessCommandV2 {
   id:string; schemaVersion:2; deviceId:string; actorId:string; operation:string;
+  supersedes?:string;
   payload:Record<string,unknown>; expectedVersions:RecordVersion[]; allocationRefs:AllocationReference[];
   clientSequence:number; occurredAt:string;
 }

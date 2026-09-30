@@ -13,6 +13,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
     dependencies.set(key(target, targetId), { collection: target, id: targetId, version: record?.version ?? 0 });
   };
   add(collection, id);
+  if (operation === 'roomStay.settings') add('property', 'property');
   const data = (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>;
   for (const [target, targetId] of [
     ['roomTypes', data.roomTypeId], ['customers', data.customerId], ['assetCategories', data.assetCategoryId],

@@ -2,6 +2,16 @@ use super::store::*;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+#[test]
+fn native_roles_fail_closed_for_unknown_and_do_not_inherit_server_access() {
+    for role in ["Admin", "Manager", "Cashier", "Server", "Chef", "Housekeeper", "Accountant", "Custom"] {
+        assert!(!permissions(role).is_empty(), "role should have an explicit profile: {role}");
+    }
+    assert!(!permissions("Chef").contains(&"pos.sell"));
+    assert!(!permissions("Housekeeper").contains(&"till.open"));
+    assert!(permissions("not-a-role").is_empty());
+}
+
 fn setup() -> (tempfile::TempDir, rusqlite::Connection, Session) {
     let dir = tempfile::tempdir().unwrap();
     let mut db = open(&dir.path().join("test.sqlite")).unwrap();

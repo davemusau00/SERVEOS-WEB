@@ -16,6 +16,11 @@ test('web hospitality splits Front Desk, Guest Accounts, Housekeeping, and Room 
   assert.match(app,/visibleWorkspaces/);
   assert.match(app,/workspaceGroups/);
   assert.match(registry,/workspace\.permission\.some\(permission\s*=>\s*allowed\(session,\s*permission\)\)/);
+  const workspaceLine=id=>registry.split(/\r?\n/).find(line=>line.includes(`id: '${id}'`))||'';
+  assert.match(workspaceLine('POS'),/permission: \['pos\.sell'\]/);
+  assert.doesNotMatch(workspaceLine('POS'),/records\.view/);
+  assert.match(workspaceLine('Administration'),/permission: \['business\.configure'/);
+  assert.doesNotMatch(workspaceLine('Administration'),/business\.view/);
   assert.match(app,/visibleWorkspaces\(session\)\.some\(workspace=>workspace\.id===raw\)/);
   assert.match(view,/data-guide-anchor="web.front-desk"/);
   assert.match(view,/data-guide-anchor="web.guest-accounts"/);

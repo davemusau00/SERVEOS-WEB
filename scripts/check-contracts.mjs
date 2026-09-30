@@ -6,7 +6,7 @@ const sqlQuoted=value=>`'${value.replaceAll("'","''")}'`;
 const renderTs=(permissions,roles)=>`/** GENERATED FROM contracts/permissions.json and contracts/roles.json. DO NOT EDIT. */
 export const PERMISSION_CONTRACT_VERSION = ${permissions.contractVersion} as const;
 export const CANONICAL_PERMISSIONS = Object.freeze(${JSON.stringify(permissions.permissions, null, 2)}) as readonly string[];
-export const ROLE_PERMISSION_MODES = Object.freeze(${JSON.stringify(Object.fromEntries(Object.entries(roles.roles).map(([name,definition])=>[name,{mode:definition.mode,permissions:definition.permissions||[]} ])), null, 2)}) as const;
+export const ROLE_PERMISSION_MODES = Object.freeze(${JSON.stringify(Object.fromEntries(Object.entries(roles.roles).map(([name,definition])=>[name,{mode:definition.mode,permissions:definition.permissions||[]} ])), null, 2)});
 export const IMPLICIT_PERMISSIONS = Object.freeze(${JSON.stringify(roles.implicitPermissions, null, 2)}) as readonly string[];
 `;
 const renderRust=(permissions,roles)=>`// GENERATED FROM contracts/permissions.json and contracts/roles.json. DO NOT EDIT.
@@ -18,7 +18,7 @@ pub const IMPLICIT_PERMISSIONS: &[&str] = &[${roles.implicitPermissions.map(quot
 const renderSql=permissions=>`-- GENERATED FROM contracts/permissions.json. DO NOT EDIT.
 create or replace function servos_v2.generated_contract_permissions()
 returns jsonb language sql immutable set search_path='' as $$
- select jsonb_build_object('contractVersion',${permissions.contractVersion},'permissions',jsonb_build_array(${permissions.permissions.map(sqlQuoted).join(',')}));
+ select jsonb_build_object('contractVersion',${permissions.contractVersion},'permissionCount',${permissions.permissions.length});
 $$;
 `;
 const permissions=readJson('contracts/permissions.json');

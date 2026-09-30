@@ -38,3 +38,48 @@ test('web operator copy hides implementation terms from the primary workflow', (
   assert.match(catalog, /See what is on hand/);
   assert.match(procurement, /Create an order, check what arrived/);
 });
+
+test('web command editors remain available until synchronization is confirmed', () => {
+  const app = read('src/runtime/web/WebBusinessApp.tsx');
+  const submit = app.slice(app.indexOf('const submit='), app.indexOf('const action=', app.indexOf('const submit=')));
+  assert.match(submit, /enqueue\(operation,payload,baselines,editor\?\.supersedes\);setNotice\(/);
+  assert.match(submit, /saveDraft\(\{id:draftId,operation,collection,targetId:id/);
+  assert.match(submit, /workflow was saved for review/);
+  assert.match(submit, /result\?\.status==='SYNCHRONIZED'\).*setEditor\(null\)/);
+  assert.doesNotMatch(submit, /enqueue\(operation,payload,baselines\);setEditor\(null\)/);
+});
+
+test('activity recovery never instructs operators to resend immutable commands', () => {
+  const activity = read('src/runtime/web/ActivitySyncCenter.tsx');
+  assert.match(activity, /reopen the saved workflow and submit a new command with fresh versions/);
+  assert.match(activity, /Do not resend it/);
+  assert.doesNotMatch(activity, /retry the same command/);
+});
+
+test('activity exposes typed draft reopening and the app re-resolves the workflow', () => {
+  const activity = read('src/runtime/web/ActivitySyncCenter.tsx');
+  const store = read('src/runtime/web/BusinessStore.ts');
+  const app = read('src/runtime/web/WebBusinessApp.tsx');
+  assert.match(store, /fields\?:WorkflowDraftField\[\]/);
+  assert.match(activity, /Review and reopen/);
+  assert.match(activity, /onReviewDraft\(draft\)/);
+  assert.match(app, /const reviewDraft=\(draft:WorkflowDraft\)/);
+  assert.match(app, /draftId:draft\.id/);
+  assert.match(app, /resolveOperationDependencies\(operation,collection,id,payload,records\)/);
+  assert.match(app, /Business policy changed while this workflow was saved/);
+  assert.match(app, /no command was queued/);
+});
+
+test('reviewed replacement commands carry immutable supersedes correlation', () => {
+  const types = read('src/types/transactions.ts');
+  const store = read('src/runtime/web/BusinessStore.ts');
+  const app = read('src/runtime/web/WebBusinessApp.tsx');
+  const migration = read('supabase/expansion/026_command_supersedes.sql');
+  const acceptance = read('tests/supabase/expansion.sql');
+  assert.match(types, /supersedes\?:string/);
+  assert.match(store, /async enqueue\(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion\[\],supersedes\?:string\)/);
+  assert.match(app, /enqueue\(operation,payload,baselines,editor\?\.supersedes\)/);
+  assert.match(app, /command\.id\);setNotice/);
+  assert.match(migration, /previous\.result->>'status' not in \('CONFLICT','REJECTED'\)/);
+  assert.match(acceptance, /supersedes correlation missing/);
+});

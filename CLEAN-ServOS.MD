@@ -257,7 +257,7 @@ For reservation, count review, payment, refund, M-Pesa reconciliation, import re
 
 ### WP-04 — Create the executable operation and permission contract
 
-**Priority:** P0. **Status:** IN_PROGRESS; literal runtime command call sites and a 78-operation transitional ID registry are guarded, and canonical permission/role JSON inputs pass the fast verification gate. Generated cross-runtime constants, payload schemas, approval/dependency/allocation fields and semantic handler fixtures remain required. **Dependencies:** Baseline from WP-02.
+**Priority:** P0. **Status:** IN_PROGRESS; literal runtime command call sites, a 78-operation transitional ID registry, canonical permission/role JSON inputs and deterministic TypeScript/Rust/SQL generated permission artifacts are guarded. Payload schemas, approval/dependency/allocation fields and semantic handler fixtures remain required. **Dependencies:** Baseline from WP-02.
 
 **Existing files:** `src/runtime/operationManifest.ts`, `src/types/transactions.ts`, `src/native/*`, `src/runtime/web/*`, `src-tauri/src/store.rs`, `supabase/expansion/001_protocol.sql` through `021_room_stay_policy.sql`, `tests/web-v2-permission-contract-source.test.mjs`.
 
@@ -287,7 +287,7 @@ Parity output must show `Terminal UI`, `Native handler`, `Web UI`, `cloud handle
 
 ### WP-05 — Align roles, grants and role-appropriate workspaces
 
-**Priority:** P0. **Dependencies:** WP-04.
+**Priority:** P0. **Status:** IN_PROGRESS; Web workspace visibility now separates POS capability from generic record access and Administration from business viewing alone. Native/cloud role matrices, direct-command denial and session-refresh acceptance remain required. **Dependencies:** WP-04.
 
 **Existing files:** Rust `permissions()`, staff create/change-role branches in `src-tauri/src/store.rs`; `supabase/expansion/016_staff_devices_approvals.sql` (`role_permissions`, profiles and role triggers); `src/runtime/web/session.ts`; `src/runtime/web/workspaceRegistry.ts`; Native shell/workspace gating.
 
@@ -356,7 +356,7 @@ write_replacement(next + server_metadata)
 
 ### WP-08 — Separate drafts from commands and make recovery usable
 
-**Priority:** P0. **Status:** IN_PROGRESS; typed drafts, atomic promotion and browser proof are implemented, while review/reopen UI, policy recheck and count-session recovery remain open. **Dependencies:** WP-04–06.
+**Priority:** P0. **Status:** IN_PROGRESS; typed drafts, atomic promotion, failed-online workflow retention, response-loss browser proof, supported Activity draft reopening, validated reviewed-command `supersedes` correlation and policy-change promotion blocking are implemented, while count-session recovery remains open. **Dependencies:** WP-04–06.
 
 **Existing files:** `BusinessStore.ts`, `sync.ts`, `WebBusinessApp.tsx` (`submit`), `ActivitySyncCenter.tsx`, `src/types/transactions.ts`, `tests/browser/web-storage.spec.ts`.
 
@@ -949,14 +949,14 @@ Original section numbers are retained here so none of the earlier forensic work 
 | Original section | Finding | Updated assessment | Work packages / closure proof |
 | --- | --- | --- | --- |
 | 1 | Executive severity assessment | Replaced by profile-specific priorities and evidence | All packages; release dossier |
-| 2 | Offline edits falsely promise automatic sync | OPEN; exact notice and missing promotion path remain | WP-08; durable draft → review → one command |
+| 2 | Offline edits falsely promise automatic sync | PARTIAL PROGRESS; typed drafts and supported Activity reopening now distinguish local work from synchronized effects, while broader draft coverage remains open | WP-08; durable draft → review → one command |
 | 3 | Full-location count/cloud semantics mismatch | PARTIAL PROGRESS; expansion 024 now enforces the shared full-location rows contract and the Web sends that contract, while durable browser session/review remains open | WP-08, WP-10; shared full-count fixtures and reload/rejection evidence |
 | 4 | Unknown barcode `&& false` bypass | PARTIAL PROGRESS; Web confirmation now blocks unresolved scans and cloud 024 rejects crafted unresolved payloads; Native and duplicate-code acceptance remain to be consolidated | WP-10, WP-24; client/backend denial |
 | 5 | Count resume incomplete | PARTIAL PROGRESS; rejected Web submissions retain the local session and Native durable drafts remain covered, but Web per-item rows and full review reopening are still incomplete | WP-08, WP-10; restart/reload rows preserved |
 | 6 | Settings document replacement/clobber | OPEN; current SQL passes partial replacement | WP-07; omitted/nested fields preserved |
 | 7 | Operation/permission dialect drift | OPEN; backend implementations unchanged in comparison | WP-04; versioned adapters and registry parity |
 | 8 | Native/cloud role mismatch | OPEN; Native permissive fallback remains | WP-05; exact role/grant matrix |
-| 9 | Broad workspace visibility | OPEN; POS/Administration generic read grants remain | WP-05; role workspace acceptance |
+| 9 | Broad workspace visibility | PARTIAL PROGRESS; Web POS no longer uses generic `records.view`, and Administration no longer uses `business.view` as a visibility grant | WP-05; Native/cloud role matrix, direct-command denial and session-refresh acceptance remain open |
 | 10 | Stale operation manifest | OPEN; declared implementation and tests not executable proof | WP-04, WP-24; derived parity matrix |
 | 11 | Missing cloud `room.condition` | PARTIAL PROGRESS; expansion 025 now provides Native-equivalent maintenance-state and active-reservation safety, while broader room lifecycle parity remains open | WP-11; Native/cloud state fixtures |
 | 12 | CI omits cloud expansion | OPEN; workflow calls base script without flag | WP-02; named cloud-v2 job |
@@ -974,7 +974,7 @@ Original section numbers are retained here so none of the earlier forensic work 
 | 24 | Spreadsheet formula injection | OPEN; export quotes only | WP-17; safe typed serialization fixtures |
 | 25 | Local business cache survives logout | OPEN; memory-only clear, no scoped purge | WP-18; multi-tab cache deletion acceptance |
 | 26 | Ordinary logout is global | OPEN; explicit global scope remains | WP-18; local vs everywhere tests |
-| 27 | Conflict/rejection recovery weak | OPEN; Activity lacks workflow reopening | WP-08; new reviewed superseding command |
+| 27 | Conflict/rejection recovery weak | PARTIAL PROGRESS; failed online workflows retain typed review drafts, supported drafts reopen from Activity, and migration 026 validates reviewed replacement correlation without mutating the original command | WP-08; policy recheck and durable count recovery |
 | 28 | Humans copy approval UUIDs | OPEN; token/initiator/target fields remain | WP-20; manager inbox/internal capability |
 | 29 | Staff creation requires Auth UUID | OPEN; normal binding form still exposes IDs | WP-21; trusted invitation acceptance linking |
 | 30 | Browser prompts/confirms | PARTIAL PROGRESS; production flows still need complete inventory | WP-19, WP-24; scoped zero-violation gate |
@@ -992,7 +992,7 @@ Original section numbers are retained here so none of the earlier forensic work 
 | 42 | SQL wrapper dispatch chain | OPEN; preserve history but supply current canonical schema | WP-28; fresh/upgrade equivalence |
 | 43 | `verify` omits cloud/desktop | OPEN; current script confirms | WP-02; complete explicit release script |
 | 44 | Browser tests use demo-enabled flags | OPEN; single webServer builds demo + v2 | WP-03; isolated production build acceptance |
-| 45 | Forms close before confirmation | OPEN; editor closes after enqueue | WP-08, WP-19; retained/reopenable context |
+| 45 | Forms close before confirmation | PARTIAL PROGRESS; confirmed synchronization closes the editor, while transport/rejection paths retain the workflow as a review draft before returning to Activity | WP-08, WP-19; retained/reopenable context |
 | 46 | Requested vs completed wording | PARTIAL; lifecycle distinction needs consistent implementation | WP-08, WP-14, WP-16, WP-30; effect-derived labels |
 | 47 | Staff/Auth/local identity ambiguity | OPEN; synthetic/local/Auth identities coexist | WP-06, WP-13, WP-21; stable reviewed mapping |
 | 48 | Existing safeguards worth preserving | PRESERVE; regression obligations enumerated | Section 3, WP-29 |
@@ -1008,7 +1008,7 @@ Original section numbers are retained here so none of the earlier forensic work 
 | NEW-F04 | Native omitted-stay-type compatibility diverges from canonical cloud policy | Rust reservation units branch vs SQL 021; WP-04/WP-11 |
 | NEW-F05 | Existing dialog footer capability is not forwarded by Native wrapper | `ActionDialog` children-only props; WP-19 |
 | NEW-F06 | Current `SearchCombobox` is an input, not an entity combobox | Shared controls implementation; WP-19 |
-| NEW-F07 | Conflict guidance implies retrying the original immutable rejected command | Activity copy vs cached command outcome; WP-08/section 6.4 |
+| NEW-F07 | Conflict guidance implies retrying the original immutable rejected command | FIXED in Activity copy; conflicts reopen with fresh versions and rejected commands are not resent | WP-08/section 6.4 |
 | NEW-F08 | Whole-location scope currently means every active stock item | Native handler checks all active IDs; WP-10 must preserve or explicitly version this policy |
 | NEW-F09 | Cloud concurrency currently includes global control-row serialization | Execute locks control row; WP-09 must not remove it casually |
 
@@ -1327,7 +1327,7 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | WP-05 | OPEN | — | Role × permission + navigation | — |
 | WP-06 | OPEN | — | Reviewed identity correlation | — |
 | WP-07 | OPEN | — | Partial/nested settings preservation | — |
-| WP-08 | OPEN | — | Draft/retry/rejection recovery | — |
+| WP-08 | IN_PROGRESS | Typed drafts, failed-online retention, supported Activity reopening, and response-loss browser proof | Superseding correlation, policy recheck, durable count-session recovery | — |
 | WP-09 | OPEN | — | Minimal complete dependency sets | — |
 | WP-10 | IN_PROGRESS | Expansion 024 full-location cloud contract and Web failure/session slice verified locally | Durable per-item review across reload, scanner/device acceptance and full browser workflow | — |
 | WP-11 | IN_PROGRESS | Native/cloud room policy and `room.condition` parity verified locally | Full move, extension, checkout and cross-runtime time acceptance | — |

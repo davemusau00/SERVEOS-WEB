@@ -1,10 +1,11 @@
 import type {BusinessCommandV2,ChangePage,RecordVersion,TransactionResult} from '../../types/transactions';
 
 export interface QueuedCommand {id:string; sequence:number; command:BusinessCommandV2; state:'PENDING_SYNC'|'SYNCHRONIZED'|'CONFLICT'|'REJECTED'; result?:TransactionResult}
+export interface WorkflowDraftField {key:string;label:string;type?:'text'|'number'|'money'|'datetime-local'|'select';options?:Array<{value:string;label:string}>;value?:string;optional?:boolean}
 export interface WorkflowDraft {
   id:string; schemaVersion:2; contractVersion:2; operation:string; collection:string; targetId:string;
-  editorKind:string; inputValues:Record<string,string>; payload:Record<string,unknown>; expectedVersions:RecordVersion[];
-  policyVersion?:string; validationSummary:string[]; requiresReview:boolean; createdAt:string; updatedAt:string;
+  editorKind:string; inputValues:Record<string,string>; payload:Record<string,unknown>; expectedVersions:RecordVersion[]; fields?:WorkflowDraftField[];
+  supersedes?:string; policyVersion?:string; validationSummary:string[]; requiresReview:boolean; createdAt:string; updatedAt:string;
 }
 const request=<T>(value:IDBRequest<T>)=>new Promise<T>((resolve,reject)=>{value.onsuccess=()=>resolve(value.result);value.onerror=()=>reject(value.error||new Error('Storage request failed'))});
 const sensitiveKey=/password|secret|token|credential|pin/i;
@@ -52,16 +53,16 @@ export class BusinessStore {
       if(!draft)throw new Error('Draft is no longer available; refresh saved work before submitting.');
       const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
       if(!Number.isSafeInteger(previous+1))throw new Error('Device sequence exhausted');
-      const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation:draft.operation,payload:draft.payload,expectedVersions:draft.expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
+      const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation:draft.operation,...(draft.supersedes?{supersedes:draft.supersedes}:{}),payload:draft.payload,expectedVersions:draft.expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
       await request(tx.objectStore('queue').add({id:command.id,sequence:command.clientSequence,command,state:'PENDING_SYNC'} satisfies QueuedCommand));
       await request(meta.put(command.clientSequence,'sequence'));await request(drafts.delete(id));return command;
     });
   }
-  async enqueue(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion[]):Promise<BusinessCommandV2>{
+  async enqueue(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion[],supersedes?:string):Promise<BusinessCommandV2>{
     return this.transaction(['queue','meta'],'readwrite',async tx=>{
       const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
       if(!Number.isSafeInteger(previous+1))throw new Error('Device sequence exhausted');
-      const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation,payload,expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
+      const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation,...(supersedes?{supersedes}:{}),payload,expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
       await request(tx.objectStore('queue').add({id:command.id,sequence:command.clientSequence,command,state:'PENDING_SYNC'} satisfies QueuedCommand));
       await request(meta.put(command.clientSequence,'sequence'));return command;
     });

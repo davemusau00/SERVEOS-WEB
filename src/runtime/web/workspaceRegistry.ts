@@ -10,7 +10,7 @@ export type WorkspaceDefinition = { id: WorkspaceTab; label: string; description
 export const workspaces: WorkspaceDefinition[] = [
   { id: 'Home', label: 'Home', description: 'Choose a task or find a guide.', permission: [], icon: Home, group: 'Start' },
   { id: 'Help', label: 'Help & training', description: 'Find answers, guides, and troubleshooting.', permission: ['help.view'], icon: HelpCircle, group: 'Start' },
-  { id: 'POS', label: 'POS', description: 'Take orders and record payments.', permission: ['pos.sell', 'records.view'], icon: Martini, group: 'Operations' },
+  { id: 'POS', label: 'POS', description: 'Take orders and record payments.', permission: ['pos.sell'], icon: Martini, group: 'Operations' },
   { id: 'KDS', label: 'KDS', description: 'Move orders through the service pass.', permission: ['kds.view'], icon: ClipboardCheck, group: 'Operations' },
   { id: 'Inventory', label: 'Inventory', description: 'Review stock, counts, transfers, and waste.', permission: ['inventory.view', 'inventory.adjust', 'inventory.receive'], icon: Boxes, group: 'Operations' },
   { id: 'Procurement', label: 'Procurement', description: 'Buy supplies and record deliveries.', permission: ['procurement.view', 'procurement.manage', 'procurement.receive'], icon: Truck, group: 'Operations' },
@@ -26,7 +26,7 @@ export const workspaces: WorkspaceDefinition[] = [
   { id: 'Finance', label: 'Finance', description: 'Review till activity, reports, and financial records.', permission: ['reports.view', 'till.view'], icon: CreditCard, group: 'Management' },
   { id: 'Settings', label: 'Settings', description: 'Manage business master records and policy.', permission: ['customers.manage', 'roomTypes.manage', 'assetCategories.manage'], icon: Settings, group: 'System' },
   { id: 'Staff', label: 'Staff & devices', description: 'Manage staff access, roles, and registered devices.', permission: ['staff.view', 'devices.manage'], icon: Users, group: 'System' },
-  { id: 'Administration', label: 'Administration', description: 'Manage imports, exports, readiness, and backup requests.', permission: ['business.view', 'business.configure', 'data.import.view', 'reports.view', 'staff.create', 'backup.create'], icon: ShieldCheck, group: 'System' },
+  { id: 'Administration', label: 'Administration', description: 'Manage imports, exports, readiness, and backup requests.', permission: ['business.configure', 'data.import.view', 'reports.view', 'staff.create', 'backup.create'], icon: ShieldCheck, group: 'System' },
   { id: 'Activity', label: 'Activity & sync', description: 'Review saved, waiting, rejected, and conflicting changes.', permission: ['records.view'], icon: Activity, group: 'System' },
 ];
 

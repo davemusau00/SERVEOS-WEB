@@ -28,12 +28,19 @@ do $$declare c jsonb;r jsonb;again jsonb;failed boolean:=false;page jsonb;begin
  page:=public.servos_v2_pull((page->>'cursor')::bigint,100);if page->'changes'->0->'records'->0->>'archived'<>'true' then raise exception 'tombstone missing: %',page;end if;
  failed:=false;begin perform public.servos_upload('10000000-0000-4000-8000-000000000001','ignored','[]');exception when others then failed:=true;end;
  if not failed then raise exception 'legacy writer still enabled';end if;
+ c:=jsonb_build_object('id','20000000-0000-4000-8000-000000000005','schemaVersion',2,'deviceId','10000000-0000-4000-8000-000000000001','actorId','00000000-0000-4000-8000-000000000001','clientSequence',2,'operation','record.save','expectedVersions',jsonb_build_array(jsonb_build_object('collection','customers','id','customer-1','version',0)),'payload',jsonb_build_object('collection','customers','id','customer-1','data',jsonb_build_object('name','Stale Customer')));
+ r:=public.servos_v2_execute(c);if r->>'status'<>'CONFLICT' then raise exception 'supersedes fixture did not create conflict: %',r;end if;
+ c:=jsonb_build_object('id','20000000-0000-4000-8000-000000000006','schemaVersion',2,'deviceId','10000000-0000-4000-8000-000000000001','actorId','00000000-0000-4000-8000-000000000001','clientSequence',3,'operation','record.reactivate','supersedes','20000000-0000-4000-8000-000000000005','expectedVersions',jsonb_build_array(jsonb_build_object('collection','customers','id','customer-1','version',2)),'payload',jsonb_build_object('collection','customers','id','customer-1','data',jsonb_build_object('name','Customer One')));
+ r:=public.servos_v2_execute(c);if r->>'status'<>'SYNCHRONIZED' then raise exception 'reviewed superseding command failed: %',r;end if;
+ failed:=false;begin perform public.servos_v2_execute(c||jsonb_build_object('id','20000000-0000-4000-8000-000000000007','clientSequence',4,'supersedes','20000000-0000-4000-8000-000000000001'));exception when others then failed:=sqlerrm like '%VALIDATION_FAILED: supersedes%';end;
+ if not failed then raise exception 'synchronized command accepted as supersedes target';end if;
 end$$;
 reset role;
 do $$begin
- if (select count(*) from servos_v2.commands)<>3 then raise exception 'dedup failed';end if;
- if (select count(*) from servos_v2.changes)<>2 then raise exception 'conflict created record change';end if;
- if (select count(*) from servos_v2.audit)<>3 then raise exception 'audit missing';end if;
+ if (select count(*) from servos_v2.commands)<>5 then raise exception 'dedup/supersedes count failed';end if;
+ if (select count(*) from servos_v2.changes)<>3 then raise exception 'conflict created record change';end if;
+ if (select count(*) from servos_v2.audit)<>5 then raise exception 'audit missing';end if;
+ if (select request->>'supersedes' from servos_v2.commands where id='20000000-0000-4000-8000-000000000006')<>'20000000-0000-4000-8000-000000000005' then raise exception 'supersedes correlation missing';end if;
  begin update servos_v2.audit set operation='tampered';raise exception 'audit update allowed';exception when others then if sqlerrm not like '%Immutable transaction history%' then raise;end if;end;
 end$$;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);

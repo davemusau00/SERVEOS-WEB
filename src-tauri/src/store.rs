@@ -175,11 +175,16 @@ pub fn permissions(role: &str) -> Vec<&'static str> {
         "Manager" => ALL_PERMISSIONS.iter().copied().filter(|p| ![
             "business.configure","business.tax.configure","staff.change_role","data.import.execute","backup.restore","system.configure"
         ].contains(p)).collect(),
-        _ => vec![
+        "Cashier" | "Server" => vec![
             "business.view","staff.view","pos.sell","pos.open_tab","pos.manage_table","order.fire",
             "payment.record","payment.split","till.open","till.close","mpesa.record","credit.view","credit.charge","credit.settle",
             "catalog.view","inventory.view","procurement.view","procurement.receive","floorplan.view","folio.room_charge","kds.view","kds.update","help.view"
         ],
+        "Chef" => vec!["business.view","kds.view","kds.update","help.view"],
+        "Housekeeper" => vec!["business.view","rooms.view","rooms.operate","help.view"],
+        "Accountant" => vec!["business.view","accounting.view","reports.view","payments.view","audit.view","credit.view","credit.settle","credit.reconcile","credit.write_off","mpesa.reconcile","help.view"],
+        "Custom" => vec!["business.view","help.view"],
+        _ => Vec::new(),
     }
 }
 
