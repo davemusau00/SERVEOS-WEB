@@ -36,7 +36,17 @@ test.describe('transactional browser with PostgreSQL',()=>{
    select servos_v2.put_record('customers','front-desk-guest','{"name":"Timezone Guest","phone":"0700000099"}');
    select servos_v2.put_record('rooms','front-desk-room','{"number":"TZ-1","roomTypeId":"timezone-room-type","capacity":2,"turnaroundMinutes":30,"housekeepingState":"DIRTY","maintenanceState":"AVAILABLE"}');
    select servos_v2.put_record('rooms','quick-reservation-room','{"number":"TZ-2","roomTypeId":"timezone-room-type","capacity":2,"turnaroundMinutes":30,"housekeepingState":"CLEAN","maintenanceState":"AVAILABLE"}');
+   select servos_v2.put_record('rooms','checkout-room','{"number":"TZ-3","roomTypeId":"timezone-room-type","capacity":2,"turnaroundMinutes":30,"housekeepingState":"CLEAN","maintenanceState":"AVAILABLE"}');
    select servos_v2.put_record('roomReservations','front-desk-reservation','{"customerId":"front-desk-guest","roomId":"front-desk-room","status":"RESERVED","guests":1,"startsAt":"2025-01-01T22:00:00Z","endsAt":"2025-01-02T19:00:00Z","blockedUntil":"2025-01-02T19:30:00Z"}');
+   select servos_v2.put_record('customers','checkout-blocked-guest','{"name":"Blocked Checkout Guest"}');
+   select servos_v2.put_record('roomReservations','checkout-blocked','{"customerId":"checkout-blocked-guest","roomId":"checkout-room","status":"CHECKED_IN","units":2,"guests":1,"startsAt":"2030-01-01T07:00:00Z","endsAt":"2030-01-03T07:00:00Z"}');
+   select servos_v2.put_record('stays','checkout-blocked','{"roomId":"checkout-room","status":"CHECKED_IN"}');
+   select servos_v2.put_record('folios','checkout-blocked','{"status":"OPEN","balanceMinor":0,"depositMinor":0}');
+   select servos_v2.put_record('customers','checkout-ready-guest','{"name":"Ready Checkout Guest"}');
+   select servos_v2.put_record('roomReservations','checkout-ready','{"customerId":"checkout-ready-guest","roomId":"checkout-room","status":"CHECKED_IN","units":1,"guests":1,"startsAt":"2030-01-01T07:00:00Z","endsAt":"2030-01-02T07:00:00Z"}');
+   select servos_v2.put_record('stays','checkout-ready','{"roomId":"checkout-room","status":"CHECKED_IN"}');
+   select servos_v2.put_record('folios','checkout-ready','{"status":"OPEN","balanceMinor":0,"depositMinor":0}');
+   select servos_v2.put_record('folioEntries','checkout-ready-accommodation','{"sourceType":"ACCOMMODATION","reservationId":"checkout-ready","period":0}');
    select servos_v2.put_record('posPolicy','policy','{"vatBasisPoints":0,"cateringLevyBasisPoints":0,"taxInclusive":true,"currency":"KES"}');
    select servos_v2.put_record('stockLocations','web-pos-stock','{"name":"Web POS Stock","code":"WEBPOS","type":"BAR"}');
    select servos_v2.put_record('stockItems','web-count-a','{"name":"Counted Water","code":"COUNT-WATER","baseUnit":"bottle","scanUnitQuantity":1,"currentStock":{"web-pos-stock":5},"reorderLevel":0,"averageUnitCostMinor":100}');
@@ -117,6 +127,17 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await expect(page.getByText('2 Jan 2025').first()).toBeVisible();
   await expect(page.getByText('Room must be clean and in service before check-in.')).toBeVisible();
   await expect(page.getByRole('button',{name:'Check in',exact:true})).toBeDisabled();
+ });
+ test('Front Desk explains checkout blockers and prevents known-incomplete checkout submissions',async({page})=>{
+  await signIn(page,'checkout@example.test');
+  await page.getByRole('button',{name:'Front Desk',exact:true}).click();
+  const readiness=page.getByRole('region',{name:'Checkout readiness'});
+  await expect(readiness.getByText('Post all booked accommodation periods in Guest Accounts before checkout.')).toBeVisible();
+  await expect(readiness.getByText(/Ready for checkout\. Accommodation is posted/)).toBeVisible();
+  const blocked=page.locator('article').filter({has:page.getByText('Blocked Checkout Guest',{exact:true})});
+  await blocked.getByRole('button',{name:'Check out',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('Post all booked accommodation periods');
+  expect(sql("select count(*) from servos_v2.commands where request->>'operation'='stay.checkOut';").trim()).toBe('0');
  });
  test('Quick Reservation creates a guest and reservation through queued business commands',async({page})=>{
   loseResponse=false;
