@@ -14,6 +14,9 @@ test('web whole-location count persists every row and retains rejected review st
   assert.match(source, /data\(record\)\?\.sessionId===sessionKey&&Number\(data\(record\)\?\.revision\)/);
   assert.match(source, /localStorage\.removeItem\(sessionKey\+':unknown'\)/);
   assert.doesNotMatch(source, /unknownBarcodes\.length>0&&false/);
+  assert.match(source, /parseQuantity\(resumable\.counts\[stock\.id\]\)/);
+  assert.match(source, /parseQuantity\(form\.quantity/);
+  assert.match(source, /target\.value\)\}\)}/);
   assert.match(migration, /every active stock item/);
   assert.match(migration, /apply_inventory_location_count/);
   assert.match(migration, /stockCounts/);

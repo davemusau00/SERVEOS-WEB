@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 192 192" role="img" aria-labelledby="title">
+  <title id="title">ServOS</title>
+  <rect width="192" height="192" fill="#020617"/>
+  <rect x="24" y="24" width="144" height="144" rx="32" fill="#0f172a"/>
+  <path d="M48 66c0-13 11-24 24-24h48c13 0 24 11 24 24v5H91c-12 0-19 4-19 11 0 8 7 11 20 11h14c25 0 38 10 38 29 0 17-14 30-34 30H72c-13 0-24-11-24-24v-6h54c10 0 15-3 15-9 0-7-6-10-18-10H84c-24 0-36-11-36-31v-6Z" fill="#fbbf24"/>
+  <circle cx="145" cy="47" r="8" fill="#34d399"/>
+</svg>

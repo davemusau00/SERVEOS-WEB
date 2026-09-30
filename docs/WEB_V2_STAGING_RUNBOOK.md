@@ -48,7 +48,7 @@ Apply these files from `supabase/migrations/` in order:
 202609240001_terminal_replica.sql
 202609240002_remote_requests.sql
 202609240003_request_validation.sql
-202609270001_reconciliation_manifest.sql
+`supabase/migrations/202609270001_reconciliation_manifest.sql`
 ```
 
 These provide the legacy tables/functions that staged migration `001_protocol.sql` wraps. This is staging-only. Then provision the test owner in `servos_private.managers` using the Auth UUID from the staging project. For example, replace the placeholder and run only in staging:

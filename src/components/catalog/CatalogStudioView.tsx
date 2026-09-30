@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useServOS } from '../../context/ServOSContext';
 import { ProductSellable, PriceBookRule, ProductType } from '../../types/servos';
+import { Dialog } from '../../design-system/controls';
 import { 
   Layers, 
   Wine, 
@@ -81,7 +82,8 @@ export const CatalogStudioView: React.FC = () => {
   const [priceBooks, setPriceBooks] = useState<PriceBookRule[]>(INITIAL_PRICE_BOOKS);
 
   // Selected product for detailed inspector
-  const [selectedProduct, setSelectedProduct] = useState<ProductSellable>(products[0] || null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductSellable | null>(products[0] || null);
+  const [deleteCandidate, setDeleteCandidate] = useState<ProductSellable | null>(null);
 
   // Product Editing / Creation Modal State
   const [isProductModalOpen, setIsProductModalOpen] = useState<boolean>(false);
@@ -359,11 +361,7 @@ export const CatalogStudioView: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`Are you sure you want to delete ${selectedProduct.name}?`)) {
-                          deleteProduct(selectedProduct.id);
-                          const remaining = products.filter(p => p.id !== selectedProduct.id);
-                          setSelectedProduct(remaining[0] || null);
-                        }
+                        setDeleteCandidate(selectedProduct);
                       }}
                       className="px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs font-bold rounded-lg border border-rose-800/50 flex items-center gap-1 transition-colors"
                     >
@@ -886,6 +884,7 @@ export const CatalogStudioView: React.FC = () => {
           </div>
         </div>
       )}
+      {deleteCandidate && <Dialog title="Delete product" onClose={() => setDeleteCandidate(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" onClick={() => setDeleteCandidate(null)}>Cancel</button><button type="button" className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-bold text-white" onClick={() => { deleteProduct(deleteCandidate.id); setSelectedProduct(products.find(p => p.id !== deleteCandidate.id) || null); setDeleteCandidate(null); }}>Delete product</button></>}><p className="text-sm text-slate-200">Delete <strong>{deleteCandidate.name}</strong>? This removes it from the active catalog.</p></Dialog>}
     </div>
   );
 };

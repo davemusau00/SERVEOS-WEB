@@ -2,6 +2,7 @@ import React,{useMemo,useState} from 'react';
 import {Barcode,Boxes,ClipboardCheck,CreditCard,PackageCheck,Plus,Truck} from 'lucide-react';
 import {barcodeEquals,useBarcodeScanner} from '../../hooks/useBarcodeScanner';
 import {allowed,type BusinessRecord,type WebSession} from './session';
+import {parseQuantity} from '../../utils/fiscal';
 
 type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
 type DraftLine={
@@ -109,8 +110,10 @@ export function WebProcurementView({
   };
 
   const addDraftLine=()=>{
-    const qty=Number(lineQty),priceMinor=Math.round(Number(linePrice)*100);
-    if(!Number.isFinite(qty)||qty<=0||!Number.isFinite(priceMinor)||priceMinor<0)return;
+    let qty:number;
+    try{qty=parseQuantity(lineQty,{min:Number.MIN_VALUE,integer:lineKind==='ASSET'})}catch{return}
+    const priceMinor=Math.round(Number(linePrice)*100);
+    if(!Number.isFinite(priceMinor)||priceMinor<0)return;
     if(lineKind==='STOCK'){
       const item=stockItems.find(r=>r.id===stockId);if(!item)return;
       if(poLines.some(x=>x.treatment==='STOCK'&&x.stockItemId===stockId))return;
@@ -120,7 +123,7 @@ export function WebProcurementView({
       setPoLines(lines=>[...lines,{lineId:crypto.randomUUID(),treatment:'EXPENSE',displayName:expenseDescription.trim(),description:expenseDescription.trim(),expenseCategory,quantityOrdered:qty,unitPriceMinor:priceMinor}]);
     }else{
       const category=categories.find(r=>r.id===assetCategoryId);
-      if(!assetName.trim()||!category||!Number.isInteger(qty)||qty>100)return;
+      if(!assetName.trim()||!category||qty>100)return;
       setPoLines(lines=>[...lines,{lineId:crypto.randomUUID(),treatment:'ASSET',displayName:assetName.trim(),assetName:assetName.trim(),assetCategoryId,quantityOrdered:qty,unitPriceMinor:priceMinor}]);
     }
     setLineQty(1);setLinePrice(0);setExpenseDescription('');setAssetName('');
@@ -156,7 +159,7 @@ export function WebProcurementView({
     const item=matches[0];
     const poLine=(data(receiving)?.items||[]).find((line:any)=>line.treatment==='STOCK'&&line.stockItemId===item.id);
     if(!poLine)return;
-    const increment=Number(poLine.scanUnitQuantity||data(item)?.scanUnitQuantity||1);
+    let increment:number;try{increment=parseQuantity(poLine.scanUnitQuantity||data(item)?.scanUnitQuantity||1,{min:Number.MIN_VALUE})}catch{return}
     setReceiptDraft(prev=>{
       const current=prev[poLine.lineId]||{delivered:0,rejected:0,reason:''};
       return {...prev,[poLine.lineId]:{...current,delivered:current.delivered+increment}};
@@ -170,14 +173,17 @@ export function WebProcurementView({
     const order=data(receiving)!;
     const lines=(order.items||[]).map((line:any)=>{
       const draft=receiptDraft[line.lineId]||{delivered:0,rejected:0,reason:''};
+      let delivered:number;let rejected:number;
+      try{delivered=parseQuantity(draft.delivered);rejected=parseQuantity(draft.rejected)}catch{return null}
+      if(rejected>delivered)return null;
       return {
         lineId:line.lineId,
-        quantityDelivered:Number(draft.delivered||0),
-        quantityAccepted:Number(draft.delivered||0)-Number(draft.rejected||0),
-        quantityRejected:Number(draft.rejected||0),
+        quantityDelivered:delivered,
+        quantityAccepted:delivered-rejected,
+        quantityRejected:rejected,
         rejectionReason:draft.reason
       };
-    }).filter((line:any)=>line.quantityDelivered>0);
+    }).filter((line:any)=>line&&line.quantityDelivered>0);
     if(!lines.length)return;
     await command('purchaseOrder.receive','purchaseOrders',receiving.id,{
       purchaseOrderId:receiving.id,
@@ -303,7 +309,7 @@ export function WebProcurementView({
     </div></Modal>}
 
     {receiving&&<Modal title={`Receive ${String(data(receiving)?.poNumber)}`} onClose={()=>setReceiving(null)}><div className="space-y-4">
-      {(data(receiving)?.items||[]).map((line:any)=>{const d=receiptDraft[line.lineId]||{delivered:0,rejected:0,reason:''};return <div key={line.lineId} className="rounded-xl border border-slate-800 p-3"><div className="flex justify-between text-sm"><b>{String(line.displayName)}</b><Tag>{String(line.treatment)}</Tag></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="text-sm">Delivered<input type="number" min="0" step="0.001" className={field} value={d.delivered} onChange={e=>setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,delivered:Number(e.target.value)}}))}/></label><label className="text-sm">Rejected<input type="number" min="0" step="0.001" className={field} value={d.rejected} onChange={e=>setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,rejected:Number(e.target.value)}}))}/></label>{d.rejected>0&&<Input label="Rejection reason" value={d.reason} set={value=>setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,reason:value}}))}/>}</div><div className="mt-1 text-xs text-slate-500">Remaining approved quantity: {Math.max(0,Number(line.quantityOrdered||0)-Number(line.quantityReceived||0))}</div></div>})}
+      {(data(receiving)?.items||[]).map((line:any)=>{const d=receiptDraft[line.lineId]||{delivered:0,rejected:0,reason:''};return <div key={line.lineId} className="rounded-xl border border-slate-800 p-3"><div className="flex justify-between text-sm"><b>{String(line.displayName)}</b><Tag>{String(line.treatment)}</Tag></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="text-sm">Delivered<input type="number" min="0" step="0.001" className={field} value={d.delivered} onChange={e=>{try{const value=parseQuantity(e.target.value);setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,delivered:value}}))}catch{}}}/></label><label className="text-sm">Rejected<input type="number" min="0" step="0.001" className={field} value={d.rejected} onChange={e=>{try{const value=parseQuantity(e.target.value);setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,rejected:value}}))}catch{}}}/></label>{d.rejected>0&&<Input label="Rejection reason" value={d.reason} set={value=>setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,reason:value}}))}/>}</div><div className="mt-1 text-xs text-slate-500">Remaining approved quantity: {Math.max(0,Number(line.quantityOrdered||0)-Number(line.quantityReceived||0))}</div></div>})}
       {(data(receiving)?.items||[]).some((line:any)=>line.treatment==='STOCK')&&<><label className="block text-sm">Receiving stock location<select className={field} value={receiptLocation} onChange={e=>setReceiptLocation(e.target.value)}>{locations.map(location=><option key={location.id} value={location.id}>{String(data(location)?.name)}</option>)}</select></label><label className="block text-sm"><Barcode className="mr-1 inline h-4 w-4"/>Scan stock barcode / SKU<input data-barcode-capture="true" className={field} value={scanCode} onChange={e=>setScanCode(e.target.value)}/></label><button className={button} disabled={!scanCode.trim()} onClick={()=>applyScan(scanCode)}>Apply typed scan</button></>}
       <Input label="Supplier invoice reference (optional until matching)" value={receiptInvoice} set={setReceiptInvoice}/>
       <Input label="Delivery note" value={receiptDeliveryNote} set={setReceiptDeliveryNote}/>

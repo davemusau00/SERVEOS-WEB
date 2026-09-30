@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useServOS } from '../../context/ServOSContext';
 import { Outlet } from '../../types/servos';
+import { Dialog } from '../../design-system/controls';
 import { 
   Settings, 
   Building, 
@@ -37,6 +38,8 @@ export const SettingsCenterView: React.FC = () => {
   const [newOutletName, setNewOutletName] = useState<string>('');
   const [newOutletType, setNewOutletType] = useState<Outlet['type']>('BAR');
   const [newOutletCode, setNewOutletCode] = useState<string>('');
+  const [renameCandidate, setRenameCandidate] = useState<Outlet | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   // Role permissions matrix state
   const [permissionsMatrix, setPermissionsMatrix] = useState({
@@ -272,10 +275,8 @@ export const SettingsCenterView: React.FC = () => {
 
                     <button
                       onClick={() => {
-                        const newName = prompt(`Rename outlet "${out.name}":`, out.name);
-                        if (newName && newName.trim()) {
-                          updateOutlet(out.id, { name: newName.trim() });
-                        }
+                        setRenameCandidate(out);
+                        setRenameValue(out.name);
                       }}
                       className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs rounded font-bold transition-colors"
                     >
@@ -506,6 +507,7 @@ export const SettingsCenterView: React.FC = () => {
           </div>
         </div>
       )}
+      {renameCandidate && <Dialog title={`Rename outlet “${renameCandidate.name}”`} onClose={() => setRenameCandidate(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" onClick={() => setRenameCandidate(null)}>Cancel</button><button type="button" disabled={!renameValue.trim()} className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => { updateOutlet(renameCandidate.id, { name: renameValue.trim() }); setRenameCandidate(null); }}>Save name</button></>}><label className="block text-sm font-medium text-slate-200">Outlet name<input autoFocus className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white" value={renameValue} onChange={event => setRenameValue(event.target.value)} /></label></Dialog>}
     </div>
   );
 };

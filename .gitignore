@@ -5,6 +5,8 @@ dist-production/
 coverage/
 .DS_Store
 *.log
+*.bak
+*.bak.*
 .env*
 !.env.example
 
@@ -17,6 +19,7 @@ native-tests/target/
 test-results/
 playwright-report/
 artifacts/
+artifacts/ui-audit/
 
 .playwright-tmp/
 .servos-patch-backup-*/

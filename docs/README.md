@@ -29,4 +29,4 @@ ServOS currently runs one installed authoritative terminal. The accepted expansi
 - [Bar production acceptance](BAR_PRODUCTION_ACCEPTANCE.md)
 - [Changelog](CHANGELOG.md)
 - `user-guide/`: source of truth for the offline in-app Help Center.
-- `generated/UI_INTERACTION_INVENTORY.json`: static interaction inventory, not acceptance evidence.
+- `generated/UI_INTERACTION_INVENTORY.json`: compact static inventory summary, not acceptance evidence; the full inventory is emitted as the CI `ui-audit` artifact.

@@ -89,13 +89,17 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
  const saveGuidance=async(next:WebGuidanceProgress)=>{setGuidance(rows=>[next,...rows.filter(row=>row.guideId!==next.guideId)]);try{const saved=await rpcRef.current('rpc/servos_v2_guidance_save',{progress:next});setGuidance(rows=>[saved,...rows.filter(row=>row.guideId!==saved.guideId)])}catch{ /* local progress keeps the tour usable during an outage */ }};
  const active=(collection:string)=>records.filter(r=>r.collection===collection&&!r.archived);
  const property=active('property')[0];
- const nightlyRates=active('ratePlans').filter(record=>record.data.mode==='NIGHTLY');
+ const allNightlyRates=active('ratePlans').filter(record=>record.data.mode==='NIGHTLY');
  const [roomStay,setRoomStay]=useState({roomTypeId:'',ratePlanId:'',nightlyCheckoutTime:'10:00',dayStayCutoffTime:'18:00'});
  useEffect(()=>{
-  const defaults={roomTypeId:String(property?.data.roomStayRoomTypeId||active('roomTypes')[0]?.id||''),ratePlanId:String(property?.data.roomStayRatePlanId||nightlyRates[0]?.id||''),nightlyCheckoutTime:String(property?.data.nightlyCheckoutTime||'10:00'),dayStayCutoffTime:String(property?.data.dayStayCutoffTime||'18:00')};
+  const roomTypeId=String(property?.data.roomStayRoomTypeId||active('roomTypes')[0]?.id||'');
+  const configuredRate=allNightlyRates.find(record=>record.id===String(property?.data.roomStayRatePlanId||'')&&String(record.data.roomTypeId||'')===roomTypeId);
+  const defaults={roomTypeId,ratePlanId:configuredRate?.id||allNightlyRates.find(record=>String(record.data.roomTypeId||'')===roomTypeId)?.id||'',nightlyCheckoutTime:String(property?.data.nightlyCheckoutTime||'10:00'),dayStayCutoffTime:String(property?.data.dayStayCutoffTime||'18:00')};
   if(roomStay.roomTypeId&&roomStay.ratePlanId)return;
   setRoomStay(current=>({...current,roomTypeId:current.roomTypeId||defaults.roomTypeId,ratePlanId:current.ratePlanId||defaults.ratePlanId}));
  },[records,roomStay.roomTypeId,roomStay.ratePlanId]);
+ const nightlyRates=allNightlyRates.filter(record=>!roomStay.roomTypeId||String(record.data.roomTypeId||'')===roomStay.roomTypeId);
+ useEffect(()=>{if(roomStay.ratePlanId&&!nightlyRates.some(record=>record.id===roomStay.ratePlanId))setRoomStay(current=>({...current,ratePlanId:''}))},[roomStay.roomTypeId,roomStay.ratePlanId,allNightlyRates.length]);
  const propertyTimeZone=String(session.propertyContext?.timeZone||active('property')[0]?.data.timezone||'Africa/Nairobi');
  const find=(collection:string,id:string)=>records.find(r=>r.collection===collection&&r.id===id);
  const choices=(collection:string)=>active(collection).map(r=>({value:r.id,label:label(r)}));
@@ -104,6 +108,12 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
  const submit=async(operation:string,collection:string,id:string,payload:Record<string,unknown>):Promise<boolean>=>{
   if(!store.current||!ready)return false;setBusy(true);setError('');setNotice('');
   try{
+    if(operation==='roomStay.settings'){
+      const roomTypeId=String(payload.roomTypeId||'');
+      const ratePlanId=String(payload.ratePlanId||'');
+      const rate=allNightlyRates.find(record=>record.id===ratePlanId);
+      if(!roomTypeId||!rate||String(rate.data.roomTypeId||'')!==roomTypeId){setBusy(false);setError('Choose a NIGHTLY rate belonging to the selected room type before saving room-stay policy.');return false}
+    }
     const baselines=resolveOperationDependencies(operation,collection,id,payload,records);
     const draftId=editor?.draftId||crypto.randomUUID();
     const draftFields=editor?.fields.map(field=>({...field,value:values[field.key]||''})) as WorkflowDraftField[]|undefined;

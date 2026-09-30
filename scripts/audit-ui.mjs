@@ -1,19 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
+import {disabledOpacityFinding} from './ui-audit-rules.mjs';
 
-const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
-const files = walk('src').filter(file => /\.tsx$/.test(file));
+const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).sort((a,b)=>a.name.localeCompare(b.name)).flatMap(entry => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
+const files = walk('src').filter(file => /\.tsx$/.test(file)).sort();
 const interactions = [];
 const findings = [];
 const addFinding = (file, line, rule, severity, message, source) => findings.push({ file: file.replaceAll('\\', '/'), line, rule, severity, message, source: source.trim().slice(0, 500) });
+const sourceDigests=[];
 
 for (const file of files) {
   const lines = fs.readFileSync(file, 'utf8').split('\n');
   const source = lines.join('\n');
+  sourceDigests.push(`${file.replaceAll('\\', '/')}:${crypto.createHash('sha256').update(source).digest('hex')}`);
   lines.forEach((line, index) => {
     const row = { file: file.replaceAll('\\', '/'), line: index + 1, source: line.trim() };
     if (/\bwindow\.(?:prompt|confirm)\s*\(/.test(line)) addFinding(file, index + 1, 'native-browser-prompt', 'error', 'Replace browser prompt/confirm with an accessible in-app workflow.', line);
-    if (/\bdisabled\b/.test(line) && /disabled:opacity-(?:[0-9]+|\[)/.test(line) && !/disabled:(?:cursor-not-allowed|opacity)/.test(line)) addFinding(file, index + 1, 'disabled-action-visibility', 'warning', 'Disabled action may rely on opacity alone; provide an explanation and visible state.', line);
+    if (disabledOpacityFinding(line)) addFinding(file, index + 1, 'disabled-action-visibility', 'warning', 'Disabled action may rely on opacity alone; provide an explanation and visible state.', line);
     if (/type\s*=\s*["']datetime-local["']/.test(line) && !/BusinessDateTimeField|data-business-timezone/.test(line)) addFinding(file, index + 1, 'business-time-input', 'warning', 'Use the property timezone contract when converting this business wall time.', line);
     if (/(?:set(?:Error|Notice|Message)\([^)]*String\((?:e|error|cause)\)\)|\{\s*(?:e|error|cause)\.message\s*\})/i.test(line)) addFinding(file, index + 1, 'raw-technical-error-review', 'review', 'Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.', line);
     if (/className\s*=\s*["'`][^"'`]*\bfixed\s+inset-0/.test(line) && !/role\s*=\s*["']dialog["']/.test(line) && !/Dialog|Modal|Drawer/.test(file)) addFinding(file, index + 1, 'custom-overlay-review', 'warning', 'Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.', line);
@@ -21,7 +25,7 @@ for (const file of files) {
     for (const match of matches) {
       const kind = match[1] || match[2] || 'route';
       const id = `${row.file}:${row.line}:${match.index}`;
-      interactions.push({ id, workspace: file.split(/[\\/]/).slice(-2, -1)[0] || 'application', file: row.file, surface: kind, operatorIntent: 'Requires operator review', operatorInputs: [], servosDerivedValues: [], contextPrefill: [], defaultSource: 'Requires policy review', primaryAction: null, disabledReason: null, busyState: /busy|pending|loading|submitting/i.test(source) ? 'Possible; confirm for this workflow' : 'Unreviewed', errorRecovery: 'Unreviewed', permission: 'Requires workflow review', businessTimezone: /datetime-local|startsAt|endsAt|receivedAt/.test(line) ? 'Unreviewed; see finding if applicable' : 'Not applicable or unreviewed', mobileStatus: 'UNREVIEWED', keyboardStatus: 'UNREVIEWED', helpAnchor: null, acceptanceTest: 'Exercise validation, permission denial, durable result, conflict and recovery.', status: 'UNREVIEWED' });
+      interactions.push({ id, workspace: file.split(/[\\/]/).slice(-2, -1)[0] || 'application', file: row.file, line: row.line, surface: kind, operatorIntent: 'Requires operator review', operatorInputs: [], servosDerivedValues: [], contextPrefill: [], defaultSource: 'Requires policy review', primaryAction: null, disabledReason: null, busyState: /busy|pending|loading|submitting/i.test(source) ? 'Possible; confirm for this workflow' : 'Unreviewed', errorRecovery: 'Unreviewed', permission: 'Requires workflow review', businessTimezone: /datetime-local|startsAt|endsAt|receivedAt/.test(line) ? 'Unreviewed; see finding if applicable' : 'Not applicable or unreviewed', mobileStatus: 'UNREVIEWED', keyboardStatus: 'UNREVIEWED', helpAnchor: null, acceptanceTest: 'Exercise validation, permission denial, durable result, conflict and recovery.', status: 'UNREVIEWED' });
     }
   });
   for (const form of source.matchAll(/<form\b[\s\S]*?<\/form>/g)) {
@@ -45,6 +49,16 @@ for (const file of files) {
 }
 
 fs.mkdirSync('docs/generated', { recursive: true });
-fs.writeFileSync('docs/generated/UI_INTERACTION_INVENTORY.json', JSON.stringify({ generatedBy: 'npm run audit:ui', scope: 'Static source inventory; findings require human review and are not runtime acceptance', count: interactions.length, interactions }, null, 2) + '\n');
-fs.writeFileSync('docs/generated/OPERATOR_UX_AUDIT.json', JSON.stringify({ schemaVersion: 1, generatedBy: 'npm run audit:ui', generatedAt: new Date().toISOString(), scope: 'Static source signals plus unreviewed workflow inventory; generation does not imply acceptance', interactionCount: interactions.length, findingCount: findings.length, findings, interactions }, null, 2) + '\n');
+fs.mkdirSync('artifacts/ui-audit', { recursive: true });
+interactions.sort((a,b)=>a.id.localeCompare(b.id));
+findings.sort((a,b)=>`${a.file}:${a.line}:${a.rule}`.localeCompare(`${b.file}:${b.line}:${b.rule}`));
+const sourceDigest=crypto.createHash('sha256').update(sourceDigests.join('\n')).digest('hex');
+const fullInventory={ generatedBy: 'npm run audit:ui', schemaVersion: 2, sourceDigest, scope: 'Static source inventory; findings require human review and are not runtime acceptance', count: interactions.length, interactions };
+const fullAudit={ schemaVersion: 2, generatedBy: 'npm run audit:ui', sourceDigest, scope: 'Static source signals plus unreviewed workflow inventory; generation does not imply acceptance', interactionCount: interactions.length, findingCount: findings.length, findings, interactions };
+fs.writeFileSync('artifacts/ui-audit/UI_INTERACTION_INVENTORY.full.json', JSON.stringify(fullInventory, null, 2) + '\n');
+fs.writeFileSync('artifacts/ui-audit/OPERATOR_UX_AUDIT.full.json', JSON.stringify(fullAudit, null, 2) + '\n');
+const findingSummary=Object.fromEntries([...new Set(findings.map(f=>f.rule))].sort().map(rule=>[rule,findings.filter(f=>f.rule===rule).length]));
+const compactInteractions=interactions.map(({id,file,line,surface,status})=>({id,file,line,surface,status}));
+fs.writeFileSync('docs/generated/UI_INTERACTION_INVENTORY.json', JSON.stringify({ generatedBy: 'npm run audit:ui', schemaVersion: 2, sourceDigest, scope: 'Compact tracked summary; full static inventory is a CI artifact and findings require human review', count: interactions.length, fullArtifact: 'artifacts/ui-audit/UI_INTERACTION_INVENTORY.full.json', interactions: compactInteractions }, null, 2) + '\n');
+fs.writeFileSync('docs/generated/OPERATOR_UX_AUDIT.json', JSON.stringify({ schemaVersion: 2, generatedBy: 'npm run audit:ui', sourceDigest, scope: 'Compact tracked summary; full static signals are a CI artifact and do not imply acceptance', interactionCount: interactions.length, findingCount: findings.length, findingSummary, fullArtifact: 'artifacts/ui-audit/OPERATOR_UX_AUDIT.full.json' }, null, 2) + '\n');
 console.log(`Inventoried ${interactions.length} UI interactions and ${findings.length} review findings. Operator workflows remain UNREVIEWED until accepted evidence is recorded.`);

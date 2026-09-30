@@ -26,6 +26,7 @@ import {
   Send
 } from 'lucide-react';
 import { Employee, StaffLeaveRequest, ShiftSchedule, PayrollRun, EmployeePayslip, SalaryAdvance } from '../../types/servos';
+import { Dialog } from '../../design-system/controls';
 
 export const StaffCashView: React.FC = () => {
   const {
@@ -63,6 +64,7 @@ export const StaffCashView: React.FC = () => {
   // Filter States
   const [staffDeptFilter, setStaffDeptFilter] = useState<string>('ALL');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<Employee | null>(null);
   const [isAddStaffModalOpen, setIsAddStaffModalOpen] = useState<boolean>(false);
 
   // Edit Staff Modal State
@@ -498,9 +500,7 @@ export const StaffCashView: React.FC = () => {
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm(`Remove staff member ${emp.name}?`)) {
-                            deleteEmployee(emp.id);
-                          }
+                          setDeleteCandidate(emp);
                         }}
                         className="px-2 py-1 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 font-bold text-[11px] rounded transition-colors"
                       >
@@ -2155,6 +2155,7 @@ export const StaffCashView: React.FC = () => {
           </div>
         </div>
       )}
+      {deleteCandidate && <Dialog title="Remove staff member" onClose={() => setDeleteCandidate(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" onClick={() => setDeleteCandidate(null)}>Cancel</button><button type="button" className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-bold text-white" onClick={() => { deleteEmployee(deleteCandidate.id); setDeleteCandidate(null); }}>Remove staff member</button></>}><p className="text-sm text-slate-200">Remove <strong>{deleteCandidate.name}</strong> from the staff list?</p></Dialog>}
     </div>
   );
 };

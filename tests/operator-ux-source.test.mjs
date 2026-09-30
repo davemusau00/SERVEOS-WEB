@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { addBusinessDays, businessDateTimeAfterBusinessDays, businessDateTimeInput, businessDateTimeToUtc, businessDate, businessDateStartUtc, formatBusinessDateTime } from '../src/utils/businessTime.ts';
 
 test('business time conversion round-trips property wall time independently of host timezone', () => {
@@ -73,4 +74,51 @@ test('shared design controls and generated operator audit are part of the P0/P1 
   assert.match(audit, /OPERATOR_UX_AUDIT\.json/);
   assert.match(audit, /window\\\./);
   for (const rule of ['raw-technical-error-review', 'excessive-required-fields', 'disabled-action-explanation-review', 'custom-overlay-review', 'form-busy-state-review', 'business-time-input']) assert.match(audit, new RegExp(rule));
+});
+
+test('UI gate detects a seeded disabled-opacity violation',()=>{
+  const result=spawnSync(process.execPath,['scripts/audit-ui-gate.mjs','--fixture'],{encoding:'utf8'});
+  assert.notEqual(result.status,0);
+  assert.match(`${result.stdout}${result.stderr}`,/seeded disabled-opacity violation/);
+});
+
+test('legacy catalog and outlet actions use typed in-app dialogs instead of browser prompts',()=>{
+  const catalog = readFileSync('src/components/catalog/CatalogStudioView.tsx','utf8');
+  const settings = readFileSync('src/components/settings/SettingsCenterView.tsx','utf8');
+  const staff = readFileSync('src/components/staff/StaffCashView.tsx','utf8');
+  const inventory = readFileSync('src/components/inventory/InventoryView.tsx','utf8');
+  assert.doesNotMatch(catalog, /\bconfirm\s*\(/);
+  assert.doesNotMatch(settings, /\bprompt\s*\(/);
+  assert.doesNotMatch(staff, /\bconfirm\s*\(/);
+  assert.doesNotMatch(inventory, /\bconfirm\s*\(/);
+  assert.match(catalog, /deleteCandidate/);
+  assert.match(settings, /renameCandidate/);
+  assert.match(staff, /deleteCandidate/);
+  assert.match(inventory, /deleteCandidate/);
+});
+
+test('native close-save failure remains recoverable in an in-app dialog',()=>{
+  const runtime = readFileSync('src/runtime/RuntimeProvider.tsx','utf8');
+  assert.doesNotMatch(runtime, /window\.alert\s*\(/);
+  assert.match(runtime, /Local work could not be saved/);
+  assert.match(runtime, /Retry save and close/);
+  assert.match(runtime, /Keep working/);
+  assert.match(runtime, /allowClose\.current/);
+});
+
+test('SearchCombobox exposes an accessible identity-bearing selector contract',()=>{
+  const controls = readFileSync('src/design-system/controls.tsx','utf8');
+  assert.match(controls, /export interface SearchComboboxOption/);
+  for (const attribute of ['role="combobox"', 'aria-expanded', 'aria-controls', 'aria-activedescendant', 'role="listbox"', 'role="option"']) assert.match(controls, new RegExp(attribute.replace(/["\\]/g, '\\$&')));
+  for (const state of ['loading', 'error', 'emptyLabel', 'onCreate', 'onValueChange']) assert.match(controls, new RegExp(state));
+});
+
+test('shared Drawer traps focus and restores it after Escape or close',()=>{
+  const controls = readFileSync('src/design-system/controls.tsx','utf8');
+  const drawer = controls.slice(controls.indexOf('export function Drawer'), controls.indexOf('export function FormField'));
+  assert.match(drawer, /role="dialog" aria-modal="true" aria-labelledby=/);
+  assert.match(drawer, /event\.key === 'Escape'/);
+  assert.match(drawer, /document\.addEventListener\('keydown'/);
+  assert.match(drawer, /previous\?\.focus\(\)/);
+  assert.match(drawer, /event\.key !== 'Tab'/);
 });

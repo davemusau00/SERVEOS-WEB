@@ -176,6 +176,10 @@ export const parseCatalogCsv = (text: string): CatalogCsvParseResult => {
       if (createProduct && salePrice === undefined) {
         throw new Error(`Row ${rowNumber}: sale_price is required when create_product is TRUE.`);
       }
+      const taxClassId = get('taxClassId');
+      if (createProduct && !['A_16','B_0','C_EXEMPT'].includes(taxClassId)) {
+        throw new Error(`Row ${rowNumber}: tax_class_id must be A_16, B_0 or C_EXEMPT when create_product is TRUE.`);
+      }
 
       const portionVolume = numberValue(get('portionVolume'), 'portion_volume', rowNumber);
       if (portionVolume !== undefined && portionVolume <= 0) {
@@ -194,7 +198,7 @@ export const parseCatalogCsv = (text: string): CatalogCsvParseResult => {
         baseUnit: get('baseUnit') || 'unit',
         scanUnitQuantity,
         routeTo: (get('routeTo') || 'BAR').toUpperCase(),
-        taxClassId: get('taxClassId') || 'A_STANDARD',
+        taxClassId,
         createProduct,
         portionVolume,
         notes: get('notes') || undefined,

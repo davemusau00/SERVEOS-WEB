@@ -620,11 +620,11 @@ Revocation/deactivation purges authorized cached records on next online contact 
 
 ### WP-19 — Finish shared dialogs, blockers and interaction states
 
-**Priority:** P1. **Dependencies:** WP-03, WP-08; shared controls already exist.
+**Priority:** P1. **Status:** PARTIAL PROGRESS; Native `ActionDialog` now forwards the shared footer and blocks wrapper dismissal while busy. Caller migration, complete selector work, focus/inertness verification and target-viewport acceptance remain open. **Dependencies:** WP-03, WP-08; shared controls already exist.
 
 **Existing files:** `src/design-system/controls.tsx`, `tokens.ts`, `components.tsx`, `src/native/ActionDialog.tsx`, generic Web editor and custom Native/Web overlays, `scripts/audit-ui.mjs`.
 
-Reuse `Dialog`, `FormField`, `BusyButton`, `BlockerCard`, `RecoveryAction` and `ConflictNotice`. Current `Dialog` supports a dedicated footer, but Native `ActionDialog` forwards only children. Add footer forwarding and migrate action consumers; a footer rendered inside the scrolling body does not gain the shared component's fixed-action behaviour.
+Reuse `Dialog`, `FormField`, `BusyButton`, `BlockerCard`, `RecoveryAction` and `ConflictNotice`. Current `Dialog` supports a dedicated footer, and Native `ActionDialog` now forwards it with a busy dismissal guard. Migrate action consumers; a footer rendered inside the scrolling body does not gain the shared component's fixed-action behaviour.
 
 Use a form ID and footer submit button association when the action footer lives outside the form. Ensure Enter submits once and Escape/backdrop dismissal cannot hide an in-flight financial result. Introduce explicit busy/dirty-dismissal policy without inventing browser confirmation prompts. Keep results recoverable if the form closes.
 
@@ -681,7 +681,7 @@ The current Auth lifecycle function provides a foundation. Verify authorization,
 
 ### WP-22 — Make fiscal, quantity and tax inputs operator-friendly
 
-**Priority:** P1. **Status:** IN_PROGRESS; exact operator percentage and money parsing now covers Web/Native room rates, Native hotel services and the Web/Native setup conversion path. Configured tax-class selection, quantity precision policy and full fiscal snapshot acceptance remain open. **Dependencies:** WP-04, WP-07, WP-11, WP-19.
+**Priority:** P1. **Status:** IN_PROGRESS; exact operator percentage and money parsing now covers Web/Native room rates, Native hotel services and the Web/Native setup conversion path. Interactive product tax classes are explicit, and the shared quantity parser now validates Web inventory, purchase-order and receiving inputs at three decimal places with whole-number asset quantities. Configured tax policy, Native/cloud quantity enforcement and full fiscal snapshot acceptance remain open. **Dependencies:** WP-04, WP-07, WP-11, WP-19.
 
 **Existing files:** `WebBusinessApp.tsx` (`addRate`, `quickProduct`, `minor`), catalog/payment/rate forms, Native fiscal conversion/helpers, import schema definitions.
 
@@ -959,11 +959,11 @@ Original section numbers are retained here so none of the earlier forensic work 
 | 9 | Broad workspace visibility | PARTIAL PROGRESS; Web POS no longer uses generic `records.view`, and Administration no longer uses `business.view` as a visibility grant | WP-05; Native/cloud role matrix, direct-command denial and session-refresh acceptance remain open |
 | 10 | Stale operation manifest | OPEN; declared implementation and tests not executable proof | WP-04, WP-24; derived parity matrix |
 | 11 | Missing cloud `room.condition` | PARTIAL PROGRESS; expansion 025 now provides Native-equivalent maintenance-state and active-reservation safety, while broader room lifecycle parity remains open | WP-11; Native/cloud state fixtures |
-| 12 | CI omits cloud expansion | OPEN; workflow calls base script without flag | WP-02; named cloud-v2 job |
+| 12 | CI omits cloud expansion | FIXED in workflow source; named `cloud-protocol-v2` job runs `npm run test:cloud:v2` and uploads failure evidence | WP-02; hosted run remains required |
 | 13 | Expansion coverage misses late operations | OPEN; runner test list omits direct late-operation suites | WP-02, WP-29; behaviour coverage report |
 | 14 | CI failing | UPDATED at #28: 61/71 Native, 22/22 browser; locator fixed, Native remains open | WP-01; Native suite green and browser success retained |
-| 15 | UI inventory is not acceptance gate | OPEN; script prints findings and exits normally | WP-24; real selected-rule gate |
-| 16 | Disabled-opacity rule self-cancels | OPEN; exact impossible condition confirmed | WP-24; positive/negative rule fixtures |
+| 15 | UI inventory is not acceptance gate | PARTIAL PROGRESS; `audit:ui:gate` now executes a separate zero-browser-prompt gate and seeded disabled-opacity rejection, while selected workflow evidence/operation checks remain open | WP-24; real selected-rule gate |
+| 16 | Disabled-opacity rule self-cancels | FIXED in the shared rule helper; a seeded opacity-only control is rejected by the gate and visible-state styling is not treated as the same finding | WP-24; positive/negative rule fixtures |
 | 17 | Missing terminal viewports | OPEN; desktop + 390 × 844 only | WP-03, WP-19; 1024 × 600 and AIO evidence |
 | 18 | Tauri shell outside normal CI | OPEN; domain crate only | WP-02, WP-13; shell tests + target packaging |
 | 19 | Competing authority architectures | CORRECTED: cloud upload fence exists; full transition incomplete | WP-13, WP-30; all writer/runtime fences |
@@ -977,18 +977,18 @@ Original section numbers are retained here so none of the earlier forensic work 
 | 27 | Conflict/rejection recovery weak | PARTIAL PROGRESS; failed online workflows retain typed review drafts, supported drafts reopen from Activity, and migration 026 validates reviewed replacement correlation without mutating the original command | WP-08; policy recheck and durable count recovery |
 | 28 | Humans copy approval UUIDs | OPEN; token/initiator/target fields remain | WP-20; manager inbox/internal capability |
 | 29 | Staff creation requires Auth UUID | OPEN; normal binding form still exposes IDs | WP-21; trusted invitation acceptance linking |
-| 30 | Browser prompts/confirms | PARTIAL PROGRESS; production flows still need complete inventory | WP-19, WP-24; scoped zero-violation gate |
+| 30 | Browser prompts/confirms | PARTIAL PROGRESS; catalog deletion, outlet renaming, staff deletion and inventory deletion now use typed in-app dialogs, native close-save failures now use a recoverable in-app dialog, and the audit gate reports zero browser prompt/confirm findings; workflow review remains open | WP-19, WP-24; scoped zero-violation gate |
 | 31 | Time handling differs | PARTIAL PROGRESS; shared TS departure derivation now uses property-local calendar arithmetic, but Rust and cloud reservation paths still require timezone convergence | WP-11–12; cross-language time fixtures |
 | 32 | Rate editor exposes basis points | OPEN; `addRate` still uses internal unit label | WP-22; percentage input/conversion |
-| 33 | Quick Product hardcodes tax class | PARTIAL PROGRESS; Web Catalog/Quick Add and all interactive Native catalog product dialogs require explicit `A_16`, `B_0` or `C_EXEMPT`; setup/import defaults and configured default policy remain | WP-07, WP-22; configured default/review |
-| 34 | Native POS mojibake | OPEN; current source matches remain | WP-26; reviewed UTF-8 normalization |
-| 35 | PWA icons empty | OPEN; current manifest confirms | WP-25; asset and install acceptance |
-| 36 | `.bak` source committed | OPEN; files remain in tree | WP-26; removal/reference check |
+| 33 | Quick Product hardcodes tax class | PARTIAL PROGRESS; Web/Native interactive catalog flows, first-catalog setup and CSV product creation require explicit `A_16`, `B_0` or `C_EXEMPT`; configured default policy and historical fiscal snapshot acceptance remain | WP-07, WP-22; configured default/review |
+| 34 | Native POS mojibake | FIXED in the inspected production source; scanner, tab, portion, customer, price and table separators now use clean UTF-8 text | WP-26; reviewed UTF-8 normalization |
+| 35 | PWA icons empty | PARTIAL PROGRESS; manifest now references 192px, 512px and maskable ServOS SVG assets, with favicon and Apple touch links; service-worker source coverage confirms no authorized API caching and explicit safe update activation | WP-25; manifest/icon requests and installed upgrade evidence |
+| 36 | `.bak` source committed | PARTIAL PROGRESS; four committed production backups were removed, ignore rules now cover backup suffixes, and no source/script reference remains | WP-26; clean tracked tree and recovery-reference check |
 | 37 | Legacy preview mixed into production tree | OPEN; explicit flag gate exists and should be preserved | WP-27; isolated lazy preview |
 | 38 | Very large store/context/view files | OPEN; structural refactor not demonstrated by latest commit | WP-27; façade/domain modules, same tests |
-| 39 | Multi-megabyte generated audits | OPEN; comparison grows generated metadata substantially | WP-24; compact tracked summary + CI artifacts |
-| 40 | Audit nondeterminism | OPEN; clock `generatedAt` remains | WP-24; deterministic output |
-| 41 | Duplicate reconciliation migration | OPEN; both copies identical in inspected snapshot | WP-26; canonical path + updated instructions |
+| 39 | Multi-megabyte generated audits | FIXED for tracked output; compact summaries are committed while full inventory/audit payloads are emitted to ignored CI artifacts and uploaded by the frontend job | WP-24; compact tracked summary + CI artifacts |
+| 40 | Audit nondeterminism | FIXED for UI audit output; sorted source traversal, stable findings/interactions and source digest produce identical hashes across repeated runs, with clock `generatedAt` removed | WP-24; deterministic output |
+| 41 | Duplicate reconciliation migration | FIXED locally; root duplicate removed after SHA-256 matched the canonical `supabase/migrations` copy, and the staging runbook points to the canonical path | WP-26; canonical path + updated instructions |
 | 42 | SQL wrapper dispatch chain | OPEN; preserve history but supply current canonical schema | WP-28; fresh/upgrade equivalence |
 | 43 | `verify` omits cloud/desktop | OPEN; current script confirms | WP-02; complete explicit release script |
 | 44 | Browser tests use demo-enabled flags | OPEN; single webServer builds demo + v2 | WP-03; isolated production build acceptance |
@@ -1006,8 +1006,8 @@ Original section numbers are retained here so none of the earlier forensic work 
 | NEW-F02 | Default NIGHTLY departure can violate configured checkout | Web `reserve()` keeps arrival hour; SQL 021 requires checkout; WP-11/WP-12 |
 | NEW-F03 | Shared test setup seeds a rate/type that conflicts with older room fixtures | `setup()` + property-preferred rate + CI errors; WP-01 |
 | NEW-F04 | Native omitted-stay-type compatibility diverges from canonical cloud policy | Rust reservation units branch vs SQL 021; WP-04/WP-11 |
-| NEW-F05 | Existing dialog footer capability is not forwarded by Native wrapper | `ActionDialog` children-only props; WP-19 |
-| NEW-F06 | Current `SearchCombobox` is an input, not an entity combobox | Shared controls implementation; WP-19 |
+| NEW-F05 | Existing dialog footer capability is not forwarded by Native wrapper | FIXED at the wrapper boundary; `ActionDialog` forwards `footer` and blocks dismissal while `busy`, with source coverage; consumer migration and runtime focus/viewport acceptance remain open | WP-19 |
+| NEW-F06 | Current `SearchCombobox` is an input, not an entity combobox | PARTIAL PROGRESS; shared control now has stable option identity, listbox/keyboard semantics, loading/error/empty states and permission-controlled inline creation; guest/product/supplier/room caller migration and runtime acceptance remain open | WP-19 |
 | NEW-F07 | Conflict guidance implies retrying the original immutable rejected command | FIXED in Activity copy; conflicts reopen with fresh versions and rejected commands are not resent | WP-08/section 6.4 |
 | NEW-F08 | Whole-location scope currently means every active stock item | Native handler checks all active IDs; WP-10 must preserve or explicitly version this policy |
 | NEW-F09 | Cloud concurrency currently includes global control-row serialization | Execute locks control row; WP-09 must not remove it casually |
@@ -1321,7 +1321,7 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | Package | Status | Implementation files/commit | Behaviour evidence | Remaining blocker |
 | --- | --- | --- | --- | --- |
 | WP-01 | OPEN | Browser locator fixed at `703693d`; Native open | #28 browser 22/22; Native 61/71 | Native fixture/policy failures |
-| WP-02 | OPEN | — | Full engine CI coverage | — |
+| WP-02 | IMPLEMENTED_UNVERIFIED LOCALLY | 2026-09-30 | Named frontend, cloud-base, cloud-v2, Native, desktop and browser production jobs have source coverage and failure-artifact steps; 129 Node tests, lint and docs checks pass | Hosted CI and packaged-shell acceptance remain |
 | WP-03 | OPEN | — | Production flags/viewport workflows | — |
 | WP-04 | OPEN | — | Registry/aliases/parity fixtures | — |
 | WP-05 | OPEN | — | Role × permission + navigation | — |
@@ -1338,14 +1338,14 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | WP-16 | OPEN | — | Verified artifact + restore | — |
 | WP-17 | OPEN | — | Safe typed CSV/string serialization | — |
 | WP-18 | OPEN | — | Purge/session/revocation policy | — |
-| WP-19 | OPEN | — | Accessible dialogs/selectors/blockers | — |
+| WP-19 | PARTIAL PROGRESS | 2026-09-30 | Native `ActionDialog` forwards the shared footer and prevents wrapper dismissal while busy; legacy prompt/confirm consumers and close-failure recovery use typed dialogs; shared `SearchCombobox` has option/listbox/keyboard states; shared `Drawer` now traps/restores focus; focused source tests, 135-test suite, lint and docs checks pass | Guest/product/supplier/room caller migration, full custom-overlay migration, focus/inertness and target-viewport acceptance remain |
 | WP-20 | OPEN | — | Approval request/consumption scope | — |
 | WP-21 | OPEN | — | Invitation acceptance/identity | — |
 | WP-22 | OPEN | — | Exact fiscal/unit conversion | — |
 | WP-23 | OPEN | — | Scanner + physical receipt/retry | — |
-| WP-24 | OPEN | — | Deterministic inventory/real gate | — |
+| WP-24 | PARTIAL PROGRESS | 2026-09-30 | UI audit output is deterministic; disabled-opacity rule has executable seeded rejection; `audit:ui:gate` passes production prompt/confirm check; compact summaries and CI full artifacts are wired; 128 Node tests, lint and docs checks pass | Selected workflow/operation acceptance checks remain |
 | WP-25 | OPEN | — | Install icons/update/production shell | — |
-| WP-26 | OPEN | — | No stale copies/encoding defects | — |
+| WP-26 | PARTIAL PROGRESS | 2026-09-30 | Four production backups and the duplicate root migration removed; backup ignore rules added; Native POS mojibake normalized; 127 Node tests, lint and docs checks pass | Physical UI capture and broader repository encoding review remain |
 | WP-27 | OPEN | — | Isolated preview/refactor regression | — |
 | WP-28 | OPEN | — | Fresh/upgrade schema equivalence | — |
 | WP-29 | OPEN | — | Domain parity/concurrency/failure injection | — |

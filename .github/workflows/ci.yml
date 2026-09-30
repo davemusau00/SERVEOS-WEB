@@ -15,6 +15,13 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run audit:ui
+      - name: Upload UI audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-audit-${{ github.sha }}
+          path: artifacts/ui-audit/**
+          retention-days: 14
       - run: npm run docs:check
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
@@ -50,6 +57,14 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm run test:cloud:base
+      - name: Upload base cloud evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-base-${{ github.sha }}
+          path: artifacts/**
+          if-no-files-found: ignore
+          retention-days: 14
   cloud-protocol-v2:
     runs-on: ubuntu-latest
     steps:
@@ -58,6 +73,14 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: npm run test:cloud:v2
+      - name: Upload expansion cloud evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-v2-${{ github.sha }}
+          path: artifacts/**
+          if-no-files-found: ignore
+          retention-days: 14
   desktop-shell:
     runs-on: ubuntu-latest
     steps:
@@ -67,6 +90,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm run check:desktop
       - run: npm run test:desktop
+      - name: Upload desktop evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-shell-${{ github.sha }}
+          path: artifacts/**
+          if-no-files-found: ignore
+          retention-days: 14
   evidence-summary:
     if: always()
     needs: [frontend, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell]

@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { flushLocalWork } from './localWork';
+import { Dialog } from '../design-system/controls';
 import type { ReceiptResponse, ReceiptSummary } from '../types/receipt';
 import type { ImportApplyPlan, ImportBatchDetail, ImportBatchSummary, StageImportInput } from '../types/imports';
 import type { BusinessCommand, CommandResult, IntakeProfile, ManagerApproval, Permission, PrinterJobResult, ProductionHealthAudit, ReconciliationReport, RuntimeSession, RuntimeSnapshot, RuntimeStatus, TerminalAcceptanceStatus } from '../types/runtime';
@@ -81,14 +82,17 @@ export const useRuntime = () => {
 };
 
 export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => {
+  const [closeFailure, setCloseFailure] = useState<string | null>(null);
+  const [closeRetrying, setCloseRetrying] = useState(false);
+  const allowClose = useRef(false);
   useEffect(() => {
     if (!isNative) return;
-    let allowClose = false, disposed = false;
+    let disposed = false;
     const registered = Promise.resolve().then(() => getCurrentWindow().onCloseRequested(async event => {
-      if (allowClose) return;
+      if (allowClose.current) return;
       event.preventDefault();
-      try { await flushLocalWork(); allowClose = true; await getCurrentWindow().close(); }
-      catch (cause) { allowClose = false; window.alert(`Local work could not be saved: ${String(cause)}`); }
+      try { await flushLocalWork(); allowClose.current = true; await getCurrentWindow().close(); }
+      catch (cause) { allowClose.current = false; setCloseFailure(String(cause)); }
     }));
     void registered.then(unlisten => { if (disposed) unlisten(); }).catch(() => {});
     return () => { disposed = true; void registered.then(unlisten => { if (!disposed) return; unlisten(); }).catch(() => {}); };
@@ -103,6 +107,13 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
   const inFlight = useRef(false);
   const nextSync = useRef(0);
   const failures = useRef(0);
+
+  const retryClose = async () => {
+    setCloseRetrying(true);
+    try { await flushLocalWork(); allowClose.current = true; await getCurrentWindow().close(); }
+    catch (cause) { allowClose.current = false; setCloseFailure(String(cause)); }
+    finally { setCloseRetrying(false); }
+  };
 
   const report = useCallback((e: unknown) => {
     const message = e instanceof Error ? e.message : String(e);
@@ -307,5 +318,5 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     return () => { clearInterval(timer); window.removeEventListener('pointerdown', active); window.removeEventListener('keydown', active); window.removeEventListener('online', resume); window.removeEventListener('servos:local-commit', resume); document.removeEventListener('visibilitychange', resume); };
   }, [session, sync, lock]);
 
-  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, printerJobs, clearError: () => setError('') }}>{children}</RuntimeContext.Provider>;
+  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
 };

@@ -3,6 +3,7 @@ import { useServOS } from '../../context/ServOSContext';
 import { StockItem, StockMovement } from '../../types/servos';
 import { calculatePredictiveInventory, PredictiveStockAnalysis } from '../../utils/predictiveStock';
 import { StockRequisitionModal } from './StockRequisitionModal';
+import { Dialog } from '../../design-system/controls';
 import { 
   Package, 
   ArrowRightLeft, 
@@ -52,6 +53,7 @@ export const InventoryView: React.FC = () => {
   // Stock Item Modal State
   const [isStockModalOpen, setIsStockModalOpen] = useState<boolean>(false);
   const [editingStockId, setEditingStockId] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<StockItem | null>(null);
   const [stockFormName, setStockFormName] = useState<string>('');
   const [stockFormCode, setStockFormCode] = useState<string>('');
   const [stockFormCategory, setStockFormCategory] = useState<StockItem['category']>('BEVERAGE_SPIRITS');
@@ -418,9 +420,7 @@ export const InventoryView: React.FC = () => {
                             </button>
                             <button
                               onClick={() => {
-                                if (confirm(`Are you sure you want to delete stock item ${item.name}?`)) {
-                                  deleteStockItem(item.id);
-                                }
+                                setDeleteCandidate(item);
                               }}
                               title="Delete Item"
                               className="p-1 hover:bg-slate-800 text-rose-400 rounded transition-colors"
@@ -1228,6 +1228,7 @@ export const InventoryView: React.FC = () => {
           </div>
         </div>
       )}
+      {deleteCandidate && <Dialog title="Delete stock item" onClose={() => setDeleteCandidate(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" onClick={() => setDeleteCandidate(null)}>Cancel</button><button type="button" className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-bold text-white" onClick={() => { deleteStockItem(deleteCandidate.id); setDeleteCandidate(null); }}>Delete stock item</button></>}><p className="text-sm text-slate-200">Delete <strong>{deleteCandidate.name}</strong>? Existing stock history may still retain its records.</p></Dialog>}
     </div>
   );
 };
