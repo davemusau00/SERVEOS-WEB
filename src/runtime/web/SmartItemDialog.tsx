@@ -31,7 +31,7 @@ export function SmartItemDialog({records,session,disabled,command,onClose}:{reco
   if(!name.trim()||!code.trim()||!locationId||!calculation||!Number.isFinite(price)||price<0||unitsPerPackage<1||!Number.isInteger(unitsPerPackage)||contents<=0||openingPackages<0||!Number.isInteger(openingPackages)||saleQuantity<=0||packageCost<0){setError('Complete the required item, package, price, and storage details with valid quantities.');return}
   setBusy(true);try{
    const stockItemId=crypto.randomUUID();const productId=crypto.randomUUID();const openingMovementId=crypto.randomUUID();
-   const stockItem={id:stockItemId,name:name.trim(),code:code.trim(),barcode:barcode.trim(),baseUnit,scanUnitQuantity:calculation.pkg.baseQuantity,purchasePackages:[calculation.pkg],averageUnitCost:calculation.unitCost/100,reorderLevel:0};
+   const stockItem={id:stockItemId,name:name.trim(),code:code.trim(),baseUnit,scanUnitQuantity:calculation.pkg.baseQuantity,purchasePackages:[calculation.pkg],averageUnitCost:calculation.unitCost/100,reorderLevel:0};
    await command('catalog.createWithOpeningStock','stockItems',stockItemId,{...(stockOnly?{}:{product:await sellable(productId)}),stockItem,locationId,startingQuantity:calculation.opening,openingMovementId});
    onClose();
   }catch(cause){setError(operatorError(cause))}finally{setBusy(false)}

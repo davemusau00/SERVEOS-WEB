@@ -235,7 +235,7 @@
       "native": "implemented",
       "backend": "implemented",
       "web": "partial",
-      "notes": "Terminal and Web Smart Item flows submit one atomic sellable-product/stock or stock-only ingredient command with optional opening movement. Staged SQL derives stable IDs from the command ID and checks expected versions; recipe-rich setup, native/Web equivalence, and cross-client acceptance remain open.",
+      "notes": "Terminal and Web Smart Item flows submit one atomic sellable-product/stock or stock-only ingredient command with optional opening movement. Web persists generated record IDs in its payload for drafts/retries; server fallback IDs derive from the command ID, and expected versions cover referenced records. Recipe-rich setup and full client parity remain open.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
