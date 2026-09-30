@@ -337,3 +337,5 @@ Expansion 021 now reads the configured property timezone for room-stay local-dat
 Resolution: the failing attempt used incomplete fixtures (a selected room without a turnaround value, followed by an older reservation without `blockedUntil`). The permanent browser fixture now provides a valid room/rate and interval, and the end-to-end test passes on both desktop and mobile. Expansion 027 also safely handles historical reservations with no `blockedUntil`, validated in `tests/supabase/rooms.sql`.
 
 Current P2 slice evidence: `npx playwright test tests/browser/transactions.spec.ts -g "Quick Reservation" --project=desktop` and the same command with `--project=mobile-layout` both pass. `npm run test:cloud:v2` passes through expansion 027, including the historical-overlap regression and two-connection booking race.
+
+Web Housekeeping extension: source tests verify queued operation names and permission boundaries; `npm run lint` passes. The PostgreSQL-backed block/create, inspection/release, and maintenance/report flow passes under both Playwright projects (`desktop` and `mobile-layout`).

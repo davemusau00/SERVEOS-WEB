@@ -107,6 +107,7 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   await addProduct.getByLabel('Product family name').fill('Jameson');
   await addProduct.getByLabel('Whole-container selling price (KES)').fill('1200');
   await addProduct.getByLabel('Serving price').fill('250');
+  await addProduct.getByLabel('Tax class').selectOption('A_16');
   await addProduct.getByRole('button', {name:'Add serving'}).click();
   await addProduct.getByText('More setup').click();
   await addProduct.getByRole('checkbox', {name:'Track sales against an existing stock item'}).check();
@@ -119,6 +120,7 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   await addVariant.locator('select').nth(1).selectOption({index:1});
   await addVariant.getByRole('button', {name:'750ml'}).click();
   await addVariant.getByLabel('Whole-container selling price (KES)').fill('1900');
+  await addVariant.getByLabel('Tax class').selectOption('A_16');
   await addVariant.getByText('More setup').click();
   await addVariant.getByRole('checkbox', {name:'Track sales against an existing stock item'}).check();
   await expect(addVariant.locator('select').nth(1)).not.toHaveValue('');
@@ -138,6 +140,7 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   await atomicVariant.locator('select').nth(1).selectOption({index:1});
   await atomicVariant.getByRole('button', {name:'1L'}).click();
   await atomicVariant.getByLabel('Whole-container selling price (KES)').fill('2400');
+  await atomicVariant.getByLabel('Tax class').selectOption('A_16');
   await atomicVariant.getByText('More setup').click();
   await atomicVariant.getByRole('checkbox', {name:'Create a stock item and starting quantity'}).check();
   await atomicVariant.getByLabel('Starting containers').fill('12');

@@ -135,6 +135,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
   expect(sql("select count(*) from servos_v2.records where collection='roomReservations' and data->>'roomId'='quick-reservation-room';").trim()).toBe('1');
   expect(sql("select count(*) from servos_v2.commands where request->'payload'->>'collection'='customers';").trim()).toBe('1');
   expect(sql("select count(*) from servos_v2.commands where request->>'operation'='roomReservation.create' and result->>'status'='SYNCHRONIZED';").trim()).toBe('1');
+  loseResponse=true;
  });
  test('Housekeeping queues room blocks, explicit release inspection, and maintenance reports',async({page})=>{
   loseResponse=false;
@@ -162,13 +163,15 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await dialog.getByRole('button',{name:'Report problem',exact:true}).click();
   await expect(dialog).toHaveCount(0);
   expect(sql("select count(*) from servos_v2.records where collection='maintenanceOrders' and data->>'roomId'='quick-reservation-room' and data->>'description'='Bathroom tap is leaking.' and data->>'priority'='HIGH';").trim()).toBe('1');
+  loseResponse=true;
  });
  test('two operators see committed room and asset records; response-loss retry preserves one command',async({page,browser},info)=>{
+  loseResponse=true;
   test.setTimeout(120000);const context2=await browser.newContext({viewport:info.project.use.viewport});const other=await context2.newPage();
   await signIn(page,'first@example.test');await signIn(other,'second@example.test');
   await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Business master records',exact:true})).toBeVisible();await page.getByRole('button',{name:'Add room type',exact:true}).click();
   let dialog=page.getByRole('dialog');await dialog.getByLabel('Room type',{exact:true}).fill('Double');await dialog.getByLabel('Maximum guests').fill('2');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('retained for retry');await page.getByLabel('Synchronize').click();
+  await expect(page.getByRole('alert')).toContainText('retained for retry');await page.getByLabel('Synchronize').click();loseResponse=false;
   await expect(page.getByText('Double',{exact:true})).toBeVisible();
   expect(sql("select count(*) from servos_v2.commands where request->'payload'->>'collection'='roomTypes';").trim()).toBe('1');
   await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();await page.getByRole('button',{name:'Add room',exact:true}).click();dialog=page.getByRole('dialog');
