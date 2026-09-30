@@ -41,6 +41,15 @@ do $$begin
  if not exists(select 1 from servos_v2.records where collection='stockMovements' and data->>'movementType'='COUNT_ADJUSTMENT') then raise exception 'Count movement missing';end if;
 end$$;
 
+-- Reviewed whole-location count includes every active stock item and replays once.
+select pg_temp.inv_command('stockItem.save','stockItems','soda','{"id":"soda","data":{"name":"Soda","code":"SODA","baseUnit":"bottle","scanUnitQuantity":2,"averageUnitCostMinor":100}}');
+select pg_temp.inv_command('inventory.countLocation','stockItems','count-location-1','{"id":"count-location-1","locationId":"main","sessionId":"web-count-1","sessionRevision":1,"reason":"Reviewed location count","unknownBarcodes":[],"rows":[{"stockItemId":"gin","expectedQuantity":10,"countedQuantity":8,"name":"Chrome Gin 750ml","baseUnit":"bottle","scanUnitQuantity":1},{"stockItemId":"soda","expectedQuantity":0,"countedQuantity":0,"name":"Soda","baseUnit":"bottle","scanUnitQuantity":2}]}');
+do $$begin
+ if (select count(*) from servos_v2.records where collection='stockCounts')<>1 then raise exception 'Whole-location count record missing';end if;
+ if (select count(*) from servos_v2.records where collection='stockMovements' and data->>'reason'='Reviewed location count')<>1 then raise exception 'Whole-location variance movement mismatch';end if;
+ if (servos_v2.read_record('stockItems','gin')->'currentStock'->>'main')::numeric<>8 then raise exception 'Whole-location count did not apply variance';end if;
+end$$;
+
 select pg_temp.inv_command('inventory.transfer','stockItems','gin','{"id":"gin","stockItemId":"gin","locationId":"main","toLocationId":"bar","quantity":3,"reason":"Bar replenishment"}');
 do $$declare s jsonb;begin
  s:=servos_v2.read_record('stockItems','gin');

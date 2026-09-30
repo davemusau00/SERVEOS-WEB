@@ -34,6 +34,10 @@ export function resolveOperationDependencies(operation: string, collection: stri
     if (openTill && operation !== 'till.open') add('tillSessions', openTill.id);
   }
   if (operation === 'order.create') add('tables', payload.tableId);
+  if (operation === 'inventory.countLocation') {
+    add('stockLocations', payload.locationId);
+    for (const record of records) if (record.collection === 'stockItems' && !record.archived) add('stockItems', record.id);
+  }
   if (operation === 'order.create' || operation === 'order.addItem') {
     add('posPolicy', 'policy');
     const product = typeof payload.productId === 'string' ? byKey.get(key('products', payload.productId)) : undefined;
