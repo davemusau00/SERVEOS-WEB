@@ -28,8 +28,9 @@
     "ci:evidence": "node scripts/write-ci-evidence.mjs",
     "help:build": "node scripts/build-help-index.mjs",
     "docs:check": "npm run help:build && node scripts/docs-check.mjs",
+    "contracts:check": "node scripts/check-contracts.mjs",
     "verify:source": "node scripts/verify-production.mjs",
-    "verify:fast": "npm run lint && npm run build && npm test",
+    "verify:fast": "npm run lint && npm run contracts:check && npm run build && npm test",
     "verify:release": "npm run verify:fast && npm run test:cloud:base && npm run test:cloud:v2 && npm run test:native && npm run test:desktop && npm run test:browser:production && npm run protocol:check && npm run audit:ui:gate && npm run docs:check",
     "verify": "npm run help:build && npm run verify:fast && npm run test:browser && npm run test:native:container && npm run audit:ui && npm run docs:check"
   },
