@@ -36,6 +36,8 @@ test.describe('transactional browser with PostgreSQL',()=>{
    select servos_v2.put_record('roomReservations','front-desk-reservation','{"customerId":"front-desk-guest","roomId":"front-desk-room","status":"RESERVED","guests":1,"startsAt":"2025-01-01T22:00:00Z","endsAt":"2025-01-02T19:00:00Z"}');
    select servos_v2.put_record('posPolicy','policy','{"vatBasisPoints":0,"cateringLevyBasisPoints":0,"taxInclusive":true,"currency":"KES"}');
    select servos_v2.put_record('stockLocations','web-pos-stock','{"name":"Web POS Stock","code":"WEBPOS","type":"BAR"}');
+   select servos_v2.put_record('stockItems','web-count-a','{"name":"Counted Water","code":"COUNT-WATER","baseUnit":"bottle","scanUnitQuantity":1,"currentStock":{"web-pos-stock":5},"reorderLevel":0,"averageUnitCostMinor":100}');
+   select servos_v2.put_record('stockItems','web-count-b','{"name":"Counted Juice","code":"COUNT-JUICE","baseUnit":"bottle","scanUnitQuantity":2,"currentStock":{"web-pos-stock":0},"reorderLevel":0,"averageUnitCostMinor":100}');
    select servos_v2.put_record('outlets','web-pos-outlet','{"name":"Browser Bar","code":"WEBPOS","defaultStockLocationId":"web-pos-stock"}');
    select servos_v2.put_record('products','web-pos-soda','{"name":"Test Soda","code":"TESTSODA","priceMinor":1250,"category":"DRINKS","portions":[],"modifiers":[],"recipeIngredients":[],"outletIds":[]}');
    select servos_v2.put_record('paymentAccounts','web-pos-cash','{"name":"Cash","method":"CASH","accountCode":"CASH"}');
@@ -133,6 +135,27 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await page.reload();const remoteEntry=page.getByRole('button',{name:'Remote management',exact:true});if(await remoteEntry.count())await remoteEntry.click();await page.getByLabel('Email',{exact:true}).fill('first@example.test');await page.getByLabel('Password',{exact:true}).fill('test-only');await page.getByRole('button',{name:'Sign in',exact:true}).click();await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();await expect(page.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Staff & devices',exact:true}).click();await expect(page.getByRole('heading',{name:'Staff, approvals and devices'})).toBeVisible();await expect(page.getByText('Browser Owner',{exact:true})).toBeVisible();await expect(page.getByText('Browser Manager',{exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Trusted devices'})).toBeVisible();expect(await page.getByText('Browser workstation',{exact:true}).count()).toBeGreaterThanOrEqual(2);
   await context2.close();
+ });
+ test('web inventory count retains every row, blocks unknown scans, and commits one reviewed location count',async({page})=>{
+  await signIn(page,'inventory@example.test');
+  await page.getByRole('button',{name:'Inventory',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Stock',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Count stock',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Physical stock count'});
+  await dialog.locator('select').nth(0).selectOption('web-count-a');
+  await dialog.getByLabel('Physical quantity').fill('4');
+  await dialog.locator('select').nth(0).selectOption('web-count-b');
+  await dialog.getByLabel('Physical quantity').fill('0');
+  await dialog.getByLabel('Scan barcode / SKU').fill('UNKNOWN-000');
+  await dialog.getByRole('button',{name:'Apply typed barcode',exact:true}).click();
+  await expect(dialog.getByRole('button',{name:/Review and confirm/})).toBeDisabled();
+  await dialog.getByRole('button',{name:'Remove UNKNOWN-000',exact:true}).click();
+  await expect(dialog.getByRole('button',{name:/Review and confirm/})).toBeEnabled();
+  await dialog.getByRole('button',{name:'Review and confirm',exact:true}).click();
+  await expect(page.getByText('Saved and synchronized.',{exact:true})).toBeVisible();
+  await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='stockCounts';").trim()).toBe('1');
+  expect(sql("select data->'currentStock'->>'web-pos-stock' from servos_v2.records where collection='stockItems' and id='web-count-a';").trim()).toBe('4');
+  expect(sql("select count(*) from servos_v2.records where collection='stockMovements' and data->>'movementType'='COUNT_ADJUSTMENT';").trim()).toBe('1');
  });
  test('web POS opens a till, settles cash online and retains the immutable receipt',async({page})=>{
   await signIn(page,'pos@example.test');

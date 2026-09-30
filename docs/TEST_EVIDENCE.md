@@ -6,7 +6,7 @@ The current convergence pass verified or advanced WP-01/02/03/07/08/09 locally. 
 
 The operation-specific dependency resolver is now wired into WebBusinessApp and covers the POS payment, till, refund, close-day, order, room and hospitality relation paths exercised by current handlers. This is not full WP-09 closure: the complete operation registry and every declared dependency fixture still need to be derived and checked. WP-08 also remains partial because review/reopen UI, policy revalidation at promotion and durable count-session recovery are not yet complete.
 
-The Web inventory count failure path now keeps its browser-local count session when the command is rejected, conflicted or remains pending, and blocks confirmation while unknown barcodes remain unresolved. `npm run lint` and all 116 Node tests pass after this change. Whole-location multi-row count semantics and durable per-item count storage remain open under WP-10.
+The Web inventory count failure path now keeps its browser-local count session when the command is rejected, conflicted or remains pending, and blocks confirmation while unknown barcodes remain unresolved. Forward cloud migration 024 now implements the shared `inventory.countLocation` rows contract: every active stock item is required exactly once, baselines/catalog conversion are checked and locked, unknown scans are rejected, one `stockCounts` record is written, and only non-zero variances create movements. `npm run test:cloud:v2` passed through migration 024 and the whole-location fixture, including replay. Durable per-item Web count storage and full review/reopen UI remain open under WP-08/WP-10.
 
 ## DEV final sprint P0 local gate - 2026-09-30
 

@@ -950,9 +950,9 @@ Original section numbers are retained here so none of the earlier forensic work 
 | --- | --- | --- | --- |
 | 1 | Executive severity assessment | Replaced by profile-specific priorities and evidence | All packages; release dossier |
 | 2 | Offline edits falsely promise automatic sync | OPEN; exact notice and missing promotion path remain | WP-08; durable draft → review → one command |
-| 3 | Full-location count/cloud semantics mismatch | OPEN; cloud handler absent and Web sends single-item payload | WP-04, WP-10; shared full-count fixtures |
-| 4 | Unknown barcode `&& false` bypass | OPEN; source bypass confirmed | WP-10, WP-24; client/backend denial |
-| 5 | Count resume incomplete | OPEN; metadata/unknown codes saved, full counts not durable | WP-08, WP-10; restart/reload rows preserved |
+| 3 | Full-location count/cloud semantics mismatch | PARTIAL PROGRESS; expansion 024 now enforces the shared full-location rows contract and the Web sends that contract, while durable browser session/review remains open | WP-08, WP-10; shared full-count fixtures and reload/rejection evidence |
+| 4 | Unknown barcode `&& false` bypass | PARTIAL PROGRESS; Web confirmation now blocks unresolved scans and cloud 024 rejects crafted unresolved payloads; Native and duplicate-code acceptance remain to be consolidated | WP-10, WP-24; client/backend denial |
+| 5 | Count resume incomplete | PARTIAL PROGRESS; rejected Web submissions retain the local session and Native durable drafts remain covered, but Web per-item rows and full review reopening are still incomplete | WP-08, WP-10; restart/reload rows preserved |
 | 6 | Settings document replacement/clobber | OPEN; current SQL passes partial replacement | WP-07; omitted/nested fields preserved |
 | 7 | Operation/permission dialect drift | OPEN; backend implementations unchanged in comparison | WP-04; versioned adapters and registry parity |
 | 8 | Native/cloud role mismatch | OPEN; Native permissive fallback remains | WP-05; exact role/grant matrix |
@@ -1002,7 +1002,7 @@ Original section numbers are retained here so none of the earlier forensic work 
 
 | ID | Finding | Evidence / solution |
 | --- | --- | --- |
-| NEW-F01 | Failed count submission deletes count metadata and unresolved scan list | Web `commit()` ignores result; WP-08/WP-10 |
+| NEW-F01 | Failed count submission deletes count metadata and unresolved scan list | FIXED in Web count commit; failed/pending results retain the local session and unresolved scan list | WP-08/WP-10; browser rejection evidence |
 | NEW-F02 | Default NIGHTLY departure can violate configured checkout | Web `reserve()` keeps arrival hour; SQL 021 requires checkout; WP-11/WP-12 |
 | NEW-F03 | Shared test setup seeds a rate/type that conflicts with older room fixtures | `setup()` + property-preferred rate + CI errors; WP-01 |
 | NEW-F04 | Native omitted-stay-type compatibility diverges from canonical cloud policy | Rust reservation units branch vs SQL 021; WP-04/WP-11 |
@@ -1329,7 +1329,7 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | WP-07 | OPEN | — | Partial/nested settings preservation | — |
 | WP-08 | OPEN | — | Draft/retry/rejection recovery | — |
 | WP-09 | OPEN | — | Minimal complete dependency sets | — |
-| WP-10 | OPEN | — | Durable reviewed count/scans | — |
+| WP-10 | IN_PROGRESS | Expansion 024 full-location cloud contract and Web failure/session slice verified locally | Durable per-item review across reload, scanner/device acceptance and full browser workflow | — |
 | WP-11 | OPEN | — | Room policy/condition/accounting | — |
 | WP-12 | OPEN | — | Cross-runtime business time | — |
 | WP-13 | OPEN | — | All-writer fences/terminal v2 | — |

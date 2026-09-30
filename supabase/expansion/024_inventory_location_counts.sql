@@ -12,6 +12,7 @@ declare
 begin
  if jsonb_typeof(rows) is distinct from 'array' or jsonb_array_length(rows) not between 1 and 5000 then raise exception 'VALIDATION_FAILED: count must include between 1 and 5000 rows';end if;
  perform servos_v2.require_any_permission(array['inventory.count','inventory.adjust']);
+ perform servos_v2.assert_version(command,'stockLocations',location_key);
  perform servos_v2.read_record('stockLocations',location_key);
  reason:=servos_v2.required_text(p,'reason');
  if jsonb_typeof(coalesce(p->'unknownBarcodes','[]'::jsonb)) is distinct from 'array' or jsonb_array_length(coalesce(p->'unknownBarcodes','[]'::jsonb))<>0 then raise exception 'VALIDATION_FAILED: resolve unknown barcodes before confirming';end if;
@@ -69,17 +70,12 @@ begin
  return grants&&needed;
 end$$;
 
-create or replace function servos_v2.dispatch(command jsonb) returns jsonb language plpgsql set search_path='' as $$
+alter function servos_v2.dispatch(jsonb) rename to dispatch_before_inventory_location_count;
+create function servos_v2.dispatch(command jsonb) returns jsonb language plpgsql set search_path='' as $$
 begin
  if coalesce((command->>'offlineFinalized')::boolean,false) then raise exception 'PROTOCOL_UNSUPPORTED: signed offline grants required';end if;
  if command->>'operation'='inventory.countLocation' then return servos_v2.apply_inventory_location_count(command);end if;
- if command->>'operation' in ('record.save','record.archive','record.reactivate') then return servos_v2.apply_master(command);end if;
- if command->>'operation' like 'product.%' or command->>'operation' like 'stockItem.%' or command->>'operation' like 'stockLocation.%' or command->>'operation' like 'inventory.%' then return servos_v2.apply_catalog_inventory(command);end if;
- if command->>'operation' like 'asset.%' or command->>'operation' like 'maintenance.%' then return servos_v2.apply_assets(command);end if;
- if command->>'operation' like 'folio.%' then return servos_v2.apply_folios(command);end if;
- if command->>'operation' like 'stay.%' then return servos_v2.apply_stays(command);end if;
- if command->>'operation' like 'room.%' or command->>'operation' like 'ratePlan.%' or command->>'operation' like 'roomReservation.%' then return servos_v2.apply_rooms(command);end if;
- raise exception 'PROTOCOL_UNSUPPORTED: domain operation not enabled';
+ return servos_v2.dispatch_before_inventory_location_count(command);
 end$$;
 
 revoke all on function servos_v2.apply_inventory_location_count(jsonb) from public,anon,authenticated;

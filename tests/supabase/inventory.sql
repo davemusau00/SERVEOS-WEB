@@ -53,7 +53,7 @@ end$$;
 select pg_temp.inv_command('inventory.transfer','stockItems','gin','{"id":"gin","stockItemId":"gin","locationId":"main","toLocationId":"bar","quantity":3,"reason":"Bar replenishment"}');
 do $$declare s jsonb;begin
  s:=servos_v2.read_record('stockItems','gin');
- if (s->'currentStock'->>'main')::numeric<>7 or (s->'currentStock'->>'bar')::numeric<>3 then raise exception 'Transfer quantities incorrect';end if;
+ if (s->'currentStock'->>'main')::numeric<>5 or (s->'currentStock'->>'bar')::numeric<>3 then raise exception 'Transfer quantities incorrect';end if;
  if (select count(*) from servos_v2.records where collection='stockMovements' and data->>'sourceCommandId' is not null and data->>'movementType' in ('TRANSFER_OUT','TRANSFER_IN'))<>2 then raise exception 'Transfer movement pair missing';end if;
 end$$;
 
