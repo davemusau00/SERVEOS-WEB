@@ -257,7 +257,7 @@ For reservation, count review, payment, refund, M-Pesa reconciliation, import re
 
 ### WP-04 — Create the executable operation and permission contract
 
-**Priority:** P0. **Status:** OPEN; operation/permission registry and generated parity remain required. **Dependencies:** Baseline from WP-02.
+**Priority:** P0. **Status:** IN_PROGRESS; the existing operation manifest now covers literal runtime command call sites and CI source tests fail on unknown literals, while canonical JSON contracts, generated cross-runtime constants, payload schemas and semantic handler fixtures remain required. **Dependencies:** Baseline from WP-02.
 
 **Existing files:** `src/runtime/operationManifest.ts`, `src/types/transactions.ts`, `src/native/*`, `src/runtime/web/*`, `src-tauri/src/store.rs`, `supabase/expansion/001_protocol.sql` through `021_room_stay_policy.sql`, `tests/web-v2-permission-contract-source.test.mjs`.
 
