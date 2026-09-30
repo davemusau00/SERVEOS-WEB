@@ -42,6 +42,10 @@ fn cmd(op: &str, payload: Value) -> BusinessCommand {
 fn run(db: &mut rusqlite::Connection, s: &Session, op: &str, p: Value) -> Value {
     execute(db, &s.token, cmd(op, p)).unwrap()
 }
+fn configure_room_stay(db: &mut rusqlite::Connection, s: &Session, room_type_id: &str, rate_plan_id: &str) {
+    let property_version = get(db, "property", "property").unwrap().0;
+    run(db, s, "roomStay.settings", json!({"propertyVersion":property_version,"roomTypeId":room_type_id,"ratePlanId":rate_plan_id,"nightlyCheckoutTime":"10:00","dayStayCutoffTime":"18:00"}));
+}
 
 #[test]
 fn guidance_progress_is_staff_scoped_durable_and_outside_business_outbox() {
@@ -175,14 +179,14 @@ fn simple_rooms_and_property_share_existing_domain_safeguards() {
     let first=execute(&mut db,&admin.token,command.clone()).unwrap();
     assert_eq!(execute(&mut db,&admin.token,command).unwrap(),first);
     assert_eq!(list(&db,"rooms").unwrap().len(),2);
-    assert_eq!(list(&db,"roomTypes").unwrap().len(),1);
-    assert_eq!(list(&db,"ratePlans").unwrap().len(),1);
+    assert_eq!(list(&db,"roomTypes").unwrap().len(),2);
+    assert_eq!(list(&db,"ratePlans").unwrap().len(),2);
     assert!(execute(&mut db,&admin.token,cmd("room.quickCreate",json!({"numbers":["106","104"],"newType":{"name":"Must rollback","capacity":2,"nightlyPrice":100}}))).is_err());
     assert_eq!(list(&db,"rooms").unwrap().len(),2);
-    assert_eq!(list(&db,"roomTypes").unwrap().len(),1);
+    assert_eq!(list(&db,"roomTypes").unwrap().len(),2);
     // Validation late in the orchestration also rolls back the new type and rate.
     assert!(execute(&mut db,&admin.token,cmd("room.quickCreate",json!({"numbers":["106"],"newType":{"name":"Invalid room","capacity":2,"nightlyPrice":100},"details":{"capacity":3}}))).is_err());
-    assert_eq!(list(&db,"roomTypes").unwrap().len(),1);
+    assert_eq!(list(&db,"roomTypes").unwrap().len(),2);
     let room_id=list(&db,"rooms").unwrap()[0]["id"].as_str().unwrap().to_string();
     run(&mut db,&admin,"asset.quickCreate",json!({"name":"Samsung TV","roomId":room_id}));
     let assets=list(&db,"assets").unwrap();
@@ -643,8 +647,9 @@ fn rooms_engine_blocks_overlap_turnaround_and_preserves_rate_snapshot() {
     let (_,mut db,s)=setup();
     run(&mut db,&s,"record.save",json!({"collection":"customers","id":"guest-a","data":{"name":"Guest A","phone":"+254700000001"}}));
     run(&mut db,&s,"record.save",json!({"collection":"customers","id":"guest-b","data":{"name":"Guest B","phone":"+254700000002"}}));
-    run(&mut db,&s,"roomType.save",json!({"id":"type-standard","data":{"name":"Standard","code":"STD","maxGuests":2}}));
+    run(&mut db,&s,"roomType.save",json!({"id":"type-standard","data":{"name":"Standard","code":"STD-2","maxGuests":2}}));
     run(&mut db,&s,"ratePlan.save",json!({"id":"rate-standard","data":{"name":"Standard Night","roomTypeId":"type-standard","mode":"NIGHTLY","priceMinor":10000,"currency":"KES","taxBasisPoints":0,"minNights":1,"maxNights":30}}));
+    configure_room_stay(&mut db,&s,"type-standard","rate-standard");
     run(&mut db,&s,"room.save",json!({"id":"room-101","data":{"number":"101","roomTypeId":"type-standard","capacity":2,"turnaroundMinutes":30,"floor":"1"}}));
     run(&mut db,&s,"roomReservation.create",json!({"id":"res-a","roomId":"room-101","ratePlanId":"rate-standard","customerId":"guest-a","guests":2,"startsAt":"2030-01-01T12:00:00Z","endsAt":"2030-01-02T10:00:00Z"}));
     let first=get(&db,"roomReservations","res-a").unwrap().1;
@@ -663,6 +668,7 @@ fn rooms_engine_enforces_blocks_housekeeping_and_reservation_closure() {
     run(&mut db,&s,"record.save",json!({"collection":"customers","id":"guest","data":{"name":"Guest","phone":"+254700000003"}}));
     run(&mut db,&s,"roomType.save",json!({"id":"type","data":{"name":"Suite","code":"STE","maxGuests":3}}));
     run(&mut db,&s,"ratePlan.save",json!({"id":"rate","data":{"name":"Suite Night","roomTypeId":"type","mode":"NIGHTLY","priceMinor":20000,"currency":"KES","taxBasisPoints":0}}));
+    configure_room_stay(&mut db,&s,"type","rate");
     run(&mut db,&s,"room.save",json!({"id":"room","data":{"number":"201","roomTypeId":"type","capacity":3,"turnaroundMinutes":0,"initialStatus":"DIRTY"}}));
     let (v,_)=get(&db,"rooms","room").unwrap();let mut clean=cmd("room.housekeeping",json!({"id":"room","state":"CLEANING"}));clean.target_version=Some(v);execute(&mut db,&s.token,clean).unwrap();
     let (v,_)=get(&db,"rooms","room").unwrap();let mut inspect=cmd("room.housekeeping",json!({"id":"room","state":"INSPECTION"}));inspect.target_version=Some(v);execute(&mut db,&s.token,inspect).unwrap();
@@ -677,7 +683,7 @@ fn rooms_engine_enforces_blocks_housekeeping_and_reservation_closure() {
 #[test]
 fn room_csv_imports_apply_through_native_room_commands() {
     let (_,mut db,s)=setup();
-    let types="external_id,name,code,capacity_adults,capacity_children,base_rate,active\nroomtype-standard,Standard Room,STD,2,1,6500,true\n";
+    let types="external_id,name,code,capacity_adults,capacity_children,base_rate,active\nroomtype-standard,Standard Room,STD-CSV,2,1,6500,true\n";
     let b=import_stage(&mut db,&s.token,"room_types","room_types.csv",types).unwrap();
     let p=import_plan(&mut db,&s.token,b["id"].as_str().unwrap()).unwrap();assert_eq!(p["status"],"READY");
     import_apply(&mut db,&s.token,p["id"].as_str().unwrap()).unwrap();
@@ -702,7 +708,7 @@ fn room_csv_imports_apply_through_native_room_commands() {
     assert_eq!(updated["housekeepingState"],"CLEANING");assert_eq!(updated["maintenanceState"],"AVAILABLE");
     let rates="external_id,name,room_type_external_id,meal_plan,currency,nightly_rate,min_nights,max_nights,active\nrate-standard,Standard BB,roomtype-standard,BB,KES,7500,1,30,true\n";
     let b=import_stage(&mut db,&s.token,"rate_plans","rate_plans.csv",rates).unwrap();let p=import_plan(&mut db,&s.token,b["id"].as_str().unwrap()).unwrap();assert_eq!(p["status"],"READY");import_apply(&mut db,&s.token,p["id"].as_str().unwrap()).unwrap();
-    assert_eq!(list(&db,"roomTypes").unwrap().len(),1);assert_eq!(list(&db,"rooms").unwrap().len(),1);assert_eq!(list(&db,"ratePlans").unwrap().len(),1);
+    assert_eq!(list(&db,"roomTypes").unwrap().len(),2);assert_eq!(list(&db,"rooms").unwrap().len(),1);assert_eq!(list(&db,"ratePlans").unwrap().len(),2);
 }
 
 // SERVOS_PATCH_06_FRONT_DESK
@@ -712,6 +718,7 @@ fn front_desk_check_in_creates_stay_folio_and_due_accommodation_atomically() {
     run(&mut db,&s,"record.save",json!({"collection":"customers","id":"front-guest","data":{"name":"Front Guest","phone":"+254700000004"}}));
     run(&mut db,&s,"roomType.save",json!({"id":"front-type","data":{"name":"Front Type","code":"FRT","maxGuests":2}}));
     run(&mut db,&s,"ratePlan.save",json!({"id":"front-rate","data":{"name":"Front Rate","roomTypeId":"front-type","mode":"NIGHTLY","priceMinor":12000,"currency":"KES","taxBasisPoints":0}}));
+    configure_room_stay(&mut db,&s,"front-type","front-rate");
     run(&mut db,&s,"room.save",json!({"id":"front-room","data":{"number":"301","roomTypeId":"front-type","capacity":2,"turnaroundMinutes":30}}));
     let arrival=(chrono::Utc::now()-chrono::Duration::minutes(5)).to_rfc3339();
     let departure=(chrono::Utc::now()+chrono::Duration::days(1)).to_rfc3339();
@@ -736,6 +743,7 @@ fn front_desk_room_move_preserves_quote_and_dirties_old_room() {
     run(&mut db,&s,"record.save",json!({"collection":"customers","id":"move-guest","data":{"name":"Move Guest","phone":"+254700000005"}}));
     run(&mut db,&s,"roomType.save",json!({"id":"move-type","data":{"name":"Move Type","code":"MOV","maxGuests":2}}));
     run(&mut db,&s,"ratePlan.save",json!({"id":"move-rate","data":{"name":"Move Rate","roomTypeId":"move-type","mode":"NIGHTLY","priceMinor":14000,"currency":"KES","taxBasisPoints":0}}));
+    configure_room_stay(&mut db,&s,"move-type","move-rate");
     run(&mut db,&s,"room.save",json!({"id":"move-a","data":{"number":"401","roomTypeId":"move-type","capacity":2,"turnaroundMinutes":20}}));
     run(&mut db,&s,"room.save",json!({"id":"move-b","data":{"number":"402","roomTypeId":"move-type","capacity":2,"turnaroundMinutes":25}}));
     let arrival=(chrono::Utc::now()-chrono::Duration::minutes(5)).to_rfc3339();
@@ -757,6 +765,7 @@ fn front_desk_rejects_early_check_in_and_financially_incomplete_checkout() {
     run(&mut db,&s,"record.save",json!({"collection":"customers","id":"gate-guest","data":{"name":"Gate Guest","phone":"+254700000006"}}));
     run(&mut db,&s,"roomType.save",json!({"id":"gate-type","data":{"name":"Gate Type","code":"GAT","maxGuests":1}}));
     run(&mut db,&s,"ratePlan.save",json!({"id":"gate-rate","data":{"name":"Gate Rate","roomTypeId":"gate-type","mode":"NIGHTLY","priceMinor":9000,"currency":"KES","taxBasisPoints":0}}));
+    configure_room_stay(&mut db,&s,"gate-type","gate-rate");
     run(&mut db,&s,"room.save",json!({"id":"gate-room","data":{"number":"501","roomTypeId":"gate-type","capacity":1,"turnaroundMinutes":0}}));
     let base=chrono::Utc::now();
     let arrival=(base+chrono::Duration::days(2)).to_rfc3339();
@@ -783,6 +792,7 @@ fn hotel_booking_fixture(db:&mut rusqlite::Connection,s:&Session,prefix:&str,pri
     run(db,s,"roomType.save",json!({"id":room_type,"data":{"name":format!("{prefix} Type"),"code":prefix.to_ascii_uppercase(),"maxGuests":2}}));
     run(db,s,"ratePlan.save",json!({"id":rate,"data":{"name":format!("{prefix} Night"),"roomTypeId":room_type,"mode":"NIGHTLY","priceMinor":price_minor,"currency":"KES","taxBasisPoints":0,"minNights":1,"maxNights":30}}));
     run(db,s,"room.save",json!({"id":room,"data":{"number":format!("R-{prefix}"),"roomTypeId":room_type,"capacity":2,"turnaroundMinutes":30}}));
+    configure_room_stay(db,s,&room_type,&rate);
     let arrival=(chrono::Utc::now()-chrono::Duration::minutes(5)).to_rfc3339();
     let departure=(chrono::Utc::now()+chrono::Duration::days(1)).to_rfc3339();
     run(db,s,"roomReservation.create",json!({"id":reservation,"roomId":room,"ratePlanId":rate,"customerId":customer,"guests":1,"startsAt":arrival,"endsAt":departure}));
