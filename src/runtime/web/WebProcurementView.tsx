@@ -155,12 +155,13 @@ export function WebProcurementView({
   const applyScan=(raw:string)=>{
     if(!receiving)return;
     const code=raw.trim();if(!code)return;
-    const matches=stockItems.filter(item=>barcodeEquals(String(data(item)?.barcode||''),code)||barcodeEquals(String(data(item)?.code||''),code));
+    const matches=stockItems.filter(item=>{const d=data(item)!;return barcodeEquals(String(d.barcode||''),code)||barcodeEquals(String(d.code||''),code)||(Array.isArray(d.purchasePackages)&&d.purchasePackages.some((pkg:any)=>barcodeEquals(String(pkg.barcode||''),code)))});
     if(matches.length!==1)return;
     const item=matches[0];
     const poLine=(data(receiving)?.items||[]).find((line:any)=>line.treatment==='STOCK'&&line.stockItemId===item.id);
     if(!poLine)return;
-    let increment:number;try{increment=parseQuantity(poLine.scanUnitQuantity||data(item)?.scanUnitQuantity||1,{min:Number.MIN_VALUE})}catch{return}
+    const itemData=data(item)!;const scannedPackage=Array.isArray(itemData.purchasePackages)?itemData.purchasePackages.find((pkg:any)=>barcodeEquals(String(pkg.barcode||''),code)):undefined;
+    let increment:number;try{increment=parseQuantity(scannedPackage?.baseQuantity??poLine.scanUnitQuantity??itemData.scanUnitQuantity??1,{min:Number.MIN_VALUE})}catch{return}
     setReceiptDraft(prev=>{
       const current=prev[poLine.lineId]||{delivered:0,rejected:0,reason:''};
       return {...prev,[poLine.lineId]:{...current,delivered:current.delivered+increment}};

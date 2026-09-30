@@ -356,7 +356,7 @@ Native Catalog Add Item now presents four stages and ten product/ingredient/serv
 
 ### DEV final sprint P5 Native package conversion — 2026-09-30
 
-The Smart Item Wizard now captures supplier package label, contents as sale-container count or canonical stock units, package price, and opening package count. The native payload derives scan quantity, average cost per stock unit, and opening balance quantity. Reusable package-definition records and PO/receiving conversion have not been implemented. No verification has been run; P5 tests are deferred to the final test stage.
+The Smart Item Wizard now captures supplier package label, contents as sale-container count or canonical stock units, optional package barcode, package price, and opening package count. The native payload derives scan quantity, average cost per stock unit, and opening balance quantity and persists a normalized package definition. Web stock count and PO receiving scanners match saved package barcodes and increment by canonical package base quantity. This is source-only evidence: no verification has been run; package administration and complete P5 acceptance remain deferred to the final test stage.
 
 ### DEV final sprint current-source regression gate â€” 2026-09-30
 

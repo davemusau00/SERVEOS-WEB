@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActionDialog } from './ActionDialog';
 import { fieldClass, primaryButtonClass, buttonClass, money } from './records';
-import { calculateBatchUnitCost, calculateRecipeCost, canonicalizeMeasurement, costPerCanonicalUnit, SMART_ITEM_PRESETS, type SmartItemType } from '../utils/inventoryUnits';
+import { calculateBatchUnitCost, calculateRecipeCost, canonicalizeMeasurement, costPerCanonicalUnit, definePurchasePackage, SMART_ITEM_PRESETS, type SmartItemType } from '../utils/inventoryUnits';
 
 type Serving = { id: string; name: string; quantity: number; price: number };
 type RecipeLine = { stockItemId: string; quantity: number };
@@ -157,7 +157,8 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
     };
     if (createStock) {
       const normalizedStockName = stockName.trim() || (physical ? `${familyName.trim() || name.trim()} ${variantLabel}` : name.trim());
-      void onCreateWithStock({ ...(product?{product}:{}), stockItem: { name: normalizedStockName, code: stockCode.trim()||code.trim(), barcode: barcode.trim(), baseUnit: stockBaseUnit, scanUnitQuantity: purchasePackageQuantity, averageUnitCost: Number(averageUnitCost), reorderLevel: 0 }, locationId: stockLocationId, startingQuantity: openingStockQuantity });
+      const packageDefinition=definePurchasePackage({id:crypto.randomUUID(),name:purchasePackageName,unitsPerPackage,contentsPerSaleUnit:stockQuantityPerContainer,unit:stockBaseUnit,barcode:barcode.trim(),mode:SMART_ITEM_PRESETS[kind as SmartItemType].mode});
+      void onCreateWithStock({ ...(product?{product}:{}), stockItem: { name: normalizedStockName, code: stockCode.trim()||code.trim(), barcode: barcode.trim(), baseUnit: stockBaseUnit, scanUnitQuantity: packageDefinition.baseQuantity, purchasePackages:[packageDefinition], averageUnitCost: Number(averageUnitCost), reorderLevel: 0 }, locationId: stockLocationId, startingQuantity: openingStockQuantity });
     } else if(product) void onSave(product);
   };
   const physicalValid = !physical || (familyName.trim() && packageType.trim() && Number.isFinite(containerQuantity) && containerQuantity > 0 && Number.isFinite(normalizedSize.quantity) && normalizedSize.quantity > 0 && Number.isFinite(wholeContainerQuantity) && wholeContainerQuantity > 0 && !duplicateVariant);

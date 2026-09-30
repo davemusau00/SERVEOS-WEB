@@ -1,6 +1,7 @@
 export type MeasurementMode = 'COUNT' | 'WEIGHT' | 'VOLUME';
 export type CanonicalUnit = 'piece' | 'g' | 'ml';
 export type SmartItemType = 'DRINK' | 'SPIRIT' | 'WINE' | 'KEG' | 'WEIGHT_INGREDIENT' | 'COUNT_INGREDIENT' | 'DISH' | 'BATCH' | 'RETAIL' | 'SERVICE';
+export type PurchasePackageDefinition = { id: string; name: string; unitsPerPackage: number; baseQuantity: number; baseUnit: CanonicalUnit; barcode?: string };
 
 export const SMART_ITEM_PRESETS: Record<SmartItemType, { label: string; mode?: MeasurementMode; purchaseUnit: string; baseUnit?: CanonicalUnit; saleUnit?: string; requiresStock: boolean; recipeEligible: boolean }> = {
   DRINK: { label: 'Beer, soda, or bottled drink', mode: 'COUNT', purchaseUnit: 'case', baseUnit: 'piece', saleUnit: 'each', requiresStock: true, recipeEligible: false },
@@ -45,6 +46,13 @@ export function purchasePackageQuantity(packageCount: number, contentsPerPackage
   const quantity = packageCount * contents.quantity;
   if (!Number.isFinite(quantity) || quantity > 1_000_000_000_000) throw new Error('Package total is outside the supported range.');
   return { quantity: Number(quantity.toFixed(6)), unit: contents.unit, mode: contents.mode };
+}
+
+export function definePurchasePackage({ id, name, unitsPerPackage, contentsPerSaleUnit, unit, barcode, mode }: { id: string; name: string; unitsPerPackage: number; contentsPerSaleUnit: number; unit: string; barcode?: string; mode?: MeasurementMode }): PurchasePackageDefinition {
+  if (!id.trim() || !name.trim()) throw new Error('Purchase package identity is required.');
+  if (!Number.isInteger(unitsPerPackage) || unitsPerPackage < 1) throw new Error('Units per package must be a positive whole number.');
+  const contents = purchasePackageQuantity(unitsPerPackage, contentsPerSaleUnit, unit, mode);
+  return { id, name: name.trim(), unitsPerPackage, baseQuantity: contents.quantity, baseUnit: contents.unit, ...(barcode?.trim()?{barcode:barcode.trim()}: {}) };
 }
 
 export function costPerCanonicalUnit(packageCostMinor: number, contentsPerPackage: number, contentUnit: string, mode?: MeasurementMode) {

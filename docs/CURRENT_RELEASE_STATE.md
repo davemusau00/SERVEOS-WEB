@@ -12,7 +12,7 @@ P3 has started with shared inventory math and item-type presets in `src/utils/in
 
 P4 has started: Native Catalog Add Item now uses a four-step Smart Item Wizard with ten item-type choices, selling/physical package setup, ingredient selection and cost preview, batch yield, stock setup, and a review step. The native atomic command supports either sellable product+stock or stock-only ingredient creation with an optional immutable opening movement. The manifest correctly shows the staged PostgreSQL handler and Web workflow as missing. The wizard is not yet cross-client complete, and the newest UI/recipe integration is unverified pending the final pass.
 
-P5 has started: the native wizard accepts supplier package name, count of sale containers or canonical stock units per package, package price and opening package count. It derives scan-unit quantity, opening stock and average unit cost before the atomic save. Reusable package records, package-aware receiving conversion, Web parity, and all acceptance evidence remain open.
+P5 has started: the native wizard accepts supplier package name, count of sale containers or canonical stock units per package, optional package barcode, package price and opening package count. It derives scan-unit quantity, opening stock and average unit cost before the atomic save and persists a normalized package definition. Web stock counts and PO receiving resolve that package barcode and add its canonical base quantity. Package management, broader setup parity, scanner verification and acceptance remain open; this source slice is unverified.
 
 ## UX and Guidance foundation — 2026-09-28
 
