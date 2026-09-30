@@ -40,6 +40,10 @@ end$$;
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);
 set local role authenticated;
+select public.servos_v2_register_device('10000000-0000-4000-8000-000000000061','Retry terminal pair','DESKTOP');
+do $$begin
+ if (select owner_id from servos_v2.devices where id='10000000-0000-4000-8000-000000000061')<>'00000000-0000-4000-8000-000000000001' then raise exception 'Idempotent re-pair changed registration owner';end if;
+end$$;
 do $$declare identity jsonb;begin
  identity:=public.servos_v2_terminal_identity('10000000-0000-4000-8000-000000000061');
  if identity->>'staffId'<>'server-2' or identity->>'actorId'<>'00000000-0000-4000-8000-000000000002' then raise exception 'Terminal did not resolve the signed-in operator identity: %',identity;end if;

@@ -14,7 +14,7 @@ struct Runtime {
     operator_auth: Mutex<Option<OperatorAuth>>,
     startup_nonce: String,
 }
-struct OperatorAuth { staff_id: String, access_token: String, refresh_token: String }
+struct OperatorAuth { staff_id: String, access_token: String }
 #[tauri::command]
 fn runtime_status(state: State<Runtime>) -> store::Result<Value> {
     let db=state.db.lock().map_err(|e|e.to_string())?;
@@ -139,7 +139,7 @@ async fn runtime_login(
         }
         let entry=keyring::Entry::new("ServOS",&format!("{}:{}",terminal,local.staff_id)).map_err(|_|"OS secure credential storage is unavailable".to_string())?;
         entry.set_password(&refresh).map_err(|_|"Could not securely store the operator session".to_string())?;
-        *state.operator_auth.lock().map_err(|e|e.to_string())?=Some(OperatorAuth{staff_id:local.staff_id.clone(),access_token:access,refresh_token:refresh});
+        *state.operator_auth.lock().map_err(|e|e.to_string())?=Some(OperatorAuth{staff_id:local.staff_id.clone(),access_token:access});
         Ok(local)
     }.await;
     if auth_result.is_err(){let _=state.db.lock().map(|db|db.execute("DELETE FROM sessions WHERE token=?",[&local.token]));}
@@ -285,6 +285,11 @@ async fn runtime_enroll(
         profile
     };
     let business_name=intake_required(&profile,"business","tradingName")?.to_string();
+    let auth_user=reqwest::Client::new().get(format!("{url}/auth/v1/user")).header("apikey",&publishable_key).bearer_auth(&access_token).send().await.map_err(|_|"Could not verify the enrolling Auth account".to_string())?;
+    if !auth_user.status().is_success(){return Err("The enrolling Auth session could not be verified".into());}
+    let auth_user:Value=auth_user.json().await.map_err(|_|"Invalid enrolling Auth user response".to_string())?;
+    let auth_id=auth_user["id"].as_str().filter(|id|uuid::Uuid::parse_str(id).is_ok()).ok_or("Enrolling Auth user ID is invalid")?;
+    let admin_staff_id=format!("auth:{auth_id}");
 
     let (terminal, credential) = {
         let mut db = state.db.lock().map_err(|e| e.to_string())?;
@@ -303,11 +308,6 @@ async fn runtime_enroll(
     let result=rpc(&url,&publishable_key,Some(&access_token),"servos_enroll",json!({"business_name":business_name,"installation_id":terminal,"device_secret":credential})).await?;
     if store::text(&result, "terminalId")? != terminal { return Err("Unexpected enrollment response".into()); }
 
-    let auth_user= reqwest::Client::new().get(format!("{url}/auth/v1/user")).header("apikey",&publishable_key).bearer_auth(&access_token).send().await.map_err(|_|"Could not verify the enrolling Auth account".to_string())?;
-    if !auth_user.status().is_success(){return Err("The enrolling Auth session could not be verified".into());}
-    let auth_user:Value=auth_user.json().await.map_err(|_|"Invalid enrolling Auth user response".to_string())?;
-    let auth_id=auth_user["id"].as_str().filter(|id|uuid::Uuid::parse_str(id).is_ok()).ok_or("Enrolling Auth user ID is invalid")?;
-    let admin_staff_id=format!("auth:{auth_id}");
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     store::initialize_from_intake_with_admin_id(&mut db, &terminal, &pin, &profile,&admin_staff_id)?;
     Ok(())

@@ -16,6 +16,22 @@ end$$;
 revoke all on function public.servos_v2_terminal_identity(uuid) from public,anon;
 grant execute on function public.servos_v2_terminal_identity(uuid) to authenticated;
 
+-- Idempotent registration recovery must not transfer device ownership when a
+-- different authorized operator retries after an interrupted first pair.
+alter function public.servos_v2_register_device(uuid,text,text) rename to servos_v2_register_device_before_shared_terminal;
+create function public.servos_v2_register_device(device_id uuid,label text,kind text)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare who uuid:=servos_v2.require_permission('devices.register');existing servos_v2.devices;
+begin
+ if device_id is null or length(trim(label)) not between 1 and 120 or kind not in ('DESKTOP','WEB') then raise exception 'VALIDATION_FAILED: device';end if;
+ insert into servos_v2.devices(id,owner_id,label,kind) values($1,who,trim($2),$3) on conflict(id) do nothing;
+ select * into existing from servos_v2.devices d where d.id=$1;
+ if not found or not existing.active or existing.kind<>$3 then raise exception 'DEVICE_REVOKED or registration mismatch' using errcode='42501';end if;
+ return jsonb_build_object('id',existing.id,'label',existing.label,'kind',existing.kind,'lastSequence',existing.last_sequence);
+end$$;
+revoke all on function public.servos_v2_register_device(uuid,text,text) from public,anon;
+grant execute on function public.servos_v2_register_device(uuid,text,text) to authenticated;
+
 -- Preserve the established dispatcher, sequence, replay, audit, and permission
 -- checks. The original pairing owner is only registration metadata; access is
 -- based on the active business Auth session and active paired device.
