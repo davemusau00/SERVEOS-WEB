@@ -1,3 +1,466 @@
+# ServOS DEV FINAL SPRINT — UPDATED
+
+## Release recovery, operator workflow completion, and dual-runtime acceptance
+
+**Prepared:** 1 October 2026, Africa/Nairobi  
+**Repository:** `davemusau00/SERVEOS-WEB`  
+**Evidence baseline:** `abe5db553b3e52e16862669ae6007e5d88933331`  
+**Status:** EXECUTION SPECIFICATION — RELEASE BLOCKED  
+**Companions:** `PRODUCT-INVENTORY.MD`, the updated gap/deployment report, operation manifest, domain contracts, deployment runbook.
+
+This is a developer-ready revision based on the audited commit, not a declaration that implementation or deployment has been completed. Future commits must be checked against this baseline before applying fixes. Owners below are responsibility roles to assign at sprint kickoff, not named people or assumed staffing.
+
+## 1. Governing objective and document precedence
+
+Complete a reliable single-business hospitality system in which Terminal and Web present coherent operator workflows and use explicitly controlled business authority. A cashier, bartender, storekeeper, receptionist, housekeeper, manager, or owner must be able to finish normal work without understanding command envelopes, UUIDs, database tables, canonical units, or synchronization internals.
+
+**Operating principle:** the operator supplies the real-world facts; ServOS calculates, derives, defaults, validates, links, reconciles, and records everything it can safely know. Inference must be shown for review when it could change business meaning. Sensitive overrides require explicit authority and an auditable reason.
+
+This active plan supersedes earlier execution order, stale “current tree passed” statements, and blanket instructions to defer testing. It retains the original P0–P27 objectives through the crosswalk below. The original repository sprint is preserved verbatim in Appendix B for design detail and history; its dated evidence and conflicting sequencing do not override this revision. `PRODUCT-INVENTORY.MD` remains the detailed product/inventory specification. Resolve genuine domain ambiguities explicitly rather than silently changing financial or stock semantics.
+
+### Non-negotiable release rules
+
+1. Do not mark a feature complete because a button, migration, manifest entry, or source-string test exists.
+2. Do not disable validation, weaken authorization, delete failing assertions, or bypass locked dependency checks to obtain green CI.
+3. Do not claim a failed suite's later tests passed. Record skipped, blocked, and not-run evidence separately.
+4. Do not infer provider settlement from a manually recorded M-Pesa/card entry.
+5. Do not enable legacy snapshot writing and shared v2 transaction writing concurrently for the same business.
+6. Do not interpret a cached page, local draft, or pending command as a completed business transaction.
+7. Preserve valid existing business records, stable IDs, immutable evidence, and original command IDs during retries and migration.
+8. Validate each change at its affected boundary before stacking dependent work. Run the full candidate gates at integration milestones.
+9. Defer unrelated feature expansion until routing, compilation, transaction completion, and recovery are reliable.
+
+## 2. Verified checkpoint and evidence limits
+
+| Check at audited head | Observed result | Sprint disposition |
+|---|---|---|
+| TypeScript | Four errors | Release blocker |
+| Node suite | 162 tests; 156 pass; six fail | Triage existing failures; keep four newly passing tests |
+| Native domain CI | Five Rust compile errors | Release blocker |
+| Desktop CI | Failed; locked dependency state unresolved | Reproducibility blocker |
+| Base cloud CI | Passed | Retain coverage |
+| v2 cloud CI | `room.condition` rejected after migration 038 | Repair routing before interpreting later suite status |
+| Latest CI | Failed | No release candidate accepted |
+| UI inventory | 3,810 interactions; 408 review candidates | Manual triage required, not 408 proven defects |
+| Parity declarations | 85 operations: 64 web implemented, 13 partial, six missing, two blocked | Source coverage only |
+| Operator UX acceptance | No accepted entries | Required gate remains open |
+| Floorplan/Maintenance/guidance | New source implementations | Complete and accept; do not rebuild blindly |
+
+Evidence source: [exact-commit CI](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/36788540937). This plan is based on that audited snapshot; it does not assert that later unreviewed commits have the same failures.
+
+**Correction to earlier historical wording:** native v2 source in `src-tauri/src/lib.rs` includes gated command enqueue/send/acknowledgement, feed synchronization, and shadow-state logic. The remaining task is compilation, contract completeness, authority fencing, and acceptance. It is inaccurate to scope that adapter as wholly absent. Documentation and manifests must distinguish implemented-but-unverified from missing.
+
+No hosted business migration, physical printer/scanner run, live operator walkthrough, or production cutover was established by the audit. Browser launch failures caused by missing executables are infrastructure failures, not counts of broken screens.
+
+## 3. Authority model and supported release profiles
+
+| Profile | Writer authority | Permitted offline behavior | Activation requirement |
+|---|---|---|---|
+| Existing legacy terminal | SQLite plus the existing ordered legacy replication path | Existing approved local terminal behavior | Preserve working installation; do not casually migrate |
+| Isolated v2 staging | PostgreSQL shared command execution; native SQLite shadow/cache | Web drafts; no implied offline finalization | Disposable/staging infrastructure, explicit flags |
+| Shared v2 production | PostgreSQL command authority with validated native/Web clients | Online-only unless a separately accepted signed offline design is enabled | All release, migration, operator, and hardware gates |
+| Shared v2 with offline trading | Explicit server-issued, bounded, revocable grants/reservations | Only operations and quantities authorized by those grants | P23 acceptance in addition to shared-v2 gates |
+
+Do not promise that an online-only shared-v2 release preserves unrestricted legacy offline trading. If the business requires offline trading, P23 is mandatory before its cutover. Native and browser may have different technical offline capabilities, but the user-facing state and operational limits must be explicit.
+
+## 4. Delivery stages and dependency gates
+
+| Stage | Work packages | Entry | Exit |
+|---|---|---|---|
+| A — restore foundations | FS-01–03 | Audited baseline rebased against current head | Complete domain routing; reproducible compilation; meaningful CI |
+| B — safe task completion | FS-04–09 | Relevant domain paths executable | Reliable result handling, drafts, receipts, identity, commissioning |
+| C — domain and UX closure | FS-10–17 | Stage B contracts available | Stock/finance/hospitality/new modules accepted |
+| D — runtime and quality closure | FS-18–20 | Stable domains | Native/Web authority, PWA, accessibility, performance, parity accepted |
+| E — business rehearsal | FS-21–24 | Same-commit automated gates green | Reconciled migration, hardware, rollback and controlled launch |
+
+Independent work packages can be assigned concurrently after interfaces are agreed. Integration order remains binding: floorplan acceptance cannot substitute for domain routing; no production cutover may precede migration reconciliation and writer fencing. Assign one integration owner for dispatch/session contracts and one owner for the command-outcome/draft interface to prevent incompatible parallel edits.
+
+## 5. Work packages
+
+### FS-01 — Restore complete migration routing
+
+**Priority:** P0. **Owner:** database/domain. **Maps to:** original P0, P18, P19.
+
+**Problem:** expansion 038 replaces `servos_v2.dispatch` and bypasses previously installed specialized handlers. The observed `room.condition` failure proves a regression; other bypassed families are source-confirmed routing risks.
+
+**Implementation:** preserve the full existing dispatch chain with a narrow floorplan wrapper, or replace it with an exhaustive canonical dispatch definition and equivalent validation. Handle already-applied staging schemas with a forward repair migration. Do not assume editing an old SQL file repairs an installed database. Preserve permissions, search paths, offline restrictions, command deduplication, optimistic versions, and transaction boundaries.
+
+**Required routing matrix:** room.condition; roomStay.settings; catalog.createWithOpeningStock; inventory.produceBatch; credit and M-Pesa commands; staff/device/manager approval; POS room charge; transfer/merge/discount/order comp; payment refund/reversal; closeDay.generate; business.settings.save; floorplan.save; all remaining declared commands.
+
+**Acceptance:** after all migrations, execute valid, forbidden, stale-version, and replay cases for every affected family. Verify actual record, stock, financial, and audit effects. All cloud suites reach completion, including the floorplan fixture. Revisit the previous stock-count assertion after routing is repaired; it has not been cleared by the newer, earlier failure.
+
+### FS-02 — Fix compilation and dependency reproducibility
+
+**Priority:** P0. **Owner:** frontend/native. **Maps to:** P0.
+
+Fix the four TypeScript errors without broad casts that discard validation:
+
+- WebCatalogInventory: decode/normalize count maps to numeric/null values.
+- WebFloorplanView: pass BlockerCard content through its supported children API.
+- WebGuidanceViews: wrap click callbacks so React events are not passed as guide IDs.
+- WebStaffAdminView: explicitly type editable staff-ID state and validate identities at submission.
+
+Fix native store error-type collection at the audited line 3075 and batch output references to missing ID/time helpers and non-existent session organization/property fields at 3412–3413. Use established repository conventions; do not invent identity fallbacks. Reconcile `src-tauri/Cargo.lock` against its manifest and review changes.
+
+**Acceptance:** clean `npm ci`, lint/build, locked native-domain test, locked desktop check/test. No new suppressions or removal of `--locked`. Domain tests prove batch output identity and quantities, not merely compilation.
+
+### FS-03 — Make CI and release evidence trustworthy
+
+**Priority:** P0. **Owner:** release engineering. **Maps to:** P0, P18.
+
+Separate browser prerequisites from failing frontend checks or condition browser execution on completed installation. Keep independent cloud/native jobs so one failure does not hide unrelated evidence. Triage the same six Node failures: explicit tax class, batch consumption, native identity, shared terminal identity, count recovery, catalog/inventory coverage. Update stale structural assertions only after intended behavior is demonstrated.
+
+Make the deployment candidate depend on required job results; `npm run build` alone is insufficient because Vite can emit a bundle despite failed type checking. Metadata-summary success must not be shown as overall release success. Record SHA, schema hash/order, runtime versions, test profile, job conclusions, and artifact links.
+
+**Acceptance:** a deliberate missing-browser condition is reported as infrastructure failure; a deliberate domain rejection fails its behavioral test; a failed required job blocks candidate promotion. Candidate CI genuinely launches all configured viewport projects.
+
+### FS-04 — Standardize command outcomes and prevent false success
+
+**Priority:** P1 release blocker. **Owner:** runtime/frontend. **Maps to:** P1, P14, P19, P20.
+
+Introduce a discriminated result contract across the shell and module callers. Suggested outcomes: CONFIRMED, DRAFT_SAVED, PENDING, OUTCOME_UNKNOWN, REJECTED, CONFLICT, BLOCKED. Include command/draft identifiers and actionable error information where applicable. Names may follow repository conventions, but the semantic distinctions are mandatory.
+
+A successful server commit with a delayed local refresh must remain CONFIRMED with an explicit “view refreshing” state; it must not invite a new transaction. Close/reset a transaction form only after confirmed outcome, or after an explicit operator choice to leave a saved draft. Preserve inputs and focus on rejection/conflict. Uncertainty must retain and retry the original command ID. Add a synchronous in-flight guard at the submission boundary; disabled button state alone is not duplicate protection.
+
+Update POS payment/refund/void/configured-item/table/room/credit actions, Maintenance, procurement, inventory, hospitality, and admin callers. Floorplan now checks its boolean result; migrate it to the common contract without regressing that behavior.
+
+**Acceptance:** reject and time out each critical operation; inputs stay recoverable, success is never shown prematurely, and rapid clicks/scans create at most one intended effect.
+
+### FS-05 — Typed drafts and uncertain-result recovery
+
+**Priority:** P1 release blocker. **Owner:** runtime/domain. **Maps to:** P1, P14, P21.
+
+Give each supported specialist workflow a versioned draft schema, validation, serialization, and reopener. Do not rebuild nested command payloads with a generic shallow `{...payload, ...fields}` merge. Reuse the initial operation serializer for resumed edits, including money, units, dates, booleans, nested data, and stable generated IDs.
+
+Link pending/unknown commands to their drafts. Reconcile the original outcome before allowing replacement submission; clear or retire redundant drafts once confirmed. Refresh permissions, policy, and expected record versions on review. Block incompatible draft schema versions with an explained migration/re-entry path. Protect sensitive inputs across payloads, inputValues, fields, and technical details; payload-only token stripping is not a complete draft contract.
+
+**Acceptance:** interruption → reload → review → corrected submit works for POS, count, delivery, reservation, refund, and maintenance. Lost response after server commit produces one effect. Edited guest name, monetary amount, and dates persist exactly as reviewed. Cross-operator drafts remain isolated.
+
+### FS-06 — Reliable 80mm receipt output
+
+**Priority:** P1. **Owner:** POS/printing. **Maps to:** P14, P19, P26.
+
+Render the selected immutable receipt through a shared document model and the expected print portal. Web `window.print()` must not hide the application without supplying `#thermal-receipt-print-root`. Align native, browser print, preview, and download representations. Use actual captured business/tax/tender data; do not regenerate old receipts from today's product prices or fabricate fiscal/provider status.
+
+Support long item names, modifiers, quantities, tax display, total, paid/due/change, split tender, refunds, and appropriate reprint indication. Printing failure must not roll back or repeat the sale. Provide an explicit reprint path and useful hardware errors.
+
+**Acceptance:** print the selected receipt only; native and Web totals match; test long receipts and paper width on XP-80T/actual configured printer. Record OS/driver/queue, paper output, clipping/cut results, and successful retry after printer outage.
+
+### FS-07 — Scanner ownership and POS input discipline
+
+**Priority:** P1. **Owner:** POS/inventory. **Maps to:** P8, P13, P26.
+
+Give scanner capture one active workflow owner. Disable/background-isolate it during tender/refund/approval/other dialogs unless that dialog explicitly owns scans. Respect read-only, busy, missing-order, and permission state. Preserve barcode strings including leading zeros and long identifiers; resolve product vs package/alias deliberately. Reject ambiguous duplicates with a correction task.
+
+**Acceptance:** scan with focus on dialog buttons, text inputs, and background surfaces; no unintended order change. Rapid scans are either correctly serialized or clearly blocked. Count and receiving scans use the configured package conversion exactly once. Unknown-scan assignment does not silently add stock.
+
+### FS-08 — Operator identity, local lock, and manager approvals
+
+**Priority:** P1. **Owner:** identity/runtime. **Maps to:** P16, P22.
+
+Web sign-out must clear/lock locally even when remote revocation fails. Separate that failure notice from local success; ensure a visible recovery channel in the active app. Do not erase unresolved business commands to achieve logout. Validate invitations, recovery, Auth-to-existing-staff binding, active staff, device ownership/revocation, role changes, and switching. Use the same stable staff identity where native already exists.
+
+Replace normal operator UUID/token copying with contextual approval requests. Show operator, action, target, amount/variance, reason, expiry, and outcome to the manager. Retain server-side scope, single-use, actor binding, and replay protections. Non-manager discount/comp approval must have a complete path.
+
+**Acceptance:** offline sign-out hides prior records immediately; revoked or wrong staff cannot resume privileged state; expired/wrong-target approvals are rejected; shared-device switch does not reveal another operator's broader cached records.
+
+### FS-09 — Repair commissioning, policy, and permission contracts
+
+**Priority:** P1 release blocker. **Owner:** platform/admin. **Maps to:** P2, P16.
+
+Restore the full session contract removed by expansion 023: lifecycle stage, setup/profile/readiness plus the intended property-context whitelist. Fix the readiness/enablement circular condition; readiness must be true before Go Live is permitted. Keep settings available through a scoped commissioning path while operational trading remains disabled.
+
+Readiness must verify usable business/outlet/stock/catalog/payment/staff prerequisites rather than only stored checkbox flags. Route blockers directly to the required form and back. Use canonical permission helpers consistently for workspace visibility, actions, and wildcard grants. Initialize all policy fields from loaded state, including checkout/cutoff, without overwriting with defaults on unrelated edits. Use property timezone for input, display, and business-date calculations.
+
+**Acceptance:** empty staging business completes supported commissioning without SQL intervention. Missing configuration blocks with a fix link. A property with 11:30/17:00 settings retains those times after unrelated edits. Restricted custom roles see the tasks they can actually perform.
+
+### FS-10 — Smart Item, units, packaging, recipes, and atomic setup
+
+**Priority:** P1. **Owner:** catalog/inventory. **Maps to:** P3–P6, P11.
+
+Retain the existing wizard and atomic source; finish its missing type/portion parity. Define purchase packaging, count representation, sale portion, barcode aliases, cost, tax class, outlet/location, and stock linkage consistently. Home quick-add must use the same valid creation contract as Catalog. Service/recipe-only products must not acquire unrelated stock masters. Typed unit conversion must reject incompatible dimensions on the server, not only in previews.
+
+**Required examples:** four six-packs at KES 900 → 24 cans, KES 150 unit cost; 5 kg → 5,000 g; 750 ml bottle with 30/60 ml servings and optional sealed whole-bottle sale. These are acceptance fixtures, not replacement business defaults.
+
+**Acceptance:** product, stock, optional opening movement, package metadata and prices commit atomically or none do. Retry is idempotent. No accidental zero/unknown tax-class assignment. Native and Web produce equivalent quantities/costs for the same physical input.
+
+### FS-11 — Counts, correction, transfers, waste, and sealed/open stock
+
+**Priority:** P1. **Owner:** inventory/domain. **Maps to:** P8–P10.
+
+Resolve the cloud variance-movement assertion by specifying and testing zero-delta behavior; do not assume implementation or fixture is automatically correct. Count drafts include all relevant rows, physical pack/loose or sealed/open components, unknown scans, baseline, and review. Preserve explicit zero. Absolute Admin correction and count variance must remain distinct operations with reasons and authority.
+
+Transfers emit paired movements with one transaction. Preserve canonical quantity and sealed/open state; if the current single-open-container representation cannot express a destination, explain and block rather than corrupt metadata. Waste is reasoned and auditable. Existing quantities and movement-derived quantities reconcile under documented opening/conversion rules.
+
+**Acceptance:** unchanged/increase/decrease, concurrent transfer/count, stale baseline, repeated commit, bottle opening, partial remainder, and rejected conversion cases pass. Operator sees physical quantities and variance without manual arithmetic.
+
+### FS-12 — Batch preparation and serving consumption
+
+**Priority:** P1. **Owner:** kitchen/POS/domain. **Maps to:** P12–P13.
+
+Finish and accept the existing batch source. Separate recipe authoring from production. Full batch input quantities and declared yield derive per-portion cost; preparation consumes inputs and creates finished portions. Selling prepared portions does not consume the raw recipe twice. Preserve positive modifier ingredient deductions and their version dependencies. Reject shortages and invalid yields atomically.
+
+**Acceptance:** prepare a known-yield batch, sell portions plus a modifier, waste a portion, and reconcile every ingredient/output movement and valuation across native/Web. Repeat original command and simulate failure mid-operation; no partial batch or duplicate stock.
+
+### FS-13 — Procurement, receiving, invoices, and supplier payments
+
+**Priority:** P1. **Owner:** procurement/finance. **Maps to:** P7, P15.
+
+Default to outstanding approved quantity. Enter packages in supplier language and show derived canonical stock/cost. Validate accepted/rejected quantities, reason, partial receipt, and over-receipt approval before submission. Preserve drafts on failed commands. Carry supplier/PO/receipt context into invoice matching and payment; show evidence rather than only asking for an acknowledgement checkbox.
+
+**Acceptance:** full/partial/over/rejected delivery, package scan, duplicate invoice/reference, stale PO, unauthorized override, and response-loss cases produce correct stock, remaining quantity, payable, and audit. Payment records must not claim bank disbursement unless integrated confirmation exists.
+
+### FS-14 — POS, finance, customer credit, M-Pesa, and close day
+
+**Priority:** P1. **Owner:** POS/finance. **Maps to:** P14, P18.
+
+Finish the complete shift lifecycle: assigned till/opening float → order → fire → payment/credit/room charge → receipt → refund/reversal → reconciliation → counted close/report. Compute change, remaining balance, split-tender total, credit availability, and till variance. Require actual physical cash count, including explicit zero. Enforce configured variance approval with an actionable request.
+
+Reconcile native `customerCredit.charge` with staged `credit.charge` by effects and payload translation; item comp and whole-order comp are not equivalent. Show supported granularity and enforce approval/reason/stock disposition. Manual M-Pesa references and statement discrepancies remain explicit evidence, not provider confirmation. Restore all relevant routes through FS-01.
+
+**Acceptance:** paid balances, A/R, folio transfer, stock firing/void disposition, refunds, tender evidence, and close-day totals reconcile. Double-submit and lost-response never duplicate a payment. Refunds do not silently restock without the intended audited stock operation.
+
+### FS-15 — Hospitality reference workflows
+
+**Priority:** P1. **Owner:** hospitality. **Maps to:** P2, P19.
+
+Use common task components for Rooms and Front Desk entry points. Configuration belongs in Rooms & Rates; daily tasks should have the same readiness and error behavior everywhere. Quick reservation carries guest, availability, capacity, rate, arrival/departure, and policy-derived timing. Check-in checks room readiness and valid stay; moving checks destination, overlapping intervals, blocks and capacity. Checkout explains accommodation posting, folio/deposit/balance blockers and links directly to their resolution.
+
+Housekeeping separates operational condition, inspection, maintenance/blocking, and actual occupancy. Folio deposits, application, service charges, POS room charge, settlement and reversals must preserve evidence and return the operator to the originating guest/stay.
+
+**Acceptance:** simultaneous room bookings; two entry points for the same task; day/night stay; timezone-crossing manager; dirty/blocked destination; partial payment; unapplied deposit; failed move; stale checkout readiness. No conflicting state or hidden manual date arithmetic.
+
+### FS-16 — Floorplan and Maintenance completion
+
+**Priority:** P1/P2. **Owner:** operations UI/domain. **Maps to:** P19.
+
+Floorplan: retain atomic whole-outlet save, baselines, occupied-state preservation and removal guard. Preserve drafts or offer Save/Discard/Stay before outlet changes. Keep generated coordinates valid for larger layouts. Ensure visible invalid-layout explanations. Test concurrent occupancy change while editing and sufficient read/write rights for view-only roles.
+
+Maintenance: scope form state to work-order ID and pass the clicked target explicitly. Fix false success on returned failure. Accept report/assign/start/complete/cancel with resolution and optional supplier-invoice service cost. Complete parts-consumption UI with stock dependencies or explicitly exclude/disable it in the selected release profile; an empty parts array must not be represented as full parts parity.
+
+**Acceptance:** two open repair cards cannot complete each other's records; failed actions retain input; supplier cost posts once. Floorplan outlet switch does not silently lose changes; occupied orders remain attached after valid layout save.
+
+### FS-17 — Contextual help and honest guide progress
+
+**Priority:** P1/P2. **Owner:** guidance/UX. **Maps to:** P17.
+
+Retain task-specific article/guide mapping and server-confirmed practice events. Fix callback typing and completed-state reset behavior. Provide explicit Restart rather than automatically reinitializing completed guides. Overlay/focus design must allow the intended practice action without trapping or hiding it. Align anchor availability, role visibility, progress versioning, and error messaging.
+
+**Acceptance:** initiate from Home/article/context; resume after reload; complete and remain completed; restart intentionally; denied/rejected/draft commands do not advance; expected confirmed command advances once. RPC failure accurately distinguishes local progress from cross-device persistence.
+
+### FS-18 — Terminal v2 adapter and authority fencing
+
+**Priority:** P0 for shared-v2 release. **Owner:** native/platform. **Maps to:** P22.
+
+Complete and verify the already-present native adapter: authenticated identity, stable staff/device binding, durable queue, schema-2 envelope, dependency read set, original-ID retry, acknowledgement persistence, feed application and authorized baseline. Reject pending legacy outbox before enabling shared writes. Detect cross-operator pending work and provide a supported resolution path. Revalidate grants and baseline scope on account/policy change.
+
+Map native command names, payloads, quantities, response shape and permissions to staged contracts explicitly. Unsupported native workflows must be clearly blocked under shared authority rather than silently falling back to the legacy writer. Expose confirmed-but-refreshing state without asking the operator to repeat an acknowledged action.
+
+**Acceptance:** server commit followed by network loss/process kill; restart and replay; feed gap; revoked device; changed grants; another operator's pending command; stale baseline; drained and undrained legacy outbox. Exactly one writer authority and one business effect throughout.
+
+### FS-19 — Shared UX, accessibility, navigation, and performance
+
+**Priority:** P1/P2. **Owner:** UX/frontend. **Maps to:** P1, P18, P20, P26.
+
+Triage all 408 candidates: fix, confirm not applicable, or record a reasoned accepted exception. Adopt common dialogs, busy buttons, fields, blockers, searchable choices, and operator error messages in active production paths. Inventory all empty-state/card/row/menu actions and CRUD/archive/reference behavior. Avoid pretending every record type needs deletion; immutable records require reversal/archive workflows.
+
+Reduce task hunting across the 23-workspace registry through role homes and meaningful grouping. Preserve context across module links. Primary actions remain visible and explain disabled state. Dialog footers work at 1024×600, 1280×720, 1366×768, and 390×844; test real touch/keyboard targets, focus trap/return, Escape, zoom, and text overflow.
+
+Measure cold start, scan response, tab change, count/history rendering and memory on realistic records and the target Celeron terminal. Investigate the prior ~992 kB entry bundle; split unused demo/native paths and paginate long history where measurements justify it. Do not set a bundle-size exemption as a performance fix.
+
+**Acceptance:** no critical unresolved audit candidates, no blank workspace/uncaught render errors, no unusable required action at supported sizes, and recorded representative operator timings.
+
+### FS-20 — PWA updates and offline capability
+
+**Priority:** P1 for supported browser operation; P0 if offline trading is promised. **Owner:** platform. **Maps to:** P21, P23.
+
+Accept installation icons, standalone launch, shell-only caching, stale chunk recovery, and update behavior. Do not activate a new build during active/unknown financial submission or discard dirty drafts on restart. Keep authenticated business API responses outside public shell caching. Provide storage failure/quota/eviction recovery without claiming queued commands are safely stored when persistence failed.
+
+Treat signed offline authority as a distinct capability: define permitted commands, bounded stock/till/receipt/room authority, expiry, exhaustion, reconciliation and conflict policy. Device clocks and cached permissions alone cannot grant authority. If not implemented and accepted, keep shared-v2 trading online-only and show what offline work can be saved.
+
+**Acceptance:** update during payment, offline shell reload, IndexedDB failure, storage loss, stale tab, expired grant, allocation exhaustion, reconnect and duplicate replay. No phantom success or uncapped offline financial/stock writes.
+
+### FS-21 — Controlled CSV import and migration reconciliation
+
+**Priority:** P0 for cutover. **Owner:** data/domain. **Maps to:** P16, P25.
+
+Provide file → template detection → advisory mapping → preview → row validation → dry run → explicit apply → reconciliation. Preserve identifiers and barcode strings; never silently accept scientific notation or truncate leading zeros. Apply dependency order across business/outlets/locations, suppliers/staff, catalog/stock, rooms/rates, assets, and relevant balances. Clearly separate master-data imports from historical transactions.
+
+Snapshot existing terminal data and its cloud replica; identify authority before reconciliation. Preserve references, timestamps/timezone meaning, archive state and immutable history. Specify rejected-row handling, duplicate external IDs, rerun idempotency, and recovery from interrupted batches. Do not reset or reseed a live installation to resolve schema problems.
+
+**Acceptance:** representative existing terminal export imports into isolated v2; local/cloud/movement-derived stock and all control totals match, or each approved exception has an audited resolution. Read-only legacy comparison is useful evidence but not proof of completed v2 migration.
+
+### FS-22 — Multi-client and hosted staging acceptance
+
+**Priority:** P0. **Owner:** QA/platform/domain. **Maps to:** P24.
+
+Use Terminal A and Browsers B/C against one isolated v2 business, real Auth roles, deployed RPC/functions, and the full candidate schema. Test product edits, sale vs correction, transfer vs count, booking race, stale checkout, duplicate payment, simultaneous reconciliation, revocation, account switch, refresh/update and reconnect.
+
+Verify API schema exposure, session/guidance RPC availability, redirects, edge function configuration, public vs privileged keys, timeouts, supported runtime versions, and deployed asset consistency. Never call a mocked Tauri UI test packaged-terminal acceptance.
+
+**Acceptance:** exact-commit staging evidence shows consistent records, permissions, control totals and one effect per command. Every changed high-risk workflow has actual backend-connected execution evidence.
+
+### FS-23 — Packaging, hardware, backup, and restore
+
+**Priority:** P0 for terminal handover. **Owner:** release/hardware. **Maps to:** P26.
+
+Build the intended Windows installer on the supported packaging host with locked dependencies. Install on a fresh target, upgrade an existing representative database, and retain rollback materials. Test USB scanner, real 80mm printer/queue, cash drawer only if supported, touch/keyboard operation, network outage, app/power restart, and disk/storage failure handling.
+
+Backups must restore into a safe isolated target and reconcile records/totals. Record actual device, OS, architecture, WebView/runtime, installer checksum, database/schema, driver and printer queue. Linux/Android require their own evidence if included in the release; Windows results do not establish them.
+
+**Acceptance:** fresh install and upgrade run the accepted shift/hospitality journeys; physical receipts pass; restored backup is operational and reconciled.
+
+### FS-24 — Controlled cutover, rollback, and stabilization
+
+**Priority:** P0. **Owner:** release lead/business owner. **Maps to:** P27.
+
+Freeze the accepted candidate and schema. Back up; drain and reconcile legacy outbox; fence legacy writer; migrate; verify control totals; install authorized native baseline; enable shared authority and clients in the rehearsed order. Run controlled sale/receipt, receive/count, reservation/check-in/payment/checkout, and till-close checks appropriate to the business. Record smoke transactions deliberately and reverse/reconcile through supported operations where needed.
+
+Define rollback by whether shared-v2 commits have occurred. Before any v2 writes, restore the rehearsed pre-cutover state safely. After v2 writes, do not simply restore old SQLite and resume trading: freeze new writes, preserve all post-cutover commands/evidence, reconcile/export them through the rehearsed recovery procedure, then select a compatible authority state. Maintain one writer at every step.
+
+**Acceptance:** release lead and business owner review exact evidence and opening balances. Monitor rejected/unknown commands, sync lag, auth errors, printing failures and reconciliation exceptions through the agreed stabilization period, including the first complete business close. An unexplained stock/financial discrepancy or unavailable core workflow stops expansion and triggers the recovery procedure.
+
+## 6. Original P0–P27 traceability
+
+| Original item | Updated work packages | Required outcome |
+|---|---|---|
+| P0 CI | FS-01–03 | Green reproducible baseline and full routing |
+| P1 UX foundation | FS-04–05, FS-19 | Shared outcomes, recovery and usable controls |
+| P2 hospitality | FS-09, FS-15 | Consistent policy and operational journeys |
+| P3 domain contracts | FS-10–12 | Physical quantities and server invariants |
+| P4 Smart Item | FS-10 | Complete existing wizard |
+| P5 packaging | FS-10–13 | Correct purchase/count/sale conversion |
+| P6 atomic setup | FS-01, FS-10 | Linked records commit together |
+| P7 receiving | FS-13 | Reviewable packaged/partial receipt |
+| P8 counts | FS-07, FS-11 | Reliable scans and resumable counts |
+| P9 correction | FS-08, FS-11 | Authorized reasoned absolute correction |
+| P10 sealed/open | FS-11–12 | Conserved physical/container state |
+| P11 ingredients | FS-10 | Canonical grams/ml with dimension checks |
+| P12 batches | FS-12 | Correct preparation yield and valuation |
+| P13 serving | FS-07, FS-12, FS-14 | Correct sale/modifier deductions |
+| P14 finance | FS-04–06, FS-14 | Safe settlement/refund/cashup |
+| P15 procurement | FS-13 | Stock/payable/invoice continuity |
+| P16 admin/setup | FS-08–09, FS-21 | Commissioning, roles and import |
+| P17 guidance | FS-17 | Real task progress and recovery |
+| P18 parity | FS-01, FS-14, FS-19, FS-22 | Business-effect equivalence |
+| P19 web gaps | FS-06, FS-15–16 | Accepted operational surfaces |
+| P20 design system | FS-04, FS-19 | Consistent controls and feedback |
+| P21 PWA | FS-20 | Safe install/cache/update |
+| P22 adapter | FS-08, FS-18 | Validated existing v2 source |
+| P23 offline | FS-20 | Accepted grants or explicit online-only scope |
+| P24 staging | FS-22 | Real multi-client acceptance |
+| P25 migration | FS-21 | Reconciled existing data |
+| P26 hardware | FS-06–07, FS-19, FS-23 | Actual terminal/printer/scanner usability |
+| P27 cutover | FS-24 | Controlled activation and recovery |
+
+## 7. Required acceptance matrix
+
+Each scenario must identify actor/role, runtime, business/outlet, starting records, action, expected domain effect, expected visible result, and evidence. Use fixed fixture values for deterministic assertions and representative business-sized data for performance checks.
+
+| ID | Scenario | Required assertion |
+|---|---|---|
+| AT-01 | Full post-migration routing | Every declared supported command reaches intended handler |
+| AT-02 | Fresh commissioning | Setup and Go Live through supported UI |
+| AT-03 | Restricted/custom role | UI aligns with server enforcement; direct forbidden command denied |
+| AT-04 | Offline logout/switch | Local privacy preserved despite remote error |
+| AT-05 | Rapid double action | One intended mutation and clear busy feedback |
+| AT-06 | Server commit, response lost | Original-ID reconciliation, one effect |
+| AT-07 | Rejected payment/refund | Retained tender/context; no false success |
+| AT-08 | Draft edit/reload | Correct nested payload, minor units and dates |
+| AT-09 | Printer outage/reprint | Sale unchanged; selected immutable receipt only |
+| AT-10 | Scanner in foreground dialog | No background mutation |
+| AT-11 | Packaged delivery | Correct base quantity, unit cost, PO remainder and payable |
+| AT-12 | Count vs concurrent transfer | Explicit conflict; no silent stock overwrite |
+| AT-13 | Sealed/open conservation | Correct physical and canonical quantities |
+| AT-14 | Batch plus modifier | Inputs consumed at production; portions/modifier at sale |
+| AT-15 | Credit/room charge | Receivable effect without invented cash tender |
+| AT-16 | M-Pesa discrepancy | Manual evidence and accepted resolution retained |
+| AT-17 | Till counted zero/variance | Zero preserved; configured authority enforced |
+| AT-18 | Booking race | One valid occupancy; rejected competitor recoverable |
+| AT-19 | Move/check-out blockers | Capacity/condition/folio/deposit constraints consistent |
+| AT-20 | Foreign-timezone device | Same property dates/times and business totals |
+| AT-21 | Two maintenance cards | Clicked order is the only target |
+| AT-22 | Floorplan switch/concurrency | No silent draft loss or occupied-order detachment |
+| AT-23 | Guide completion/restart | Confirmed-only progress; completion persists |
+| AT-24 | Native restart/permission change | Safe outbox and authorized baseline |
+| AT-25 | PWA update/storage failure | No lost transaction/draft or false durability claim |
+| AT-26 | Migration rerun/restore | Idempotent import and reconciled control totals |
+| AT-27 | Shared offline authority | Bounded accepted grants or enforced online-only boundary |
+| AT-28 | Cutover/post-write rollback | One authority; all committed business evidence retained |
+
+## 8. Operator UX acceptance standard
+
+A critical workflow fails acceptance if it requires avoidable mental arithmetic, manual lookup of known context, duplicate known data entry, technical IDs, unexplained disabled action, hidden primary CTA, off-screen confirmation, raw technical error without recovery, or conflicting Web/Terminal semantics.
+
+Measure input facts requested, values derived, context retained, errors recoverable within the task, and action visibility. Use the existing trained-operator reference targets as usability goals, not backend latency promises: configured reservation ≤20 seconds; ready guest check-in ≤10 seconds; standard item add ≤3 seconds; known packaged receive ≤10 seconds; known stock transfer ≤10 seconds; simple issue report ≤15 seconds; balanced till close ≤20 seconds. Clearly define start/end and exclude external payment/customer delays. Record misses and causes; never reduce validation merely to meet timing.
+
+Test operator roles on actual supported screen sizes. A successful screenshot is not sufficient: exercise primary, secondary, disabled, empty, loading, error, and recovery paths. Require each critical button/card/row/menu action to have a real state transition or a clearly explained restriction.
+
+## 9. Validation commands and evidence handling
+
+Run in a supported clean environment, with disposable databases for cloud tests:
+
+```bash
+npm ci
+npm run lint
+npm run contracts:check
+npm run build
+npm test
+npm run test:cloud:base
+npm run test:cloud:v2
+npm run test:native
+npm run check:desktop
+npm run test:desktop
+npm run test:browser
+npm run test:browser:production
+npm run protocol:check
+npm run audit:ui:gate
+npm run docs:check
+```
+
+Use `npm run verify:release` as the repository aggregate where appropriate, while confirming its current script covers the agreed candidate profile. Ensure browsers and platform dependencies exist first. A local environment restriction must be logged as blocked and resolved on a capable runner; do not attribute it to application behavior or declare a skipped gate passed.
+
+For each work package record: status, owner, commit, schema hash, changed surfaces, tests executed, outcomes, evidence links, remaining limitations, operator reviewer and decision. Status vocabulary: NOT_STARTED, IN_PROGRESS, IMPLEMENTED_UNVERIFIED, BLOCKED, VERIFIED, ACCEPTED. ACCEPTED requires behavioral evidence and the appropriate operational review; it is not inferred from VERIFIED source compilation.
+
+Update `DEV-FINAL-SPRINT.MD`, `docs/COMPLETION_LEDGER.md`, `docs/CURRENT_RELEASE_STATE.md`, `docs/TEST_EVIDENCE.md`, operation manifest/generated ledger, and relevant user guides together at each accepted slice. Preserve dated evidence; never replace old commit results with ambiguous “current tree” claims.
+
+## 10. Release go/no-go checklist
+
+- [ ] Exact candidate SHA and full migration order/hash recorded.
+- [ ] FS-01–03 pass; all affected domain suites actually execute.
+- [ ] No unresolved P0 or critical P1 operator defect for the selected release profile.
+- [ ] Payment/stock/folio outcomes and uncertain retries are accepted.
+- [ ] Actual session/readiness contracts and hosted Auth/RPC/functions verified.
+- [ ] Native/Web parity maps differences honestly; unsupported actions are explained.
+- [ ] Offline claims match accepted capability and business requirement.
+- [ ] Imports, balances, stock, payments, credit, folios, payables and immutable history reconcile.
+- [ ] Old writer is fenced before new authority writes.
+- [ ] Fresh install, upgrade, printer/scanner and low-height operator flows pass.
+- [ ] Backup restoration and both pre-write/post-write recovery boundaries rehearsed.
+- [ ] Product owner/operator and release owner record go/no-go decision.
+- [ ] Monitoring, escalation owner, first-business-close review and rollback materials ready.
+
+## 11. Developer handoff instructions
+
+Start by rebasing this checkpoint against the actual current branch and checking applicable repository instructions. Resolve already-fixed items using new evidence rather than reintroducing old code. Implement the smallest coherent work package, execute its targeted behavioral acceptance, then update status and integrate. Do not silently broaden scope into unrelated modules or claim production readiness from a partial profile.
+
+First implementation sequence: **FS-01 routing → FS-02 compilation/lock → FS-03 meaningful CI → FS-04/05 outcomes and recovery → FS-09 commissioning → affected domain closure → FS-18/20 authority and offline boundaries → FS-21–24 rehearsal/cutover.** Independent repair tasks can proceed concurrently, but dependent acceptance cannot be skipped.
+
+## Appendix A — Baseline references
+
+- [Audited repository commit](https://github.com/davemusau00/SERVEOS-WEB/commit/abe5db553b3e52e16862669ae6007e5d88933331)
+- [Original sprint at baseline](https://github.com/davemusau00/SERVEOS-WEB/blob/abe5db553b3e52e16862669ae6007e5d88933331/DEV-FINAL-SPRINT.MD)
+- [Product/inventory specification](https://github.com/davemusau00/SERVEOS-WEB/blob/abe5db553b3e52e16862669ae6007e5d88933331/PRODUCT-INVENTORY.MD)
+- [Migration 038](https://github.com/davemusau00/SERVEOS-WEB/blob/abe5db553b3e52e16862669ae6007e5d88933331/supabase/expansion/038_floorplan_atomic_save.sql)
+- [Native adapter source](https://github.com/davemusau00/SERVEOS-WEB/blob/abe5db553b3e52e16862669ae6007e5d88933331/src-tauri/src/lib.rs)
+- [CI evidence](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/36788540937)
+
+## Appendix B — Preserved original sprint and historical implementation log
+
+The following is the original `DEV-FINAL-SPRINT.MD` from the audited commit, retained verbatim for its detailed specifications and implementation history. Its old status counts, “tests deferred” directives and earlier execution order are historical; the active revision above governs current work. No historical pass is upgraded into current acceptance.
+
+---
+
 # ServOS DEV FINAL SPRINT
 ## Dual-Runtime Finish-Line Execution Plan
 
