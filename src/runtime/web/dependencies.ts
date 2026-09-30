@@ -14,9 +14,9 @@ export function resolveOperationDependencies(operation: string, collection: stri
   };
   add(collection, id);
   if (operation === 'catalog.createWithOpeningStock') {
-    // The native/local dispatcher allocates random IDs itself. The online v2
-    // contract derives stable IDs from the command ID so retries and server
-    // expected-version checks target the same new records.
+    // The browser persists generated IDs in the payload so drafts and retries
+    // keep the same targets. Server fallbacks are deterministic for native
+    // clients that omit those IDs.
     const product = payload.product && typeof payload.product === 'object' ? payload.product as Record<string, unknown> : undefined;
     const stock = payload.stockItem && typeof payload.stockItem === 'object' ? payload.stockItem as Record<string, unknown> : undefined;
     const stockId = typeof stock?.id === 'string' && stock.id.trim() ? stock.id : id;
@@ -31,6 +31,15 @@ export function resolveOperationDependencies(operation: string, collection: stri
     }
     const opening = Number(payload.startingQuantity);
     if (Number.isFinite(opening) && opening > 0) add('stockMovements', typeof payload.openingMovementId === 'string'&&payload.openingMovementId.trim()?payload.openingMovementId:`${id}:opening`);
+  }
+  if (operation === 'product.save') {
+    const productData = payload.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : undefined;
+    if (Array.isArray(productData?.recipeIngredients)) {
+      for (const ingredient of productData.recipeIngredients) {
+        if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
+      }
+    }
+    if (Array.isArray(productData?.outletIds)) for (const outletId of productData.outletIds) add('outlets', outletId);
   }
   if (operation === 'roomStay.settings') add('property', 'property');
   const data = (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>;

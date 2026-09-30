@@ -44,12 +44,41 @@ do $$declare command_key text:='20000000-0000-4000-8000-000000000072';command_da
  if movement_data->>'movementType'<>'OPENING_BALANCE' or movement_data->>'quantityDelta'<>'48' then raise exception 'Smart Item immutable opening movement is incorrect: %',movement_data;end if;
 end$$;
 
+do $$declare command_data jsonb;result jsonb;recipe_product jsonb;begin
+ command_data:=jsonb_build_object(
+  'id','20000000-0000-4000-8000-000000000075','schemaVersion',2,
+  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',3,
+  'operation','product.save','payload',jsonb_build_object(
+   'id','smart-recipe-product','data',jsonb_build_object(
+    'id','smart-recipe-product','name','Smart Recipe Bowl','code','SMART-RECIPE-BOWL','priceMinor',450,
+    'category','FOOD','inventoryType','DISH','routeTo','KITCHEN','taxClassId','A_STANDARD',
+    'outletIds',jsonb_build_array('smart-outlet'),
+    'recipeIngredients',jsonb_build_array(jsonb_build_object('stockItemId','smart-stock-id','quantity',2,'tracked',true)))),
+  'expectedVersions',jsonb_build_array(
+   jsonb_build_object('collection','products','id','smart-recipe-product','version',0),
+   jsonb_build_object('collection','stockItems','id','smart-stock-id','version',(select version from servos_v2.records where collection='stockItems' and id='smart-stock-id')),
+   jsonb_build_object('collection','outlets','id','smart-outlet','version',(select version from servos_v2.records where collection='outlets' and id='smart-outlet'))));
+ result:=public.servos_v2_execute(command_data);
+ if result->>'status'<>'SYNCHRONIZED' then raise exception 'Recipe product rejected: %',result;end if;
+ select data into recipe_product from servos_v2.records where collection='products' and id='smart-recipe-product';
+ if recipe_product->>'stockItemId' is not null or recipe_product->'recipeIngredients'->0->>'stockItemId'<>'smart-stock-id' or recipe_product->'recipeIngredients'->0->>'quantity'<>'2' then raise exception 'Recipe product lost its validated ingredients: %',recipe_product;end if;
+
+ command_data:=jsonb_set(command_data,'{id}','"20000000-0000-4000-8000-000000000076"'::jsonb);
+ command_data:=jsonb_set(command_data,'{clientSequence}','4'::jsonb);
+ command_data:=jsonb_set(command_data,'{payload,id}','"stale-recipe-product"'::jsonb);
+ command_data:=jsonb_set(command_data,'{payload,data,id}','"stale-recipe-product"'::jsonb);
+ command_data:=jsonb_set(command_data,'{expectedVersions,1,version}','0'::jsonb);
+ result:=public.servos_v2_execute(command_data);
+ if result->>'status'<>'REJECTED' or result->'error'->>'code'<>'VERSION_CONFLICT' then raise exception 'Stale recipe stock baseline was accepted: %',result;end if;
+ if exists(select 1 from servos_v2.records where collection='products' and id='stale-recipe-product') then raise exception 'Rejected stale recipe created a product';end if;
+end$$;
+
 do $$declare command_data jsonb;result jsonb;begin
  -- A duplicate product found after the stock master has been staged must roll
  -- the entire command back, including the new stock row and opening movement.
  command_data:=jsonb_build_object(
   'id','20000000-0000-4000-8000-000000000073','schemaVersion',2,
-  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',3,
+  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',5,
   'operation','catalog.createWithOpeningStock',
   'payload',jsonb_build_object(
    'product',jsonb_build_object('id','','name','Duplicate Smart Soda','code','SMART-SODA','price',3,'routeTo','BAR','outletIds',jsonb_build_array('smart-outlet'),'taxClassId','A_STANDARD'),
@@ -69,7 +98,7 @@ do $$declare command_data jsonb;result jsonb;begin
  update servos_v2.members set permissions=array['records.view'] where user_id=auth.uid();
  command_data:=jsonb_build_object(
   'id','20000000-0000-4000-8000-000000000074','schemaVersion',2,
-  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',4,
+  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',6,
   'operation','catalog.createWithOpeningStock',
   'payload',jsonb_build_object('stockItem',jsonb_build_object('name','Denied Stock','code','DENIED-STOCK','baseUnit','piece','scanUnitQuantity',1,'purchasePackages','[]'::jsonb,'averageUnitCost',0,'reorderLevel',0),'locationId','smart-main','startingQuantity',0),
   'expectedVersions',jsonb_build_array(

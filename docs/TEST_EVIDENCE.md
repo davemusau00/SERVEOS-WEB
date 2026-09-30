@@ -1,5 +1,9 @@
 # Test evidence
 
+## DEV final sprint P4 Web Smart Item recipes - 2026-09-30 (unverified)
+
+The Web Smart Item flow now separates recipe-only menu products from stocked products so POS recipe deductions do not leave a misleading linked stock master. Recipe ingredients are converted to their stock unit, costed for preview, and submitted in one queued `product.save`; the dependency resolver records ingredient/outlet versions and expansion 032 enforces those baselines in the server transaction. Disposable SQL acceptance was added for persisted recipe lines and stale ingredient-version rejection, and source-contract assertions were added. Neither acceptance suite nor build/lint/browser checks were run; expansion 032 has not been applied. V2 remains default-off.
+
 ## DEV final sprint P22 operator identity foundation - 2026-09-30 (unverified)
 
 Implemented native online PIN+Auth sign-in with stable Staff ID verification, one-time staged terminal registration, OS credential-vault refresh-token storage/rotation, server identity revalidation, sign-out cleanup, and a local-PIN-only offline path. Expansion 028 adds Auth-bound terminal identity and active-member use of the paired device. A second-operator identity assertion and `tests/native-operator-identity-source.test.mjs` source assertions were authored but not run. No tests, build, Cargo lock refresh, disposable migration run, hosted Auth validation, or migration application have been performed for this slice. Refresh lifecycle source was subsequently implemented but remains unverified; the v2 command/outbox adapter, rollback/fencing and all v2/cutover gates remain open; v2 stays disabled.

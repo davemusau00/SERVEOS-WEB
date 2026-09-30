@@ -235,7 +235,7 @@
       "native": "implemented",
       "backend": "implemented",
       "web": "partial",
-      "notes": "Terminal and Web Smart Item flows submit one atomic sellable-product/stock or stock-only ingredient command with optional opening movement. Web persists generated record IDs in its payload for drafts/retries; server fallback IDs derive from the command ID, and expected versions cover referenced records. Recipe-rich setup and full client parity remain open.",
+      "notes": "Terminal and Web Smart Item flows submit one atomic sellable-product/stock or stock-only ingredient command with optional opening movement. Web persists generated record IDs for drafts/retries. Recipe-only menu products use validated product.save instead, avoiding a misleading linked stock balance. Full item-type, portion, and native/Web parity remain open.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
