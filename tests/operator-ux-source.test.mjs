@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { businessDateTimeInput, businessDateTimeToUtc, businessDate } from '../src/utils/businessTime.ts';
+import { addBusinessDays, businessDateTimeInput, businessDateTimeToUtc, businessDate, businessDateStartUtc, formatBusinessDateTime } from '../src/utils/businessTime.ts';
 
 test('business time conversion round-trips property wall time independently of host timezone', () => {
   const instant = businessDateTimeToUtc('2026-09-30T10:15', 'Africa/Nairobi');
@@ -17,6 +17,14 @@ test('business time conversion rejects invalid dates and DST gaps or repeated wa
   assert.throws(() => businessDateTimeToUtc('2026-09-30T10:00', 'Not/A_Timezone'), /Unknown business timezone/);
 });
 
+test('hospitality calendar helpers use property dates rather than the host timezone', () => {
+  assert.equal(addBusinessDays('2026-09-30', 1), '2026-10-01');
+  assert.equal(addBusinessDays('2028-02-28', 1), '2028-02-29');
+  assert.throws(() => addBusinessDays('2026-02-30', 1), /valid business date/);
+  assert.equal(businessDateStartUtc('2026-09-30', 'Pacific/Kiritimati'), '2026-09-29T10:00:00.000Z');
+  assert.match(formatBusinessDateTime('2026-09-30T10:15:00.000Z', 'Pacific/Kiritimati'), /30 Sep 2026/);
+});
+
 test('reservation and manually recorded receipt flows use the property timezone contract', () => {
   const rooms = readFileSync('src/native/NativeRoomsView.tsx', 'utf8');
   const web = readFileSync('src/runtime/web/WebBusinessApp.tsx', 'utf8');
@@ -25,6 +33,18 @@ test('reservation and manually recorded receipt flows use the property timezone 
   assert.match(rooms, /data-business-timezone=\{timeZone\}/);
   assert.match(web, /businessDateTimeToUtc\(values\[field\.key\]||'',propertyTimeZone\)/);
   assert.match(finance, /businessDateTimeToUtc\(receipt\.receivedAt,timeZone\)/);
+});
+
+test('Terminal and Web Front Desk use property-local arrival/departure dates and show readiness blockers', () => {
+  const terminalDesk = readFileSync('src/native/NativeFrontDeskView.tsx', 'utf8');
+  const webDesk = readFileSync('src/runtime/web/WebHospitalityViews.tsx', 'utf8');
+  assert.match(terminalDesk, /s\.property\?\.timezone/);
+  assert.match(terminalDesk, /businessDate\(r\.startsAt,timeZone\)/);
+  assert.match(terminalDesk, /overlapsDay\(r\.startsAt,[^,]+,d,timeZone\)/);
+  assert.doesNotMatch(terminalDesk, /HOTEL_TZ|\+03:00/);
+  assert.match(webDesk, /propertyTimeZone=String\(data\(active\(records,'property'\)\[0\]\)/);
+  assert.match(webDesk, /housekeepingState==='CLEAN'/);
+  assert.match(webDesk, /Check-in opens at the reservation arrival time/);
 });
 
 test('operation parity manifest includes acceptance and operator audit metadata', () => {
