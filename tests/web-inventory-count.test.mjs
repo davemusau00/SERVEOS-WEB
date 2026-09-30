@@ -11,7 +11,7 @@ test('web whole-location count persists every row and retains rejected review st
   assert.match(source, /unknownBarcodes\}/);
   assert.match(source, /if\(!committed\)return/);
   assert.match(source, /localStorage\.setItem\(sessionKey,JSON\.stringify/);
-  assert.match(source, /data\(record\)\?\.sessionId===sessionKey/);
+  assert.match(source, /data\(record\)\?\.sessionId===sessionKey&&Number\(data\(record\)\?\.revision\)/);
   assert.match(source, /localStorage\.removeItem\(sessionKey\+':unknown'\)/);
   assert.doesNotMatch(source, /unknownBarcodes\.length>0&&false/);
   assert.match(migration, /every active stock item/);

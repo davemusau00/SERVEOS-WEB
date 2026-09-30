@@ -163,7 +163,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await dialogAfterReload.getByRole('button',{name:'Remove UNKNOWN-000',exact:true}).click();
   await expect(dialogAfterReload.getByRole('button',{name:/Review and confirm/})).toBeEnabled();
   await dialogAfterReload.getByRole('button',{name:'Review and confirm',exact:true}).click();
-  if(await page.getByText('Saved and synchronized.',{exact:true}).count()===0) await page.getByLabel('Synchronize').first().click();
+  if(await page.getByText('Saved and synchronized.',{exact:true}).count()===0){await dialogAfterReload.getByRole('button',{name:'Close',exact:true}).click();await page.getByLabel('Synchronize').first().click();}
   await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='stockCounts';").trim()).toBe('1');
   await expect(page.getByRole('button',{name:'Resume count',exact:true})).toHaveCount(0);
   expect(sql("select data->'currentStock'->>'web-pos-stock' from servos_v2.records where collection='stockItems' and id='web-count-a';").trim()).toBe('4');

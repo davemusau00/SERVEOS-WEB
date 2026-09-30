@@ -4,6 +4,7 @@ import {useRuntime} from '../runtime/RuntimeProvider';
 import { SimpleRoomDialog, ReportProblemDialog } from './SimpleHospitality';
 import {ActionDialog} from './ActionDialog';
 import {businessDateTimeInput,businessDateTimeToUtc} from '../utils/businessTime';
+import {parseMoneyToMinor,parsePercentToBasisPoints} from '../utils/fiscal.js';
 import {buttonClass,fieldClass,money,primaryButtonClass,recordOf,recordsOf,shortDate} from './records';
 
 // SERVOS_PATCH_05_ROOMS_ENGINE

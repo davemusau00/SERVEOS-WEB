@@ -4,6 +4,7 @@ import {useRuntime} from '../runtime/RuntimeProvider';
 import {ActionDialog} from './ActionDialog';
 import {NativeReceiptDialog} from './NativeReceiptDialog';
 import {buttonClass,fieldClass,money,primaryButtonClass,recordOf,recordsOf,shortDate} from './records';
+import {parseMoneyToMinor,parsePercentToBasisPoints} from '../utils/fiscal.js';
 
 // SERVOS_PATCH_07_FOLIOS
 const kesMinor=(minor:unknown)=>money(Number(minor||0)/100);

@@ -356,7 +356,7 @@ write_replacement(next + server_metadata)
 
 ### WP-08 — Separate drafts from commands and make recovery usable
 
-**Priority:** P0. **Status:** IN_PROGRESS; typed drafts, atomic promotion, failed-online workflow retention, response-loss browser proof, supported Activity draft reopening, validated reviewed-command `supersedes` correlation and policy-change promotion blocking are implemented, while count-session recovery remains open. **Dependencies:** WP-04–06.
+**Priority:** P0. **Status:** IN_PROGRESS; typed drafts, atomic promotion, failed-online workflow retention, response-loss browser proof, supported Activity draft reopening, validated reviewed-command `supersedes` correlation, policy-change promotion blocking and browser count-session reload/reopen recovery are implemented. Shared-device/logout durability remains open. **Dependencies:** WP-04–06.
 
 **Existing files:** `BusinessStore.ts`, `sync.ts`, `WebBusinessApp.tsx` (`submit`), `ActivitySyncCenter.tsx`, `src/types/transactions.ts`, `tests/browser/web-storage.spec.ts`.
 
@@ -950,9 +950,9 @@ Original section numbers are retained here so none of the earlier forensic work 
 | --- | --- | --- | --- |
 | 1 | Executive severity assessment | Replaced by profile-specific priorities and evidence | All packages; release dossier |
 | 2 | Offline edits falsely promise automatic sync | PARTIAL PROGRESS; typed drafts and supported Activity reopening now distinguish local work from synchronized effects, while broader draft coverage remains open | WP-08; durable draft → review → one command |
-| 3 | Full-location count/cloud semantics mismatch | PARTIAL PROGRESS; expansion 024 now enforces the shared full-location rows contract and the Web sends that contract, while durable browser session/review remains open | WP-08, WP-10; shared full-count fixtures and reload/rejection evidence |
+| 3 | Full-location count/cloud semantics mismatch | PARTIAL PROGRESS; expansion 024 now enforces the shared full-location rows contract and the Web sends that contract, while shared-device and physical scanner durability remain open | WP-08, WP-10; shared full-count fixtures and reload/rejection evidence |
 | 4 | Unknown barcode `&& false` bypass | PARTIAL PROGRESS; Web confirmation now blocks unresolved scans and cloud 024 rejects crafted unresolved payloads; Native and duplicate-code acceptance remain to be consolidated | WP-10, WP-24; client/backend denial |
-| 5 | Count resume incomplete | PARTIAL PROGRESS; rejected Web submissions retain the local session and Native durable drafts remain covered, but Web per-item rows and full review reopening are still incomplete | WP-08, WP-10; restart/reload rows preserved |
+| 5 | Count resume incomplete | PARTIAL PROGRESS; rejected Web submissions retain the local session, reload/reopen preserves every counted row, and acknowledged response-loss commands clear the exact browser session; Native durable drafts, shared-device/logout and physical scanner acceptance remain open | WP-08, WP-10; restart/reload rows preserved |
 | 6 | Settings document replacement/clobber | OPEN; current SQL passes partial replacement | WP-07; omitted/nested fields preserved |
 | 7 | Operation/permission dialect drift | OPEN; backend implementations unchanged in comparison | WP-04; versioned adapters and registry parity |
 | 8 | Native/cloud role mismatch | OPEN; Native permissive fallback remains | WP-05; exact role/grant matrix |
@@ -1327,9 +1327,9 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | WP-05 | OPEN | — | Role × permission + navigation | — |
 | WP-06 | OPEN | — | Reviewed identity correlation | — |
 | WP-07 | OPEN | — | Partial/nested settings preservation | — |
-| WP-08 | IN_PROGRESS | Typed drafts, failed-online retention, supported Activity reopening, and response-loss browser proof | Superseding correlation, policy recheck, durable count-session recovery | — |
+| WP-08 | IN_PROGRESS | Typed drafts, failed-online retention, supported Activity reopening, response-loss browser proof, and browser count-session reload/reopen recovery | Shared-device/logout durability | — |
 | WP-09 | OPEN | — | Minimal complete dependency sets | — |
-| WP-10 | IN_PROGRESS | Expansion 024 full-location cloud contract and Web failure/session slice verified locally | Durable per-item review across reload, scanner/device acceptance and full browser workflow | — |
+| WP-10 | IN_PROGRESS | Expansion 024 full-location cloud contract and Web failure/session slice verified locally, including focused reload/reopen and response-loss synchronization proof | Scanner/device acceptance and packaged-terminal workflow | — |
 | WP-11 | IN_PROGRESS | Native/cloud room policy and `room.condition` parity verified locally | Full move, extension, checkout and cross-runtime time acceptance | — |
 | WP-12 | OPEN | — | Cross-runtime business time | — |
 | WP-13 | OPEN | — | All-writer fences/terminal v2 | — |

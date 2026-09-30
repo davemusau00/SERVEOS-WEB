@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useRuntime } from '../runtime/RuntimeProvider';
 import { buttonClass, fieldClass, primaryButtonClass, recordOf, recordsOf } from './records';
+import {parsePercentToBasisPoints} from '../utils/fiscal.js';
 
 const steps = [
   ['BUSINESS_IDENTITY','Business identity',true],['TAX','Tax configuration',true],['PAYMENTS','Payment methods',true],['SERVICE_AREAS','Service areas',true],
