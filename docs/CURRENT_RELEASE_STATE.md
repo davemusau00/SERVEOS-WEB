@@ -64,6 +64,12 @@ Staged cloud domain source now also includes room/rate masters, reservations/ava
 
 ## Implemented in source
 
+### DEV Final Sprint continuation (2026-09-30)
+
+The live Web chunk failures were observed during a changing Vercel entry/lazy-chunk set: old hashed assets returned 404 while the replacement entry's current assets returned 200. This supports a deployment-transition/edge-cache inconsistency as the lazy-import cause. The exact minified inventory UUID property exception remains unattributed because the reported bundle is unavailable. Inventory count-draft restoration now validates persisted map entries defensively; this is not a confirmed fix for that exception. No deployment or hosted mutation was made.
+
+Terminal v2 remains blocked at its identity bridge: native PIN sessions have local staff IDs, while the staged v2 RPC requires a Supabase Auth JWT and matching Auth UUID actor. Do not enable v2 or offline grants until native pairing/token lifecycle, durable command/reconciliation, and signed grant prerequisites are implemented. The terminal's existing legacy writer remains authoritative.
+
 - Native installation state machine from intake through Go Live.
 - Resumable pre-enrollment Intake Wizard and owner enrollment that no longer seeds fake operational outlets/stores.
 - Business Setup Wizard with real tax, payments, service areas, stock locations, catalog, opening balances, staff access, till policy, floorplan and backup/sync rehearsal.

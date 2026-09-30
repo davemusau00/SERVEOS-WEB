@@ -1,5 +1,8 @@
 # Completion ledger
 
+| DEV final sprint hosted lazy-chunk incident + inventory draft guard | Vercel read-only sampling showed old lazy chunks 404 during entry revision change; malformed restored inventory-count map entries are now filtered | One-time Vite preload recovery already present; restored inventory count sessions normalize per-entry data | Sprint status, release state, test evidence | No test/build/deployment; exact minified UUID access cannot be mapped from the unavailable bundle | Diagnostic evidence supports transient deployment/edge-cache mismatch; catalog exception unresolved; defensive guard unverified and not a confirmed fix |
+| DEV final sprint P22 native v2 adapter boundary | Staged v2 RPC requires Auth JWT/actor UUID; native terminal presently uses local PIN and legacy device-token writer | Native v2 uplink not connected; existing SQLite/legacy outbox remains authoritative; v2 stays disabled | Sprint status, deployment runbook, current release | Source inspection only; no tests executed | Blocked on explicit native Auth pairing/token lifecycle and safe command/version/reconciliation contract; do not enable shared authority |
+
 This ledger distinguishes source implementation from executed verification.
 
 | Slice | Backend | Installed UI | Docs | Executed evidence here | Acceptance status |
