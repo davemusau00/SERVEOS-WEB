@@ -163,3 +163,10 @@ test('contextual help uses the shared Drawer accessibility boundary',()=>{
   assert.match(source, /<Drawer title=\{`\$\{workspace\} contextual help`\}/);
   assert.doesNotMatch(source, /<aside role="dialog"/);
 });
+
+test('RemoteManager selected-record panel uses the shared Drawer boundary',()=>{
+  const source = readFileSync('src/runtime/RemoteManagerApp.tsx','utf8');
+  assert.match(source, /import \{ Drawer \}/);
+  assert.match(source, /<Drawer title=\{recordName\(selected\)\}/);
+  assert.doesNotMatch(source, /<section className="absolute inset-y-0 right-0/);
+});

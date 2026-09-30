@@ -3,6 +3,7 @@ import { Activity, ChevronRight, Clock3, Database, RefreshCw, Search, ShieldChec
 import { RemoteAccountAccess, remoteAuthCall, takeAccountLink } from './RemoteAccountAccess';
 import { WebBusinessApp } from './web/WebBusinessApp';
 import type { WebSession } from './web/session';
+import { Drawer } from '../design-system/controls';
 
 interface Auth { access_token: string; refresh_token: string; expires_in: number }
 interface RecordRow { collection: string; id: string; version: number; data: Record<string, any>; archived: boolean }
@@ -194,12 +195,12 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
       </div>
     </main>
 
-    {selected && <div className="fixed inset-0 z-50 bg-black/65" onMouseDown={event => { if (event.target === event.currentTarget) setSelected(null); }}><section className="absolute inset-y-0 right-0 w-full max-w-xl overflow-y-auto border-l border-slate-800 bg-slate-950 p-5 shadow-2xl">
+    {selected && <Drawer title={recordName(selected)} onClose={()=>setSelected(null)}><div className="space-y-5">
       <div className="flex items-start justify-between gap-3"><div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400">{titleCase(selected.collection)}</div><h2 className="mt-1 text-2xl font-black">{recordName(selected)}</h2><div className="mt-1 font-mono text-xs text-slate-600">{selected.id} · v{selected.version}</div></div><button className={button} onClick={()=>setSelected(null)}>Close</button></div>
       <div className="mt-5 grid gap-2 sm:grid-cols-2">{Object.entries(selected.data).filter(([key])=>key!=='id').map(([key,value])=><div key={key} className="rounded-xl border border-slate-800 bg-slate-900 p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-slate-600">{titleCase(key)}</div><div className="mt-1 break-words text-sm">{displayValue(key,value)}</div></div>)}</div>
       {['products','tables','customers','suppliers'].includes(selected.collection)&&<form className="mt-5 space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4" onSubmit={async e=>{e.preventDefault();setBusy(true);try{const data={...selected.data,[selected.collection==='tables'?'label':'name']:name,...(selected.collection==='products'?{price:Number(price)}:{})};await request('rpc/servos_request_change',{operation:'record.save',payload:{collection:selected.collection,id:selected.id,data},expected_version:selected.version});setSelected(null);await refresh();}catch(e){setError(String(e));}finally{setBusy(false)}}}><div><b>Request a terminal-applied change</b><p className="mt-1 text-xs text-slate-500">This does not directly overwrite the terminal record.</p></div><label className="block text-sm">Name / label<input required className={field+' mt-1 w-full'} value={name} onChange={e=>setName(e.target.value)}/></label>{selected.collection==='products'&&<label className="block text-sm">Price<input type="number" min="0" step="0.01" required className={field+' mt-1 w-full'} value={price} onChange={e=>setPrice(e.target.value)}/></label>}<button disabled={busy} className={primary}>{busy?'Submitting…':'Submit change request'}</button></form>}
       <details className="mt-5 rounded-xl border border-slate-800 bg-slate-900 p-3"><summary className="cursor-pointer text-sm font-semibold text-slate-400">Technical data</summary><pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs text-slate-500">{JSON.stringify(selected.data,null,2)}</pre></details>
-    </section></div>}
+    </div></Drawer>}
   </div>;
 };
 
