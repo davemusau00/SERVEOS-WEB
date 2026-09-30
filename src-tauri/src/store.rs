@@ -157,9 +157,9 @@ pub fn set_meta(db: &Connection, key: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
-/// Seed staged v2 sequence/feed state from the authenticated server identity.
-/// Never move a locally observed cursor backwards; this function does not
-/// authorize or enqueue business commands.
+/// Initialize staged v2 sequence/feed state once from authenticated identity.
+/// Later identity refreshes must not advance cursors past unapplied feed data
+/// or acknowledgements; this function never enqueues business commands.
 pub fn seed_native_v2_state(db: &Connection, identity: &Value) -> Result<()> {
     let device_id = text(identity, "deviceId")?;
     let business_id = text(identity, "businessId")?;
@@ -175,7 +175,7 @@ pub fn seed_native_v2_state(db: &Connection, identity: &Value) -> Result<()> {
         return Err("Paired terminal is already associated with a different business".into());
     }
     db.execute(
-        "INSERT INTO native_v2_state(device_id,business_id,last_sequence,feed_cursor,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(device_id) DO UPDATE SET last_sequence=MAX(native_v2_state.last_sequence,excluded.last_sequence),feed_cursor=MAX(native_v2_state.feed_cursor,excluded.feed_cursor),updated_at=excluded.updated_at",
+        "INSERT INTO native_v2_state(device_id,business_id,last_sequence,feed_cursor,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(device_id) DO NOTHING",
         params![device_id,business_id,server_sequence,server_cursor,updated_at],
     ).map_err(error)?;
     Ok(())

@@ -214,7 +214,6 @@ async fn runtime_v2_install_snapshot(state:State<'_,Runtime>)->store::Result<Val
     };
     if already_installed { return Err("V2 baseline already exists; use feed reconciliation".into()); }
     let session=rpc(&url,&key,Some(&active.access_token),"servos_v2_session",json!({})).await?;
-    if session["enabled"]!=true { return Err("Staged v2 authority is disabled; no snapshot was installed".into()); }
     let business_id=store::text(&session,"businessId")?.to_string();
     let actor_id=store::text(&session,"actorId")?;
     if active.identity["businessId"].as_str()!=Some(business_id.as_str())||active.identity["actorId"].as_str()!=Some(actor_id){

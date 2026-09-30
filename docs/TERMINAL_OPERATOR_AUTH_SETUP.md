@@ -6,11 +6,12 @@ This guide configures individual business accounts on an installed ServOS termin
 
 - Use a staging Supabase project for the first setup and testing.
 - Keep the project URL and publishable key in the terminal build configuration as `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never use a service-role key in the app or terminal.
-- Apply the approved expansion migrations through `028_terminal_operator_identity.sql` to the target staging project. This migration is source only until your normal reviewed migration process applies it.
+- Apply the approved expansion migrations through `029_native_readonly_snapshot.sql` to the target staging project. These migrations are source only until your normal reviewed migration process applies them.
 - Confirm each operator already has a local ServOS staff record with a stable, unique Staff ID. The v2 `staff_profiles.staff_id` must match that ID exactly.
 - During first enrollment, the initial local Administrator's stable ID is `auth:<Auth UUID>`, matching the staged owner-profile backfill. For every other operator, bind the Auth user to the exact stable Staff ID from the terminal's staff record; do not guess or use an email/name as the ID.
 - Confirm the business membership and operator permissions are active. Permissions are resolved from the authenticated server session and role profile, not from a terminal role selector.
 - The native source now contains SQLite schema 14 for separate v2 device sequence/feed state, an empty command outbox, and an isolated shadow-record replica. The feed-page applier does not update legacy operational records. This is dormant protocol storage, not a v2 writer; the migration has not been applied to a packaged terminal by this guide.
+- After staging has applied migration 029, an authorized operator can install the one-time v2 shadow baseline from the terminal's reconciliation panel. The snapshot RPC is read-only and available while shared v2 writes remain disabled. Confirm the reported record count/cursor and separately reconcile the migration; do not enable v2 from this step.
 
 ## Invite and bind operators
 

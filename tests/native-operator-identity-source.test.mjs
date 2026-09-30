@@ -9,6 +9,9 @@ const nativeV2Migration = read('../src-tauri/migrations/014_native_v2_outbox.sql
 const provider = read('../src/runtime/RuntimeProvider.tsx');
 const unlock = read('../src/native/UnlockView.tsx');
 const identityMigration = read('../supabase/expansion/028_terminal_operator_identity.sql');
+const snapshotMigration = read('../supabase/expansion/029_native_readonly_snapshot.sql');
+const runtimeProvider = read('../src/runtime/RuntimeProvider.tsx');
+const reconciliationPanel = read('../src/native/NativeDataReconciliationPanel.tsx');
 const setupGuide = read('../docs/TERMINAL_OPERATOR_AUTH_SETUP.md');
 
 test('native operator online identity binds Auth, stable staff, and the paired terminal', () => {
@@ -46,13 +49,18 @@ test('one terminal can be reused by active operators without transferring regist
 test('authenticated identity seeds monotonic staged protocol state without dispatching v2 commands', () => {
   assert.match(nativeStore, /pub fn seed_native_v2_state/);
   assert.match(nativeStore, /pub fn apply_native_v2_page/);
+  assert.match(nativeStore, /pub fn install_native_v2_snapshot/);
   assert.match(nativeStore, /V2 change-feed sequence gap/);
   assert.match(nativeStore, /native_v2_records\(collection,record_id,version,data,archived,feed_sequence\)/);
-  assert.match(nativeStore, /MAX\(native_v2_state\.last_sequence,excluded\.last_sequence\)/);
-  assert.match(nativeStore, /MAX\(native_v2_state\.feed_cursor,excluded\.feed_cursor\)/);
+  assert.match(nativeStore, /ON CONFLICT\(device_id\) DO NOTHING/);
+  assert.match(nativeStore, /Later identity refreshes must not advance cursors/);
   assert.match(nativeStore, /different business/);
   assert.match(nativeV2Migration, /CREATE TABLE IF NOT EXISTS native_v2_outbox/);
   assert.match(nativeV2Migration, /CREATE TABLE IF NOT EXISTS native_v2_records/);
+  assert.match(snapshotMigration, /require_permission\('records\.view'\)/);
+  assert.doesNotMatch(snapshotMigration, /if not state\.enabled/i);
+  assert.match(runtimeProvider, /runtime_v2_install_snapshot/);
+  assert.match(reconciliationPanel, /Install v2 shadow snapshot/);
   assert.match(nativeV2Migration, /WHERE state='PENDING'/);
   assert.match(runtime, /seed_native_v2_state\(&db,&identity\)/);
   assert.match(nativeV2Migration, /PRAGMA user_version=14/);

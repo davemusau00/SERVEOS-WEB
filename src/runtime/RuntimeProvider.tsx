@@ -53,6 +53,7 @@ interface RuntimeContextValue {
   clearInventoryCountDraft: (locationId: string) => Promise<void>;
   approve: (approverId: string, pin: string, permission: Permission, target?: string) => Promise<ManagerApproval>;
   sync: () => Promise<void>;
+  installV2Snapshot: () => Promise<{ installed:boolean; records:number; cursor:number; policyVersion:string; pageCount:number }>;
   backup: () => Promise<string>;
   healthAudit: () => Promise<ProductionHealthAudit>;
   acceptanceStatus: () => Promise<TerminalAcceptanceStatus>;
@@ -228,6 +229,10 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     catch (e) { failures.current += 1; nextSync.current = Date.now() + Math.min(300_000, 5_000 * 2 ** Math.min(failures.current - 1, 6)); report(e); throw e; }
     finally { inFlight.current = false; setSyncing(false); }
   }, [session, refresh, report]);
+  const installV2Snapshot = async () => {
+    try { return await invoke<{ installed:boolean; records:number; cursor:number; policyVersion:string; pageCount:number }>('runtime_v2_install_snapshot'); }
+    catch (e) { report(e); throw e; }
+  };
   const backup = async () => {
     if (!session) throw new Error('Unlock the terminal first');
     try { const path = await invoke<string>('runtime_backup', { token: session.token }); await refresh(); return path; }
@@ -328,5 +333,5 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     return () => { clearInterval(timer); window.removeEventListener('pointerdown', active); window.removeEventListener('keydown', active); window.removeEventListener('online', resume); window.removeEventListener('servos:local-commit', resume); document.removeEventListener('visibilitychange', resume); };
   }, [session, sync, lock, report]);
 
-  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
+  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, installV2Snapshot, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
 };
