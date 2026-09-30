@@ -104,6 +104,23 @@ export interface ReconciliationReport {
     cloudAhead: number;
     diverged: number;
   };
+  controlTotals: {
+    matches: boolean;
+    local: {
+      inventoryReconciles: boolean;
+      collections: Record<string, { total: number; active: number; archived: number }>;
+      stockQuantityMicros: Record<string, number>;
+      movementQuantityMicros: Record<string, number>;
+      financialMinor: Record<string, number>;
+    };
+    cloud: {
+      inventoryReconciles: boolean;
+      collections: Record<string, { total: number; active: number; archived: number }>;
+      stockQuantityMicros: Record<string, number>;
+      movementQuantityMicros: Record<string, number>;
+      financialMinor: Record<string, number>;
+    };
+  };
   cutoverReady: boolean;
   blockers: string[];
   warnings: string[];

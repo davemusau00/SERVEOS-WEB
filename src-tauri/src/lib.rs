@@ -11,8 +11,10 @@ struct Runtime {
     db: Mutex<Connection>,
     path: PathBuf,
     syncing: Mutex<bool>,
+    operator_auth: Mutex<Option<OperatorAuth>>,
     startup_nonce: String,
 }
+struct OperatorAuth { staff_id: String, access_token: String, refresh_token: String }
 #[tauri::command]
 fn runtime_status(state: State<Runtime>) -> store::Result<Value> {
     let db=state.db.lock().map_err(|e|e.to_string())?;
@@ -101,12 +103,60 @@ fn runtime_login(
     state: State<Runtime>,
     staff_id: String,
     pin: String,
+    email: String,
+    password: String,
 ) -> store::Result<store::Session> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    store::login(&db, &staff_id, &pin)
+    let local = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        store::login(&db, &staff_id, &pin)?
+    };
+    let (url,key,terminal) = {
+        let db=state.db.lock().map_err(|e|e.to_string())?;
+        (store::meta(&db,"cloud_url")?.ok_or("Terminal is not connected to its business server")?,
+         store::meta(&db,"cloud_key")?.ok_or("Terminal is not connected to its business server")?,
+         store::meta(&db,"terminal_id")?.ok_or("Terminal has not been paired")?)
+    };
+    let auth_result=tauri::async_runtime::block_on(async {
+        let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build().map_err(|e|e.to_string())?;
+        let response=client.post(format!("{url}/auth/v1/token?grant_type=password"))
+            .header("apikey",&key).json(&json!({"email":email,"password":password})).send().await
+            .map_err(|_|"Authentication server unavailable".to_string())?;
+        if !response.status().is_success(){return Err("Sign-in failed. Check the operator credentials and invitation status.".into());}
+        let auth:Value=response.json().await.map_err(|_|"Invalid authentication response".to_string())?;
+        let access=auth["access_token"].as_str().ok_or("Authentication token missing")?.to_string();
+        let refresh=auth["refresh_token"].as_str().ok_or("Refresh token missing")?.to_string();
+        let paired={let db=state.db.lock().map_err(|e|e.to_string())?;store::meta(&db,"v2_device_paired")?.as_deref()==Some("true")};
+        if !paired {
+            rpc(&url,&key,Some(&access),"servos_v2_register_device",json!({"device_id":terminal,"label":"ServOS Terminal","kind":"DESKTOP"})).await?;
+            let db=state.db.lock().map_err(|e|e.to_string())?;
+            store::set_meta(&db,"v2_device_paired","true")?;
+        }
+        let identity=rpc(&url,&key,Some(&access),"servos_v2_terminal_identity",json!({"device_id":terminal})).await?;
+        if identity["staffId"].as_str()!=Some(local.staff_id.as_str()){
+            let _=client.post(format!("{url}/auth/v1/logout")).header("apikey",&key).bearer_auth(&access).send().await;
+            return Err("This Auth account is not bound to the selected local staff ID. Ask an Admin to bind the correct staff record.".into());
+        }
+        let entry=keyring::Entry::new("ServOS",&format!("{}:{}",terminal,local.staff_id)).map_err(|_|"OS secure credential storage is unavailable".to_string())?;
+        entry.set_password(&refresh).map_err(|_|"Could not securely store the operator session".to_string())?;
+        *state.operator_auth.lock().map_err(|e|e.to_string())?=Some(OperatorAuth{staff_id:local.staff_id.clone(),access_token:access,refresh_token:refresh});
+        Ok(local)
+    });
+    if auth_result.is_err(){let _=state.db.lock().map(|db|db.execute("DELETE FROM sessions WHERE token=?",[&local.token]));}
+    auth_result
 }
 #[tauri::command]
 fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
+    if let Ok(mut active)=state.operator_auth.lock(){
+        if let Some(auth)=active.take(){
+            if let Ok(db)=state.db.lock(){
+                if let (Ok(Some(url)),Ok(Some(key)),Ok(Some(terminal)))=(store::meta(&db,"cloud_url"),store::meta(&db,"cloud_key"),store::meta(&db,"terminal_id")){
+                    if let Ok(entry)=keyring::Entry::new("ServOS",&format!("{}:{}",terminal,auth.staff_id)){let _=entry.delete_credential();}
+                    let token=auth.access_token.clone();
+                    tauri::async_runtime::spawn(async move{let _=reqwest::Client::new().post(format!("{url}/auth/v1/logout")).header("apikey",key).bearer_auth(token).send().await;});
+                }
+            }
+        }
+    }
     state
         .db
         .lock()
@@ -119,6 +169,11 @@ fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
 fn runtime_snapshot(state: State<Runtime>, token: String) -> store::Result<Value> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     store::snapshot(&db, &token)
+}
+#[tauri::command]
+fn runtime_login_offline(state: State<Runtime>, staff_id: String, pin: String) -> store::Result<store::Session> {
+    let db=state.db.lock().map_err(|e|e.to_string())?;
+    store::login(&db,&staff_id,&pin)
 }
 #[tauri::command]
 fn runtime_guidance_progress(state: State<Runtime>, token: String) -> store::Result<Value> {
@@ -989,6 +1044,7 @@ pub fn run() {
                 db: Mutex::new(db),
                 path,
                 syncing: Mutex::new(false),
+                operator_auth: Mutex::new(None),
                 startup_nonce: uuid::Uuid::new_v4().to_string(),
             });
             Ok(())
@@ -1000,6 +1056,7 @@ pub fn run() {
             runtime_intake_reopen,
             runtime_intake_clear,
             runtime_login,
+            runtime_login_offline,
             runtime_lock,
             runtime_snapshot,
             runtime_guidance_progress,

@@ -4075,6 +4075,67 @@ pub fn production_health_audit(db: &Connection, token: &str) -> Result<Value> {
 }
 
 // SERVOS_PATCH_02A_RECONCILIATION
+fn reconciliation_control_totals(records: &[(String, String, bool, Value)]) -> Value {
+    let mut collections: std::collections::BTreeMap<String, (i64, i64)> = std::collections::BTreeMap::new();
+    let mut stock_micros: std::collections::BTreeMap<String, i64> = std::collections::BTreeMap::new();
+    let mut movement_micros: std::collections::BTreeMap<String, i64> = std::collections::BTreeMap::new();
+    let mut financial_minor: std::collections::BTreeMap<String, i64> = std::collections::BTreeMap::new();
+    let add = |map: &mut std::collections::BTreeMap<String, i64>, key: String, amount: i64| {
+        let value = map.entry(key).or_default();
+        *value = value.saturating_add(amount);
+    };
+    for (collection, record_id, archived, data) in records {
+        let counts = collections.entry(collection.clone()).or_default();
+        counts.0 += 1;
+        if *archived { counts.1 += 1; }
+        if collection == "stockItems" {
+            if let Some(locations) = data.get("currentStock").and_then(Value::as_object) {
+                for (location, quantity) in locations {
+                    if let Some(quantity) = quantity.as_f64().filter(|value| value.is_finite()) {
+                        add(&mut stock_micros, format!("{record_id}::{location}"), (quantity * 1_000_000.0).round() as i64);
+                    }
+                }
+            }
+        }
+        if collection == "stockMovements" {
+            if let (Some(stock_id), Some(location), Some(quantity)) = (
+                data.get("stockItemId").and_then(Value::as_str),
+                data.get("locationId").and_then(Value::as_str),
+                data.get("quantityDelta").and_then(Value::as_f64).filter(|value| value.is_finite()),
+            ) {
+                add(&mut movement_micros, format!("{stock_id}::{location}"), (quantity * 1_000_000.0).round() as i64);
+            }
+        }
+        let amount = match collection.as_str() {
+            "orders" => data.get("grandTotal").and_then(Value::as_f64).filter(|value| value.is_finite()).map(|value| (value * 100.0).round() as i64),
+            "goodsReceipts" => data.get("acceptedValue").and_then(Value::as_f64).filter(|value| value.is_finite()).map(|value| (value * 100.0).round() as i64),
+            "payments" | "refunds" | "mpesaReceipts" | "customerCreditEntries" | "folioEntries" => data.get("amountMinor").and_then(Value::as_i64),
+            "folios" => data.get("balanceMinor").and_then(Value::as_i64),
+            _ => None,
+        };
+        if let Some(amount) = amount { add(&mut financial_minor, collection.clone(), amount); }
+        if collection == "folios" {
+            if let Some(deposit) = data.get("depositMinor").and_then(Value::as_i64) {
+                add(&mut financial_minor, "folioDeposits".into(), deposit);
+            }
+        }
+        if collection == "purchaseOrders" {
+            let ordered_minor = data.get("items").and_then(Value::as_array).into_iter().flatten().map(|line| {
+                let quantity = line.get("quantityOrdered").and_then(Value::as_f64).unwrap_or(0.0);
+                let unit_price = line.get("unitPrice").and_then(Value::as_f64).unwrap_or(0.0);
+                if quantity.is_finite() && unit_price.is_finite() { (quantity * unit_price * 100.0).round() as i64 } else { 0 }
+            }).fold(0i64, i64::saturating_add);
+            add(&mut financial_minor, "purchaseOrders".into(), ordered_minor);
+        }
+    }
+    stock_micros.retain(|_, quantity| *quantity != 0);
+    movement_micros.retain(|_, quantity| *quantity != 0);
+    let inventory_reconciles = stock_micros == movement_micros;
+    let collection_counts = collections.into_iter().map(|(name, (total, archived))| (name, json!({"total":total,"active":total-archived,"archived":archived}))).collect::<serde_json::Map<_,_>>();
+    let to_json = |values: std::collections::BTreeMap<String, i64>| values.into_iter().map(|(key, value)| (key, json!(value))).collect::<serde_json::Map<_,_>>();
+    json!({"inventoryReconciles":inventory_reconciles,"collections":collection_counts,"stockQuantityMicros":to_json(stock_micros),"movementQuantityMicros":to_json(movement_micros),"financialMinor":to_json(financial_minor)})
+}
+
 pub fn reconciliation_compare(db: &Connection, token: &str, cloud: &Value) -> Result<Value> {
     let user = actor(db, token, false)?;
     if !permissions(&user.role).contains(&"audit.view") {
@@ -4242,6 +4303,14 @@ pub fn reconciliation_compare(db: &Connection, token: &str, cloud: &Value) -> Re
         .and_then(Value::as_i64)
         .unwrap_or(0);
 
+    let local_control_records = local_map.values().map(|(collection, record_id, _, archived, data)| (collection.clone(), record_id.clone(), *archived, data.clone())).collect::<Vec<_>>();
+    let cloud_control_records = cloud_map.values().map(|(collection, record_id, _, archived, data)| (collection.clone(), record_id.clone(), *archived, data.clone())).collect::<Vec<_>>();
+    let local_control_totals = reconciliation_control_totals(&local_control_records);
+    let cloud_control_totals = reconciliation_control_totals(&cloud_control_records);
+    let control_totals_match = local_control_totals["inventoryReconciles"] == true
+        && cloud_control_totals["inventoryReconciles"] == true
+        && local_control_totals == cloud_control_totals;
+
     let mut blockers: Vec<String> = vec![];
     let mut warnings: Vec<String> = vec![
         "This comparison is read-only. No local or cloud business record was repaired or overwritten.".into()
@@ -4263,6 +4332,9 @@ pub fn reconciliation_compare(db: &Connection, token: &str, cloud: &Value) -> Re
     }
     if diverged > 0 {
         blockers.push(format!("{diverged} record(s) have the same version but different content or archive state"));
+    }
+    if !control_totals_match {
+        blockers.push("Migration control totals differ, or current stock does not reconcile to immutable movement history, for one or both replicas".into());
     }
     if cloud_last_sequence != last_outbox {
         blockers.push(format!(
@@ -4302,6 +4374,7 @@ pub fn reconciliation_compare(db: &Connection, token: &str, cloud: &Value) -> Re
             "cloudAhead": cloud_ahead,
             "diverged": diverged,
         },
+        "controlTotals": {"matches":control_totals_match,"local":local_control_totals,"cloud":cloud_control_totals},
         "cutoverReady": cutover_ready,
         "blockers": blockers,
         "warnings": warnings,

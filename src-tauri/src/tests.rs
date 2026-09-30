@@ -558,6 +558,9 @@ fn reconciliation_classifies_replica_drift_without_mutating_local_state() {
     assert_eq!(report["summary"]["cloudMissing"],1);
     assert_eq!(report["summary"]["cloudAhead"],2);
     assert_eq!(report["summary"]["diverged"],1);
+    assert_eq!(report["controlTotals"]["matches"],false);
+    assert!(report["controlTotals"]["local"]["collections"].get("products").is_some());
+    assert!(report["controlTotals"]["local"]["movementQuantityMicros"].is_object());
     assert_eq!(report["cutoverReady"],false);
     assert!(!report.to_string().contains("CLOUD SECRET CUSTOMER"));
 }

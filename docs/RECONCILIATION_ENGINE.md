@@ -15,6 +15,8 @@ The classification contract is:
 - `CLOUD_AHEAD`: the cloud version is greater, or a cloud record has no local counterpart.
 - `DIVERGED`: both sides claim the same version but the archive state or JSON record data differs.
 
+The report also emits exact control totals for record counts by collection and active/archive state, current stock quantity by item/location, movement-derived quantity by item/location, and selected financial fields (orders, purchase orders, receipts, payments, refunds, M-Pesa receipts, customer-credit entries, folio balances and deposits). Each side independently checks that current inventory quantities equal its immutable movement-derived quantities. Quantities are represented as millionths of a base unit and financial values in minor currency units. A control-total mismatch or inventory conservation failure is a cutover blocker alongside any record-level difference. These controls summarize the current legacy replica; they do not prove a v2 import or external accounting reconciliation.
+
 `CLOUD_AHEAD` and `DIVERGED` are abnormal under the legacy single-authoritative-terminal architecture and must be investigated before v2 cutover.
 
 ## Safety properties

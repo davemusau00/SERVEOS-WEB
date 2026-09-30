@@ -70,6 +70,8 @@ The live Web chunk failures were observed during a changing Vercel entry/lazy-ch
 
 Terminal v2 remains blocked at its identity bridge: native PIN sessions have local staff IDs, while the staged v2 RPC requires a Supabase Auth JWT and matching Auth UUID actor. Do not enable v2 or offline grants until native pairing/token lifecycle, durable command/reconciliation, and signed grant prerequisites are implemented. The terminal's existing legacy writer remains authoritative.
 
+The installed terminal's existing read-only local/legacy-cloud reconciler now reports explicit per-collection counts, item/location stock balances, movement-derived balances, and selected financial-ledger totals; any mismatch blocks its readiness result. This is useful migration control-total evidence for the current replica only, not proof of import to v2 PostgreSQL or cutover. Source change is unverified and all production/cutover gates remain closed.
+
 - Native installation state machine from intake through Go Live.
 - Resumable pre-enrollment Intake Wizard and owner enrollment that no longer seeds fake operational outlets/stores.
 - Business Setup Wizard with real tax, payments, service areas, stock locations, catalog, opening balances, staff access, till policy, floorplan and backup/sync rehearsal.

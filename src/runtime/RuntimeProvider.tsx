@@ -42,7 +42,8 @@ interface RuntimeContextValue {
   completeIntake: (profile: IntakeProfile) => Promise<void>;
   reopenIntake: () => Promise<void>;
   enroll: (input: { email: string; password: string; pin: string }) => Promise<void>;
-  login: (staffId: string, pin: string) => Promise<void>;
+  login: (staffId: string, pin: string, email: string, password: string) => Promise<void>;
+  loginOffline: (staffId: string, pin: string) => Promise<void>;
   lock: () => Promise<void>;
   refresh: () => Promise<void>;
   command: (operation: string, payload?: Record<string, unknown>, targetVersion?: number, commandId?: string) => Promise<CommandResult>;
@@ -165,9 +166,9 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
       await reloadStatus();
     } catch (e) { report(e); throw e; } finally { setBusy(false); }
   };
-  const login = async (staffId: string, pin: string) => {
+  const login = async (staffId: string, pin: string, email: string, password: string) => {
     setBusy(true); setError('');
-    try { const next = await invoke<RuntimeSession>('runtime_login', { staffId, pin }); setSession(next); setSnapshot(await invoke<RuntimeSnapshot>('runtime_snapshot', { token: next.token })); }
+    try { const next = await invoke<RuntimeSession>('runtime_login', { staffId, pin, email, password }); setSession(next); setSnapshot(await invoke<RuntimeSnapshot>('runtime_snapshot', { token: next.token })); }
     catch (e) { report(e); throw e; } finally { setBusy(false); }
   };
   const lock = useCallback(async () => {
@@ -175,6 +176,11 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     try { if (session) await invoke('runtime_lock', { token: session.token }); }
     finally { setSession(null); setSnapshot(null); await reloadStatus(); }
   }, [session, reloadStatus]);
+  const loginOffline = async (staffId: string,pin: string) => {
+    setBusy(true);setError('');
+    try {const next=await invoke<RuntimeSession>('runtime_login_offline',{staffId,pin});setSession(next);setSnapshot(await invoke<RuntimeSnapshot>('runtime_snapshot',{token:next.token}));}
+    catch(e){report(e);throw e;}finally{setBusy(false);}
+  };
   const command = useCallback(async (operation: string, payload: Record<string, unknown> = {}, targetVersion?: number, commandId?: string) => {
     if (!session) throw new Error('Unlock the terminal first');
     const request: BusinessCommand = { id: commandId || crypto.randomUUID(), schemaVersion: 1, operation, payload, targetVersion };
