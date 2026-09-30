@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 test('native room rate dialog strips UI-only price before ratePlan.save',()=>{
   const source=readFileSync('src/native/NativeRoomsView.tsx','utf8');
   assert.match(source,/const\s*\{\s*price\s*,\s*\.\.\.data\s*\}\s*=\s*v/);
-  assert.match(source,/priceMinor:\s*Math\.round\(price\*100\)/);
+  assert.match(source,/priceMinor:\s*parseMoneyToMinor\(price\)/);
   assert.doesNotMatch(source,/onSave\(\{\.\.\.v,priceMinor:/);
 });
 
