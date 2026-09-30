@@ -291,6 +291,15 @@ pub fn initialize_from_intake(
     pin: &str,
     profile: &Value,
 ) -> Result<()> {
+    initialize_from_intake_with_admin_id(db,terminal,pin,profile,&id())
+}
+pub fn initialize_from_intake_with_admin_id(
+    db: &mut Connection,
+    terminal: &str,
+    pin: &str,
+    profile: &Value,
+    admin_staff_id: &str,
+) -> Result<()> {
     let business=profile["business"]["tradingName"].as_str().map(str::trim).filter(|v|!v.is_empty()).ok_or("Business trading name is required")?;
     let admin_name=profile["initialAdministrator"]["fullName"].as_str().map(str::trim).filter(|v|!v.is_empty()).ok_or("Initial Administrator name is required")?;
     let admin_job=profile["initialAdministrator"]["jobTitle"].as_str().map(str::trim).filter(|v|!v.is_empty()).unwrap_or("System Administrator");
@@ -312,7 +321,7 @@ pub fn initialize_from_intake(
     set_meta(&tx, "terminal_id", terminal)?;
     set_meta(&tx, "installation_stage", "SETUP_REQUIRED")?;
 
-    let admin_id = id();
+    let admin_id = if admin_staff_id.trim().is_empty(){return Err("Initial Administrator staff ID is required".into());}else{admin_staff_id.to_string()};
     tx.execute(
         "INSERT INTO staff(id,name,role,pin_hash) VALUES(?,?,'Admin',?)",
         params![admin_id, admin_name, hash],

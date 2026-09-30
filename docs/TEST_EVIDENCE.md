@@ -1,5 +1,9 @@
 # Test evidence
 
+## DEV final sprint P22 operator identity foundation - 2026-09-30 (unverified)
+
+Implemented native online PIN+Auth sign-in with stable Staff ID verification, one-time staged terminal registration, OS credential-vault refresh-token storage, sign-out cleanup, and a local-PIN-only offline path. Expansion 028 adds Auth-bound terminal identity and active-member use of the paired device. A second-operator identity assertion was added to the disposable SQL suite. No tests, build, Cargo lock refresh, disposable migration run, hosted Auth validation, or migration application have been performed for this slice. Token refresh/rotation, v2 command/outbox reconciliation, rollback/fencing and all v2/cutover gates remain open; v2 stays disabled.
+
 ## CLEAN-ServOS convergence slices - 2026-09-30
 
 The current convergence pass verified or advanced WP-01/02/03/04/05/07/08/09/10/11 locally. `npm run lint`, `npm test` (122 Node tests), and the isolated production browser suite passed. Production browser evidence is 40/40 across `pos-terminal` (1024 x 600), `aio-terminal` (1280 x 720), `laptop` (1366 x 768), and `mobile-layout` (390 x 844), including whole-location inventory count, transactional POS till/payment/refund/close-day, response-loss workflow retention, and typed-draft storage flows. The focused storage suite is 3/3, including two-tab typed-draft promotion exactly once and sensitive-field redaction. Native MSVC evidence is 72/72 from the current checkout; disposable cloud base/v2 through expansion 026, build, docs, protocol and UI gates were also executed in this convergence run.

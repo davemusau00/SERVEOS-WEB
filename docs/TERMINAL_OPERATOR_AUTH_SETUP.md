@@ -29,7 +29,7 @@ This guide configures individual business accounts on an installed ServOS termin
 
 - Online sign-in: choose the local Staff ID, enter the local PIN, then enter the matching Supabase email/password. The terminal validates the Auth session against the server profile before unlocking.
 - Operator switch: sign out/lock, then select the next staff record and authenticate with that operator's own Auth credentials. Do not share one account between cashiers or attribute work through a device identity.
-- The access token stays in process memory. The rotating refresh token is stored via the operating system credential vault (Windows Credential Manager, macOS Keychain, or Linux Secret Service); it is never written to SQLite business tables or browser storage. Signing out removes the active credential and clears the active local session. If the OS vault is unavailable, online sign-in fails closed.
+- The access token stays in process memory. The refresh token is stored via the operating system credential vault (Windows Credential Manager, macOS Keychain, or Linux Secret Service); it is never written to SQLite business tables or browser storage. Signing out removes the active credential and clears the active local session. If the OS vault is unavailable, online sign-in fails closed. Automatic refresh-token rotation is not yet implemented; sign in again after the current Auth access expires.
 - Password reset uses the existing Auth recovery flow. A lost/reinstalled terminal must be paired and verified again by an Admin; do not copy credential-vault contents or device credentials between terminals.
 
 ## Offline operation and v2 boundary

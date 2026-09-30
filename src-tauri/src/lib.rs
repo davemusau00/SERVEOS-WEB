@@ -99,7 +99,7 @@ fn runtime_intake_clear(state: State<Runtime>) -> store::Result<()> {
     db.execute("DELETE FROM metadata WHERE key IN ('intake_profile','installation_stage')",[]).map_err(|e|e.to_string())?; Ok(())
 }
 #[tauri::command]
-fn runtime_login(
+async fn runtime_login(
     state: State<Runtime>,
     staff_id: String,
     pin: String,
@@ -116,7 +116,7 @@ fn runtime_login(
          store::meta(&db,"cloud_key")?.ok_or("Terminal is not connected to its business server")?,
          store::meta(&db,"terminal_id")?.ok_or("Terminal has not been paired")?)
     };
-    let auth_result=tauri::async_runtime::block_on(async {
+    let auth_result=async {
         let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build().map_err(|e|e.to_string())?;
         let response=client.post(format!("{url}/auth/v1/token?grant_type=password"))
             .header("apikey",&key).json(&json!({"email":email,"password":password})).send().await
@@ -140,7 +140,7 @@ fn runtime_login(
         entry.set_password(&refresh).map_err(|_|"Could not securely store the operator session".to_string())?;
         *state.operator_auth.lock().map_err(|e|e.to_string())?=Some(OperatorAuth{staff_id:local.staff_id.clone(),access_token:access,refresh_token:refresh});
         Ok(local)
-    });
+    }.await;
     if auth_result.is_err(){let _=state.db.lock().map(|db|db.execute("DELETE FROM sessions WHERE token=?",[&local.token]));}
     auth_result
 }
@@ -302,8 +302,13 @@ async fn runtime_enroll(
     let result=rpc(&url,&publishable_key,Some(&access_token),"servos_enroll",json!({"business_name":business_name,"installation_id":terminal,"device_secret":credential})).await?;
     if store::text(&result, "terminalId")? != terminal { return Err("Unexpected enrollment response".into()); }
 
+    let auth_user= reqwest::Client::new().get(format!("{url}/auth/v1/user")).header("apikey",&publishable_key).bearer_auth(&access_token).send().await.map_err(|_|"Could not verify the enrolling Auth account".to_string())?;
+    if !auth_user.status().is_success(){return Err("The enrolling Auth session could not be verified".into());}
+    let auth_user:Value=auth_user.json().await.map_err(|_|"Invalid enrolling Auth user response".to_string())?;
+    let auth_id=auth_user["id"].as_str().filter(|id|uuid::Uuid::parse_str(id).is_ok()).ok_or("Enrolling Auth user ID is invalid")?;
+    let admin_staff_id=format!("auth:{auth_id}");
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
-    store::initialize_from_intake(&mut db, &terminal, &pin, &profile)?;
+    store::initialize_from_intake_with_admin_id(&mut db, &terminal, &pin, &profile,&admin_staff_id)?;
     Ok(())
 }
 #[tauri::command]
