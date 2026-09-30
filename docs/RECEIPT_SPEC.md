@@ -5,7 +5,8 @@
 No ETR/eTIMS wording; preserve actual tax calculations. Hard-code small centered footer on both copies:
 
 ```text
-Built By Davemusau.co.ke
+Built By KINGSFORGE
+info@kingsforge.co.ke
 info@davemusau.co.ke
 0746157440
 ```
