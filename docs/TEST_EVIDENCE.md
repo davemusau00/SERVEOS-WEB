@@ -352,7 +352,7 @@ Added shared TypeScript item-type presets and conversion/calculation functions f
 
 ### DEV final sprint P4 Native Smart Item Wizard — 2026-09-30
 
-Native Catalog Add Item now presents four stages and ten product/ingredient/service classes, with recipe ingredient costing and a batch-yield path. The review stage previews product/stock/opening values before native atomic create. The command supports stock-only count/weight ingredients without a sellable product. The operation manifest continues to mark Web `catalog.createWithOpeningStock` as missing. No verification has been run for this change; the P4 browser/native acceptance matrix is deferred to the final test stage.
+Native Catalog Add Item now presents four stages and ten product/ingredient/service classes, with recipe ingredient costing and a batch-yield path. The review stage previews product/stock/opening values before native atomic create. The command supports stock-only count/weight ingredients without a sellable product. The operation manifest marks staged PostgreSQL and Web `catalog.createWithOpeningStock` handlers as missing. No verification has been run for this change; the P4 browser/native acceptance matrix is deferred to the final test stage.
 
 ### DEV final sprint P5 Native package conversion — 2026-09-30
 
