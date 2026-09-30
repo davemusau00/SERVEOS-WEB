@@ -67,6 +67,16 @@ export function resolveOperationDependencies(operation: string, collection: stri
     add('stockLocations', payload.locationId);
     for (const record of records) if (record.collection === 'stockItems' && !record.archived) add('stockItems', record.id);
   }
+  if (operation === 'inventory.produceBatch') {
+    add('products', payload.recipeProductId);
+    add('stockItems', payload.outputStockItemId);
+    add('stockLocations', payload.locationId);
+    const recipeId = typeof payload.recipeProductId === 'string' ? payload.recipeProductId : '';
+    const recipe = byKey.get(key('products', recipeId))?.data as Record<string, unknown> | undefined;
+    if (Array.isArray(recipe?.recipeIngredients)) for (const ingredient of recipe.recipeIngredients) {
+      if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
+    }
+  }
   if (operation === 'order.create' || operation === 'order.addItem') {
     add('posPolicy', 'policy');
     const product = typeof payload.productId === 'string' ? byKey.get(key('products', payload.productId)) : undefined;
@@ -75,6 +85,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
     for (const ingredient of ingredients) {
       if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
     }
+    if (productData?.inventoryType === 'BATCH') add('stockItems', productData.stockItemId);
   }
   const order = collection === 'orders' ? byKey.get(key('orders', id)) : undefined;
   if (operation === 'payment.refund' || operation === 'payment.reverse') {

@@ -18,6 +18,7 @@ ServOS currently runs one installed authoritative terminal. The accepted expansi
 - [Architecture](SYSTEM_ARCHITECTURE.md)
 - [RBAC and permissions](RBAC_AND_PERMISSIONS.md)
 - [Onboarding and setup](ONBOARDING_AND_SETUP.md)
+- [Terminal operator accounts and one-time device pairing](TERMINAL_OPERATOR_AUTH_SETUP.md)
 - [Operational workflows](MODULE_WORKFLOWS.md)
 - [Data dictionary](DATA_DICTIONARY.md)
 - [Deployment runbook](DEPLOYMENT_RUNBOOK.md)

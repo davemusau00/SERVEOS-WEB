@@ -19,8 +19,11 @@ const setupGuide = read('../docs/TERMINAL_OPERATOR_AUTH_SETUP.md');
 test('native operator online identity binds Auth, stable staff, and the paired terminal', () => {
   assert.match(runtime, /auth\/v1\/token\?grant_type=password/);
   assert.match(runtime, /servos_v2_terminal_identity/);
-  assert.match(runtime, /identity\["staffId"\]\.as_str\(\)!=Some\(local\.staff_id\.as_str\(\)\)/);
+  assert.match(runtime, /identity\["staffId"\]\.as_str\(\)!=Some\(staff_id\.as_str\(\)\)/);
   assert.match(runtime, /identity\["deviceId"\]\.as_str\(\)!=Some\(terminal\.as_str\(\)\)/);
+  assert.match(runtime, /store::login_authenticated\(&db,&staff_id\)/);
+  assert.match(runtime, /if email\.trim\(\)\.is_empty\(\) && password\.is_empty\(\)[\s\S]*?store::login\(&db,&staff_id,&pin\)/);
+  assert.match(nativeStore, /pub fn login_authenticated\(db: &Connection, staff_id: &str\)/);
   assert.match(identityPolicyMigration,/policyVersion/);
   assert.match(identityPolicyMigration,/order by 1/);
   assert.match(identityMigration, /staff_profiles s where s\.auth_user_id=who and s\.active/);
@@ -41,7 +44,7 @@ test('local offline unlock remains separate and sign-out clears local state', ()
   assert.match(provider, /runtime_login_offline/);
   assert.match(provider, /setSession\(null\); setSnapshot\(null\)/);
   assert.match(unlock, /Continue with local PIN/);
-  assert.match(setupGuide, /v2 business writes remain disabled/);
+  assert.match(setupGuide, /does not enable Web v2 business writes/);
 });
 
 test('one terminal can be reused by active operators without transferring registration ownership', () => {
@@ -49,7 +52,7 @@ test('one terminal can be reused by active operators without transferring regist
   assert.match(identityMigration, /on conflict\(id\) do nothing/);
   assert.match(identityMigration, /not existing\.active or existing\.kind<>\$3/);
   assert.match(identityMigration, /owner_id=original_owner/);
-  assert.match(setupGuide,/first Auth operator on a fresh terminal must be that authorized Admin/);
+  assert.match(setupGuide,/On a fresh terminal, commission its staged v2 pairing by signing in online as an active Admin authorized for `devices\.register`/);
   assert.match(setupGuide,/Do not use a cashier\/Server account for first pairing/);
 });
 

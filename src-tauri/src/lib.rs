@@ -118,17 +118,21 @@ async fn runtime_login(
     email: String,
     password: String,
 ) -> store::Result<store::Session> {
-    let local = {
+    if email.trim().is_empty() && password.is_empty() {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        store::login(&db, &staff_id, &pin)?
-    };
+        return store::login(&db, &staff_id, &pin);
+    }
+    if email.trim().is_empty() || password.is_empty() {
+        return Err("Enter both your business account email and password, or leave both blank for local PIN access.".into());
+    }
     let config:store::Result<(String,String,String)> = (|| {
         let db=state.db.lock().map_err(|e|e.to_string())?;
         Ok((store::meta(&db,"cloud_url")?.ok_or("Terminal is not connected to its business server")?,
          store::meta(&db,"cloud_key")?.ok_or("Terminal is not connected to its business server")?,
          store::meta(&db,"terminal_id")?.ok_or("Terminal has not been paired")?))
     })();
-    let (url,key,terminal)=match config {Ok(value)=>value,Err(error)=>{let _=state.db.lock().map(|db|db.execute("DELETE FROM sessions WHERE token=?",[&local.token]));return Err(error)}};
+    let (url,key,terminal)=config?;
+    let mut local_session_token:Option<String>=None;
     let auth_result=async {
         let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build().map_err(|e|e.to_string())?;
         let response=client.post(format!("{url}/auth/v1/token?grant_type=password"))
@@ -146,17 +150,19 @@ async fn runtime_login(
             store::set_meta(&db,"v2_device_paired","true")?;
         }
         let identity=rpc(&url,&key,Some(&access),"servos_v2_terminal_identity",json!({"device_id":terminal})).await?;
-        if identity["staffId"].as_str()!=Some(local.staff_id.as_str()) || identity["actorId"].as_str().is_none() || identity["deviceId"].as_str()!=Some(terminal.as_str()){
+        if identity["staffId"].as_str()!=Some(staff_id.as_str()) || identity["actorId"].as_str().is_none() || identity["deviceId"].as_str()!=Some(terminal.as_str()){
             let _=client.post(format!("{url}/auth/v1/logout")).header("apikey",&key).bearer_auth(&access).send().await;
             return Err("This Auth account is not bound to the selected local staff ID. Ask an Admin to bind the correct staff record.".into());
         }
+        let local={let db=state.db.lock().map_err(|e|e.to_string())?;store::login_authenticated(&db,&staff_id)?};
+        local_session_token=Some(local.token.clone());
         { let db=state.db.lock().map_err(|e|e.to_string())?; store::seed_native_v2_state(&db,&identity)?; }
         let entry=keyring::Entry::new("ServOS",&format!("{}:{}",terminal,local.staff_id)).map_err(|_|"OS secure credential storage is unavailable".to_string())?;
         entry.set_password(&refresh).map_err(|_|"Could not securely store the operator session".to_string())?;
         *state.operator_auth.lock().map_err(|e|e.to_string())?=Some(OperatorAuth{staff_id:local.staff_id.clone(),access_token:access,expires_at:chrono::Utc::now().timestamp()+expires_in,identity});
         Ok(local)
     }.await;
-    if auth_result.is_err(){let _=state.db.lock().map(|db|db.execute("DELETE FROM sessions WHERE token=?",[&local.token]));}
+    if auth_result.is_err(){if let Some(token)=local_session_token{let _=state.db.lock().map(|db|db.execute("DELETE FROM sessions WHERE token=?",[token]));}}
     auth_result
 }
 async fn refresh_operator_auth_inner(state:&Runtime,force_refresh:bool)->store::Result<bool>{

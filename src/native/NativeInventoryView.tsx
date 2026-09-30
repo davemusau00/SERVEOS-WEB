@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, Boxes, PackageCheck, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Boxes, CookingPot, PackageCheck, Search, Trash2 } from 'lucide-react';
 import { selectGuideResource } from '../guidance/workflow';
 import { useRuntime } from '../runtime/RuntimeProvider';
 import type { InventoryCountDraft } from '../runtime/RuntimeProvider';
@@ -81,9 +81,9 @@ export function NativeInventoryView() {
       try {
         await runtime.command(operation, token ? { ...payload, approvalToken: token } : payload, undefined, commandId);
         setModal(null);
-        setNotice(operation === 'inventory.countLocation' ? 'Stock count committed.' : 'Inventory movement committed.');
+        setNotice(operation === 'inventory.countLocation' ? 'Stock count committed.' : operation === 'inventory.produceBatch' ? 'Batch prepared and stock updated.' : 'Inventory movement committed.');
       } catch (error) {
-        setNotice(domainErrorMessage(error, operation === 'inventory.countLocation' ? 'commit this stock count' : 'commit this inventory movement'));
+        setNotice(domainErrorMessage(error, operation === 'inventory.countLocation' ? 'commit this stock count' : operation === 'inventory.produceBatch' ? 'prepare this batch' : 'commit this inventory movement'));
         throw error;
       }
     };
@@ -110,6 +110,7 @@ export function NativeInventoryView() {
         <p className="mt-1 max-w-3xl text-sm text-slate-400">One location-driven stock truth. Count, transfer and waste actions post through the native ledger. Supplier receipts are posted through Procurement so stock, GRN, payable and journal remain one atomic chain.</p>
       </div>
       <div className="flex flex-wrap gap-2">
+        {permissions.includes('inventory.adjust') && <button className={buttonClass} onClick={() => setModal('BATCH')}><CookingPot className="mr-1 inline h-4 w-4"/>Prepare batch</button>}
         <button className={primaryButtonClass} onClick={() => openLocationCount()}>Count stock</button>
         <button className={buttonClass} onClick={() => openMovement('TRANSFER')}>Transfer</button>
         <button className={buttonClass} onClick={() => openMovement('WASTE')}>Record waste</button>
@@ -153,12 +154,49 @@ export function NativeInventoryView() {
     </div>
 
     {modal === 'LOCATION_COUNT' && <LocationStockCountDialog stocks={stocks} products={products} locations={locations} initialLocationId={countLocationId} onClose={() => setModal(null)} onCommit={async (payload, commandId) => { await act('inventory.countLocation', payload, 'inventory.count', commandId); }}/ >}
-    {modal && modal !== 'LOCATION_COUNT' && <ActionDialog title={{ TRANSFER: 'Transfer stock', WASTE: 'Record waste' }[modal] || modal} onClose={() => setModal(null)}><InventoryForm modal={modal} form={form} setForm={setForm} stocks={stocks} locations={locations} onSubmit={async () => {
+    {modal === 'BATCH' && <ActionDialog title="Prepare a recipe batch" onClose={() => setModal(null)}><BatchPreparationForm products={products} stocks={stocks} locations={locations} onClose={()=>setModal(null)} onSubmit={async payload => { await act('inventory.produceBatch', payload, 'inventory.adjust'); }}/></ActionDialog>}
+    {modal && modal !== 'LOCATION_COUNT' && modal !== 'BATCH' && <ActionDialog title={{ TRANSFER: 'Transfer stock', WASTE: 'Record waste' }[modal] || modal} onClose={() => setModal(null)}><InventoryForm modal={modal} form={form} setForm={setForm} stocks={stocks} locations={locations} onSubmit={async () => {
       if (modal === 'WASTE') await act('inventory.waste', { stockItemId: form.stockItemId, locationId: form.locationId, quantity: form.quantity, reason: form.reason || 'Declared waste' }, 'inventory.waste');
       if (modal === 'TRANSFER') await act('inventory.transfer', { stockItemId: form.stockItemId, locationId: form.locationId, toLocationId: form.toLocationId, quantity: form.quantity, reason: form.reason || 'Internal transfer' }, 'inventory.transfer');
     }} /></ActionDialog>}
     {approval && <ManagerApprovalDialog permission={approval.permission} onClose={() => setApproval(null)} onApproved={approval.run} />}
   </div>;
+}
+
+function BatchPreparationForm({products,stocks,locations,onSubmit,onClose}:{products:any[];stocks:any[];locations:any[];onSubmit:(payload:Record<string,unknown>)=>Promise<void>;onClose:()=>void}) {
+  const recipes=products.filter(product=>product.inventoryType==='BATCH'&&typeof product.stockItemId==='string'&&product.stockItemId&&Array.isArray(product.recipeIngredients)&&product.recipeIngredients.length>0);
+  const [recipeProductId,setRecipeProductId]=useState(recipes[0]?.id||'');
+  const [locationId,setLocationId]=useState(locations[0]?.id||'');
+  const [batchCount,setBatchCount]=useState(1);
+  const [reason,setReason]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const recipe=recipes.find(product=>product.id===recipeProductId);
+  const ingredients=Array.isArray(recipe?.recipeIngredients)?recipe.recipeIngredients:[];
+  const outputStockItemId=String(recipe?.stockItemId||'');
+  const selectedOutput=stocks.find(stock=>stock.id===outputStockItemId&&['piece','portion'].includes(String(stock.baseUnit||'piece').toLowerCase()));
+  const yieldPerBatch=Number(recipe?.recipeYield||0);
+  const outputCount=yieldPerBatch*batchCount;
+  const submit=async(event:React.FormEvent)=>{
+    event.preventDefault();setError('');
+    if(!recipe||!selectedOutput||!locationId||!Number.isInteger(batchCount)||batchCount<1||batchCount>1000||!reason.trim())return;
+    setBusy(true);
+    try{await onSubmit({recipeProductId,outputStockItemId,locationId,batchCount,reason:reason.trim()})}
+    catch(cause){setError(domainErrorMessage(cause,'prepare this batch'))}
+    finally{setBusy(false)}
+  };
+  return <form className="max-h-[75vh] space-y-4 overflow-y-auto p-1" onSubmit={event=>void submit(event)}>
+    {!recipes.length?<div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm"><b>No batch recipes are configured.</b><p className="mt-1 text-slate-400">Create a Batch recipe in Catalog first. ServOS will use its saved per-portion recipe and full-batch yield.</p></div>:<>
+      <label className="block text-sm">Batch recipe<select required className={fieldClass+' mt-1'} value={recipeProductId} onChange={event=>setRecipeProductId(event.target.value)}>{recipes.map(product=><option key={product.id} value={product.id}>{product.name}</option>)}</select></label>
+      <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm"><b>Finished portions stock</b><p className="mt-1">{selectedOutput?`${selectedOutput.name} · ${selectedOutput.baseUnit}`:'Linked output stock must use piece or portion units.'}</p><p className="mt-1 text-xs text-slate-500">POS deducts prepared portions from this linked stock. The saved recipe ingredients are consumed here during preparation.</p></div>
+      <label className="block text-sm">Storage place<select required className={fieldClass+' mt-1'} value={locationId} onChange={event=>setLocationId(event.target.value)}><option value="">Choose storage place</option>{locations.map(location=><option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+      <label className="block text-sm">Number of batches<input required className={fieldClass+' mt-1'} type="number" min="1" max="1000" step="1" value={batchCount} onChange={event=>setBatchCount(Number(event.target.value))}/></label>
+      <section className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-sm"><div className="font-semibold">Preparation preview</div><p className="mt-1">{recipe?.name||'Select a recipe'} makes {yieldPerBatch||'—'} portions per batch · output {outputCount||'—'} {selectedOutput?.baseUnit||'portions'} into {locations.find(location=>location.id===locationId)?.name||'the selected location'}.</p><div className="mt-2 space-y-1 text-xs text-slate-400">{ingredients.map((line:any)=><p key={line.stockItemId}>{stocks.find(stock=>stock.id===line.stockItemId)?.name||line.stockItemId}: {(Number(line.quantity)*yieldPerBatch*batchCount).toLocaleString()} {stocks.find(stock=>stock.id===line.stockItemId)?.baseUnit||'units'}</p>)}</div><p className="mt-2 text-xs text-slate-500">Ingredient consumption and finished-portion stock are committed together. Insufficient input stock rejects the whole preparation.</p></section>
+      <label className="block text-sm">Preparation note<input required minLength={3} maxLength={180} className={fieldClass+' mt-1'} value={reason} onChange={event=>setReason(event.target.value)} placeholder="e.g. Lunch service prep"/></label>
+    </>}
+    {error&&<p role="alert" className="rounded-lg bg-rose-950 p-3 text-sm text-rose-200">{error}</p>}
+    <div className="flex justify-end gap-2"><button type="button" className={buttonClass} onClick={onClose}>Close</button><button type="submit" disabled={!recipes.length||busy||!selectedOutput||!locationId||!reason.trim()} className={primaryButtonClass}>{busy?'Preparing…':'Prepare batch'}</button></div>
+  </form>;
 }
 
 const Metric = ({ label, value, hint, icon, tone = 'normal' }: { label: string; value: string; hint: string; icon: React.ReactNode; tone?: 'normal' | 'amber' | 'rose' }) =>

@@ -601,6 +601,18 @@ pub fn login(db: &Connection, staff_id: &str, pin: &str) -> Result<Session> {
         role,
     })
 }
+/// Opens a local operational session only after the caller has authenticated
+/// this stable staff identity with the business Auth server.
+pub fn login_authenticated(db: &Connection, staff_id: &str) -> Result<Session> {
+    let (name, role): (String, String) = db
+        .query_row("SELECT name,role FROM staff WHERE id=? AND active=1", [staff_id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .optional()
+        .map_err(error)?
+        .ok_or("No active local staff record matches this authenticated account")?;
+    let token = id();
+    db.execute("INSERT INTO sessions VALUES(?,?,?)", params![token, staff_id, Utc::now().timestamp()]).map_err(error)?;
+    Ok(Session { token, staff_id: staff_id.into(), name, role })
+}
 pub fn actor(db: &Connection, token: &str, touch: bool) -> Result<Session> {
     let row:Option<Session>=db.query_row("SELECT s.staff_id,u.name,u.role FROM sessions s JOIN staff u ON u.id=s.staff_id WHERE s.token=? AND u.active=1 AND s.last_seen>?",params![token,Utc::now().timestamp()-900],|r|Ok(Session{token:token.into(),staff_id:r.get(0)?,name:r.get(1)?,role:r.get(2)?})).optional().map_err(error)?;
     let user = row.ok_or("SESSION_EXPIRED: Unlock the terminal to continue")?;
@@ -841,8 +853,13 @@ fn build_order_item(tx: &Connection, product_id: &str, payload: &Value, item_id:
     let unit_minor=(rule_price+modifier_minor).max(0);
     let line_minor=(unit_minor as f64*quantity_value).round() as i64;
     let (net,vat,levy)=tax_split(&policy,&product,line_minor)?;
-    let mut ingredients=product["recipeIngredients"].as_array().cloned().unwrap_or_default();
-    if ingredients.is_empty(){if let Some(stock)=product["stockItemId"].as_str(){let volume=selected_portion.as_ref().and_then(|v|v["volume"].as_f64()).or_else(||product["portionVolume"].as_f64()).unwrap_or(1.0);let container=product["portionVolume"].as_f64().unwrap_or(0.0);let inventory_type=product["inventoryType"].as_str().or_else(||product["category"].as_str()).unwrap_or("").to_ascii_uppercase();let measured_spirit=["SPIRIT","SPIRITS","WINE"].contains(&inventory_type.as_str());let whole_container_sale=measured_spirit&&container>0.0&&(volume-container).abs()<0.000001;ingredients.push(json!({"stockItemId":stock,"quantity":volume,"tracked":true,"wholeContainerSale":whole_container_sale,"containerSize":if measured_spirit{json!(container)}else{Value::Null}}));}}
+    let inventory_type=product["inventoryType"].as_str().or_else(||product["category"].as_str()).unwrap_or("").to_ascii_uppercase();
+    let mut ingredients=if inventory_type=="BATCH" { Vec::new() } else { product["recipeIngredients"].as_array().cloned().unwrap_or_default() };
+    if inventory_type=="BATCH" {
+        let stock=product["stockItemId"].as_str().filter(|value|!value.trim().is_empty()).ok_or("Batch recipe has no linked finished-portions stock item")?;
+        let volume=selected_portion.as_ref().and_then(|v|v["volume"].as_f64()).or_else(||product["portionVolume"].as_f64()).unwrap_or(1.0);
+        ingredients.push(json!({"stockItemId":stock,"quantity":volume,"tracked":true}));
+    } else if ingredients.is_empty(){if let Some(stock)=product["stockItemId"].as_str(){let volume=selected_portion.as_ref().and_then(|v|v["volume"].as_f64()).or_else(||product["portionVolume"].as_f64()).unwrap_or(1.0);let container=product["portionVolume"].as_f64().unwrap_or(0.0);let measured_spirit=["SPIRIT","SPIRITS","WINE"].contains(&inventory_type.as_str());let whole_container_sale=measured_spirit&&container>0.0&&(volume-container).abs()<0.000001;ingredients.push(json!({"stockItemId":stock,"quantity":volume,"tracked":true,"wholeContainerSale":whole_container_sale,"containerSize":if measured_spirit{json!(container)}else{Value::Null}}));}}
     for modifier in &modifiers { for adjustment in modifier["ingredientAdjustments"].as_array().cloned().unwrap_or_default(){
         let stock=text(&adjustment,"stockItemId")?; let delta=adjustment["quantityDelta"].as_f64().ok_or("Invalid modifier ingredient quantity")?;
         if let Some(existing)=ingredients.iter_mut().find(|v|v["stockItemId"].as_str()==Some(stock)){existing["quantity"]=json!(existing["quantity"].as_f64().unwrap_or(0.0)+delta);}else if delta>0.0{ingredients.push(json!({"stockItemId":stock,"quantity":delta,"tracked":true}));}
@@ -3340,6 +3357,57 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                 tx.execute("INSERT INTO inventory_count_closed_sessions(staff_id,session_id,closed_at) VALUES(?,?,?)",params![user.staff_id,text(&saved,"sessionId")?,now()]).map_err(error)?;
                 tx.execute("DELETE FROM inventory_count_drafts WHERE staff_id=? AND location_id=?",params![user.staff_id,location_id]).map_err(error)?;
             }
+        }
+        "inventory.produceBatch" => {
+            if !permissions(&user.role).contains(&"inventory.adjust") { return Err("Permission required: inventory.adjust".into()); }
+            let product_id=text(p,"recipeProductId")?;
+            let location_id=text(p,"locationId")?;
+            let output_stock_id=text(p,"outputStockItemId")?;
+            let batches=p["batchCount"].as_i64().filter(|value|(1..=1000).contains(value)).ok_or("Batch count must be a whole number from 1 to 1000")?;
+            let reason=text(p,"reason")?;
+            if reason.trim().len()<3||reason.len()>180 { return Err("Preparation note must be 3 to 180 characters".into()); }
+            let product=get(&tx,"products",product_id)?.1;
+            if product["inventoryType"].as_str()!=Some("BATCH") { return Err("Choose a saved batch recipe item".into()); }
+            if product["stockItemId"].as_str()!=Some(output_stock_id) { return Err("Finished portions must use the stock item linked to this batch recipe".into()); }
+            let yield_per_batch=product["recipeYield"].as_f64().filter(|value|value.is_finite()&&*value>=1.0&&*value<=100_000.0&&value.fract()==0.0).ok_or("The saved batch recipe has an invalid portion yield")?;
+            let lines=product["recipeIngredients"].as_array().filter(|items|!items.is_empty()&&items.len()<=100).ok_or("The batch recipe has no valid ingredients")?;
+            let output_stock=get(&tx,"stockItems",output_stock_id)?.1;
+            get(&tx,"stockLocations",location_id)?;
+            if !matches!(output_stock["baseUnit"].as_str().unwrap_or("piece").to_ascii_lowercase().as_str(),"piece"|"portion") { return Err("Finished batch stock must use piece or portion units".into()); }
+            if lines.iter().any(|line|line["stockItemId"].as_str()==Some(output_stock_id)) { return Err("Finished batch stock cannot also be one of its own ingredients".into()); }
+            let portion_output=yield_per_batch*batches as f64;
+            if !portion_output.is_finite()||portion_output<=0.0 { return Err("Calculated batch output is invalid".into()); }
+            let movement_reason=format!("Batch preparation {} x {}: {}",product["name"].as_str().unwrap_or(product_id),batches,reason.trim());
+            let mut seen=std::collections::HashSet::new();
+            let mut inputs=Vec::<(String,f64,f64)>::new();
+            let mut total_batch_cost=0.0;
+            for line in lines {
+                let ingredient_id=text(line,"stockItemId")?;
+                if !seen.insert(ingredient_id.to_string()) { return Err("A batch recipe cannot contain duplicate stock ingredients".into()); }
+                let per_portion=line["quantity"].as_f64().filter(|value|value.is_finite()&&*value>0.0&&*value<=1_000_000_000.0).ok_or("The saved recipe contains an invalid per-portion quantity")?;
+                let required=per_portion*yield_per_batch*batches as f64;
+                if !required.is_finite()||required<=0.0 { return Err("Calculated ingredient usage is invalid".into()); }
+                let ingredient=get(&tx,"stockItems",ingredient_id)?.1;
+                let unit_cost=ingredient["averageUnitCost"].as_f64().unwrap_or(0.0);
+                if !unit_cost.is_finite()||unit_cost<0.0 { return Err("Ingredient cost is invalid; correct its stock cost before preparing a batch".into()); }
+                total_batch_cost+=required*unit_cost;
+                inputs.push((ingredient_id.to_string(),required,unit_cost));
+            }
+            if !total_batch_cost.is_finite()||total_batch_cost<0.0 { return Err("Calculated batch cost is invalid".into()); }
+            let output_unit_cost=total_batch_cost/portion_output;
+            let existing_total=output_stock["currentStock"].as_object().map(|values|values.values().map(|value|value.as_f64().unwrap_or(0.0)).sum::<f64>()).unwrap_or(0.0);
+            let existing_output=output_stock["currentStock"][location_id].as_f64().unwrap_or(0.0);
+            let previous_cost=output_stock["averageUnitCost"].as_f64().unwrap_or(0.0);
+            if !existing_output.is_finite()||existing_output<0.0||!existing_total.is_finite()||existing_total<0.0||!previous_cost.is_finite()||previous_cost<0.0 { return Err("Finished-stock balance or cost is invalid".into()); }
+            for (ingredient_id,required,unit_cost) in inputs {
+                stock_delta_with_cost(&tx,&user,&ingredient_id,location_id,-required,"BATCH_PREPARATION_INGREDIENT",&cmd.id,&movement_reason,Some(unit_cost),&mut changes)?;
+            }
+            let next_average=if existing_total+portion_output>0.0 { (existing_total*previous_cost+total_batch_cost)/(existing_total+portion_output) } else { output_unit_cost };
+            if !next_average.is_finite()||next_average<0.0 { return Err("Finished-stock cost calculation is invalid".into()); }
+            let mut updated_output=get(&tx,"stockItems",output_stock_id)?.1;
+            updated_output["averageUnitCost"]=json!(next_average);
+            put(&tx,"stockItems",output_stock_id,updated_output,&mut changes)?;
+            stock_delta_with_cost(&tx,&user,output_stock_id,location_id,portion_output,"BATCH_PREPARATION_OUTPUT",&cmd.id,&movement_reason,Some(output_unit_cost),&mut changes)?;
         }
         "inventory.openingBalance" | "inventory.receive" | "inventory.adjust" | "inventory.waste" | "inventory.transfer" => {
             let permission=match cmd.operation.as_str(){"inventory.receive"=>"inventory.receive","inventory.transfer"=>"inventory.transfer","inventory.waste"=>"inventory.waste","inventory.adjust"=>"inventory.adjust",_=>"inventory.adjust"};

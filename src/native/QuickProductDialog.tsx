@@ -106,7 +106,8 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
     else if (next === 'SERVICE') { setCategory('Services'); setRouteTo('SERVICE'); }
     else { setCategory('Drinks'); setRouteTo('BAR'); }
     setPhysical(['DRINK','SPIRIT','WINE','KEG','RETAIL'].includes(next));
-    if(['FOOD','DISH','BATCH'].includes(next)){setCreateStock(false);setTracked(false)}
+    if(['FOOD','DISH'].includes(next)){setCreateStock(false);setTracked(false)}
+    if(next==='BATCH'){setCreateStock(true);setTracked(false);setStockName(name.trim());setStockCode(code.trim());setPurchasePackageName('Prepared batch');setUnitsPerPackage(1);setPackageContentsUnit('piece');setPackageContentsQuantity(1);setOpeningContainers(0);setAverageUnitCost(0)}
     if(next==='WEIGHT_INGREDIENT'){setCreateStock(true);setPurchasePackageName('Bag');setUnitsPerPackage(1);setPackageContentsQuantity(1);setPackageContentsUnit('kg')}
     else if(next==='COUNT_INGREDIENT'){setCreateStock(true);setPurchasePackageName('Pack');setUnitsPerPackage(12)}
     else if(next==='DRINK'){setPurchasePackageName('Case');setUnitsPerPackage(24)}
@@ -180,7 +181,7 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
   const stepTitles = variantOnly ? ['Product size', 'Selling behavior', 'Stock setup', 'Review'] : ['Item identity', 'Selling behavior', 'Stock setup', 'Review'];
   const stockOnly = kind==='WEIGHT_INGREDIENT'||kind==='COUNT_INGREDIENT';
   const recipeItem = ['FOOD','DISH','BATCH'].includes(kind);
-  const stepBlocked = wizardStep===0 ? !name.trim()||!code.trim() : wizardStep===1 ? (!stockOnly&&(!taxClassId||price<0||outlets.length===0||!physicalValid))||(recipeItem&&recipeIngredients.length===0)||(kind==='BATCH'&&(!Number.isInteger(batchYield)||batchYield<1)) : wizardStep===2 ? (stockOnly&&!createStock)||(recipeItem&&(createStock||tracked))||!linkedStockAvailable||!atomicStockValid||(tracked&&!stockItemId) : !name.trim()||!code.trim()||(!stockOnly&&(!taxClassId||price<0||outlets.length===0||!physicalValid))||!linkedStockAvailable||!atomicStockValid||(stockOnly&&!createStock)||(recipeItem&&(createStock||tracked))||(tracked&&!stockItemId)||(recipeItem&&recipeIngredients.length===0)||(kind==='BATCH'&&(!Number.isInteger(batchYield)||batchYield<1))||(variantOnly&&!familyId);
+  const stepBlocked = wizardStep===0 ? !name.trim()||!code.trim() : wizardStep===1 ? (!stockOnly&&(!taxClassId||price<0||outlets.length===0||!physicalValid))||(recipeItem&&recipeIngredients.length===0)||(kind==='BATCH'&&(!Number.isInteger(batchYield)||batchYield<1)) : wizardStep===2 ? (stockOnly&&!createStock)||(recipeItem&&kind!=='BATCH'&&(createStock||tracked))||(kind==='BATCH'&&!createStock&&!tracked)||!linkedStockAvailable||!atomicStockValid||(tracked&&!stockItemId) : !name.trim()||!code.trim()||(!stockOnly&&(!taxClassId||price<0||outlets.length===0||!physicalValid))||!linkedStockAvailable||!atomicStockValid||(stockOnly&&!createStock)||(recipeItem&&kind!=='BATCH'&&(createStock||tracked))||(kind==='BATCH'&&!createStock&&!tracked)||(tracked&&!stockItemId)||(recipeItem&&recipeIngredients.length===0)||(kind==='BATCH'&&(!Number.isInteger(batchYield)||batchYield<1))||(variantOnly&&!familyId);
   const reviewName = physical ? `${familyName.trim()||name.trim()} ${variantLabel}` : name.trim();
 
   return <ActionDialog title={variantOnly ? 'Add another size' : `Smart Item Wizard · ${stepTitles[wizardStep]} (${wizardStep+1}/4)`} onClose={onClose}>

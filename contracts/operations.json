@@ -13,7 +13,7 @@
     "order.create", "order.addItem", "order.fire", "order.kds", "order.repeatRound", "order.transfer",
     "order.merge", "order.discount", "order.compItem", "order.void", "payment.record", "payment.split",
     "payment.refund", "payment.reverse", "mpesa.reconcile", "inventory.countLocation", "inventory.transfer",
-    "inventory.waste", "purchaseOrder.receive", "purchaseOrder.create", "supplierPayable.matchInvoice",
+    "inventory.waste", "inventory.produceBatch", "purchaseOrder.receive", "purchaseOrder.create", "supplierPayable.matchInvoice",
     "supplierPayable.pay", "roomReservation.create", "roomStay.settings", "stay.checkIn", "stay.move",
     "stay.checkOut", "room.condition", "folio.postService", "folio.pay", "pos.roomCharge", "till.close",
     "closeDay.generate", "staff.create", "device.revoke", "asset.maintenance", "runtime.print_receipt", "runtime.backup"

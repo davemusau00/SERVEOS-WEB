@@ -977,7 +977,7 @@
       "native": "implemented",
       "backend": "implemented",
       "web": "partial",
-      "notes": "Remote count is currently a simpler form; scanner draft parity is pending.",
+      "notes": "Whole-location counts now carry sealed bottles plus open ml for tracked Spirit/Wine; scanner draft parity and acceptance remain pending.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",

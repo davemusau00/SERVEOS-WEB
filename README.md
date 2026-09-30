@@ -10,7 +10,7 @@ The installed app uses Tauri and has Windows, Linux, and Android build paths. Wi
 
 ## Developer setup
 
-Prerequisites: Git, Node.js/npm, Rust/Cargo for native work, and the platform-specific Tauri build prerequisites. Windows packaging also uses Visual Studio C++ Build Tools, WebView2, Bash for the repository packaging script, and NSIS. Android builds additionally require Android SDK/NDK. Docker is needed for the disposable PostgreSQL/Supabase harness. See [deployment and recovery](docs/DEPLOYMENT_RUNBOOK.md), [setup guide](docs/ONBOARDING_AND_SETUP.md), and [database/migration notes](docs/PRODUCTION_UPGRADE_PATCH_PLAN.md).
+Prerequisites: Git, Node.js/npm, Rust/Cargo for native work, and the platform-specific Tauri build prerequisites. Windows packaging also uses Visual Studio C++ Build Tools, WebView2, Bash for the repository packaging script, and NSIS. Android builds additionally require Android SDK/NDK. Docker is needed for the disposable PostgreSQL/Supabase harness. See [deployment and recovery](docs/DEPLOYMENT_RUNBOOK.md), [setup guide](docs/ONBOARDING_AND_SETUP.md), [terminal operator account and pairing setup](docs/TERMINAL_OPERATOR_AUTH_SETUP.md), and [database/migration notes](docs/PRODUCTION_UPGRADE_PATCH_PLAN.md).
 
 ```powershell
 npm ci
