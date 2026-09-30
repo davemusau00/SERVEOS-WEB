@@ -34,6 +34,8 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(smartSql,/OPENING_BALANCE/);
   assert.match(harness,/smart-items\.sql/);
   assert.match(cloudAcceptance,/Smart Item command replay changed its acknowledgement/);
+  assert.match(cloudAcceptance,/left partial stock or movement rows/);
+  assert.match(cloudAcceptance,/Smart Item permission was not enforced/);
   assert.match(manifest,/catalog\.createWithOpeningStock[^\n]*backend: 'implemented'[^\n]*web: 'partial'/);
   assert.match(ui,/stockItem\.save/);
   assert.match(ui,/inventory\.count/);

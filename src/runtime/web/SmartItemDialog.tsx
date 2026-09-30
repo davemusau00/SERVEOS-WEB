@@ -20,18 +20,19 @@ export function SmartItemDialog({records,session,disabled,command,onClose}:{reco
  const mode:MeasurementMode=unit==='g'||unit==='kg'?'WEIGHT':unit==='ml'||unit==='l'?'VOLUME':'COUNT';
  const baseUnit=mode==='WEIGHT'?'g':mode==='VOLUME'?'ml':'piece';
  const calculation=useMemo(()=>{try{const pkg=definePurchasePackage({id:'preview',name:purchaseName||'Package',unitsPerPackage,contentsPerSaleUnit:contents,unit,mode,barcode});const unitCost=costPerCanonicalUnit(Math.round(packageCost*100),pkg.baseQuantity,baseUnit);return {pkg,unitCost,opening:pkg.baseQuantity*openingPackages,sale:canonicalizeMeasurement(saleQuantity,unit,mode).quantity}}catch{return null}},[purchaseName,unitsPerPackage,contents,unit,mode,barcode,packageCost,openingPackages,saleQuantity,baseUnit]);
- const sellable=async()=>{
+ const sellable=async(productId:string)=>{
   if(!session.permissions.includes('*')&&!session.permissions.includes('catalog.manage'))throw new Error('This role cannot create sellable catalog items.');
   if(!outlets.length)throw new Error('Add a service area before creating a sellable item.');
-  const product={id:'',name:name.trim(),code:code.trim(),price:Number(price),category:category.trim()||'GENERAL',inventoryType:itemType,routeTo,stockItemId:'',outletIds:outlets.map(outlet=>outlet.id),taxClassId:'A_STANDARD',favorite:false,barcode:barcode.trim(),portionVolume:calculation!.sale,portions:[{id:'each',name:mode==='VOLUME'?'Each serving':'Each',volume:calculation!.sale,priceMinor:Math.round(Number(price)*100)}],recipeIngredients:[],modifiers:[]};
+  const product={id:productId,name:name.trim(),code:code.trim(),price:Number(price),category:category.trim()||'GENERAL',inventoryType:itemType,routeTo,stockItemId:'',outletIds:outlets.map(outlet=>outlet.id),taxClassId:'A_STANDARD',favorite:false,barcode:barcode.trim(),portionVolume:calculation!.sale,portions:[{id:'each',name:mode==='VOLUME'?'Each serving':'Each',volume:calculation!.sale,priceMinor:Math.round(Number(price)*100)}],recipeIngredients:[],modifiers:[]};
   return product;
  };
  const save=async()=>{setError('');if(busy)return;
   if(!session.permissions.includes('*')&&!session.permissions.includes('inventory.adjust')){setError('This role cannot create a stock master. Ask an Admin to grant inventory adjustment access.');return}
   if(!name.trim()||!code.trim()||!locationId||!calculation||!Number.isFinite(price)||price<0||unitsPerPackage<1||!Number.isInteger(unitsPerPackage)||contents<=0||openingPackages<0||!Number.isInteger(openingPackages)||saleQuantity<=0||packageCost<0){setError('Complete the required item, package, price, and storage details with valid quantities.');return}
   setBusy(true);try{
-   const stockItem={name:name.trim(),code:code.trim(),barcode:barcode.trim(),baseUnit,scanUnitQuantity:calculation.pkg.baseQuantity,purchasePackages:[calculation.pkg],averageUnitCost:calculation.unitCost/100,reorderLevel:0};
-   await command('catalog.createWithOpeningStock','stockItems',crypto.randomUUID(),{...(stockOnly?{}:{product:await sellable()}),stockItem,locationId,startingQuantity:calculation.opening});
+   const stockItemId=crypto.randomUUID();const productId=crypto.randomUUID();const openingMovementId=crypto.randomUUID();
+   const stockItem={id:stockItemId,name:name.trim(),code:code.trim(),barcode:barcode.trim(),baseUnit,scanUnitQuantity:calculation.pkg.baseQuantity,purchasePackages:[calculation.pkg],averageUnitCost:calculation.unitCost/100,reorderLevel:0};
+   await command('catalog.createWithOpeningStock','stockItems',stockItemId,{...(stockOnly?{}:{product:await sellable(productId)}),stockItem,locationId,startingQuantity:calculation.opening,openingMovementId});
    onClose();
   }catch(cause){setError(operatorError(cause))}finally{setBusy(false)}
  };

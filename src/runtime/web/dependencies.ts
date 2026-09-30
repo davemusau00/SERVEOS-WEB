@@ -30,7 +30,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
       if (Array.isArray(product.outletIds)) for (const outletId of product.outletIds) add('outlets', outletId);
     }
     const opening = Number(payload.startingQuantity);
-    if (Number.isFinite(opening) && opening > 0) add('stockMovements', `${id}:opening`);
+    if (Number.isFinite(opening) && opening > 0) add('stockMovements', typeof payload.openingMovementId === 'string'&&payload.openingMovementId.trim()?payload.openingMovementId:`${id}:opening`);
   }
   if (operation === 'roomStay.settings') add('property', 'property');
   const data = (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>;
