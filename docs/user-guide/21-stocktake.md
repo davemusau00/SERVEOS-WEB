@@ -12,7 +12,7 @@ A stock count posts the difference between expected and physical quantity as an 
 
 ## Procedure
 
-Select **Count** and choose the stock location. Scan a stock barcode or SKU for each package counted. Each scan adds the item's configured **Quantity represented by one scan**, in base units, to the count draft. For example, scanning a 750 ml bottle three times adds 2,250 ml when the stock master is tracked in ml and has a scan quantity of 750. You may also edit the total counted quantity directly; it must remain in base units.
+Select **Count** and choose the stock location. Scan a stock barcode or SKU for each package counted. Each scan adds the item's configured **Quantity represented by one scan**, in base units, to the count draft. For example, scanning a 750 ml bottle three times adds 2,250 ml when the stock master is tracked in ml and has a scan quantity of 750. For a stock item configured with a sealed bottle size, enter the physical number of sealed bottles and the ml remaining in its open bottle; ServOS derives and validates the total. For other stock, enter the physical total directly in base units.
 
 Check the item and location before applying each scan. If a code is unknown or matches multiple stock masters, fix the catalog mapping first. Enter the count reason and commit when the draft matches the physical stocktake. Until commit, scans are only draft input and do not alter inventory. ServOS calculates the delta against expected stock and rejects invalid quantities.
 

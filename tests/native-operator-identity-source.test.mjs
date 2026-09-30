@@ -45,9 +45,12 @@ test('local offline unlock remains separate and sign-out clears local state', ()
 });
 
 test('one terminal can be reused by active operators without transferring registration ownership', () => {
+  assert.match(identityMigration,/servos_v2\.require_permission\('devices\.register'\)/);
   assert.match(identityMigration, /on conflict\(id\) do nothing/);
   assert.match(identityMigration, /not existing\.active or existing\.kind<>\$3/);
   assert.match(identityMigration, /owner_id=original_owner/);
+  assert.match(setupGuide,/first Auth operator on a fresh terminal must be that authorized Admin/);
+  assert.match(setupGuide,/Do not use a cashier\/Server account for first pairing/);
 });
 
 test('authenticated identity initializes staged protocol state and isolates v2 feed reconciliation', () => {

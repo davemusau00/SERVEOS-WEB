@@ -33,7 +33,23 @@ end$$;
 select pg_temp.inv_command('stockLocation.save','stockLocations','main','{"id":"main","data":{"name":"Main Store","code":"MAIN","type":"STORE"}}');
 select pg_temp.inv_command('stockLocation.save','stockLocations','bar','{"id":"bar","data":{"name":"Main Bar","code":"BAR","type":"BAR"}}');
 select pg_temp.inv_command('stockItem.save','stockItems','gin','{"id":"gin","data":{"name":"Chrome Gin 750ml","code":"GIN750","baseUnit":"bottle","barcode":"616000001","scanUnitQuantity":1,"reorderLevel":5,"averageUnitCostMinor":60000}}');
+select pg_temp.inv_command('stockItem.save','stockItems','gin-ml','{"id":"gin-ml","data":{"name":"Chrome Gin measured","code":"GIN750-ML","baseUnit":"ml","sealedContainerSize":750,"scanUnitQuantity":750,"reorderLevel":0,"averageUnitCostMinor":80}}');
 select pg_temp.inv_command('product.save','products','gin-sell','{"id":"gin-sell","data":{"name":"Chrome Gin 750ml","code":"GIN750-S","priceMinor":100000,"category":"SPIRITS","routeTo":"BAR","stockItemId":"gin","barcode":"616000002","favorite":true}}');
+
+-- Sealed/open transfer conserves measured liquid and carries bottle state by location.
+select pg_temp.inv_command('inventory.adjust','stockItems','gin-ml','{"id":"gin-ml","stockItemId":"gin-ml","locationId":"main","countedQty":1700,"sealedContainers":2,"openQuantity":200,"reason":"Bottle-state transfer fixture"}');
+select pg_temp.inv_command('inventory.transfer','stockItems','gin-ml','{"id":"gin-ml","stockItemId":"gin-ml","locationId":"main","toLocationId":"bar","quantity":45,"reason":"Measured pour transfer"}');
+select pg_temp.inv_command('inventory.transfer','stockItems','gin-ml','{"id":"gin-ml","stockItemId":"gin-ml","locationId":"main","toLocationId":"bar","quantity":705,"reason":"Unrepresentable open-state transfer"}','10000000-0000-4000-8000-000000000031','REJECTED','INVALID_STATE');
+do $$declare s jsonb;out_movement jsonb;in_movement jsonb;begin
+ s:=servos_v2.read_record('stockItems','gin-ml');
+ if (s->'currentStock'->>'main')::numeric<>1655 or (s->'currentStock'->>'bar')::numeric<>45 then raise exception 'Sealed transfer canonical quantity mismatch: %',s;end if;
+ if (s->'sealedOpenStock'->'main'->>'sealedContainers')::numeric<>2 or (s->'sealedOpenStock'->'main'->>'openQuantity')::numeric<>155 then raise exception 'Sealed transfer source bottle state mismatch: %',s->'sealedOpenStock'->'main';end if;
+ if (s->'sealedOpenStock'->'bar'->>'sealedContainers')::numeric<>0 or (s->'sealedOpenStock'->'bar'->>'openQuantity')::numeric<>45 then raise exception 'Sealed transfer destination bottle state mismatch: %',s->'sealedOpenStock'->'bar';end if;
+ if (select count(*) from servos_v2.records where collection='stockMovements' and data->>'reason'='Unrepresentable open-state transfer')<>0 then raise exception 'Rejected transfer left movement history';end if;
+ select data into out_movement from servos_v2.records where collection='stockMovements' and data->>'movementType'='TRANSFER_OUT' and data->>'reason'='Measured pour transfer';
+ select data into in_movement from servos_v2.records where collection='stockMovements' and data->>'movementType'='TRANSFER_IN' and data->>'reason'='Measured pour transfer';
+ if (out_movement->'sealedOpenEffect'->'after'->>'openQuantity')::numeric<>155 or (in_movement->'sealedOpenEffect'->'after'->>'openQuantity')::numeric<>45 then raise exception 'Transfer movements omitted sealed/open after-state';end if;
+end$$;
 
 select pg_temp.inv_command('inventory.count','stockItems','gin','{"id":"gin","stockItemId":"gin","locationId":"main","countedQty":10,"reason":"Opening physical count"}');
 do $$begin
@@ -43,11 +59,12 @@ end$$;
 
 -- Reviewed whole-location count includes every active stock item and replays once.
 select pg_temp.inv_command('stockItem.save','stockItems','soda','{"id":"soda","data":{"name":"Soda","code":"SODA","baseUnit":"bottle","scanUnitQuantity":2,"averageUnitCostMinor":100}}');
-select pg_temp.inv_command('inventory.countLocation','stockItems','count-location-1','{"id":"count-location-1","locationId":"main","sessionId":"web-count-1","sessionRevision":1,"reason":"Reviewed location count","unknownBarcodes":[],"rows":[{"stockItemId":"gin","expectedQuantity":10,"countedQuantity":8,"name":"Chrome Gin 750ml","baseUnit":"bottle","scanUnitQuantity":1},{"stockItemId":"soda","expectedQuantity":0,"countedQuantity":0,"name":"Soda","baseUnit":"bottle","scanUnitQuantity":2}]}');
+select pg_temp.inv_command('inventory.countLocation','stockItems','count-location-1','{"id":"count-location-1","locationId":"main","sessionId":"web-count-1","sessionRevision":1,"reason":"Reviewed location count","unknownBarcodes":[],"rows":[{"stockItemId":"gin","expectedQuantity":10,"countedQuantity":8,"name":"Chrome Gin 750ml","baseUnit":"bottle","scanUnitQuantity":1},{"stockItemId":"gin-ml","expectedQuantity":1655,"countedQuantity":1450,"countedSealedContainers":1,"countedOpenQuantity":700,"name":"Chrome Gin measured","baseUnit":"ml","scanUnitQuantity":750},{"stockItemId":"soda","expectedQuantity":0,"countedQuantity":0,"name":"Soda","baseUnit":"bottle","scanUnitQuantity":2}]}');
 do $$begin
  if (select count(*) from servos_v2.records where collection='stockCounts')<>1 then raise exception 'Whole-location count record missing';end if;
  if (select count(*) from servos_v2.records where collection='stockMovements' and data->>'reason'='Reviewed location count')<>1 then raise exception 'Whole-location variance movement mismatch';end if;
  if (servos_v2.read_record('stockItems','gin')->'currentStock'->>'main')::numeric<>8 then raise exception 'Whole-location count did not apply variance';end if;
+ if (servos_v2.read_record('stockItems','gin-ml')->'sealedOpenStock'->'main'->>'sealedContainers')::numeric<>1 or (servos_v2.read_record('stockItems','gin-ml')->'sealedOpenStock'->'main'->>'openQuantity')::numeric<>700 then raise exception 'Whole-location count did not reconcile sealed/open bottle state';end if;
 end$$;
 
 select pg_temp.inv_command('inventory.transfer','stockItems','gin','{"id":"gin","stockItemId":"gin","locationId":"main","toLocationId":"bar","quantity":3,"reason":"Bar replenishment"}');

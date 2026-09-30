@@ -90,12 +90,36 @@ do $$declare command_data jsonb;result jsonb;recipe_product jsonb;begin
  update servos_v2.members set permissions=array['*'] where user_id=auth.uid();
 end$$;
 
+do $$declare command_data jsonb;result jsonb;stock_data jsonb;product_data jsonb;movement_data jsonb;begin
+ command_data:=jsonb_build_object(
+  'id','20000000-0000-4000-8000-000000000078','schemaVersion',2,
+  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',6,
+  'operation','catalog.createWithOpeningStock','payload',jsonb_build_object(
+   'product',jsonb_build_object('id','sealed-product','name','Smart Gin','code','SMART-GIN','price',1.5,'category','SPIRITS','inventoryType','SPIRIT','routeTo','BAR','stockItemId','','outletIds',jsonb_build_array('smart-outlet'),'taxClassId','A_STANDARD','portionVolume',750,'portions',jsonb_build_array(jsonb_build_object('id','serving','name','Pour','volume',45,'priceMinor',150),jsonb_build_object('id','whole-container','name','Whole bottle','volume',750,'priceMinor',2500)),'recipeIngredients','[]'::jsonb,'modifiers','[]'::jsonb),
+   'stockItem',jsonb_build_object('id','sealed-stock','name','Smart Gin stock','code','SMART-GIN-STOCK','baseUnit','ml','scanUnitQuantity',9000,'purchasePackages',jsonb_build_array(jsonb_build_object('id','gin-case','name','Case','unitsPerPackage',12,'baseQuantity',9000,'baseUnit','ml')),'averageUnitCost',1.333333,'sealedContainerSize',750,'reorderLevel',0),
+   'locationId','smart-main','startingQuantity',9000,'openingMovementId','sealed-opening-movement'),
+  'expectedVersions',jsonb_build_array(
+   jsonb_build_object('collection','stockItems','id','sealed-stock','version',0),
+   jsonb_build_object('collection','products','id','sealed-product','version',0),
+   jsonb_build_object('collection','stockMovements','id','sealed-opening-movement','version',0),
+   jsonb_build_object('collection','stockLocations','id','smart-main','version',(select version from servos_v2.records where collection='stockLocations' and id='smart-main')),
+   jsonb_build_object('collection','outlets','id','smart-outlet','version',(select version from servos_v2.records where collection='outlets' and id='smart-outlet'))));
+ result:=public.servos_v2_execute(command_data);
+ if result->>'status'<>'SYNCHRONIZED' then raise exception 'Sealed bottle Smart Item rejected: %',result;end if;
+ select data into stock_data from servos_v2.records where collection='stockItems' and id='sealed-stock';
+ select data into product_data from servos_v2.records where collection='products' and id='sealed-product';
+ select data into movement_data from servos_v2.records where collection='stockMovements' and id='sealed-opening-movement';
+ if (stock_data->>'sealedContainerSize')::numeric<>750 or (stock_data->'currentStock'->>'smart-main')::numeric<>9000 or (stock_data->'sealedOpenStock'->'smart-main'->>'sealedContainers')::numeric<>12 or (stock_data->'sealedOpenStock'->'smart-main'->>'openQuantity')::numeric<>0 then raise exception 'Opening stock did not initialize sealed bottles: %',stock_data;end if;
+ if (product_data->>'portionVolume')::numeric<>750 or (product_data->'portions'->0->>'volume')::numeric<>45 or (product_data->'portions'->1->>'volume')::numeric<>750 or (product_data->'portions'->1->>'priceMinor')::numeric<>2500 then raise exception 'Spirit serving/whole-bottle portions were not preserved: %',product_data;end if;
+ if (movement_data->'sealedOpenAfter'->>'sealedContainers')::numeric<>12 then raise exception 'Opening movement omitted sealed-bottle state: %',movement_data;end if;
+end$$;
+
 do $$declare command_data jsonb;result jsonb;begin
  -- A duplicate product found after the stock master has been staged must roll
  -- the entire command back, including the new stock row and opening movement.
  command_data:=jsonb_build_object(
   'id','20000000-0000-4000-8000-000000000073','schemaVersion',2,
-  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',6,
+  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',7,
   'operation','catalog.createWithOpeningStock',
   'payload',jsonb_build_object(
    'product',jsonb_build_object('id','','name','Duplicate Smart Soda','code','SMART-SODA','price',3,'routeTo','BAR','outletIds',jsonb_build_array('smart-outlet'),'taxClassId','A_STANDARD'),
@@ -115,7 +139,7 @@ do $$declare command_data jsonb;result jsonb;begin
  update servos_v2.members set permissions=array['records.view'] where user_id=auth.uid();
  command_data:=jsonb_build_object(
   'id','20000000-0000-4000-8000-000000000074','schemaVersion',2,
-  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',7,
+  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',8,
   'operation','catalog.createWithOpeningStock',
   'payload',jsonb_build_object('stockItem',jsonb_build_object('name','Denied Stock','code','DENIED-STOCK','baseUnit','piece','scanUnitQuantity',1,'purchasePackages','[]'::jsonb,'averageUnitCost',0,'reorderLevel',0),'locationId','smart-main','startingQuantity',0),
   'expectedVersions',jsonb_build_array(

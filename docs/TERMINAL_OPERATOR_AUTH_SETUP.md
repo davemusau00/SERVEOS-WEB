@@ -6,7 +6,7 @@ This guide configures individual business accounts on an installed ServOS termin
 
 - Use a staging Supabase project for the first setup and testing.
 - Keep the project URL and publishable key in the terminal build configuration as `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never use a service-role key in the app or terminal.
-- Apply the approved expansion migrations through `032_recipe_product_dependencies.sql` to the target staging project when preparing the current v2 source slice. These migrations are source only until your normal reviewed migration process applies them.
+- Apply the approved expansion migrations through `034_sealed_location_counts.sql` to the target staging project when preparing the current v2 source slice. These migrations are source only until your normal reviewed migration process applies them.
 - Confirm each operator already has a local ServOS staff record with a stable, unique Staff ID. The v2 `staff_profiles.staff_id` must match that ID exactly.
 - During first enrollment, the initial local Administrator's stable ID is `auth:<Auth UUID>`, matching the staged owner-profile backfill. For every other operator, bind the Auth user to the exact stable Staff ID from the terminal's staff record; do not guess or use an email/name as the ID.
 - Confirm the business membership and operator permissions are active. Permissions are resolved from the authenticated server session and role profile, not from a terminal role selector.
@@ -25,9 +25,10 @@ This guide configures individual business accounts on an installed ServOS termin
 ## Pair a terminal once
 
 1. Enroll the terminal using the existing owner enrollment process. The terminal keeps its device ID and legacy device credential separate from operator accounts. Do this once per installation, not once per operator.
-2. On the first online operator sign-in, the terminal registers its terminal ID as a staged `DESKTOP` device once. Subsequent operator sessions reuse that paired device ID; they do not register a new device per operator.
-3. Keep the terminal paired-device metadata intact during normal operator changes. Admins may inspect or revoke paired devices in Staff/Devices. Revocation should stop staged access; it does not erase local business records.
-4. The pairing owner is registration metadata only. Each operator authenticates separately; active business membership, the active device, and server-side operation permissions govern staged command acceptance.
+2. Commission the staged v2 pairing while signed in with an active Admin account authorized for `devices.register`. The current native first-online-login path performs this registration as part of identity initialization, so the first Auth operator on a fresh terminal must be that authorized Admin. Do not use a cashier/Server account for first pairing or grant it `devices.register` just to bypass commissioning.
+3. Confirm the registered `DESKTOP` device ID matches the enrolled terminal ID. After this one-time Admin commissioning sign out, subsequent operator sessions reuse the paired device; they do not register a new device per operator.
+4. Keep the terminal paired-device metadata intact during normal operator changes. Admins may inspect or revoke paired devices in Staff/Devices. Revocation should stop staged access; it does not erase local business records.
+5. The pairing owner is registration metadata only. Each operator authenticates separately; active business membership, the active device, and server-side operation permissions govern staged command acceptance.
 
 ## Sign in, switch, and sign out
 
@@ -39,11 +40,11 @@ This guide configures individual business accounts on an installed ServOS termin
 ## First-use runbook
 
 1. Build/configure the terminal with the staging project URL and publishable key, then complete existing terminal enrollment and verify that its terminal ID is stable after restart.
-2. Sign in once with an authorized operator account. Confirm the Auth UUID, local Staff ID, and server `staff_profiles.staff_id` agree. The first online sign-in registers the paired DESKTOP device if needed.
-3. Sign out, sign in as a second invited operator, and confirm the paired device ID is unchanged while the active actor and permissions change. Test a denied operation with a role that lacks its grant.
+2. Sign in with an active Admin account authorized for `devices.register` to commission the staged DESKTOP pairing. Confirm the device ID matches the enrolled terminal. Pairing is a one-time device operation, not an operator credential.
+3. Sign out, then sign in with each operator's own invited account. Confirm each Auth UUID resolves to that operator's matching local/server Staff ID, and that the same paired device ID is retained while actor and permissions change. Test a denied operation with a role that lacks its grant.
 4. Restart the terminal and confirm refresh-token renewal uses OS secure storage. Sign out and verify the active operator session is cleared. Do not inspect, export, or copy vault contents.
 5. Disconnect the server and verify local-PIN access uses only the existing SQLite/legacy path. Reconnect and reconcile that work before any v2 trial.
-6. Only in staging, apply reviewed migrations through `030_terminal_identity_policy_version.sql`. Verify `servos_v2_terminal_identity` and `servos_v2_session` return the same `policyVersion`. Install the read-only shadow baseline, change an operator grant, and verify the old baseline is hidden until refreshed.
+6. Only in staging, after the reviewed expansion set through `034_sealed_location_counts.sql` is applied, verify `servos_v2_terminal_identity` and `servos_v2_session` return the same `policyVersion`. Install the read-only shadow baseline, change an operator grant, and verify the old baseline is hidden until refreshed.
 7. Keep `servos_v2.control.enabled` false. Pairing and identity checks do not authorize v2 writes. Record source, disposable SQL, native, packaged-terminal, hosted, and hardware evidence separately.
 
 If a v2 identity/snapshot RPC returns an error, stop v2 use and leave the control disabled. Confirm which reviewed expansion migrations are actually applied to the target project and that the configured URL/key point to that project; do not try to fix a hosted 404 by embedding a service-role key or by manually modifying production grants.

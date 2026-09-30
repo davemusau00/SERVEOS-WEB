@@ -23,6 +23,8 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   const manifest=readFileSync('src/runtime/operationManifest.ts','utf8');
   const smartSql=readFileSync('supabase/expansion/031_smart_item_atomic_setup.sql','utf8');
   const recipeSql=readFileSync('supabase/expansion/032_recipe_product_dependencies.sql','utf8');
+  const sealedTransferSql=readFileSync('supabase/expansion/033_inventory_sealed_transfers.sql','utf8');
+  const sealedCountSql=readFileSync('supabase/expansion/034_sealed_location_counts.sql','utf8');
   const harness=readFileSync('scripts/test-supabase.mjs','utf8');
   const cloudAcceptance=readFileSync('tests/supabase/smart-items.sql','utf8');
   assert.match(ui,/product\.save/);
@@ -32,6 +34,8 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(smart,/openingPackages/);
   assert.match(smart,/product\.save/);
   assert.match(smart,/recipeIngredients/);
+  assert.match(smart,/sealedContainerSize/);
+  assert.match(smart,/whole-container/);
   assert.match(smart,/Save recipe item/);
   assert.match(smart,/pendingReview/);
   assert.match(smart,/avoid a duplicate item/);
@@ -45,6 +49,12 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(recipeSql,/dispatch_before_recipe_product_dependencies/);
   assert.match(recipeSql,/require_permission\('inventory\.view'\)/);
   assert.match(recipeSql,/revoke all on function servos_v2\.dispatch/);
+  assert.match(sealedTransferSql,/apply_sealed_inventory_transfer/);
+  assert.match(sealedTransferSql,/sealedOpenEffect/);
+  assert.match(sealedTransferSql,/destination already has open liquid/);
+  assert.match(sealedCountSql,/countedSealedContainers/);
+  assert.match(sealedCountSql,/countedOpenQuantity/);
+  assert.match(sealedCountSql,/sealedOpenEffect/);
   assert.match(harness,/smart-items\.sql/);
   assert.match(cloudAcceptance,/Smart Item command replay changed its acknowledgement/);
   assert.match(cloudAcceptance,/left partial stock or movement rows/);
@@ -52,11 +62,17 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(cloudAcceptance,/Recipe product lost its validated ingredients/);
   assert.match(cloudAcceptance,/Stale recipe stock baseline was accepted/);
   assert.match(cloudAcceptance,/Recipe without inventory\.view was not denied/);
+  assert.match(cloudAcceptance,/Opening stock did not initialize sealed bottles/);
+  assert.match(cloudAcceptance,/Sealed transfer destination bottle state mismatch/);
+  assert.match(cloudAcceptance,/Whole-location count did not reconcile sealed\/open bottle state/);
   assert.match(manifest,/catalog\.createWithOpeningStock[^\n]*backend: 'implemented'[^\n]*web: 'partial'/);
   assert.match(ui,/stockItem\.save/);
   assert.match(ui,/inventory\.count/);
   assert.match(ui,/inventory\.transfer/);
   assert.match(ui,/inventory\.waste/);
+  assert.match(ui,/bottleCounts/);
+  assert.match(ui,/countedSealedContainers/);
+  assert.match(ui,/countedOpenQuantity/);
   assert.match(ui,/useBarcodeScanner/);
   assert.doesNotMatch(ui,/business_records/);
   assert.doesNotMatch(ui,/from\(['"]business_records/);
