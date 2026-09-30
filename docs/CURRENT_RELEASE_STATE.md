@@ -90,7 +90,7 @@ The installed terminal's existing read-only local/legacy-cloud reconciler now re
 - Rust capability registry returned with authenticated runtime snapshots; installed UI no longer simulates roles.
 - Single-use, target-aware manager approval tokens and staff create/update/deactivate/PIN-reset/role-change lifecycle.
 - One-terminal SQLite transactions with command deduplication, immutable audit and ordered outbox.
-- Native floorplan atomic save plus `table.ready` cleaning lifecycle.
+- Native floorplan atomic save plus `table.ready` cleaning lifecycle; Web floorplan and staged atomic `floorplan.save` are now authored but not migration-applied or verified.
 - Bar POS orders, quick tabs/tables, quantities, portions, modifiers, recipe snapshots, price-rule snapshots, firing and ingredient depletion.
 - Item-specific KDS states: FIRED → PREPARING → READY → SERVED.
 - Unpaid transfer/merge, protected discounts/comps, fired-void stock disposition.
