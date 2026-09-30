@@ -8,9 +8,9 @@
 
 ## Implementation progress - 2026-09-30
 
-P0/P1 foundation is in progress. The source now includes shared operator controls, a keyboard-aware native dialog shell, a generated operator UX audit, expanded operation-parity metadata, and property-time conversion used by native room reservations/blocks and web reservations/M-Pesa receipt entry. Audit output records workflows as `UNREVIEWED`; it does not claim runtime acceptance. The source test suite had 107 passing tests before this work. Current changes require fresh focused and full-gate execution before their status can advance.
+P0 is locally verified on 2026-09-30 after a clean `npm ci`: lint, production build, 112 Node tests, UI audit gate, documentation checks, 22 browser tests (desktop/mobile), 71 native domain tests in the Linux container, disposable cloud protocol tests, and `git diff --check` passed. `npm run audit:ui` inventoried 3,492 interactions and found no `window.prompt`/`window.confirm` use; the audit still contains 48 review findings. This is local evidence only: hosted CI, packaged-terminal, physical hardware, and live deployment are not verified.
 
-Still open in P0/P1: same-commit full CI verification, remediation of reported prompt/confirm and interaction findings, complete adoption of shared primitives, and review/acceptance of individual operator workflows. P2-P27 have not been completed by this foundation slice. The staged web-v2 authority remains default-off.
+P1 remains in progress. Shared operator controls, keyboard-aware dialogs, property-time conversion, extended operation-parity metadata, prompt removal, and the generated audit are present. The audit now flags custom overlays, form busy-state gaps, potentially unexplained disabled actions, directly surfaced exception text, and forms exceeding the required-field threshold. The expanded report currently contains 366 static review findings (234 disabled-action, 84 raw-error, 37 overlay, 11 form-busy); no form currently crosses the required-field threshold. These are review candidates, not confirmed defects. Interactions/workflows remain `UNREVIEWED`, shared primitives are not yet adopted across all features. No operator UX acceptance is claimed. P2-P27 remain open, and staged web-v2 authority remains default-off.
 
 ---
 

@@ -39,4 +39,5 @@ test('shared design controls and generated operator audit are part of the P0/P1 
   for (const name of ['Dialog', 'Drawer', 'FormField', 'SearchCombobox', 'MoneyInput', 'QuantityInput', 'BusinessDateTimeField', 'BusyButton', 'BlockerCard', 'RecoveryAction', 'ConflictNotice', 'SyncState']) assert.match(controls, new RegExp(`export function ${name}`));
   assert.match(audit, /OPERATOR_UX_AUDIT\.json/);
   assert.match(audit, /window\\\./);
+  for (const rule of ['raw-technical-error-review', 'excessive-required-fields', 'disabled-action-explanation-review', 'custom-overlay-review', 'form-busy-state-review', 'business-time-input']) assert.match(audit, new RegExp(rule));
 });

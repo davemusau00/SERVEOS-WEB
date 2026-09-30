@@ -1,6 +1,7 @@
 node_modules/
 build/
 dist/
+dist-production/
 coverage/
 .DS_Store
 *.log
@@ -26,6 +27,7 @@ fix-servos-*.ps1
 
 # Local ServOS patch/recovery artifacts
 .servos-patch-*-backup-*/
+.servos-stale-node-modules/
 apply-servos-patch-*.mjs
 patch*_payload.json
 PATCH_*_README.md

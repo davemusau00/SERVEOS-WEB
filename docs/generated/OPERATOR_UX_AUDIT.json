@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "generatedBy": "npm run audit:ui",
-  "generatedAt": "2026-09-30T01:25:30.903Z",
+  "generatedAt": "2026-09-30T02:41:22.947Z",
   "scope": "Static source signals plus unreviewed workflow inventory; generation does not imply acceptance",
   "interactionCount": 3492,
-  "findingCount": 48,
+  "findingCount": 366,
   "findings": [
     {
       "file": "src/components/accounting/AccountingView.tsx",
@@ -13,6 +13,14 @@
       "severity": "warning",
       "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
       "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/accounting/TenderReconciliationView.tsx",
+      "line": 171,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button\n            onClick={handlePerformSettlement}\n            disabled={isSettled}\n            className={`px-5 py-2 rounded-xl text-xs font-bold font-mono flex items-center gap-2 transition-all ${\n              isSettled\n                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'\n                : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/10'\n            }`}\n          >"
     },
     {
       "file": "src/components/catalog/CatalogStudioView.tsx",
@@ -53,6 +61,14 @@
       "severity": "warning",
       "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
       "source": "className=\"fixed inset-0 bg-slate-950/80 backdrop-blur-sm\""
+    },
+    {
+      "file": "src/components/common/OfflineQueueModal.tsx",
+      "line": 179,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button\n              onClick={handleManualSync}\n              disabled={isSyncing || queuedOps.filter(o =>"
     },
     {
       "file": "src/components/crm/CRM360View.tsx",
@@ -151,6 +167,38 @@
       "source": "<form>"
     },
     {
+      "file": "src/components/pos/FloorPlanDesignerView.tsx",
+      "line": 129,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button\n            onClick={onClose}\n            disabled={saving}\n            className=\"px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs rounded-xl font-bold transition-colors\"\n          >"
+    },
+    {
+      "file": "src/components/pos/MixedTenderModal.tsx",
+      "line": 23,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "catch(e) {setError(String(e));} finally {setBusy(false);}"
+    },
+    {
+      "file": "src/components/pos/MixedTenderModal.tsx",
+      "line": 26,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy} className=\"bg-amber-400 text-slate-950 rounded p-3\">"
+    },
+    {
+      "file": "src/components/pos/MixedTenderModal.tsx",
+      "line": 26,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy} type=\"button\" className=\"p-3\" onClick={onClose}>"
+    },
+    {
       "file": "src/components/pos/POSView.tsx",
       "line": 858,
       "rule": "custom-overlay-review",
@@ -215,12 +263,36 @@
       "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4\">"
     },
     {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 1067,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button\n                onClick={handleTransferTableConfirm}\n                disabled={!transferTargetTableId}\n                className=\"px-4 py-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 rounded-lg\"\n              >"
+    },
+    {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 1617,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button\n                    onClick={handleExecutePayment}\n                    disabled={isProcessing || (tenderType === 'ROOM_CHARGE' && !selectedGuestStayId)}\n                    className=\"w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-sm font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2\"\n                  >"
+    },
+    {
       "file": "src/components/pos/QROrderingGuestView.tsx",
       "line": 84,
       "rule": "custom-overlay-review",
       "severity": "warning",
       "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
       "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 font-sans text-slate-100\">"
+    },
+    {
+      "file": "src/components/pos/TableMergeModal.tsx",
+      "line": 115,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button\n            onClick={handleMergeTables}\n            disabled={busy}\n            className=\"px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors font-mono\"\n          >"
     },
     {
       "file": "src/components/procurement/ProcurementView.tsx",
@@ -319,12 +391,420 @@
       "source": "return <div className=\"fixed inset-0 z-[180] grid place-items-center bg-black/70 p-3 sm:p-4\" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>"
     },
     {
+      "file": "src/guidance/GuidanceProvider.tsx",
+      "line": 134,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className=\"rounded-lg border border-slate-700 px-3 py-2 text-sm\" disabled={stepIndex === 0} onClick={back}>"
+    },
+    {
+      "file": "src/guidance/GuidanceProvider.tsx",
+      "line": 134,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className=\"rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950\" disabled={Boolean(step?.successOperations?.length)} onClick={next}>"
+    },
+    {
+      "file": "src/guidance/StaffWelcome.tsx",
+      "line": 33,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy} className=\"mt-3 text-sm text-slate-400 underline\" onClick={() =>"
+    },
+    {
+      "file": "src/native/ClassifiedPurchaseOrderDialog.tsx",
+      "line": 32,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "catch(e){setError(String(e))}"
+    },
+    {
+      "file": "src/native/ClassifiedPurchaseOrderDialog.tsx",
+      "line": 47,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!supplierId||!lines.length} className=\"w-full rounded-xl bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40\" onClick={()=>"
+    },
+    {
+      "file": "src/native/EnrollmentView.tsx",
+      "line": 29,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={`${buttonClass} mt-4`} disabled={runtime.busy} onClick={() =>"
+    },
+    {
+      "file": "src/native/EnrollmentView.tsx",
+      "line": 59,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={runtime.busy || pin.length < 6 || pin !== confirmPin} className={`${primaryButtonClass} w-full`}>"
+    },
+    {
+      "file": "src/native/FriendlyImport.tsx",
+      "line": 43,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "<button className={primaryButtonClass} disabled={busy || !valid} onClick={() => void onStage({ templateKey: key, fileName: filename, csvText: mappedCsv(parsed.rows, template.headers, effective) }).catch(cause => setError(String(cause)))}>{busy ? 'Validating…' : 'Validate mapped data'}</button>"
+    },
+    {
+      "file": "src/native/FriendlyImport.tsx",
+      "line": 43,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy || !valid} onClick={() =>"
+    },
+    {
+      "file": "src/native/IntakeWizard.tsx",
+      "line": 171,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={runtime.busy} className={buttonClass} onClick={() =>"
+    },
+    {
+      "file": "src/native/IntakeWizard.tsx",
+      "line": 172,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={runtime.busy || !identityReady || !profile.serviceAreas.length || !profile.stockAreas.length || !profile.paymentMethods.length} className={primaryButtonClass} onClick={() =>"
+    },
+    {
+      "file": "src/native/ManagerApprovalDialog.tsx",
+      "line": 25,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "<div className=\"mt-5 flex justify-end gap-2\"><button className={buttonClass} onClick={onClose}>Cancel</button><button className={primaryButtonClass} disabled={busy||!approver||pin.length<6} onClick={async()=>{setBusy(true);setError('');try{const a=await runtime.approve(approver,pin,permission,target);await onApproved(a.token);onClose();}catch(e){setError(String(e));}finally{setBusy(false);}}}>{busy?'Checking…':'Approve action'}</button></div>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 29,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const command=async(op:string,payload:any,version?:number)=>{setNotice('');try{await runtime.command(op,payload,version);setModal(null);setNotice('Asset operation committed locally and queued for synchronization.')}catch(e){setNotice(String(e))}};"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 101,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!categories.length||(!existing&&!rooms.length&&!locations.length)} className={primaryButtonClass}>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 104,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!id||!reason.trim()} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 105,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={type==='ROOM'?!roomId:!locationId} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 107,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!reason.trim()} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 109,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={(!assetId&&!roomId)||!description.trim()} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 110,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!id} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 114,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!resolution.trim()||(serviceCost>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 116,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!work.roomId||!startsAt||!endsAt||!reason.trim()} className={primaryButtonClass} onClick={submit}>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 118,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!tag.trim()||(type==='ROOM'?!roomId:!locationId)} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeCatalogView.tsx",
+      "line": 133,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "catch(e){setError(String(e))}"
+    },
+    {
+      "file": "src/native/NativeCatalogView.tsx",
+      "line": 153,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy||!parsed.rows.length||parsed.errors.length>"
+    },
+    {
+      "file": "src/native/NativeCatalogView.tsx",
+      "line": 183,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!v.name||!v.code||!v.outletIds?.length} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeCatalogView.tsx",
+      "line": 184,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!v.name?.trim()||!v.code?.trim()||!v.baseUnit?.trim()||!Number.isFinite(v.scanUnitQuantity)||v.scanUnitQuantity<=0||!Number.isFinite(Number(v.reorderLevel??0))||Number(v.reorderLevel??0)<0} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeCatalogView.tsx",
+      "line": 193,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass+' w-full'} disabled={!name.trim()||!code.trim()||!baseUnit.trim()||!Number.isFinite(scanUnitQuantity)||scanUnitQuantity<=0||!Number.isFinite(averageUnitCost)||averageUnitCost<0||!Number.isFinite(reorderLevel)||reorderLevel<0} onClick={submit}>"
+    },
+    {
+      "file": "src/native/NativeCatalogView.tsx",
+      "line": 197,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!v.name?.trim()||!v.code?.trim()||Number(v.paymentTermsDays)<0} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeCatalogView.tsx",
+      "line": 215,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!v.name?.trim()||v.value<0||(v.scopeType!=='ALL'&&!v.scopeId)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeCustomerCreditView.tsx",
+      "line": 22,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const run=async(op:string,payload:any)=>{setNotice('');try{await runtime.command(op,payload);setNotice('Saved locally.');setModal(null)}catch(e){setNotice(String(e));throw e}};"
+    },
+    {
+      "file": "src/native/NativeCustomerCreditView.tsx",
+      "line": 62,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={amount<=0||amount>"
+    },
+    {
+      "file": "src/native/NativeCustomerCreditView.tsx",
+      "line": 67,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!reference.trim()||!notes.trim()} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeCustomerCreditView.tsx",
+      "line": 71,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={amount<=0||amount>"
+    },
+    {
+      "file": "src/native/NativeCustomerCreditView.tsx",
+      "line": 75,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!resolution.trim()} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeDataReconciliationPanel.tsx",
+      "line": 20,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "catch(e){setMessage(String(e))}"
+    },
+    {
+      "file": "src/native/NativeFloorplanView.tsx",
+      "line": 5,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "export function NativeFloorplanView(){const runtime=useRuntime();const s=runtime.snapshot!;const canManage=s.actor.permissions.includes('floorplan.manage');const outlets=recordsOf(s,'outlets');const allTables=recordsOf(s,'tables');const [outletId,setOutletId]=useState(outlets[0]?.id||'');const existing=allTables.filter(t=>t.outletId===outletId);const [draft,setDraft]=useState<any[]>(existing);const [message,setMessage]=useState('');React.useEffect(()=>setDraft(allTables.filter(t=>t.outletId===ou"
+    },
+    {
+      "file": "src/native/NativeFloorplanView.tsx",
+      "line": 5,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass+' mt-2'} disabled={!canManage||!!t.currentOrderId} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeFloorplanView.tsx",
+      "line": 5,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!canManage} className={buttonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeFloorplanView.tsx",
+      "line": 5,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!canManage} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 23,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const command=async(op:string,payload:any,version?:number)=>{setNotice('');try{await runtime.command(op,payload,version);setModal(null);setNotice('Folio action committed locally and queued for synchronization.')}catch(e){setNotice(String(e))}};"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 45,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={Number(folio.balanceMinor||0)<=0} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 46,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={Number(folio.balanceMinor||0)<=0||Number(folio.depositMinor||0)<=0} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 47,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={Number(folio.depositMinor||0)<=0} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 73,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!serviceId||quantity<1} className={primaryButtonClass}>"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 79,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={amountMinor<=0||(maximumMinor!==undefined&&amountMinor>"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 85,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={amountMinor<=0||amountMinor>"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 91,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!ratePlanId||units<1||amountMinor<=0||(method!=='CASH'&&!reference.trim())} className={primaryButtonClass}>"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 98,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!reason.trim()} className={primaryButtonClass} onClick={()=>"
+    },
+    {
       "file": "src/native/NativeFoliosView.tsx",
       "line": 1,
       "rule": "form-busy-state-review",
       "severity": "review",
       "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
       "source": "<form>"
+    },
+    {
+      "file": "src/native/NativeFrontDeskView.tsx",
+      "line": 28,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const command=async(op:string,payload:any,version?:number)=>{setMessage('');try{await runtime.command(op,payload,version);setMove(null);setMessage('Front Desk action committed locally and queued for synchronization.')}catch(e){setMessage(String(e))}};"
+    },
+    {
+      "file": "src/native/NativeFrontDeskView.tsx",
+      "line": 39,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!isDue||!ready} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeFrontDeskView.tsx",
+      "line": 56,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!roomId} className={primaryButtonClass}>"
     },
     {
       "file": "src/native/NativeFrontDeskView.tsx",
@@ -336,11 +816,547 @@
     },
     {
       "file": "src/native/NativeHousekeepingView.tsx",
+      "line": 16,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const command=async(op:string,payload:any,version?:number)=>{setMessage('');try{await runtime.command(op,payload,version);setMessage('Housekeeping action committed.')}catch(e){setMessage(String(e))}};"
+    },
+    {
+      "file": "src/native/NativeHousekeepingView.tsx",
+      "line": 27,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!operatorNote.trim()}>"
+    },
+    {
+      "file": "src/native/NativeHousekeepingView.tsx",
       "line": 1,
       "rule": "form-busy-state-review",
       "severity": "review",
       "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
       "source": "<form>"
+    },
+    {
+      "file": "src/native/NativeImportCenterView.tsx",
+      "line": 23,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "useEffect(()=>{void load().catch(e=>setMessage(String(e)))},[]);"
+    },
+    {
+      "file": "src/native/NativeImportCenterView.tsx",
+      "line": 24,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const stageMapped=async(input:StageImportInput)=>{setBusy(true);setMessage('');try{const r=await runtime.stageImport(input);setDetail(r);setPlan(null);await load();}catch(e){setMessage(String(e));throw e;}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/native/NativeImportCenterView.tsx",
+      "line": 25,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const stage=async(file:File)=>{setBusy(true);setMessage('');try{const r=await runtime.stageImport({templateKey,fileName:file.name,csvText:await file.text()});setDetail(r);setPlan(null);await load();setMessage(r.invalidCount?`${r.invalidCount} invalid row(s). Correct the CSV and stage a new batch.`:`${r.rowCount} row(s) staged. Generate a dry run before application.`)}catch(e){setMessage(String(e))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/native/NativeImportCenterView.tsx",
+      "line": 26,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const review=async(id:string)=>{setBusy(true);try{setDetail(await runtime.importBatch(id));setPlan(null)}catch(e){setMessage(String(e))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/native/NativeImportCenterView.tsx",
+      "line": 27,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const dryRun=async()=>{if(!detail)return;setBusy(true);try{const r=await runtime.planImport(detail.id);setPlan(r);setMessage(r.status==='READY'?'Dry run ready for review.':'Dry run contains blocked or conflicting steps.')}catch(e){setMessage(String(e))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/native/NativeImportCenterView.tsx",
+      "line": 28,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const apply=async()=>{if(!plan)return;setBusy(true);try{const r=await runtime.applyImport(plan.id);setPlan(r);setDetail(null);await load();setMessage('Controlled import applied through ServOS domain commands.')}catch(e){setMessage(String(e));try{setPlan(await runtime.importPlan(plan.id))}catch{}}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/native/NativeImportCenterView.tsx",
+      "line": 29,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const cancel=async()=>{if(!detail)return;setBusy(true);try{await runtime.cancelImport(detail.id);setDetail(null);setPlan(null);await load()}catch(e){setMessage(String(e))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/native/NativeImportCenterView.tsx",
+      "line": 42,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeImportCenterView.tsx",
+      "line": 43,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeInventoryView.tsx",
+      "line": 376,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "<div className=\"mb-5 flex items-start justify-between gap-3\"><div><div className=\"text-[11px] font-black uppercase tracking-widest text-amber-400\">{stage === 'LOCATION' ? 'Count stock' : location?.name || 'Location count'}</div><h2 className=\"mt-1 text-xl font-bold\">{stage === 'LOCATION' ? 'Where are you counting?' : stage === 'COUNT' ? 'Count every stock item' : stage === 'SCANNER' ? 'Continuous scanner session' : 'Review this count'}</h2>{stage === 'COUNT' && <p className=\"mt-1 text-sm text-sl"
+    },
+    {
+      "file": "src/native/NativeInventoryView.tsx",
+      "line": 332,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={!resolution[entry.barcode]} onClick={() =>"
+    },
+    {
+      "file": "src/native/NativeInventoryView.tsx",
+      "line": 334,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!complete || Boolean(problem)} onClick={() =>"
+    },
+    {
+      "file": "src/native/NativeInventoryView.tsx",
+      "line": 338,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={busy || Boolean(pending)} onClick={() =>"
+    },
+    {
+      "file": "src/native/NativeInventoryView.tsx",
+      "line": 338,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy} onClick={() =>"
+    },
+    {
+      "file": "src/native/NativeInventoryView.tsx",
+      "line": 384,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!complete} onClick={() =>"
+    },
+    {
+      "file": "src/native/NativeInventoryView.tsx",
+      "line": 402,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!form.stockItemId || !form.locationId || Number(form.quantity) <= 0 || (modal === 'TRANSFER' && !form.toLocationId)} onClick={() =>"
+    },
+    {
+      "file": "src/native/NativeMasterDataView.tsx",
+      "line": 58,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(error){setNotice(String(error))}"
+    },
+    {
+      "file": "src/native/NativeMasterDataView.tsx",
+      "line": 67,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(error){setNotice(String(error))}"
+    },
+    {
+      "file": "src/native/NativeMasterDataView.tsx",
+      "line": 103,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={missing} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeOperationsViews.tsx",
+      "line": 35,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(e){setError(String(e))}finally{setBusy(false)}"
+    },
+    {
+      "file": "src/native/NativeOperationsViews.tsx",
+      "line": 41,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "catch(e){setError(String(e))}finally{setBusy(false)}"
+    },
+    {
+      "file": "src/native/NativeOperationsViews.tsx",
+      "line": 50,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy||!reference.trim()||!notes.trim()||Number(statementAmount)!==Number(current.receivedAmount)&&currentDiscrepancy?.outcome!=='ACCEPTED_VARIANCE'} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeOperationsViews.tsx",
+      "line": 50,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={busy||!reference.trim()||!notes.trim()||Number(statementAmount)===Number(current.receivedAmount)||!!currentDiscrepancy} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeOperationsViews.tsx",
+      "line": 51,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy||!resolution.trim()} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 25,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const run=async(op:string,payload:any={},version?:number)=>{setNotice('');try{await runtime.command(op,payload,version);setNotice('Saved locally.');}catch(e){setNotice(String(e));throw e;}};"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 53,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(e){setNotice(String(e))}"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 62,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(e){setNotice(String(e))}"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 69,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(e){setNotice(String(e));}"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 84,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(e){setNotice(String(e))}"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 96,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{printerJobs.length>0&&<section aria-label=\"Pending printer jobs\" className=\"mb-4 rounded-xl border border-amber-700/50 bg-amber-950/20 p-3\"><h2 className=\"font-bold text-amber-200\">Receipt jobs needing attention</h2><div className=\"mt-2 space-y-2\">{printerJobs.map((job:any)=><div key={job.jobId} className=\"rounded-lg bg-slate-950 p-2 text-xs\"><b>{job.orderId==='PRINTER_TEST'?'Printer test':`Order ${job.orderId}`}: {job.state}</b><p className=\"mt-1 text-slate-400\">{job.message}</p>{job.state==='"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 92,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button key={t.id} disabled={t.state!=='AVAILABLE'&&t.state!=='CLEANING'} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 93,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button key={p.id} disabled={!active} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 99,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={item.stockFired} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 99,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={item.stockFired} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 99,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={item.stockFired} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 99,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={item.stockFired} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 101,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={balance<=0} onClick={chargeCredit}>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 101,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={!roomChargeTargets.length||balance<=0} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 101,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={!(active.items||[]).some((item:any)=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 120,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!effective} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 121,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!customerId} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 124,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={aMethod===bMethod||a<=0||b<=0} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 125,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!reason.trim()} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 126,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!reason.trim()} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 127,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!targetTableId} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativePOSView.tsx",
+      "line": 128,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!target||balance<=0} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeProcurementView.tsx",
+      "line": 151,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "setNotice(String(error));"
+    },
+    {
+      "file": "src/native/NativeProcurementView.tsx",
+      "line": 220,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "setNotice(String(error));"
+    },
+    {
+      "file": "src/native/NativeProcurementView.tsx",
+      "line": 348,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!invoiceNumber.trim() || !invoiceLines.length || !invoiceAmount.trim() || !Number.isFinite(Number(invoiceAmount)) || Number(invoiceAmount) < 0} onClick={() =>"
+    },
+    {
+      "file": "src/native/NativeProcurementView.tsx",
+      "line": 361,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!paymentConfirmed || !paymentReference.trim() || !paymentReason.trim() || !Number.isFinite(Number(paymentAmount)) || Number(paymentAmount) <= 0 || Number(paymentAmount) >"
+    },
+    {
+      "file": "src/native/NativeProcurementView.tsx",
+      "line": 373,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={!stockItems.length} onClick={addPoLine}>"
+    },
+    {
+      "file": "src/native/NativeProcurementView.tsx",
+      "line": 376,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!supplierId || !poLines.length} onClick={() =>"
+    },
+    {
+      "file": "src/native/NativeProcurementView.tsx",
+      "line": 403,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={(receivingOrder.items || []).some((line: any) =>"
+    },
+    {
+      "file": "src/native/NativeProductionHealthPanel.tsx",
+      "line": 16,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const run=async()=>{setBusy(true);setMessage('');try{setAudit(await runtime.healthAudit());setDetailsOpen(true)}catch(e){setMessage(String(e))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/native/NativeProductionHealthPanel.tsx",
+      "line": 17,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const checkpoint=async()=>{setBusy(true);setMessage('');try{const backup=await runtime.backup();const next=await runtime.healthAudit();setAudit(next);setDetailsOpen(true);setMessage(`Checkpoint backup created: ${backup}`)}catch(e){setMessage(String(e))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/native/NativeReceiptDialog.tsx",
+      "line": 21,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "void runtime.receipt(order.id,receiptId).then(value=>{if(!cancelled)setReceipt(value)}).catch(error=>{if(!cancelled)setMessage(String(error))});"
+    },
+    {
+      "file": "src/native/NativeReceiptDialog.tsx",
+      "line": 31,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(error){setMessage(String(error))}finally{setBusy(false)}"
+    },
+    {
+      "file": "src/native/NativeReceiptDialog.tsx",
+      "line": 36,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "catch(error){setMessage(String(error))}finally{setBusy(false)}"
+    },
+    {
+      "file": "src/native/NativeReceiptDialog.tsx",
+      "line": 43,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy} className={buttonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeReceiptHistory.tsx",
+      "line": 10,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "useEffect(()=>{if(!open)return;let stopped=false;setError('');void runtime.receiptHistory().then(v=>{if(!stopped)setRows(v)}).catch(e=>{if(!stopped)setError(String(e))});return()=>{stopped=true}},[open]);"
+    },
+    {
+      "file": "src/native/NativeRoomsView.tsx",
+      "line": 24,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const command=async(op:string,payload:any,version?:number)=>{setMessage('');try{await runtime.command(op,payload,version);setModal(null);setEdit(null);setMessage('Saved. Room availability was recalculated from committed records.')}catch(e){setMessage(String(e))}};"
+    },
+    {
+      "file": "src/native/NativeRoomsView.tsx",
+      "line": 67,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!operatorNote.trim()}>"
+    },
+    {
+      "file": "src/native/NativeRoomsView.tsx",
+      "line": 89,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!customers.length||!compatible.length} className={primaryButtonClass}>"
+    },
+    {
+      "file": "src/native/NativeRoomsView.tsx",
+      "line": 95,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!reason.trim()} className={primaryButtonClass} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeRoomsView.tsx",
+      "line": 95,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!reason.trim()} className={buttonClass} onClick={()=>"
     },
     {
       "file": "src/native/NativeRoomsView.tsx",
@@ -351,12 +1367,908 @@
       "source": "<form>"
     },
     {
+      "file": "src/native/NativeSettingsPanel.tsx",
+      "line": 34,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(e){setMessage(String(e))}finally{setBusy(false)}"
+    },
+    {
+      "file": "src/native/NativeSettingsPanel.tsx",
+      "line": 36,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "return <section className=\"mt-5 rounded-2xl border border-slate-800 bg-slate-900 p-4\"><h2 className=\"font-bold\">Business settings</h2><p className=\"mb-3 text-xs text-slate-400\">KES · Africa/Nairobi · tax-inclusive pricing. Receipt attribution is fixed.</p><div className=\"flex flex-wrap gap-2\">{sections.map(d=><button key={d.id} className={buttonClass} onClick={()=>open(d)}>{d.label}</button>)}<button className={buttonClass} disabled={busy} onClick={()=>{setBusy(true);void runtime.testPrinter().t"
+    },
+    {
+      "file": "src/native/NativeSettingsPanel.tsx",
+      "line": 41,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy} className={primaryButtonClass} type=\"submit\">"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 21,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const load=async()=>{try{setStatus(await runtime.acceptanceStatus())}catch(e){setMessage(String(e))}};"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 23,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const act=async(action:string,payload:Record<string,unknown>={})=>{setBusy(action);setMessage('');try{const next=await runtime.acceptanceAction(action,payload);setStatus(next);return next}catch(e){setMessage(String(e));throw e}finally{setBusy('')}};"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 30,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const testPrinter=async()=>{setBusy('PRINTER_TEST');setMessage('');try{const job=await runtime.testPrinter();setPrinterJob(job);setMessage(`Printer transport: ${job.state}. Check the physical paper before confirming.`)}catch(e){setMessage(String(e))}finally{setBusy('')}};"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 32,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const cloudRecovery=async()=>{setBusy('CLOUD_CONFIRM');setMessage('');try{await runtime.sync();const next=await runtime.acceptanceAction('CLOUD_CONFIRM',{});setStatus(next);setMessage('Synchronization completed with no pending outbox operations.')}catch(e){setMessage(String(e))}finally{setBusy('')}};"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 52,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 53,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 53,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!printerJob?.jobId||!['SENT','DELIVERY_UNCERTAIN'].includes(printerJob.state)||Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 54,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={scannerArmed?primaryButtonClass:buttonClass} disabled={Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 55,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 56,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 57,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={online||Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 58,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={!online||Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 62,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!status.readyToFinalize||status.accepted||Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 64,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={Boolean(busy)} onClick={()=>"
+    },
+    {
+      "file": "src/native/SetupWizard.tsx",
+      "line": 53,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={`${primaryButtonClass} mt-4`} disabled={!ready && snapshot.installationStage!=='READY_FOR_GO_LIVE'} onClick={() =>"
+    },
+    {
+      "file": "src/native/SetupWizard.tsx",
+      "line": 60,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!methods.length||methods.includes('MPESA')&&!mpesa.trim()} onClick={()=>"
+    },
+    {
+      "file": "src/native/SetupWizard.tsx",
+      "line": 62,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!v.stockName.trim()||!v.productName.trim()||!v.code.trim()||v.price<0||v.scanUnitQuantity<=0} onClick={()=>"
+    },
+    {
+      "file": "src/native/SetupWizard.tsx",
+      "line": 63,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={Boolean(!roomTypeId&&!v.roomTypeName.trim()||!ratePlanId&&(!v.rateName.trim()||v.price<0))} onClick={()=>"
+    },
+    {
+      "file": "src/native/SetupWizard.tsx",
+      "line": 99,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={busy} onClick={()=>"
+    },
+    {
+      "file": "src/native/SimpleHospitality.tsx",
+      "line": 16,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "catch (cause) { setError(String(cause)); }"
+    },
+    {
+      "file": "src/native/SimpleHospitality.tsx",
+      "line": 53,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={!valid} onClick={() =>"
+    },
+    {
+      "file": "src/native/SimpleHospitality.tsx",
+      "line": 54,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={busy} onClick={() =>"
+    },
+    {
+      "file": "src/native/SimpleHospitality.tsx",
+      "line": 54,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy || !valid} onClick={() =>"
+    },
+    {
+      "file": "src/native/SimpleHospitality.tsx",
+      "line": 73,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy || !name.trim() || !location} onClick={() =>"
+    },
+    {
+      "file": "src/native/SimpleHospitality.tsx",
+      "line": 82,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy || !description.trim()} onClick={() =>"
+    },
+    {
+      "file": "src/native/SimpleReceiveDelivery.tsx",
+      "line": 93,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={buttonClass} disabled={busy || Boolean(request.current)} onClick={() =>"
+    },
+    {
+      "file": "src/native/SimpleReceiveDelivery.tsx",
+      "line": 93,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primaryButtonClass} disabled={busy || !valid} onClick={() =>"
+    },
+    {
+      "file": "src/native/UnlockView.tsx",
+      "line": 14,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={runtime.busy || !staffId} className={`${primaryButtonClass} w-full`}>"
+    },
+    {
+      "file": "src/runtime/BusinessAdminView.tsx",
+      "line": 15,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const execute = async (action: () => Promise<unknown>) => { setBusy(true); setMessage(''); try { await action(); setMessage('Saved locally.'); } catch(e) { setMessage(String(e)); } finally { setBusy(false); } };"
+    },
+    {
+      "file": "src/runtime/BusinessAdminView.tsx",
+      "line": 17,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "return <div className=\"p-5 overflow-auto space-y-6\"><h1 className=\"text-2xl font-bold\">Business administration</h1><p className=\"text-slate-400\">{runtime.session!.name} · {runtime.session!.role} · Last sync: {runtime.snapshot!.lastSync || 'Never'}</p><div className=\"flex gap-3 flex-wrap\"><button disabled={runtime.syncing} onClick={() => void runtime.sync()} className={field}>Sync {runtime.snapshot!.pendingCount} pending operations</button><button onClick={() => void runtime.lock()} className={fi"
+    },
+    {
+      "file": "src/runtime/BusinessAdminView.tsx",
+      "line": 17,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={runtime.syncing} onClick={() =>"
+    },
+    {
+      "file": "src/runtime/BusinessAdminView.tsx",
+      "line": 18,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy} className={field} onClick={() =>"
+    },
+    {
+      "file": "src/runtime/ManualReconciliationView.tsx",
+      "line": 10,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "return <div className=\"p-5 overflow-auto space-y-5\"><h1 className=\"text-2xl font-bold\">Manual M-Pesa reconciliation</h1><p className=\"text-slate-400\">Compare recorded receipts with the business account statement. Cashier confirmation does not verify a receipt with Safaricom.</p>{receipts.length === 0 && <p>No M-Pesa receipts recorded.</p>}<div className=\"overflow-x-auto\"><table className=\"w-full text-left text-sm\"><thead><tr>{['Code', 'Account', 'Received', 'Allocated', 'Status', 'Review'].map(h"
+    },
+    {
+      "file": "src/runtime/NativeQueuePanel.tsx",
+      "line": 6,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className=\"bg-amber-400 text-slate-950 rounded p-3 disabled:opacity-50\" disabled={runtime.syncing} onClick={() =>"
+    },
+    {
+      "file": "src/runtime/RemoteAccountAccess.tsx",
+      "line": 35,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "} catch (cause) { setError(String(cause)); }"
+    },
+    {
+      "file": "src/runtime/RemoteAccountAccess.tsx",
+      "line": 43,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "catch (cause) { setError(String(cause)); }"
+    },
+    {
+      "file": "src/runtime/RemoteAccountAccess.tsx",
+      "line": 47,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button type=\"button\" disabled={busy} className=\"rounded-lg bg-amber-400 p-3 text-slate-950\" onClick={() =>"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 88,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const signOut = async () => { setBusy(true); try { if(authRef.current) await remoteAuthCall(url,key,'logout?scope=global',undefined,authRef.current.access_token); clearSession(); setError(''); } catch(cause) { setError(String(cause)); } finally {setBusy(false);} };"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 89,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const recover = async () => { if(!email.trim()) { setError('Enter your account email first.'); return; } setBusy(true); setError(''); try { await remoteAuthCall(url,key,`recover?redirect_to=${encodeURIComponent(window.location.origin + window.location.pathname)}`,{email:email.trim()}); setAccountNotice('If this address has an account, recovery instructions have been sent.'); } catch(cause) { setError(String(cause)); } finally {setBusy(false);} };"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 114,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "} catch (e) { setError(String(e)); }"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 147,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "} catch(e) {setError(String(e));} finally {setBusy(false);}"
+    },
+    {
       "file": "src/runtime/RemoteManagerApp.tsx",
       "line": 197,
       "rule": "custom-overlay-review",
       "severity": "warning",
       "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
       "source": "{selected && <div className=\"fixed inset-0 z-50 bg-black/65\" onMouseDown={event => { if (event.target === event.currentTarget) setSelected(null); }}><section className=\"absolute inset-y-0 right-0 w-full max-w-xl overflow-y-auto border-l border-slate-800 bg-slate-950 p-5 shadow-2xl\">"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 200,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{['products','tables','customers','suppliers'].includes(selected.collection)&&<form className=\"mt-5 space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4\" onSubmit={async e=>{e.preventDefault();setBusy(true);try{const data={...selected.data,[selected.collection==='tables'?'label':'name']:name,...(selected.collection==='products'?{price:Number(price)}:{})};await request('rpc/servos_request_change',{operation:'record.save',payload:{collection:selected.collection,id:selected.id,data},"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 154,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button type=\"button\" disabled={busy} className=\"text-sm text-amber-200 underline\" onClick={()=>"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 155,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy} className={primary}>"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 162,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={button} disabled={refreshing} onClick={() =>"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 162,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={button} disabled={busy} onClick={() =>"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 185,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={offset===0} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 185,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={rows.length<100} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 200,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy} className={primary}>"
+    },
+    {
+      "file": "src/runtime/web/ActivitySyncCenter.tsx",
+      "line": 48,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button type=\"button\" className={ds.primaryButton} disabled={!online || syncing || pending === 0} onClick={() =>"
+    },
+    {
+      "file": "src/runtime/web/WebAdministrationView.tsx",
+      "line": 21,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const run=async(operation:string,payload:Record<string,unknown>,collection='adminOperations',id:string=crypto.randomUUID())=>{setBusy(true);setError('');setNotice('');try{await command(operation,collection,id,payload);setNotice('Request committed through the business command queue.')}catch(cause){setError(String(cause))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/runtime/web/WebAdministrationView.tsx",
+      "line": 23,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const invite=async()=>{if(!email.trim())return;setBusy(true);setError('');setNotice('');try{const result=await rpc('functions/v1/servos-auth-lifecycle',{action:authAction,email:email.trim(),redirectTo:`${window.location.origin}${window.location.pathname}`});setNotice(String(result?.message||'Auth request accepted.'))}catch(cause){setError(String(cause))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/runtime/web/WebAdministrationView.tsx",
+      "line": 31,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{section==='SETTINGS'&&<Panel title=\"Business identity and policy\"><div className=\"grid gap-3 sm:grid-cols-2\"><Fact label=\"Business identity\" value={String(data(settings)?.name||data(settings)?.tradingName||session.businessId)}/><Fact label=\"Employees visible\" value={String(employees.length)}/><Fact label=\"Lifecycle\" value={String(session.lifecycleStage||'LIVE')}/><Fact label=\"Readiness\" value={session.readiness?.ready?'Ready':'Review checks'}/></div><div className=\"mt-3 flex flex-wrap gap-2\"><b"
+    },
+    {
+      "file": "src/runtime/web/WebAdministrationView.tsx",
+      "line": 30,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={!reportRows.length} className={primary} onClick={exportReport}>"
+    },
+    {
+      "file": "src/runtime/web/WebAdministrationView.tsx",
+      "line": 31,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'business.configure')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebAdministrationView.tsx",
+      "line": 31,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'business.view')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebAdministrationView.tsx",
+      "line": 31,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'business.configure')||!roomStay.roomTypeId||!roomStay.ratePlanId} className={`${button} mt-3`} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebAdministrationView.tsx",
+      "line": 32,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'backup.create')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebAdministrationView.tsx",
+      "line": 33,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy||!email.trim()||!allowed(session,'staff.create')} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 75,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "automatic=startAutomaticSync(run,e=>{if(!stopped){setError(String(e));if((e as {status?:number}).status===403){setReady(false);setRecords([])}}});"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 76,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(e){if(!stopped)setError(String(e))}})();"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 105,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "}catch(e){setError(String(e));return false}finally{setBusy(false)}"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 123,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "<div className=\"flex min-w-0 flex-1 flex-col\"><header className=\"flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-4 py-3 sm:px-6\"><div className=\"min-w-0\"><div className=\"text-[10px] font-black uppercase tracking-[.2em] text-amber-400 md:hidden\">SERVOS WEB</div><h1 className=\"truncate text-lg font-bold sm:text-xl\">{currentWorkspace.label}</h1><div data-guide-anchor=\"web.status shell.status\" className=\"mt-1 flex items-center gap-2 text-xs text-s"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 124,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{renderNavigation(true)}<main className=\"min-h-0 flex-1 overflow-auto\"><div className=\"mx-auto max-w-[1700px] p-4 sm:p-6\"><div className=\"mb-5 flex flex-wrap items-end justify-between gap-3\"><PageHeader eyebrow={tab==='POS'?'OPERATIONS':'BUSINESS WORKSPACE'} title={currentWorkspace.label} description={currentWorkspace.description} actions={<><ConnectivityBadge online={online} pending={pendingCount} syncing={syncing} conflicts={conflictCount}/>{pending&&<button className={ds.button} data-guide-an"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 156,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{editor&&<div className=\"fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4\"><form role=\"dialog\" aria-modal=\"true\" aria-label={editor.title} className=\"mx-auto my-5 max-w-xl space-y-4 rounded-xl border border-slate-600 bg-slate-900 p-5\" onSubmit={e=>{e.preventDefault();try{const normalized={...values};for(const field of editor.fields)if(field.type==='datetime-local')normalized[field.key]=businessDateTimeToUtc(values[field.key]||'',propertyTimeZone);void submit(editor.operation,editor.collection,"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 123,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button data-guide-anchor=\"web.sync\" aria-label=\"Synchronize\" disabled={!ready||busy||syncing} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 124,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={ds.button} data-guide-anchor=\"shell.sync\" disabled={syncing} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 126,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button type=\"button\" className={ds.primaryButton} disabled={busy||syncing} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 141,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!active('roomTypes').length} className={primaryButton} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 141,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!active('roomTypes').length} className={button} onClick={addRate}>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 141,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={button} disabled={disabled} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 143,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 143,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 144,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 145,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 145,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 145,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 145,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 146,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 149,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 150,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 150,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 150,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 156,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy} className={`${button} bg-amber-400 text-slate-950`}>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 38,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 38,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 38,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 40,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 40,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 41,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 41,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 43,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 43,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 51,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!String(form.name||'').trim()||!String(form.code||'').trim()} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 72,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button data-guide-anchor=\"inventory.count\" disabled={disabled} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 72,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 72,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 78,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={button} disabled={!form.scan.trim()} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebCatalogInventory.tsx",
+      "line": 78,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||modal==='COUNT'&&unknownBarcodes.length>"
+    },
+    {
+      "file": "src/runtime/web/WebFinanceView.tsx",
+      "line": 21,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const run=async(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>{setNotice('');try{await command(operation,collection,id,payload)}catch(error){setNotice(String(error))}};"
+    },
+    {
+      "file": "src/runtime/web/WebFinanceView.tsx",
+      "line": 29,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!movementAmount||movementAmount==='0'||movementReason.trim().length<3} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebFinanceView.tsx",
+      "line": 30,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebFinanceView.tsx",
+      "line": 32,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebFinancialControlsView.tsx",
+      "line": 30,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const run=async(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>{setError('');setNotice('');try{await command(operation,collection,id,payload);setNotice('Financial action queued and will be synchronized after server acceptance.')}catch(error){setError(String(error))}};"
+    },
+    {
+      "file": "src/runtime/web/WebFinancialControlsView.tsx",
+      "line": 50,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primary} disabled={disabled||!receipt.code||!receipt.account||!receipt.amount||!receipt.receivedAt} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebFinancialControlsView.tsx",
+      "line": 51,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!mpesaReviewForm.notes.trim()||mpesaReview.mode==='reconcile'&&!mpesaReviewForm.reference.trim()} className={primary}>"
+    },
+    {
+      "file": "src/runtime/web/WebFinancialControlsView.tsx",
+      "line": 52,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primary} disabled={disabled||!settlement.amount||settlement.method!=='CASH'&&(!settlement.reference||!settlement.confirmed)} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebFinancialControlsView.tsx",
+      "line": 53,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primary} disabled={disabled||!reconcile.balance||!reconcile.reference||!reconcile.notes} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebFinancialControlsView.tsx",
+      "line": 55,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={primary} disabled={disabled||!resolution.note.trim()} onClick={()=>"
     },
     {
       "file": "src/runtime/web/WebFinancialControlsView.tsx",
@@ -367,6 +2279,126 @@
       "source": "<form>"
     },
     {
+      "file": "src/runtime/web/WebGuidanceViews.tsx",
+      "line": 52,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={button} disabled={step===0} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 22,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const run=async(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>{setNotice('');try{await command(operation,collection,id,payload);setNotice('Front Desk action saved and synchronized when accepted by the business server.')}catch(error){setNotice(String(error))}};"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 33,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const run=async(operation:string,payload:Record<string,unknown>)=>{setNotice('');try{await command(operation,'folios',selectedId,payload);setNotice('Guest account action saved and synchronized when accepted by the business server.')}catch(error){setNotice(String(error))}};"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 42,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const run=async(operation:string,id:string,payload:Record<string,unknown>)=>{setNotice('');try{await command(operation,'rooms',id,payload);setNotice('Housekeeping action saved and synchronized when accepted by the business server.')}catch(error){setNotice(String(error))}};"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 26,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'rooms.operate')} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 26,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'rooms.operate')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 26,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'rooms.operate')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 26,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={primary}>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 35,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!folio||!amount||!accountId||!allowed(session,'payment.record')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 47,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'rooms.manage')} className=\"mt-1 block underline disabled:cursor-not-allowed disabled:opacity-40\" onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 47,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'rooms.operate')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 47,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'rooms.operate')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 47,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'rooms.operate')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 47,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'rooms.operate')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 47,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'rooms.manage')||!inspection.trim()} className={primary}>"
+    },
+    {
       "file": "src/runtime/web/WebHospitalityViews.tsx",
       "line": 1,
       "rule": "form-busy-state-review",
@@ -375,12 +2407,524 @@
       "source": "<form>"
     },
     {
+      "file": "src/runtime/web/WebKDSView.tsx",
+      "line": 31,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "try{await command('order.kds','orders',ticket.order.id,{orderId:ticket.order.id,itemId:ticket.item.id,station,status:nextStatus(ticket.status)});setNotice(`${ticket.item.productName||'Item'} moved to ${nextStatus(ticket.status)}.`)}catch(error){setNotice(String(error))}"
+    },
+    {
+      "file": "src/runtime/web/WebKDSView.tsx",
+      "line": 38,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!canUpdate} className=\"mt-4 w-full rounded-xl bg-amber-400 px-4 py-3 font-bold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40\" onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebLifecycleViews.tsx",
+      "line": 14,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const setup=async(step?:string)=>{setBusy(true);setError('');setNotice('');try{const next=await rpc('rpc/servos_v2_web_lifecycle',step?{action:'setup.complete',payload:{step}}:{action:'readiness.refresh',payload:{}});onUpdated(next);setNotice(step?'Setup check saved.':'Readiness checked.')}catch(cause){setError(String(cause))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/runtime/web/WebLifecycleViews.tsx",
+      "line": 15,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const save=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{const next=await rpc('rpc/servos_v2_web_lifecycle',{action:'intake.save',payload:{profile}});onUpdated(next);setNotice('Business details saved. Continue with setup when you are ready.')}catch(cause){setError(String(cause))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/runtime/web/WebLifecycleViews.tsx",
+      "line": 16,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const goLive=async()=>{setBusy(true);setError('');try{const next=await rpc('rpc/servos_v2_web_lifecycle',{action:'go_live',payload:{}});onUpdated(next);setNotice('Go Live completed. Your operational workspace is ready.')}catch(cause){setError(String(cause))}finally{setBusy(false)}};"
+    },
+    {
+      "file": "src/runtime/web/WebLifecycleViews.tsx",
+      "line": 22,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={busy||!session.readiness?.ready} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebMasterDataView.tsx",
+      "line": 34,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "try{await command('record.save',def.collection,id,{id,collection:def.collection,data:recordData});setEditing(null);setNotice(`${def.label} saved.`)}catch(error){setNotice(String(error))}"
+    },
+    {
+      "file": "src/runtime/web/WebMasterDataView.tsx",
+      "line": 36,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const archive=async(record:BusinessRecord)=>{try{await command('record.archive',def.collection,record.id,{collection:def.collection,id:record.id});setNotice(`${String(data(record)?.name||record.id)} archived.`)}catch(error){setNotice(String(error))}};"
+    },
+    {
+      "file": "src/runtime/web/WebMasterDataView.tsx",
+      "line": 39,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebMasterDataView.tsx",
+      "line": 44,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebMasterDataView.tsx",
+      "line": 44,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebMasterDataView.tsx",
+      "line": 53,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||missing} className={primary}>"
+    },
+    {
       "file": "src/runtime/web/WebMasterDataView.tsx",
       "line": 1,
       "rule": "form-busy-state-review",
       "severity": "review",
       "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
       "source": "<form>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 212,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{!openTill&&<div className=\"mb-4 rounded-lg border border-amber-800 bg-amber-950/30 p-3\"><b className=\"text-sm\">No open till</b>{allowed(session,'till.open')?<div className=\"mt-2 flex gap-2\"><label className=\"sr-only\" htmlFor=\"web-opening-float\">Opening float in KES</label><input id=\"web-opening-float\" aria-label=\"Opening float in KES\" type=\"number\" min=\"0\" step=\"0.01\" className={field} value={openingFloat} onChange={e=>setOpeningFloat(e.target.value)} placeholder=\"Opening float (KES)\"/><button "
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "<div className=\"mt-4 grid grid-cols-2 gap-2\"><button data-guide-anchor=\"pos.fire\" disabled={disabled||!canFire||!orderEditable(activeOrder)} className={primary} onClick={()=>void run('order.fire','orders',activeOrder.id,{orderId:activeOrder.id})}><Flame className=\"mr-1 inline h-4 w-4\"/>Fire</button><button data-guide-anchor=\"pos.payment\" disabled={disabled||!canPay||!openTill||!accounts.length||balance<=0||['COMPLETED','VOIDED'].includes(String(data(activeOrder)?.state))} className={button} onCl"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 227,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{creditApprovalOpen&&<Modal title=\"Manager approval required\" onClose={()=>setCreditApprovalOpen(false)}><div className=\"space-y-3\"><p className=\"text-sm text-amber-100\">This charge exceeds available credit by {money(Math.max(0,balance-creditAvailable))}. A manager must issue an approval for this exact sale.</p><label className=\"block text-sm\">Single-use manager approval token<input autoFocus autoComplete=\"off\" className={field} value={creditApprovalToken} onChange={event=>setCreditApprovalToken"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 230,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{posDialog&&<Modal title={posDialog==='ROOM'?'Charge checked-in room':posDialog==='MOVE'?'Transfer table':posDialog==='MERGE'?'Merge table':posDialog==='DISCOUNT'?'Apply discount':'Record comp'} onClose={()=>setPosDialog(null)}><div className=\"space-y-3\">{posDialog==='ROOM'&&<><label className=\"block text-sm\">Checked-in folio<select className={field} value={roomFolioId} onChange={e=>setRoomFolioId(e.target.value)}>{folioTargets.map(target=><option key={target.folioId} value={target.folioId}>Room"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 232,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{paying&&activeOrder&&<Modal title={`Settle ${String(data(activeOrder)?.tabName||data(activeOrder)?.orderNumber)}`} onClose={()=>setPaying(false)}><div className=\"space-y-3\"><div className=\"flex justify-between rounded-lg bg-slate-950 p-3\"><span>Outstanding</span><b>{money(balance)}</b></div>{tenders.map((line,index)=>{const method=String(data(accounts.find(a=>a.id===line.accountId))?.method||'');const permitted=method!=='MPESA'||allowed(session,'mpesa.record');return <fieldset key={index} class"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 235,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "{refundTarget&&<Modal title={`Refund or reverse ${String(data(refundTarget)?.method)}`} onClose={()=>setRefundTarget(null)}><div className=\"space-y-3\"><p className=\"text-sm text-slate-400\">Remaining refundable amount {money(Number(data(refundTarget)?.amountMinor||0)-refundedFor(refundTarget.id))}. This records a new event and keeps the original payment immutable.</p><label className=\"block text-sm\">Refund amount (KES)<input aria-label=\"Refund amount in KES\" type=\"number\" min=\"0.01\" step=\"0.01\" c"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 187,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!currentOutlet} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 187,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!currentOutlet} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 201,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button key={table.id} disabled={disabled||(!canOpen&&state==='AVAILABLE')||(!canTable&&state==='CLEANING')||!['AVAILABLE','CLEANING'].includes(state)} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 206,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button key={product.id} disabled={disabled||!canSell||!activeOrder} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 215,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!orderEditable(activeOrder)||item.stockFired} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 215,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!orderEditable(activeOrder)||item.stockFired} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button data-guide-anchor=\"pos.fire\" disabled={disabled||!canFire||!orderEditable(activeOrder)} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button data-guide-anchor=\"pos.payment\" disabled={disabled||!canPay||!openTill||!accounts.length||balance<=0||['COMPLETED','VOIDED'].includes(String(data(activeOrder)?.state))} className={button} onClick={startPayment}>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!folioTargets.length||balance<=0||['COMPLETED','VOIDED'].includes(String(data(activeOrder)?.state))} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!activeCustomerId||!creditAccount||balance<=0||['COMPLETED','VOIDED'].includes(String(data(activeOrder)?.state))} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!data(activeOrder)?.tableId} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!data(activeOrder)?.tableId} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!orderEditable(activeOrder)} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!orderEditable(activeOrder)} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!canSell||!orderEditable(activeOrder)||!(data(activeOrder)?.items||[]).some((item:any)=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 217,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!canVoid||!orderEditable(activeOrder)} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 219,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||(!openTill&&data(payment)?.method==='CASH')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 219,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||(!openTill&&data(payment)?.method==='CASH')} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 227,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!creditApprovalToken.trim()} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 229,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||config.quantity<=0} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 230,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||(posDialog==='ROOM'&&!roomFolioId)||(posDialog!=='ROOM'&&((posDialog==='MOVE'||posDialog==='MERGE')&&!targetTableId||(posDialog==='DISCOUNT'&&(!posReason.trim()||Number(discountPercent)<=0))||(posDialog==='COMP'&&!posReason.trim())))} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 232,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button type=\"button\" disabled={tenders.length>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 232,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!openTill||!canPay||tenders.some(t=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 234,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!voidReason.trim()} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 235,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||refundReason.trim().length<3||data(refundTarget)?.method!=='CASH'&&(!refundReference.trim()||!refundConfirmed)} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 235,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||refundReason.trim().length<3||data(refundTarget)?.method!=='CASH'&&(!refundReference.trim()||!refundConfirmed)} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 246,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 246,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!suppliers.length} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 266,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button+' mt-2'} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 270,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 270,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 272,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 272,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={button+' mt-3'} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 274,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={primary+' mt-3'} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 302,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!poSupplier||!poLines.length} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 307,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button className={button} disabled={!scanCode.trim()} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 312,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 320,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!invoiceNumber.trim()} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 329,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!payConfirmed||!payReference.trim()||payAmount<=0} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebProcurementView.tsx",
+      "line": 340,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!commissionForm.name.trim()||!commissionForm.tag.trim()||(!commissionForm.roomId&&!commissionForm.locationId)} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebRefundsView.tsx",
+      "line": 23,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "try{await command(reverse?'payment.reverse':'payment.refund','payments',current.id,payload);setCurrent(null)}catch(error){setNotice(String(error))}"
+    },
+    {
+      "file": "src/runtime/web/WebRefundsView.tsx",
+      "line": 30,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||!allowed(session,'order.refund')||reason.trim().length<3||(String(data(current)?.method||'').toUpperCase()!=='CASH'&&(!reference.trim()||!confirmed))} className={primary} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebRefundsView.tsx",
+      "line": 30,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled||reason.trim().length<3||(String(data(current)?.method||'').toUpperCase()!=='CASH'&&(!reference.trim()||!confirmed))} className={button} onClick={()=>"
+    },
+    {
+      "file": "src/runtime/web/WebStaffAdminView.tsx",
+      "line": 15,
+      "rule": "raw-technical-error-review",
+      "severity": "review",
+      "message": "Map exception details to an operator-safe message and a recovery action; retain technical detail only in diagnostics.",
+      "source": "const loadDevices=async()=>{if(!allowed(session,'devices.manage'))return;try{const list=await rpc('rpc/servos_v2_list_devices',{}) as Device[];setDevices(list)}catch(e){setError(String(e))}};"
+    },
+    {
+      "file": "src/runtime/web/WebStaffAdminView.tsx",
+      "line": 24,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={`${button} sm:col-span-2`}>"
+    },
+    {
+      "file": "src/runtime/web/WebStaffAdminView.tsx",
+      "line": 26,
+      "rule": "disabled-action-explanation-review",
+      "severity": "review",
+      "message": "Disabled action has no nearby detectable explanation; verify its reason is visible and accessible.",
+      "source": "<button disabled={disabled} className={`${button} sm:col-span-2`}>"
     },
     {
       "file": "src/runtime/web/WebStaffAdminView.tsx",

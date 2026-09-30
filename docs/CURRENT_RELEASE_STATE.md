@@ -2,9 +2,9 @@
 
 ## DEV final sprint P0/P1 foundation - 2026-09-30
 
-The sprint now has shared design-system controls and a dialog shell with Escape handling, initial focus, focus trapping, and focus restoration. `npm run audit:ui` emits both the control inventory and `docs/generated/OPERATOR_UX_AUDIT.json`; generated workflow rows remain `UNREVIEWED` until manually reviewed and accepted. Operation parity entries now expose offline eligibility, approval/version/audit/effect metadata, an acceptance-test prompt, and operator UX status. Undocumented behavior is marked unknown rather than inferred.
+P0 local verification passed after `npm ci`: lint, build, 112 Node tests, 22 desktop/mobile browser tests, 71 Linux-container native domain tests, disposable cloud protocol checks, documentation checks, UI audit gate, and `git diff --check`. The audit found no browser prompt/confirm use but reports 48 review findings; it inventories 3,492 interactions. These results do not establish hosted CI, packaged-terminal, physical hardware, or live deployment acceptance.
 
-Business wall-clock conversion uses the configured property IANA timezone and persists UTC. The native Rooms reservation and block forms, web reservation editor, and web M-Pesa receipt entry use this contract. This is a foundation only: other business-time forms, P0 audit findings, full operator review, and P2-P27 remain open. See the sprint document and completion ledger for evidence.
+P1 remains partial. Shared operator controls and a keyboard-aware dialog shell exist; the audit generates control and operator-workflow reports; the operation manifest includes parity metadata; and selected native/web date-time forms convert property-local wall time to UTC. Audit signals now cover custom overlays, form busy states, unexplained disabled actions, direct exception text, browser prompts, business-time inputs, and excessive required fields. The latest report has 366 review candidates; none has been manually accepted or cleared, and no form currently crosses the required-field threshold. Workflows remain `UNREVIEWED`, other business-time inputs and feature-local primitives remain, and no operator UX acceptance is claimed. See the sprint document, completion ledger, and test evidence for the exact boundaries.
 
 ## UX and Guidance foundation — 2026-09-28
 

@@ -50,3 +50,24 @@ export function businessDate(instant: string | number | Date, timeZone = 'Africa
   const p = partsAt(instant instanceof Date ? instant : new Date(instant), timeZone);
   return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
 }
+
+/** Add calendar days without converting a business date through the host timezone. */
+export function addBusinessDays(date: string, days: number) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match || !Number.isInteger(days)) throw new RangeError('Enter a valid business date and whole-day offset.');
+  const [, year, month, day] = match;
+  const value = new Date(0); value.setUTCHours(0, 0, 0, 0); value.setUTCFullYear(Number(year), Number(month) - 1, Number(day));
+  if (value.getUTCFullYear() !== Number(year) || value.getUTCMonth() !== Number(month) - 1 || value.getUTCDate() !== Number(day)) throw new RangeError('Enter a valid business date.');
+  value.setUTCDate(value.getUTCDate() + days);
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, '0')}-${String(value.getUTCDate()).padStart(2, '0')}`;
+}
+
+/** Business-day UTC boundary used only for calendar display/interval bucketing. */
+export function businessDateStartUtc(date: string, timeZone = 'Africa/Nairobi') {
+  return businessDateTimeToUtc(`${date}T00:00`, timeZone);
+}
+
+export function formatBusinessDateTime(instant: string | number | Date, timeZone = 'Africa/Nairobi') {
+  validTimeZone(timeZone);
+  return new Intl.DateTimeFormat('en-KE', { timeZone, dateStyle: 'medium', timeStyle: 'short' }).format(instant instanceof Date ? instant : new Date(instant));
+}

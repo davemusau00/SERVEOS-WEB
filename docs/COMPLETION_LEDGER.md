@@ -4,7 +4,8 @@ This ledger distinguishes source implementation from executed verification.
 
 | Slice | Backend | Installed UI | Docs | Executed evidence here | Acceptance status |
 |---|---|---|---|---|---|
-| DEV final sprint P0/P1 foundation | Shared property-time conversion; extended parity metadata | Shared operator controls and keyboard-aware dialog shell; timezone wiring in native room and web reservation/M-Pesa forms | Sprint progress, release state, room guidance, and generated operator UX audit | Focused timezone/source tests and full checks pending | partial implementation; workflows unreviewed; release gate not accepted |
+| DEV final sprint P0 green gate | Same-commit local gate | Fixed room-policy test fixtures; native container runner accepts focused test filters | Sprint status and test evidence | `npm ci`; lint/build; 112 Node; 22 browser desktop/mobile; 71 native container; disposable cloud; UI gate; docs; `git diff --check` all pass | locally verified; hosted CI, package, hardware, and live gates remain unverified |
+| DEV final sprint P1 UX foundation | Property-time conversion; extended operation parity metadata | Shared controls and keyboard-aware dialog shell; selected native/web timezone wiring; browser prompt removal | Sprint status, release state, room guide, generated UX audit | 5 focused source tests pass; 3,492 interactions and 366 static review candidates inventoried | partial implementation; workflows unreviewed; operator UX acceptance not passed |
 | Floorplan + table.ready | implemented | implemented | updated | source inspection; native suite pending | source implemented |
 | Native capability RBAC | implemented | permission-driven shell | RBAC guide | docs/source checks pending final run | source implemented |
 | Manager single-use approval | implemented | approval dialog | RBAC guide | native execution pending | source implemented |

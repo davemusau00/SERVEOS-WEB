@@ -1,5 +1,23 @@
 # Test evidence
 
+## DEV final sprint P0 local gate - 2026-09-30
+
+After `npm ci` (107 packages installed; 0 reported vulnerabilities), the following local checks passed on the same source state:
+
+- `npm run lint` and `npm run build` (Vite warns that the main JS chunk is 893.87 kB; build succeeds).
+- `npm test`: 112 passed.
+- `npm run test:browser`: 22 passed across desktop and mobile Playwright projects, including the transactional two-operator and online POS flows.
+- `npm run test:native:container`: 71 passed in the Linux container. The host Windows Rust test command is not the evidence used here; its first local attempt could not find `dlltool.exe`.
+- `npm run test:cloud`: base migration and disposable PostgreSQL protocol checks passed. This is not hosted Supabase evidence.
+- `npm run audit:ui:gate`: passed; 3,492 interactions inventoried and no `window.prompt`/`window.confirm` findings. The generated report still contains 48 review findings and leaves interactions `UNREVIEWED`.
+- `npm run docs:check`: 40 guides and 15 core docs passed; `git diff --check` passed (Git emitted only CRLF normalization warnings).
+
+This completes the local P0 gate only. Hosted CI state, Tauri package installation/upgrade, physical scanner/printer, low-height device acceptance, production migration, and live deployment were not tested. P1 UX review and P2-P27 remain open; web-v2 remains default-off.
+
+### P1 audit heuristic follow-up - 2026-09-30
+
+`scripts/audit-ui.mjs` now additionally reports potentially unexplained disabled actions, directly surfaced exception text, custom overlays, forms without an obvious busy signal, and forms exceeding the required-field threshold, alongside browser prompt and business-time checks. `node --test tests/operator-ux-source.test.mjs` passed 5/5. The latest `npm run audit:ui` reports 3,492 interactions and 366 review candidates (234 disabled-action, 84 raw-error, 37 overlay, 11 form-busy); no form crossed the required-field threshold. These are static candidates only; no workflow has been manually reviewed or accepted. This is P1 progress, not acceptance.
+
 ## Expansion checks — 2026-09-26
 
 ### Stay, folio and paid-extension continuation
