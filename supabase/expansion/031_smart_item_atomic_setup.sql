@@ -24,11 +24,14 @@ begin
    perform servos_v2.read_record('outlets',outlet_key);
   end loop;
  end if;
- stock_key:=coalesce(nullif(trim(stock_input->>'id'),''),command->>'id');
+ stock_key:=command->>'id';
+ if nullif(trim(stock_input->>'id'),'') is not null and trim(stock_input->>'id')<>stock_key then raise exception 'VALIDATION_FAILED: stock id is command-derived';end if;
  if stock_key is null or length(stock_key)>110 then raise exception 'VALIDATION_FAILED: generated stock item id';end if;
  product_key:=case when product_input is null then null else coalesce(nullif(trim(product_input->>'id'),''),(command->>'id')||':product') end;
  movement_key:=(command->>'id')||':opening';
  if length(movement_key)>128 or (product_key is not null and length(product_key)>128) then raise exception 'VALIDATION_FAILED: generated record id';end if;
+ if exists(select 1 from servos_v2.records where collection='stockItems' and id=stock_key)
+  or (product_key is not null and exists(select 1 from servos_v2.records where collection='products' and id=product_key)) then raise exception 'DUPLICATE_REFERENCE: Smart Item record ID';end if;
  location_key:=servos_v2.required_text(p,'locationId');
  perform servos_v2.assert_version(command,'stockItems',stock_key);
  perform servos_v2.assert_version(command,'stockLocations',location_key);
