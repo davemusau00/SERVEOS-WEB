@@ -958,7 +958,7 @@ Original section numbers are retained here so none of the earlier forensic work 
 | 8 | Native/cloud role mismatch | OPEN; Native permissive fallback remains | WP-05; exact role/grant matrix |
 | 9 | Broad workspace visibility | OPEN; POS/Administration generic read grants remain | WP-05; role workspace acceptance |
 | 10 | Stale operation manifest | OPEN; declared implementation and tests not executable proof | WP-04, WP-24; derived parity matrix |
-| 11 | Missing cloud `room.condition` | OPEN; absent across expansion 001–021 | WP-11; Native/cloud state fixtures |
+| 11 | Missing cloud `room.condition` | PARTIAL PROGRESS; expansion 025 now provides Native-equivalent maintenance-state and active-reservation safety, while broader room lifecycle parity remains open | WP-11; Native/cloud state fixtures |
 | 12 | CI omits cloud expansion | OPEN; workflow calls base script without flag | WP-02; named cloud-v2 job |
 | 13 | Expansion coverage misses late operations | OPEN; runner test list omits direct late-operation suites | WP-02, WP-29; behaviour coverage report |
 | 14 | CI failing | UPDATED at #28: 61/71 Native, 22/22 browser; locator fixed, Native remains open | WP-01; Native suite green and browser success retained |
@@ -1330,7 +1330,7 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | WP-08 | OPEN | — | Draft/retry/rejection recovery | — |
 | WP-09 | OPEN | — | Minimal complete dependency sets | — |
 | WP-10 | IN_PROGRESS | Expansion 024 full-location cloud contract and Web failure/session slice verified locally | Durable per-item review across reload, scanner/device acceptance and full browser workflow | — |
-| WP-11 | OPEN | — | Room policy/condition/accounting | — |
+| WP-11 | IN_PROGRESS | Native/cloud room policy and `room.condition` parity verified locally | Full move, extension, checkout and cross-runtime time acceptance | — |
 | WP-12 | OPEN | — | Cross-runtime business time | — |
 | WP-13 | OPEN | — | All-writer fences/terminal v2 | — |
 | WP-14 | OPEN | — | Real import effects/reconciliation | — |
