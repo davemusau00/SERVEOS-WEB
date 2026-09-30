@@ -200,7 +200,7 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     const expectedVersions=[...expectedByKey.values()].sort((left,right)=>left.collection.localeCompare(right.collection)||left.id.localeCompare(right.id));
     let result: CommandResult;
     try { result = await invoke<CommandResult>('runtime_command', { token: session.token, command: request, expectedVersions }); }
-    catch (e) { report(e); throw e; }
+    catch (e) { try { await refresh(); } catch {} report(e); throw e; }
     let syncWarning='';
     if(result.syncPending){try{await invoke('runtime_v2_sync_replica');result.syncPending=false;}catch{syncWarning='Saved on the business server, but this terminal has not refreshed its shared view yet. Do not submit the same action again; reconnect and synchronize.';}}
     // The write has committed. A failed reload must not invite a second payment.
@@ -249,7 +249,7 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
   };
   const syncV2Replica = async () => {
     try { const result=await invoke<{ appliedChanges:number; acknowledgedCommands:number; cursor:number; hasMore:boolean }>('runtime_v2_sync_replica'); await refresh(); return result; }
-    catch (e) { report(e); throw e; }
+    catch (e) { try { await refresh(); } catch {} report(e); throw e; }
   };
   const backup = async () => {
     if (!session) throw new Error('Unlock the terminal first');

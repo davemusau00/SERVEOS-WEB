@@ -12,6 +12,7 @@ This guide configures individual business accounts on an installed ServOS termin
 - Confirm the business membership and operator permissions are active. Permissions are resolved from the authenticated server session and role profile, not from a terminal role selector.
 - The native source now contains SQLite schema 14 for separate v2 device sequence/feed state, an empty command outbox, and an isolated shadow-record replica. The feed-page applier does not update legacy operational records. This is dormant protocol storage, not a v2 writer; the migration has not been applied to a packaged terminal by this guide.
 - After staging has applied migration 029, an authorized operator can install or refresh the v2 shadow baseline and pull its change feed from the terminal's reconciliation panel. Snapshot and feed RPCs are read-only; snapshot replacement refuses to run while any v2 command awaits acknowledgement. Confirm the reported record count/cursor and separately reconcile the migration; do not enable v2 from this step.
+- If the server's staged v2 control is enabled after all required gates, the terminal routes authenticated online commands to `servos_v2_execute` and reads from the isolated v2 replica. A pending legacy outbox blocks this route; an uncertain v2 response remains queued for idempotent replay. Operators using local-PIN-only offline mode remain on the legacy path only while v2 is disabled. Do not enable shared v2 authority until the full operation parity and cutover checklist passes.
 
 ## Invite and bind operators
 

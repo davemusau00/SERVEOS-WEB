@@ -286,6 +286,7 @@ async fn flush_native_v2_pending(state:&Runtime,active:&OperatorAuth)->store::Re
         {let mut db=state.db.lock().map_err(|e|e.to_string())?;store::acknowledge_native_v2_command(&mut db,&result)?;}
         sent+=1;
         if status!="SYNCHRONIZED"{
+            let _=sync_native_v2_feed(state,active).await;
             let detail=result["error"]["message"].as_str().unwrap_or("The server rejected this command");
             return Err(format!("V2 command {status}: {detail}. The result is recorded; review before submitting a replacement."));
         }
@@ -436,6 +437,7 @@ async fn runtime_command(
             let status=server_result["status"].as_str().unwrap_or("").to_string();
             let mut result={let mut db=state.db.lock().map_err(|e|e.to_string())?;store::acknowledge_native_v2_command(&mut db,&server_result)?};
             if status!="SYNCHRONIZED"{
+                let _=sync_native_v2_feed(&state,&active).await;
                 let detail=server_result["error"]["message"].as_str().unwrap_or("The server rejected this command");
                 return Err(format!("V2 command {status}: {detail}. The result is recorded; review before submitting a replacement."));
             }

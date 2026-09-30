@@ -70,3 +70,16 @@ test('authenticated identity seeds monotonic staged protocol state without dispa
   assert.match(runtime, /seed_native_v2_state\(&db,&identity\)/);
   assert.match(nativeV2Migration, /PRAGMA user_version=14/);
 });
+
+test('native v2 command routing persists intent before authenticated dispatch and never falls back on transport failure', () => {
+  assert.match(nativeStore,/pub fn queue_native_v2_command/);
+  assert.match(nativeStore,/pub fn acknowledge_native_v2_command/);
+  assert.match(nativeStore,/legacy outbox is drained and reconciled/);
+  assert.match(runtime,/"servos_v2_execute"/);
+  assert.match(runtime,/flush_native_v2_pending/);
+  assert.match(runtime,/identity\["enabled"\]==true/);
+  assert.match(runtimeProvider,/resolveOperationDependencies\(operation/);
+  assert.match(runtimeProvider,/expectedVersions\s*\}\)/);
+  assert.match(runtimeProvider,/runtime_v2_sync_replica/);
+  assert.match(runtime,/store::native_v2_snapshot/);
+});
