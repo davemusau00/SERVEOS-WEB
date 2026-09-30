@@ -5,7 +5,7 @@ export type WebLifecycleStage='INTAKE'|'SETUP'|'READY_FOR_GO_LIVE'|'LIVE';
 export interface WebReadinessCheck {id:string;label:string;complete:boolean}
 export interface WebSession {
  businessId:string;actorId:string;enabled:boolean;permissions:string[];policyVersion:string;
- propertyContext?:{timeZone:string;nightlyCheckoutTime:string;dayStayCutoffTime:string};
+ propertyContext?:{timeZone:string;nightlyCheckoutTime:string;dayStayCutoffTime:string;roomTypeId:string|null;ratePlanId:string|null};
  lifecycleStage?:WebLifecycleStage;intakeProfile?:Record<string,unknown>;setupState?:Record<string,unknown>;
  readiness?:{ready:boolean;checks:WebReadinessCheck[]};
 }

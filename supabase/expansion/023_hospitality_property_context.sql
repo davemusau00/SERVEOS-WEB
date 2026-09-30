@@ -23,7 +23,9 @@ begin
   'propertyContext',jsonb_build_object(
    'timeZone',coalesce(nullif(property_data->>'timezone',''),'Africa/Nairobi'),
    'nightlyCheckoutTime',coalesce(nullif(property_data->>'nightlyCheckoutTime',''),'10:00'),
-   'dayStayCutoffTime',coalesce(nullif(property_data->>'dayStayCutoffTime',''),'18:00')
+   'dayStayCutoffTime',coalesce(nullif(property_data->>'dayStayCutoffTime',''),'18:00'),
+   'roomTypeId',nullif(property_data->>'roomStayRoomTypeId',''),
+   'ratePlanId',nullif(property_data->>'roomStayRatePlanId','')
   )
  );
 end$$;

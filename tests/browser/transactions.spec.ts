@@ -30,10 +30,13 @@ test.describe('transactional browser with PostgreSQL',()=>{
     ('00000000-0000-4000-8000-000000000001','browser-owner','Browser Owner','Admin','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001'),
     ('00000000-0000-4000-8000-000000000002','browser-manager','Browser Manager','Manager','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001') on conflict(auth_user_id) do update set active=true;
    select servos_v2.put_record('organization','business','{"name":"Browser Test Business"}');
-   select servos_v2.put_record('property','property','{"address":"Test Street","phone":"0700000000","currency":"KES","timezone":"Africa/Nairobi","receiptFooter":"Thank you"}');
+   select servos_v2.put_record('property','property','{"address":"Test Street","phone":"0700000000","currency":"KES","timezone":"Africa/Nairobi","receiptFooter":"Thank you","roomStayRoomTypeId":"timezone-room-type","roomStayRatePlanId":"timezone-rate"}');
+   select servos_v2.put_record('roomTypes','timezone-room-type','{"name":"Standard","maxGuests":2}');
+   select servos_v2.put_record('ratePlans','timezone-rate','{"name":"Nightly Standard","roomTypeId":"timezone-room-type","mode":"NIGHTLY","priceMinor":500000,"currency":"KES"}');
    select servos_v2.put_record('customers','front-desk-guest','{"name":"Timezone Guest","phone":"0700000099"}');
-   select servos_v2.put_record('rooms','front-desk-room','{"number":"TZ-1","roomTypeId":"timezone-room-type","capacity":2,"housekeepingState":"DIRTY","maintenanceState":"AVAILABLE"}');
-   select servos_v2.put_record('roomReservations','front-desk-reservation','{"customerId":"front-desk-guest","roomId":"front-desk-room","status":"RESERVED","guests":1,"startsAt":"2025-01-01T22:00:00Z","endsAt":"2025-01-02T19:00:00Z"}');
+   select servos_v2.put_record('rooms','front-desk-room','{"number":"TZ-1","roomTypeId":"timezone-room-type","capacity":2,"turnaroundMinutes":30,"housekeepingState":"DIRTY","maintenanceState":"AVAILABLE"}');
+   select servos_v2.put_record('rooms','quick-reservation-room','{"number":"TZ-2","roomTypeId":"timezone-room-type","capacity":2,"turnaroundMinutes":30,"housekeepingState":"CLEAN","maintenanceState":"AVAILABLE"}');
+   select servos_v2.put_record('roomReservations','front-desk-reservation','{"customerId":"front-desk-guest","roomId":"front-desk-room","status":"RESERVED","guests":1,"startsAt":"2025-01-01T22:00:00Z","endsAt":"2025-01-02T19:00:00Z","blockedUntil":"2025-01-02T19:30:00Z"}');
    select servos_v2.put_record('posPolicy','policy','{"vatBasisPoints":0,"cateringLevyBasisPoints":0,"taxInclusive":true,"currency":"KES"}');
    select servos_v2.put_record('stockLocations','web-pos-stock','{"name":"Web POS Stock","code":"WEBPOS","type":"BAR"}');
    select servos_v2.put_record('stockItems','web-count-a','{"name":"Counted Water","code":"COUNT-WATER","baseUnit":"bottle","scanUnitQuantity":1,"currentStock":{"web-pos-stock":5},"reorderLevel":0,"averageUnitCostMinor":100}');
@@ -115,6 +118,51 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await expect(page.getByText('Room must be clean and in service before check-in.')).toBeVisible();
   await expect(page.getByRole('button',{name:'Check in',exact:true})).toBeDisabled();
  });
+ test('Quick Reservation creates a guest and reservation through queued business commands',async({page})=>{
+  loseResponse=false;
+  await signIn(page,'reservation@example.test');
+  await page.getByRole('button',{name:'Front Desk',exact:true}).click();
+  await page.getByRole('button',{name:'Quick reservation',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Quick reservation'});
+  await dialog.getByLabel('Room').selectOption('quick-reservation-room');
+  await dialog.getByRole('button',{name:/New guest/}).click();
+  await dialog.getByLabel('Guest name').fill('Quick Booking Guest');
+  await dialog.getByLabel('Phone (optional)').fill('0700000101');
+  await expect(dialog.getByText(/estimated accommodation/)).toBeVisible();
+  await dialog.getByRole('button',{name:'Create reservation',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  expect(sql("select count(*) from servos_v2.records where collection='customers' and data->>'name'='Quick Booking Guest';").trim()).toBe('1');
+  expect(sql("select count(*) from servos_v2.records where collection='roomReservations' and data->>'roomId'='quick-reservation-room';").trim()).toBe('1');
+  expect(sql("select count(*) from servos_v2.commands where request->'payload'->>'collection'='customers';").trim()).toBe('1');
+  expect(sql("select count(*) from servos_v2.commands where request->>'operation'='roomReservation.create' and result->>'status'='SYNCHRONIZED';").trim()).toBe('1');
+ });
+ test('Housekeeping queues room blocks, explicit release inspection, and maintenance reports',async({page})=>{
+  loseResponse=false;
+  await signIn(page,'housekeeping@example.test');
+  await page.getByRole('button',{name:'Housekeeping',exact:true}).click();
+  const room=page.locator('article').filter({has:page.getByText('Room TZ-2',{exact:true})});
+  await room.getByRole('button',{name:'Block room',exact:true}).click();
+  let dialog=page.getByRole('dialog',{name:'Block room TZ-2'});
+  await dialog.getByLabel('Block starts').fill('2035-05-01T10:00');
+  await dialog.getByLabel('Block ends').fill('2035-05-01T11:00');
+  await dialog.getByLabel('Reason').fill('Planned maintenance');
+  await dialog.getByRole('button',{name:'Block room',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  expect(sql("select count(*) from servos_v2.records where collection='roomBlocks' and data->>'roomId'='quick-reservation-room' and data->>'status'='ACTIVE';").trim()).toBe('1');
+  await room.getByRole('button',{name:'Release block',exact:true}).click();
+  dialog=page.getByRole('dialog',{name:'Release room block'});
+  await dialog.getByLabel('Inspection and release note').fill('Inspected; room is safe to return to inventory.');
+  await dialog.getByRole('button',{name:'Release block',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  expect(sql("select count(*) from servos_v2.records where collection='roomBlocks' and data->>'status'='RELEASED' and data->>'inspection' like 'Inspected%';").trim()).toBe('1');
+  await room.getByRole('button',{name:'Report maintenance',exact:true}).click();
+  dialog=page.getByRole('dialog',{name:'Report maintenance · TZ-2'});
+  await dialog.getByLabel('What needs attention?').fill('Bathroom tap is leaking.');
+  await dialog.getByLabel('Priority').selectOption('HIGH');
+  await dialog.getByRole('button',{name:'Report problem',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  expect(sql("select count(*) from servos_v2.records where collection='maintenanceOrders' and data->>'roomId'='quick-reservation-room' and data->>'description'='Bathroom tap is leaking.' and data->>'priority'='HIGH';").trim()).toBe('1');
+ });
  test('two operators see committed room and asset records; response-loss retry preserves one command',async({page,browser},info)=>{
   test.setTimeout(120000);const context2=await browser.newContext({viewport:info.project.use.viewport});const other=await context2.newPage();
   await signIn(page,'first@example.test');await signIn(other,'second@example.test');
@@ -124,11 +172,11 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await expect(page.getByText('Double',{exact:true})).toBeVisible();
   expect(sql("select count(*) from servos_v2.commands where request->'payload'->>'collection'='roomTypes';").trim()).toBe('1');
   await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();await page.getByRole('button',{name:'Add room',exact:true}).click();dialog=page.getByRole('dialog');
-  await dialog.getByLabel('Room number').fill('101');await dialog.locator('select').selectOption({label:'Double'});await dialog.getByLabel('Guest capacity').fill('2');await dialog.getByLabel('Turnaround minutes').fill('30');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
+   await dialog.getByLabel('Room number').fill('101');const roomType=dialog.getByRole('combobox',{name:'Room type',exact:true});await roomType.fill('Double');await dialog.getByRole('option',{name:'Double',exact:true}).click();await dialog.getByLabel('Guest capacity').fill('2');await dialog.getByLabel('Turnaround minutes').fill('30');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
   await other.getByLabel('Synchronize').click();await other.getByRole('button',{name:'Rooms & rates',exact:true}).click();await expect(other.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Add asset category',exact:true}).click();dialog=page.getByRole('dialog');await dialog.getByLabel('Category name').fill('Equipment');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();await expect(page.getByText('Equipment',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Assets',exact:true}).click();await page.getByRole('button',{name:'Add asset',exact:true}).click();dialog=page.getByRole('dialog');await dialog.getByLabel('Asset name').fill('Guest television');await dialog.getByLabel('Unique asset tag').fill('TV-101');await dialog.locator('select').nth(0).selectOption({label:'Equipment'});await dialog.locator('select').nth(1).selectOption({label:'101'});await dialog.getByLabel('Acquisition cost (KES)').fill('25000');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
+   await page.getByRole('button',{name:'Assets',exact:true}).click();await page.getByRole('button',{name:'Add asset',exact:true}).click();dialog=page.getByRole('dialog');await dialog.getByLabel('Asset name').fill('Guest television');await dialog.getByLabel('Unique asset tag').fill('TV-101');const category=dialog.getByRole('combobox',{name:'Category',exact:true});await category.fill('Equipment');await dialog.getByRole('option',{name:'Equipment',exact:true}).click();const room=dialog.getByRole('combobox',{name:'Room',exact:true});await room.fill('101');await dialog.getByRole('option',{name:'101',exact:true}).click();await dialog.getByLabel('Acquisition cost (KES)').fill('25000');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Guest television · TV-101'})).toBeVisible();await other.getByLabel('Synchronize').click();await other.getByRole('button',{name:'Assets',exact:true}).click();await expect(other.getByRole('heading',{name:'Guest television · TV-101'})).toBeVisible();
   expect(sql("select data->>'purchaseCostMinor' from servos_v2.records where collection='assets';").trim()).toBe('2500000');
   await page.screenshot({path:info.outputPath('transactional-assets.png'),fullPage:true});
@@ -163,7 +211,12 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await dialogAfterReload.getByRole('button',{name:'Remove UNKNOWN-000',exact:true}).click();
   await expect(dialogAfterReload.getByRole('button',{name:/Review and confirm/})).toBeEnabled();
   await dialogAfterReload.getByRole('button',{name:'Review and confirm',exact:true}).click();
-  if(await page.getByText('Saved and synchronized.',{exact:true}).count()===0){await dialogAfterReload.getByRole('button',{name:'Close',exact:true}).click();await page.getByLabel('Synchronize').first().click();}
+  await expect(dialogAfterReload).toBeVisible();
+  await dialogAfterReload.getByRole('button',{name:'Close dialog',exact:true}).click();
+  const synchronize=page.getByLabel('Synchronize').first();
+  await expect(synchronize).toBeEnabled();
+  await synchronize.dispatchEvent('click');
+  await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='stockCounts';").trim(),{timeout:15000}).toBe('1');
   await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='stockCounts';").trim()).toBe('1');
   await expect(page.getByRole('button',{name:'Resume count',exact:true})).toHaveCount(0);
   expect(sql("select data->'currentStock'->>'web-pos-stock' from servos_v2.records where collection='stockItems' and id='web-count-a';").trim()).toBe('4');

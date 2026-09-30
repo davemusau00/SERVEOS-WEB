@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { addBusinessDays, businessDateTimeAfterBusinessDays, businessDateTimeInput, businessDateTimeToUtc, businessDate, businessDateStartUtc, formatBusinessDateTime } from '../src/utils/businessTime.ts';
+import { roomReservationBlocker } from '../src/runtime/web/hospitalityAvailability.ts';
 
 test('business time conversion round-trips property wall time independently of host timezone', () => {
   const instant = businessDateTimeToUtc('2026-09-30T10:15', 'Africa/Nairobi');
@@ -51,11 +52,32 @@ test('Terminal and Web Front Desk use property-local arrival/departure dates and
   assert.match(webDesk, /Check-in opens at the reservation arrival time/);
 });
 
+test('room reservation preview accounts for configured type, active blocks, bookings, and turnaround', () => {
+  const base = { roomId:'r1',roomTypeId:'double',configuredRoomTypeId:'double',startsAt:'2030-01-02T10:30:00Z',endsAt:'2030-01-03T10:00:00Z',reservations:[],blocks:[] };
+  assert.equal(roomReservationBlocker(base), null);
+  assert.match(roomReservationBlocker({...base,configuredRoomTypeId:'suite'}), /configured room-stay type/);
+  assert.match(roomReservationBlocker({...base,maintenanceState:'OUT_OF_ORDER'}), /out of service/);
+  assert.match(roomReservationBlocker({...base,reservations:[{roomId:'r1',startsAt:'2030-01-01T10:00:00Z',endsAt:'2030-01-02T10:00:00Z',blockedUntil:'2030-01-02T11:00:00Z',status:'RESERVED'}]}), /turnaround/);
+  assert.match(roomReservationBlocker({...base,blocks:[{roomId:'r1',startsAt:'2030-01-02T10:00:00Z',endsAt:'2030-01-02T12:00:00Z',status:'ACTIVE'}]}), /room block/);
+});
+
+test('Web Housekeeping uses queued, permission-gated room block and maintenance workflows', () => {
+  const web = readFileSync('src/runtime/web/WebHospitalityViews.tsx', 'utf8');
+  const manifest = readFileSync('src/runtime/operationManifest.ts', 'utf8');
+  assert.match(web, /run\('room\.block','roomBlocks'/);
+  assert.match(web, /run\('room\.unblock','roomBlocks'/);
+  assert.match(web, /run\('maintenance\.report','maintenanceOrders'/);
+  assert.match(web, /businessDateTimeToUtc\(blockStart,timeZone\)/);
+  assert.match(web, /allowed\(session,'rooms\.manage'\)/);
+  assert.match(web, /allowed\(session,'maintenance\.manage'\)/);
+  assert.match(manifest, /operation: 'maintenance\.report'.*web: 'implemented'/);
+});
+
 test('staged Web session exposes only whitelisted hospitality property policy fields', () => {
   const contract = readFileSync('src/runtime/web/session.ts', 'utf8');
   const migration = readFileSync('supabase/expansion/023_hospitality_property_context.sql', 'utf8');
   const sqlTest = readFileSync('tests/supabase/web-session.sql', 'utf8');
-  assert.match(contract, /propertyContext\?:\{timeZone:string;nightlyCheckoutTime:string;dayStayCutoffTime:string\}/);
+  assert.match(contract, /propertyContext\?:\{timeZone:string;nightlyCheckoutTime:string;dayStayCutoffTime:string;roomTypeId:string\|null;ratePlanId:string\|null\}/);
   for (const field of ['timeZone', 'nightlyCheckoutTime', 'dayStayCutoffTime']) assert.match(migration, new RegExp(`'${field}'`));
   assert.match(migration, /property_data->>'timezone'/);
   assert.match(sqlTest, /SENSITIVE-TEST-VALUE/);

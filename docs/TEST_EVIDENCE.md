@@ -323,3 +323,17 @@ Expansion 021 now reads the configured property timezone for room-stay local-dat
 - `git diff --check` — passed.
 - `npm run test:cloud:v2` — passed through expansion 026, including the room fixtures and real two-connection booking race.
 - Rust timezone implementation/fixture and hosted production database acceptance remain open.
+
+### DEV final sprint P2 Web Quick Reservation investigation â€” 2026-09-30
+
+- `npm run lint` â€” passed after adding the Web reservation dialog and advisory availability helper.
+- `node --test tests/operator-ux-source.test.mjs` â€” passed 21/21, including room-type, out-of-order, reservation/turnaround, and active-block preview cases.
+- Targeted disposable-Postgres Playwright attempt â€” failed at server acceptance with `VALIDATION_FAILED: room interval`; test-only fixture edits were removed and the failure is recorded as an open timestamp-contract defect. No end-to-end reservation success is claimed.
+- `npm test` â€” passed 145/145; `npm run build` and `npm run lint` â€” passed (existing large-chunk warning remains).
+- `npm run test:cloud:v2` â€” passed through expansion 026, including the real two-connection room booking race; this does not cure the browser command rejection or establish Web reservation acceptance.
+- `npm run audit:ui:gate` â€” passed; 3,554 interactions and 383 static review candidates inventoried, no prompt/confirm findings.
+- `npm run docs:check` and `git diff --check` â€” passed. Full browser suite and native tests were not rerun on this change set.
+
+Resolution: the failing attempt used incomplete fixtures (a selected room without a turnaround value, followed by an older reservation without `blockedUntil`). The permanent browser fixture now provides a valid room/rate and interval, and the end-to-end test passes on both desktop and mobile. Expansion 027 also safely handles historical reservations with no `blockedUntil`, validated in `tests/supabase/rooms.sql`.
+
+Current P2 slice evidence: `npx playwright test tests/browser/transactions.spec.ts -g "Quick Reservation" --project=desktop` and the same command with `--project=mobile-layout` both pass. `npm run test:cloud:v2` passes through expansion 027, including the historical-overlap regression and two-connection booking race.

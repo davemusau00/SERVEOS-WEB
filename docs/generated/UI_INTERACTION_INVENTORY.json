@@ -1,9 +1,9 @@
 {
   "generatedBy": "npm run audit:ui",
   "schemaVersion": 2,
-  "sourceDigest": "258e678996d5c6044efcb3856203dce2d9350a4db408ca8e321d25bd078958e7",
+  "sourceDigest": "0c01f324eb8462abf0c9aff789be9fe89df5982fc4aa3ab7d8004d61b07b9913",
   "scope": "Compact tracked summary; full static inventory is a CI artifact and findings require human review",
-  "count": 3535,
+  "count": 3554,
   "fullArtifact": "artifacts/ui-audit/UI_INTERACTION_INVENTORY.full.json",
   "interactions": [
     {
@@ -9086,73 +9086,59 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/ManagerApprovalDialog.tsx:23:368",
+      "id": "src/native/ManagerApprovalDialog.tsx:23:105",
       "file": "src/native/ManagerApprovalDialog.tsx",
       "line": 23,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/ManagerApprovalDialog.tsx:23:407",
+      "id": "src/native/ManagerApprovalDialog.tsx:23:167",
       "file": "src/native/ManagerApprovalDialog.tsx",
       "line": 23,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/ManagerApprovalDialog.tsx:24:127",
+      "id": "src/native/ManagerApprovalDialog.tsx:23:200",
       "file": "src/native/ManagerApprovalDialog.tsx",
-      "line": 24,
+      "line": 23,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/ManagerApprovalDialog.tsx:23:294",
+      "file": "src/native/ManagerApprovalDialog.tsx",
+      "line": 23,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/ManagerApprovalDialog.tsx:26:127",
+      "file": "src/native/ManagerApprovalDialog.tsx",
+      "line": 26,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/ManagerApprovalDialog.tsx:24:451",
+      "id": "src/native/ManagerApprovalDialog.tsx:26:451",
       "file": "src/native/ManagerApprovalDialog.tsx",
-      "line": 24,
+      "line": 26,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/ManagerApprovalDialog.tsx:24:539",
+      "id": "src/native/ManagerApprovalDialog.tsx:26:539",
       "file": "src/native/ManagerApprovalDialog.tsx",
-      "line": 24,
+      "line": 26,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/ManagerApprovalDialog.tsx:24:79",
+      "id": "src/native/ManagerApprovalDialog.tsx:26:79",
       "file": "src/native/ManagerApprovalDialog.tsx",
-      "line": 24,
+      "line": 26,
       "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/ManagerApprovalDialog.tsx:25:116",
-      "file": "src/native/ManagerApprovalDialog.tsx",
-      "line": 25,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/ManagerApprovalDialog.tsx:25:196",
-      "file": "src/native/ManagerApprovalDialog.tsx",
-      "line": 25,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/ManagerApprovalDialog.tsx:25:51",
-      "file": "src/native/ManagerApprovalDialog.tsx",
-      "line": 25,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/ManagerApprovalDialog.tsx:25:83",
-      "file": "src/native/ManagerApprovalDialog.tsx",
-      "line": 25,
-      "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
@@ -19635,240 +19621,240 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:132:102",
+      "id": "src/runtime/RemoteManagerApp.tsx:133:102",
       "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 132,
+      "line": 133,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:132:210",
+      "id": "src/runtime/RemoteManagerApp.tsx:133:210",
       "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 132,
+      "line": 133,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:150:144",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 150,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:150:42",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 150,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:151:161",
+      "id": "src/runtime/RemoteManagerApp.tsx:151:144",
       "file": "src/runtime/RemoteManagerApp.tsx",
       "line": 151,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:151:45",
+      "id": "src/runtime/RemoteManagerApp.tsx:151:42",
       "file": "src/runtime/RemoteManagerApp.tsx",
       "line": 151,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:154:4",
+      "id": "src/runtime/RemoteManagerApp.tsx:152:161",
       "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 154,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:154:87",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 154,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:155:115",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 155,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:155:156",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 155,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:155:32",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 155,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:162:416",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 162,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:162:465",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 162,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:162:590",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 162,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:162:633",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 162,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:177:279",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 177,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:177:301",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 177,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:182:458",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 182,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:182:515",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 182,
+      "line": 152,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:183:966",
+      "id": "src/runtime/RemoteManagerApp.tsx:152:45",
       "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 183,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:183:993",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 183,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:185:264",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 185,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:185:313",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 185,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:185:378",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 185,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:185:432",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 185,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:198:357",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 198,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:198:384",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 198,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:200:1011",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 200,
+      "line": 152,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:200:1108",
+      "id": "src/runtime/RemoteManagerApp.tsx:155:4",
       "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 200,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/RemoteManagerApp.tsx:200:1157",
-      "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 200,
+      "line": 155,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:200:175",
+      "id": "src/runtime/RemoteManagerApp.tsx:155:87",
       "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 200,
+      "line": 155,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:156:115",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 156,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:156:156",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 156,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:156:32",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 156,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:163:416",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 163,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:163:465",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 163,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:163:590",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 163,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:163:633",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 163,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:178:279",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 178,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:178:301",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 178,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:183:458",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 183,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:183:515",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 183,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:184:966",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 184,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:184:993",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 184,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:186:264",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 186,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:186:313",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 186,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:186:378",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 186,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:186:432",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 186,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:199:357",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 199,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:199:384",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 199,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:201:1011",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 201,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:201:1108",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 201,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:201:1157",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 201,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/RemoteManagerApp.tsx:201:175",
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 201,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:200:829",
+      "id": "src/runtime/RemoteManagerApp.tsx:201:829",
       "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 200,
+      "line": 201,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:200:84",
+      "id": "src/runtime/RemoteManagerApp.tsx:201:84",
       "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 200,
+      "line": 201,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/RemoteManagerApp.tsx:200:891",
+      "id": "src/runtime/RemoteManagerApp.tsx:201:891",
       "file": "src/runtime/RemoteManagerApp.tsx",
-      "line": 200,
+      "line": 201,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
@@ -19943,42 +19929,28 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/ContextHelpDrawer.tsx:12:325",
-      "file": "src/runtime/web/ContextHelpDrawer.tsx",
-      "line": 12,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/ContextHelpDrawer.tsx:12:404",
-      "file": "src/runtime/web/ContextHelpDrawer.tsx",
-      "line": 12,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/ContextHelpDrawer.tsx:14:273",
+      "id": "src/runtime/web/ContextHelpDrawer.tsx:14:268",
       "file": "src/runtime/web/ContextHelpDrawer.tsx",
       "line": 14,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/ContextHelpDrawer.tsx:14:559",
+      "id": "src/runtime/web/ContextHelpDrawer.tsx:14:554",
       "file": "src/runtime/web/ContextHelpDrawer.tsx",
       "line": 14,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/ContextHelpDrawer.tsx:14:733",
+      "id": "src/runtime/web/ContextHelpDrawer.tsx:14:728",
       "file": "src/runtime/web/ContextHelpDrawer.tsx",
       "line": 14,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/ContextHelpDrawer.tsx:14:99",
+      "id": "src/runtime/web/ContextHelpDrawer.tsx:14:94",
       "file": "src/runtime/web/ContextHelpDrawer.tsx",
       "line": 14,
       "surface": "button",
@@ -22316,408 +22288,597 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:1862",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:30:565",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 30,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:30:663",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 30,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:30:719",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 30,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:1986",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:30:891",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 30,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:2271",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:33:1143",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 33,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:2353",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:33:1225",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 33,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:2402",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:33:1274",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 33,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:2484",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:33:1356",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 33,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:3202",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:33:734",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 33,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:33:858",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 33,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:35:11",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 35,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:3278",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:35:234",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 35,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:35:289",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 35,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:35:687",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 35,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:35:736",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 35,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:35:87",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 35,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:3425",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:35:874",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
-      "surface": "select",
+      "line": 35,
+      "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:3480",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:35:948",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 35,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:35:989",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 35,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:1028",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 48,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:3878",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:1131",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 48,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:3927",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:1185",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 48,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:4065",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:1246",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 48,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:4139",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:1323",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:4180",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
+      "line": 48,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:586",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:146",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
-      "surface": "input",
+      "line": 48,
+      "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:27:684",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:1484",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 27,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:1405",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:1449",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:1548",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:1678",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:179",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:1755",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:1850",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:1962",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:1793",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:2020",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:2133",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:1834",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:2193",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2014",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:2274",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:2394",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:2475",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:2657",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:2701",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2067",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:2962",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2332",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:3026",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2413",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:3085",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2517",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "button",
+      "line": 48,
+      "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:3178",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2633",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:407",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:4337",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:4486",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:36:466",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 36,
+      "line": 48,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2062",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2740",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
       "line": 48,
-      "surface": "button",
+      "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2205",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2858",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
       "line": 48,
-      "surface": "onClick",
+      "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2321",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2403",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2488",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2570",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2654",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2736",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2797",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:2879",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:3132",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:400",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
       "line": 48,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:3160",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:456",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
       "line": 48,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:3246",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:530",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
       "line": 48,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:590",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 48,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:89",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 48,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:48:956",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 48,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:1405",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:1449",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:1678",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:1755",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:1850",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:1962",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:2020",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:2133",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:2193",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:2274",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:2394",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:2475",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:2657",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:2701",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:2962",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:3026",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:3085",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:3178",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:407",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:4337",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:4486",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:57:466",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 57,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2062",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2205",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2321",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2403",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2488",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2570",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2654",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2736",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2797",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2879",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3132",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "form",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3160",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
+      "surface": "onSubmit",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3246",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 69,
       "surface": "textarea",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:3322",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3322",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
+      "line": 69,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:3423",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3423",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
+      "line": 69,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:3464",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3464",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
+      "line": 69,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:3515",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3515",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
+      "line": 69,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:499",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:499",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
+      "line": 69,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:48:580",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:69:580",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 48,
+      "line": 69,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
@@ -24556,198 +24717,170 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:132",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:25:132",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
+      "line": 25,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:300",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:25:300",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
+      "line": 25,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:353",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:25:353",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
+      "line": 25,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:36",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:25:36",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
+      "line": 25,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:441",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:25:441",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
+      "line": 25,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:491",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:25:491",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
+      "line": 25,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:572",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:25:572",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
+      "line": 25,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:619",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:25:619",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
+      "line": 25,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:697",
-      "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:736",
-      "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:24:835",
-      "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 24,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:25:1157",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:25:812",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
       "line": 25,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:25:1254",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:26:1151",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 25,
+      "line": 26,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebStaffAdminView.tsx:26:1248",
+      "file": "src/runtime/web/WebStaffAdminView.tsx",
+      "line": 26,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:25:756",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:27:132",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 25,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:25:902",
-      "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 25,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:26:132",
-      "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 26,
+      "line": 27,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:26:312",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:27:312",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 26,
+      "line": 27,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:26:36",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:27:36",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 26,
+      "line": 27,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:26:366",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:27:366",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 26,
+      "line": 27,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:26:453",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:27:453",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 26,
+      "line": 27,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:26:506",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:27:506",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 26,
+      "line": 27,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:26:719",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:27:719",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 26,
+      "line": 27,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:26:776",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:27:776",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 26,
+      "line": 27,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:26:833",
-      "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 26,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:27:166",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:27:833",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
       "line": 27,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:27:193",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:28:166",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 27,
+      "line": 28,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebStaffAdminView.tsx:28:193",
+      "file": "src/runtime/web/WebStaffAdminView.tsx",
+      "line": 28,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:27:860",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:28:860",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 27,
+      "line": 28,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebStaffAdminView.tsx:27:936",
+      "id": "src/runtime/web/WebStaffAdminView.tsx:28:936",
       "file": "src/runtime/web/WebStaffAdminView.tsx",
-      "line": 27,
+      "line": 28,
       "surface": "onClick",
       "status": "UNREVIEWED"
     }

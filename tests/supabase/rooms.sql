@@ -27,6 +27,10 @@ do $$declare room_data jsonb;begin
 end$$;
 select pg_temp.room_command('room.condition','{"id":"101","state":"AVAILABLE","reason":"Inspection passed"}');
 select pg_temp.room_command('ratePlan.save','{"id":"night","data":{"name":"Night","roomTypeId":"double","mode":"NIGHTLY","priceMinor":500000,"currency":"KES","taxBasisPoints":1600}}');
+select pg_temp.room_command('room.save','{"id":"legacy-room","data":{"number":"102","roomTypeId":"double","capacity":2,"turnaroundMinutes":30}}');
+select servos_v2.put_record('roomReservations','legacy-reservation','{"roomId":"legacy-room","customerId":"guest","status":"RESERVED","startsAt":"2030-04-01T10:00:00Z","endsAt":"2030-04-02T07:00:00Z"}');
+-- Pre-policy reservations without blockedUntil must occupy through departure, not forever.
+select pg_temp.room_command('roomReservation.create','{"id":"legacy-overlap","roomId":"legacy-room","stayType":"NIGHTLY","customerId":"guest","guests":1,"startsAt":"2030-04-01T12:00:00Z","endsAt":"2030-04-02T07:00:00Z"}','REJECTED','ROOM_UNAVAILABLE');
  select pg_temp.room_command('roomReservation.create','{"id":"booking","roomId":"101","stayType":"NIGHTLY","customerId":"guest","guests":2,"startsAt":"2030-01-01T14:00:00+03:00","endsAt":"2030-01-03T10:00:00+03:00"}');
 -- A second registered client cannot book nightly/day-use overlap or turnaround.
  select pg_temp.room_command('roomReservation.create','{"id":"overlap","roomId":"101","stayType":"DAY","customerId":"guest","guests":1,"startsAt":"2030-01-02T11:00:00+03:00","endsAt":"2030-01-02T15:00:00+03:00"}','REJECTED','ROOM_UNAVAILABLE','10000000-0000-4000-8000-000000000002');
