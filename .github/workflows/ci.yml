@@ -67,3 +67,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm run check:desktop
       - run: npm run test:desktop
+  evidence-summary:
+    if: always()
+    needs: [frontend, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm run ci:evidence
+        env:
+          SERVOS_RELEASE_PROFILE: CI_PREVIEW_AND_STAGED_V2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: servos-ci-evidence-${{ github.sha }}
+          path: artifacts/servos-ci-evidence.json
+          retention-days: 30

@@ -22,7 +22,7 @@ test('hospitality calendar helpers use property dates rather than the host timez
   assert.equal(addBusinessDays('2028-02-28', 1), '2028-02-29');
   assert.throws(() => addBusinessDays('2026-02-30', 1), /valid business date/);
   assert.equal(businessDateStartUtc('2026-09-30', 'Pacific/Kiritimati'), '2026-09-29T10:00:00.000Z');
-  assert.match(formatBusinessDateTime('2026-09-30T10:15:00.000Z', 'Pacific/Kiritimati'), /30 Sep 2026/);
+  assert.match(formatBusinessDateTime('2026-09-30T10:15:00.000Z', 'Pacific/Kiritimati'), /1 Oct 2026/);
 });
 
 test('reservation and manually recorded receipt flows use the property timezone contract', () => {
@@ -38,7 +38,7 @@ test('reservation and manually recorded receipt flows use the property timezone 
 test('Terminal and Web Front Desk use property-local arrival/departure dates and show readiness blockers', () => {
   const terminalDesk = readFileSync('src/native/NativeFrontDeskView.tsx', 'utf8');
   const webDesk = readFileSync('src/runtime/web/WebHospitalityViews.tsx', 'utf8');
-  assert.match(terminalDesk, /s\.property\?\.timezone/);
+  assert.match(terminalDesk, /recordsOf\(s,'property'\)\[0\]/);
   assert.match(terminalDesk, /businessDate\(r\.startsAt,timeZone\)/);
   assert.match(terminalDesk, /overlapsDay\(r\.startsAt,[^,]+,d,timeZone\)/);
   assert.doesNotMatch(terminalDesk, /HOTEL_TZ|\+03:00/);

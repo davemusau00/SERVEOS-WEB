@@ -13,7 +13,7 @@ const stateClass=(v:string)=>v==='CHECKED_IN'?'text-emerald-300':v==='RESERVED'?
 
 export function NativeFrontDeskView(){
   const runtime=useRuntime();const s=runtime.snapshot!;const canOperate=s.actor.permissions.includes('rooms.operate');
-  const timeZone=s.property?.timezone||'Africa/Nairobi';
+  const property=recordsOf(s,'property')[0]||{};const timeZone=property.timezone||'Africa/Nairobi';
   const rooms=recordsOf(s,'rooms'),types=recordsOf(s,'roomTypes'),reservations=recordsOf(s,'roomReservations'),customers=recordsOf(s,'customers'),blocks=recordsOf(s,'roomBlocks'),folios=recordsOf(s,'folios');
   const [start,setStart]=useState(businessDate(new Date(),timeZone));const [days,setDays]=useState(7);const [query,setQuery]=useState('');const [move,setMove]=useState<any>(null);const [message,setMessage]=useState('');
   const dates=useMemo(()=>Array.from({length:days},(_,i)=>datePlus(start,i)),[start,days]);

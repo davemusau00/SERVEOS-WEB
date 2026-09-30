@@ -25,6 +25,7 @@
     "test:browser:production": "playwright test --config=playwright.production.config.ts",
     "protocol:check": "node scripts/protocol-check.mjs",
     "audit:ui:gate": "node scripts/audit-ui-gate.mjs",
+    "ci:evidence": "node scripts/write-ci-evidence.mjs",
     "help:build": "node scripts/build-help-index.mjs",
     "docs:check": "npm run help:build && node scripts/docs-check.mjs",
     "verify:source": "node scripts/verify-production.mjs",
