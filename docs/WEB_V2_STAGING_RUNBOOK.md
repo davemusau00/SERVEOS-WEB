@@ -87,6 +87,8 @@ Migration `001_protocol.sql` copies legacy manager membership into v2 and replac
 
 Do not seed production business records into v2. The owner Auth user is initially a v2 member through the legacy manager backfill. Migration 016 adds staff/device administration but does not provide Auth invitation, password recovery, or a desktop terminal adapter.
 
+For the staged native operator identity flow, see [Terminal operator identity and setup](TERMINAL_OPERATOR_AUTH_SETUP.md). Migration 028 and the native Auth vault integration are implementation source only until disposable and hosted acceptance is recorded. Do not enable the v2 writer based on successful sign-in or pairing.
+
 ## 4. Configure Vercel Preview only
 
 Create/use a separate Vercel Preview project or Preview environment. Set its variables to the **staging** values:

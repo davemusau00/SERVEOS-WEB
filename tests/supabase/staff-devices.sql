@@ -40,6 +40,10 @@ end$$;
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);
 set local role authenticated;
+do $$declare identity jsonb;begin
+ identity:=public.servos_v2_terminal_identity('10000000-0000-4000-8000-000000000061');
+ if identity->>'staffId'<>'server-2' or identity->>'actorId'<>'00000000-0000-4000-8000-000000000002' then raise exception 'Terminal did not resolve the signed-in operator identity: %',identity;end if;
+end$$;
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000062','Server tablet','WEB');
 reset role;
 do $$declare r jsonb;begin

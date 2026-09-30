@@ -161,6 +161,10 @@ The disposable expansion SQL acceptance passed migrations 001-016 and the staff/
 
 Remaining work includes the complete 10B Auth invitation/recovery/session flows, richer custom permission editing, report/audit UI, shared multi-operator device ownership, and 11E room-charge/M-Pesa/close-day gaps. Continue the 12A desktop adapter and migration/rollback rehearsal. Signed offline grants, cutover and physical acceptance remain open.
 
+## 2026-09-30 native operator identity foundation (unverified)
+
+Native unlock now supports individual Supabase Auth sign-in paired with the existing local staff PIN and stable Staff ID. The Auth session is resolved through staged server-side staff/device identity; refresh credentials use OS credential storage and sign-out clears the active session. A PIN-only local option preserves the legacy/offline terminal path. Expansion migration 028 enables active authenticated operators to use the once-paired terminal without conflating device identity with operator identity. See [terminal operator setup](TERMINAL_OPERATOR_AUTH_SETUP.md). No tests/build, disposable migration run, hosted Auth verification, token refresh lifecycle, v2 business-command adapter, or production enablement has been completed for this slice. V2 remains default-off.
+
 ## Final 0.2.0 customer-credit closure
 
 The installed terminal now includes authoritative customer tabs and Accounts Receivable under SQLite schema 13. A POS tab may be linked to a reusable customer, settled partly by normal tender and then charged to an active customer credit account. Credit charges complete the order without pretending receivables are cash. Later Cash/M-Pesa/Card settlements reduce A/R, with M-Pesa reusing the existing statement reconciliation workflow. Customer credit ledger entries and reconciliation snapshots are immutable.
