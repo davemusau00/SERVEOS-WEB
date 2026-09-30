@@ -62,7 +62,7 @@
       "native": "implemented",
       "backend": "partial",
       "web": "partial",
-      "notes": "Web stages up to four master-data templates only; historical transactions, opening balances and full migration dependency coverage are excluded.",
+      "notes": "Web stages up to four master-data templates only and requires stable external_id values; historical transactions, opening balances and full migration dependency coverage are excluded.",
       "offlineEligibility": "online-only",
       "approval": "none",
       "versioning": "required",

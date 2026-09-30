@@ -57,11 +57,11 @@ The Administration → Import Center provides a separate, online-only staged pat
 
 Use the Import Center's header suggestions as guidance. The server accepts these columns and common aliases:
 
-- Products: `name`, `code`/`sku`, `price` (KES, up to two decimal places), optional `category`, `barcode`, and `external_id`.
-- Stock-item definitions: `name`, `code`/`sku`, `base_unit`, optional `reorder_level` (up to six decimal places), `barcode`, and `external_id`.
-- Guests: `name`, optional `phone`, `email`, and `external_id`.
-- Suppliers: `name`, `code`, optional `phone`, `email`, and `external_id`.
+- Products: required `external_id`, `name`, `code`/`sku`, and `price` (KES, up to two decimal places); optional `category` and `barcode`.
+- Stock-item definitions: required `external_id`, `name`, `code`/`sku`, and `base_unit`; optional `reorder_level` (up to six decimal places) and `barcode`.
+- Guests: required `external_id` and `name`; optional `phone` and `email`.
+- Suppliers: required `external_id`, `name`, and `code`; optional `phone` and `email`.
 
-Codes and external IDs are text, and barcode strings are never converted to numbers; leading zeroes are preserved and surrounding barcode whitespace is rejected instead of silently trimmed. Scientific notation is rejected for prices and quantities. Populated columns without a recognized mapping, duplicate mappings, malformed rows, and invalid domain values are rejected in the server dry-run. `external_id` becomes the imported record's stable ID; without it, the server derives a stable ID from the batch and row. Existing target IDs or conflicting product/supplier codes are rejected, not overwritten. Correct the source CSV and stage a new batch; existing rows cannot be edited inline.
+Codes and external IDs are text, and barcode strings are never converted to numbers; leading zeroes are preserved and surrounding barcode whitespace is rejected instead of silently trimmed. Scientific notation is rejected for prices and quantities. Populated columns without a recognized mapping, duplicate mappings, malformed rows, and invalid domain values are rejected in the server dry-run. `external_id` becomes the imported record's stable ID and must be unique in the file, ignoring letter case. Existing target IDs or conflicting product/supplier codes are rejected, not overwritten. Correct the source CSV and stage a new batch; existing rows cannot be edited inline.
 
 Review the server's per-row result before choosing **Apply reviewed import**. Application requires both import authority and the permission for that data domain, uses the normal domain validators, and commits the batch atomically. The raw file and exact plan stay in private server storage while staged and are removed after successful application; replicated batch metadata excludes raw source and contact details. This path is source-backed but still requires migration application and staging acceptance; it is not evidence of completed legacy migration or cutover.

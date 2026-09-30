@@ -11,6 +11,7 @@ test('Web controlled import stages bounded CSV and preserves reviewed source has
   assert.match(sql, /n>2000000/);
   assert.match(sql, /20000 data rows/);
   assert.match(sql, /sourceHash/);
+  assert.match(sql, /external_id is required for stable import identity/);
   assert.match(sql, /externalId/);
   assert.match(sql, /barcode/);
   assert.match(sql, /scientific notation is not accepted/);

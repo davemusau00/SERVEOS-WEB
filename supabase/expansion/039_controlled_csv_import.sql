@@ -49,7 +49,7 @@ end$$;
 
 create function servos_v2.import_csv_data(template text,headers jsonb,cells jsonb)
 returns jsonb language plpgsql immutable set search_path='' as $$
-declare i integer; header text; field text; value text; result jsonb:='{}'::jsonb; price numeric; seen_fields text[]:='{}';
+declare i integer; header text; field text; value text; result jsonb:='{}'::jsonb; price numeric; amount numeric; seen_fields text[]:='{}';
 begin
  if jsonb_array_length(headers)<>jsonb_array_length(cells) then raise exception 'VALIDATION_FAILED: row has a different number of columns than the header';end if;
  for i in 0..jsonb_array_length(headers)-1 loop
@@ -58,13 +58,38 @@ begin
   if header in ('external_id','externalid','record_id','id') then field:='externalId';
   elsif header in ('name','product','product_name','item_name','menu_item','stock_item','guest','customer','guest_name','supplier','supplier_name','vendor','full_name') then field:='name';
   elsif header in ('code','sku','product_code','item_code','stock_code','supplier_code','vendor_code') then field:='code';
-  elsif header in ('price','selling_price','unit_price','price_kes') then field:='price';
+  elsif header in ('price','selling_price','unit_price','price_kes','base_rate','nightly_rate') then field:='price';
   elsif header in ('category','type','product_category') then field:='category';
   elsif header in ('barcode','ean','upc') then field:='barcode';
   elsif header in ('base_unit','unit','uom','measure') then field:='baseUnit';
   elsif header in ('reorder_level','minimum_stock','par_level') then field:='reorderLevel';
   elsif header in ('phone','mobile','telephone','contact_number') then field:='phone';
   elsif header in ('email','email_address') then field:='email';
+  elsif header in ('capacity_adults','adults') then field:='capacityAdults';
+  elsif header in ('capacity_children','children') then field:='capacityChildren';
+  elsif header in ('max_guests','capacity') then field:='maxGuests';
+  elsif header in ('room_number','number') then field:='roomNumber';
+  elsif header='room_type_external_id' then field:='roomTypeExternalId';
+  elsif header='initial_status' then field:='initialStatus';
+  elsif header in ('turnaround_minutes','turnaround') then field:='turnaroundMinutes';
+  elsif header='floor' then field:='floor';
+  elsif header='wing' then field:='wing';
+  elsif header='currency' then field:='currency';
+  elsif header='min_nights' then field:='minNights';
+  elsif header='max_nights' then field:='maxNights';
+  elsif header='meal_plan' then field:='mealPlan';
+  elsif header in ('depreciation_method','method') then field:='depreciationMethod';
+  elsif header='useful_life_months' then field:='usefulLifeMonths';
+  elsif header in ('asset_tag','tag') then field:='assetTag';
+  elsif header in ('category_external_id','asset_category_external_id') then field:='categoryExternalId';
+  elsif header in ('location_external_id','room_or_location_external_id') then field:='locationExternalId';
+  elsif header='serial_number' then field:='serialNumber';
+  elsif header='status' then field:='status';
+  elsif header='acquisition_date' then field:='acquisitionDate';
+  elsif header in ('acquisition_cost','purchase_cost') then field:='acquisitionCost';
+  elsif header='warranty_until' then field:='warrantyUntil';
+  elsif header='kind' then field:='kind';
+  elsif header='active' then field:='active';
   end if;
   if field is null and value<>'' then raise exception 'VALIDATION_FAILED: populated CSV column is not mapped: %',header;end if;
   if field is not null then
@@ -72,29 +97,60 @@ begin
    if field not in ('externalId','barcode') then value:=trim(value);end if;
    if field=any(seen_fields) then raise exception 'VALIDATION_FAILED: multiple CSV columns map to the same field';end if;
    seen_fields:=array_append(seen_fields,field);
-   if field='price' then
+   if field in ('price','acquisitionCost') then
     if value !~ '^[0-9]+([.][0-9]{1,2})?$' then raise exception 'VALIDATION_FAILED: price must be a non-negative amount with at most two decimal places; scientific notation is not accepted';end if;
     price:=value::numeric;if price>10000000000 then raise exception 'VALIDATION_FAILED: price is out of range';end if;
-    result:=result||jsonb_build_object('priceMinor',(price*100)::bigint);
-   elsif field='reorderLevel' then
+    result:=result||jsonb_build_object(case when field='acquisitionCost' then 'acquisitionCostMinor' else 'priceMinor' end,(price*100)::bigint);
+   elsif field in ('reorderLevel','capacityAdults','capacityChildren','maxGuests','turnaroundMinutes','usefulLifeMonths','minNights','maxNights') then
     if value<>'' and value !~ '^[0-9]+([.][0-9]{1,6})?$' then raise exception 'VALIDATION_FAILED: reorder level must be a non-negative quantity; scientific notation is not accepted';end if;
-    if value<>'' then result:=result||jsonb_build_object(field,value::numeric);end if;
+    if value<>'' then amount:=value::numeric;if trunc(amount)<>amount and field<>'reorderLevel' then raise exception 'VALIDATION_FAILED: % must be a whole number',field;end if;result:=result||jsonb_build_object(field,amount);end if;
    elsif field='externalId' then
     if value<>'' then result:=result||jsonb_build_object(field,value);end if;
-   elsif field in ('barcode','phone','email') then
+   elsif field in ('barcode','phone','email','externalId','roomTypeExternalId','categoryExternalId','locationExternalId') then
     if value<>'' then result:=result||jsonb_build_object(field,value);end if;
    elsif value<>'' then result:=result||jsonb_build_object(field,value);end if;
   end if;
  end loop;
- if template not in ('products','stockItems','customers','suppliers') then raise exception 'VALIDATION_FAILED: unsupported import template';end if;
+ if template not in ('products','stockItems','customers','suppliers','stockLocations','roomTypes','rooms','ratePlans','assetCategories','assets') then raise exception 'VALIDATION_FAILED: unsupported import template';end if;
  if nullif(trim(result->>'name'),'') is null then raise exception 'VALIDATION_FAILED: name is required';end if;
+ if nullif(result->>'externalId','') is null then raise exception 'VALIDATION_FAILED: external_id is required for stable import identity';end if;
  if template in ('products','stockItems','suppliers') and nullif(trim(result->>'code'),'') is null then raise exception 'VALIDATION_FAILED: code is required';end if;
  if template='products' and not (result ? 'priceMinor') then raise exception 'VALIDATION_FAILED: price is required';end if;
  if template='stockItems' and nullif(trim(result->>'baseUnit'),'') is null then raise exception 'VALIDATION_FAILED: base unit is required';end if;
+ if template='stockLocations' and nullif(result->>'kind','') is null then raise exception 'VALIDATION_FAILED: stock location kind is required';end if;
+ if template='roomTypes' then
+  if nullif(trim(result->>'code'),'') is null or not (result ? 'priceMinor') then raise exception 'VALIDATION_FAILED: room type code and base rate are required';end if;
+  if not (result ? 'maxGuests') then result:=result||jsonb_build_object('maxGuests',coalesce((result->>'capacityAdults')::numeric,0)+coalesce((result->>'capacityChildren')::numeric,0));end if;
+  if coalesce((result->>'maxGuests')::numeric,0) not between 1 and 1000 then raise exception 'VALIDATION_FAILED: room type capacity must be between 1 and 1000';end if;
+ end if;
+ if template='rooms' then
+  if nullif(trim(result->>'roomNumber'),'') is null or nullif(result->>'roomTypeExternalId','') is null then raise exception 'VALIDATION_FAILED: room number and room type external ID are required';end if;
+  if coalesce(result->>'initialStatus','READY') not in ('READY','DIRTY','OUT_OF_ORDER') then raise exception 'VALIDATION_FAILED: room initial status';end if;
+ end if;
+ if template='ratePlans' then
+  if nullif(result->>'roomTypeExternalId','') is null or nullif(result->>'currency','') is null or not (result ? 'priceMinor') then raise exception 'VALIDATION_FAILED: rate plan room type, currency and nightly rate are required';end if;
+  if result->>'currency'<>'KES' then raise exception 'VALIDATION_FAILED: only KES rate plans are supported';end if;
+  if coalesce(result->>'mealPlan','ROOM_ONLY')<>'ROOM_ONLY' or coalesce((result->>'minNights')::integer,1)<>1 or coalesce((result->>'maxNights')::integer,366)<>366 then raise exception 'VALIDATION_FAILED: this Web rate-plan import supports ROOM_ONLY with default stay limits only';end if;
+ end if;
+ if template='assetCategories' then
+  if nullif(trim(result->>'code'),'') is null then raise exception 'VALIDATION_FAILED: asset category code is required';end if;
+  result:=result||jsonb_build_object('depreciationMethod',upper(coalesce(result->>'depreciationMethod','STRAIGHT_LINE')),'usefulLifeMonths',coalesce((result->>'usefulLifeMonths')::integer,0));
+  if result->>'depreciationMethod' not in ('STRAIGHT_LINE','NONE') or (result->>'depreciationMethod'='STRAIGHT_LINE' and coalesce((result->>'usefulLifeMonths')::integer,0) not between 1 and 1200) or (result->>'depreciationMethod'='NONE' and coalesce((result->>'usefulLifeMonths')::integer,0)<>0) then raise exception 'VALIDATION_FAILED: depreciation method/useful life';end if;
+ end if;
+ if template='assets' then
+  if nullif(trim(result->>'assetTag'),'') is null or nullif(result->>'categoryExternalId','') is null or nullif(result->>'locationExternalId','') is null then raise exception 'VALIDATION_FAILED: asset tag, category external ID and location external ID are required';end if;
+  if coalesce(result->>'status','IN_SERVICE') not in ('IN_SERVICE','ACTIVE') then raise exception 'VALIDATION_FAILED: only active assets can be imported';end if;
+ end if;
  if template='customers' then result:=result-'code'-'priceMinor'-'category'-'barcode'-'baseUnit'-'reorderLevel';end if;
  if template='suppliers' then result:=result-'priceMinor'-'category'-'barcode'-'baseUnit'-'reorderLevel';end if;
  if template='products' then result:=result-'phone'-'email'-'baseUnit'-'reorderLevel';end if;
  if template='stockItems' then result:=result-'priceMinor'-'category'-'phone'-'email';end if;
+ if template='stockLocations' then result:=result-'priceMinor'-'name'-'phone'-'email';end if;
+ if template='roomTypes' then result:=result-'priceMinor'-'capacityAdults'-'capacityChildren'-'phone'-'email';end if;
+ if template='rooms' then result:=result-'name'-'phone'-'email';end if;
+ if template='ratePlans' then result:=result-'phone'-'email';end if;
+ if template='assetCategories' then result:=result-'priceMinor'-'phone'-'email';end if;
+ if template='assets' then result:=result-'phone'-'email';end if;
  return result;
 end$$;
 
@@ -121,7 +177,8 @@ begin
   template:=batch->>'templateKey';
   select s.csv_text,s.source_hash into source_csv,source_hash from servos_v2.import_sources s where s.batch_id=key for update;
   if source_csv is null or source_hash<>batch->>'sourceHash' or md5(source_csv)<>source_hash then raise exception 'IMPORT_SOURCE_CHANGED: staged CSV missing or hash mismatch';end if;
-  if template in ('products','stockItems') then perform servos_v2.require_any_permission(array['catalog.manage']);
+  if template='products' then perform servos_v2.require_any_permission(array['catalog.manage']);
+  elsif template='stockItems' then perform servos_v2.require_any_permission(array['catalog.manage','inventory.adjust']);
   elsif template='suppliers' then perform servos_v2.require_any_permission(array['procurement.manage']);
   elsif template='customers' then perform servos_v2.require_any_permission(array['customers.manage']);end if;
   raw_rows:=servos_v2.parse_import_csv(source_csv);headers:=raw_rows->0;row_total:=jsonb_array_length(raw_rows)-1;
@@ -129,11 +186,11 @@ begin
    cells:=raw_rows->row_no;row_data:=null;message:=null;target_id:=null;
    begin
     row_data:=servos_v2.import_csv_data(template,headers,cells);
-    target_id:=coalesce(nullif(row_data->>'externalId',''),'import-'||md5(key||':'||row_no));
+    target_id:=row_data->>'externalId';
     row_data:=row_data-'externalId';
     if length(target_id)>128 then raise exception 'VALIDATION_FAILED: external ID exceeds 128 characters';end if;
-    if target_id=any(seen_ids) then raise exception 'DUPLICATE_REFERENCE: duplicate external ID within file';end if;
-    seen_ids:=array_append(seen_ids,target_id);
+    if lower(target_id)=any(seen_ids) then raise exception 'DUPLICATE_REFERENCE: duplicate external ID within file';end if;
+    seen_ids:=array_append(seen_ids,lower(target_id));
     candidate:=lower(coalesce(row_data->>'code',''));
     if candidate<>'' and candidate=any(seen_codes) then raise exception 'DUPLICATE_REFERENCE: duplicate code within file';end if;
     if candidate<>'' then seen_codes:=array_append(seen_codes,candidate);end if;
