@@ -1,5 +1,11 @@
 # Current release state
 
+## DEV final sprint P0/P1 foundation - 2026-09-30
+
+The sprint now has shared design-system controls and a dialog shell with Escape handling, initial focus, focus trapping, and focus restoration. `npm run audit:ui` emits both the control inventory and `docs/generated/OPERATOR_UX_AUDIT.json`; generated workflow rows remain `UNREVIEWED` until manually reviewed and accepted. Operation parity entries now expose offline eligibility, approval/version/audit/effect metadata, an acceptance-test prompt, and operator UX status. Undocumented behavior is marked unknown rather than inferred.
+
+Business wall-clock conversion uses the configured property IANA timezone and persists UTC. The native Rooms reservation and block forms, web reservation editor, and web M-Pesa receipt entry use this contract. This is a foundation only: other business-time forms, P0 audit findings, full operator review, and P2-P27 remain open. See the sprint document and completion ledger for evidence.
+
 ## UX and Guidance foundation — 2026-09-28
 
 The current native shell now has permission-filtered task groups, a Home screen with operational shortcuts and Quick Add entry points, a compact mobile More menu, and an initial shell orientation tour. The offline Help Center launches the tour and displays per-staff progress. SQLite schema 11 stores guide progress and resumable stock-count scanner drafts separately from business records/outbox; runtime operation-success events are emitted only after the native command returns successfully. Source plans and sequencing are cross-linked in [UX and Guidance delivery plan](UX_GUIDANCE_DELIVERY_PLAN.md).

@@ -1,7 +1,492 @@
 {
+  "schemaVersion": 1,
   "generatedBy": "npm run audit:ui",
-  "scope": "Static source inventory; findings require human review and are not runtime acceptance",
-  "count": 3440,
+  "generatedAt": "2026-09-30T01:16:00.856Z",
+  "scope": "Static source signals plus unreviewed workflow inventory; generation does not imply acceptance",
+  "interactionCount": 3440,
+  "findingCount": 60,
+  "findings": [
+    {
+      "file": "src/components/accounting/AccountingView.tsx",
+      "line": 431,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/catalog/CatalogStudioView.tsx",
+      "line": 685,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm\">"
+    },
+    {
+      "file": "src/components/catalog/CatalogStudioView.tsx",
+      "line": 750,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/catalog/CatalogStudioView.tsx",
+      "line": 1,
+      "rule": "form-busy-state-review",
+      "severity": "review",
+      "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
+      "source": "<form>"
+    },
+    {
+      "file": "src/components/common/Header.tsx",
+      "line": 479,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 md:hidden\">"
+    },
+    {
+      "file": "src/components/common/Header.tsx",
+      "line": 482,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "className=\"fixed inset-0 bg-slate-950/80 backdrop-blur-sm\""
+    },
+    {
+      "file": "src/components/common/OfflineQueueModal.tsx",
+      "line": 90,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "if (window.confirm('Are you sure you want to clear all pending offline transactions?')) {"
+    },
+    {
+      "file": "src/components/crm/CRM360View.tsx",
+      "line": 596,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm\">"
+    },
+    {
+      "file": "src/components/host/HostStandView.tsx",
+      "line": 573,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/host/HostStandView.tsx",
+      "line": 1,
+      "rule": "form-busy-state-review",
+      "severity": "review",
+      "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
+      "source": "<form>"
+    },
+    {
+      "file": "src/components/hotel/HotelPMSView.tsx",
+      "line": 277,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/hotel/HotelPMSView.tsx",
+      "line": 401,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/hotel/HousekeepingBoard.tsx",
+      "line": 294,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm\">"
+    },
+    {
+      "file": "src/components/hotel/MaintenanceWorkspace.tsx",
+      "line": 215,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm\">"
+    },
+    {
+      "file": "src/components/inventory/InventoryView.tsx",
+      "line": 849,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/inventory/InventoryView.tsx",
+      "line": 944,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/inventory/InventoryView.tsx",
+      "line": 1023,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/inventory/InventoryView.tsx",
+      "line": 1104,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/inventory/InventoryView.tsx",
+      "line": 1,
+      "rule": "form-busy-state-review",
+      "severity": "review",
+      "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
+      "source": "<form>"
+    },
+    {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 858,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 928,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 1021,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 1081,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 1141,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 1181,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 1276,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/pos/POSView.tsx",
+      "line": 1332,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4\">"
+    },
+    {
+      "file": "src/components/pos/QROrderingGuestView.tsx",
+      "line": 84,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 font-sans text-slate-100\">"
+    },
+    {
+      "file": "src/components/procurement/ProcurementView.tsx",
+      "line": 324,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/settings/SettingsCenterView.tsx",
+      "line": 294,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/staff/StaffCashView.tsx",
+      "line": 1231,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/staff/StaffCashView.tsx",
+      "line": 1328,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/staff/StaffCashView.tsx",
+      "line": 1439,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/staff/StaffCashView.tsx",
+      "line": 1570,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/staff/StaffCashView.tsx",
+      "line": 1734,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/staff/StaffCashView.tsx",
+      "line": 1854,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/staff/StaffCashView.tsx",
+      "line": 1956,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/staff/StaffCashView.tsx",
+      "line": 2025,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/components/staff/StaffCashView.tsx",
+      "line": 2091,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "<div className=\"fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4\">"
+    },
+    {
+      "file": "src/design-system/controls.tsx",
+      "line": 23,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "return <div className=\"fixed inset-0 z-[180] grid place-items-center bg-black/70 p-3 sm:p-4\" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>"
+    },
+    {
+      "file": "src/native/NativeAssetsView.tsx",
+      "line": 115,
+      "rule": "business-time-input",
+      "severity": "warning",
+      "message": "Use the property timezone contract when converting this business wall time.",
+      "source": "function MaintenanceBlockDialog({work,onClose,onSave}:{work:any;onClose:()=>void;onSave:(v:any)=>Promise<void>}){const [startsAt,setStart]=useState('');const [endsAt,setEnd]=useState('');const [reason,setReason]=useState('Maintenance downtime');const iso=(v:string)=>new Date(v).toISOString();return <ActionDialog title=\"Block room for maintenance\" onClose={onClose}><div className=\"space-y-3\"><label>Start<input type=\"datetime-local\" className={fieldClass} value={startsAt} onChange={e=>setStart(e.t"
+    },
+    {
+      "file": "src/native/NativeFoliosView.tsx",
+      "line": 1,
+      "rule": "form-busy-state-review",
+      "severity": "review",
+      "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
+      "source": "<form>"
+    },
+    {
+      "file": "src/native/NativeFrontDeskView.tsx",
+      "line": 1,
+      "rule": "form-busy-state-review",
+      "severity": "review",
+      "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
+      "source": "<form>"
+    },
+    {
+      "file": "src/native/NativeHousekeepingView.tsx",
+      "line": 15,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "const condition=async(room:any)=>{const rec=recordOf(s,'rooms',room.id);if(!rec)return;const next=room.maintenanceState==='OUT_OF_ORDER'?'AVAILABLE':'OUT_OF_ORDER';const reason=next==='OUT_OF_ORDER'?window.prompt('Reason / defect')||'':'';if(next==='AVAILABLE'||reason.trim())await command('room.condition',{id:room.id,state:next,reason},rec.version)};"
+    },
+    {
+      "file": "src/native/NativeHousekeepingView.tsx",
+      "line": 16,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "const release=async(block:any)=>{const inspection=window.prompt('Inspection / release note');const rec=recordOf(s,'roomBlocks',block.id);if(inspection?.trim()&&rec)await command('room.unblock',{id:block.id,inspection:inspection.trim()},rec.version)};"
+    },
+    {
+      "file": "src/native/NativeInventoryView.tsx",
+      "line": 320,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "if (!loaded) return <div className=\"rounded-xl bg-slate-950 p-4 text-sm text-slate-400\">{problem ? <><p role=\"alert\">Draft could not be loaded: {problem}. Editing is blocked to protect saved work.</p><button className={buttonClass} onClick={() => { setProblem(''); setLoadAttempt(value => value + 1); }}>Retry loading draft</button><button className={buttonClass} onClick={() => { if (window.confirm('Permanently discard the saved count at this Storage Place?')) void runtime.clearInventoryCountDraft"
+    },
+    {
+      "file": "src/native/NativeInventoryView.tsx",
+      "line": 324,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "if (!window.confirm('Discard this saved count and recount? This does not undo any count already committed.')) return;"
+    },
+    {
+      "file": "src/native/NativeRoomsView.tsx",
+      "line": 45,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "<div className=\"mt-3 space-y-1 text-xs\">{rs.length?rs.map(r=><div key={r.id} className=\"rounded-lg bg-slate-950 p-2\"><b>{customers.find(c=>c.id===r.customerId)?.name||'Guest'}</b><div className=\"text-slate-500\">{shortDate(r.startsAt)} → {shortDate(r.endsAt)}</div></div>):<div className=\"text-slate-600\">No active reservation.</div>}{bs.map(b=><div key={b.id} className=\"flex items-center justify-between gap-2 rounded-lg border border-amber-700/30 p-2 text-amber-200\"><span>Blocked · {b.reason}</spa"
+    },
+    {
+      "file": "src/native/NativeRoomsView.tsx",
+      "line": 47,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "{canManage&&<div className=\"mt-3 flex flex-wrap gap-2\"><button className={buttonClass} onClick={()=>{setEdit(room);setModal('ROOM')}}>Edit</button><button className={buttonClass} onClick={()=>{setEdit(room);setModal('BLOCK')}}>Block</button><button className={buttonClass} onClick={()=>void housekeeping(room)}>Housekeeping →</button><button className={buttonClass} onClick={()=>{const rec=recordOf(s,'rooms',room.id);if(!rec)return;const next=room.maintenanceState==='OUT_OF_ORDER'?'AVAILABLE':'OUT_"
+    },
+    {
+      "file": "src/native/NativeRoomsView.tsx",
+      "line": 1,
+      "rule": "form-busy-state-review",
+      "severity": "review",
+      "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
+      "source": "<form>"
+    },
+    {
+      "file": "src/native/NativeTerminalAcceptancePanel.tsx",
+      "line": 31,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "const drawer=async()=>{if(!window.confirm('Physically open/test the cash drawer manually first. Record acceptance only if the drawer and workflow were actually observed.'))return;try{await act('CASH_DRAWER_CONFIRM',{observed:true});setMessage('Manual cash-drawer observation recorded. ServOS still has no direct drawer adapter.')}catch{}};"
+    },
+    {
+      "file": "src/runtime/RemoteManagerApp.tsx",
+      "line": 197,
+      "rule": "custom-overlay-review",
+      "severity": "warning",
+      "message": "Review this fixed overlay for dialog semantics, focus handling, and small-screen scrolling.",
+      "source": "{selected && <div className=\"fixed inset-0 z-50 bg-black/65\" onMouseDown={event => { if (event.target === event.currentTarget) setSelected(null); }}><section className=\"absolute inset-y-0 right-0 w-full max-w-xl overflow-y-auto border-l border-slate-800 bg-slate-950 p-5 shadow-2xl\">"
+    },
+    {
+      "file": "src/runtime/web/WebFinancialControlsView.tsx",
+      "line": 59,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "async function reconcileReceipt(record:BusinessRecord,run:(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<void>){const received=Number(data(record)?.receivedAmountMinor||0);const statement=window.prompt('Statement amount in KES',String(received/100));const reference=window.prompt('Statement reference');const notes=window.prompt('Review notes or discrepancy reason');if(statement&&reference&&notes){const statementMinor=Math.round(Number(statement)*100);await "
+    },
+    {
+      "file": "src/runtime/web/WebFinancialControlsView.tsx",
+      "line": 60,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "async function resolveMpesa(record:BusinessRecord,run:(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<void>){const outcome=window.prompt('Outcome: STATEMENT_ERROR, MISSING_PAYMENT, MISSING_CHARGE, ACCEPTED_VARIANCE, or WRITE_OFF_REQUIRED','STATEMENT_ERROR');const resolution=window.prompt('Resolution note');if(outcome&&resolution)await run('mpesa.discrepancy.resolve','mpesaDiscrepancies',record.id,{discrepancyId:record.id,outcome,resolution})}"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 43,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "const release=(block:BusinessRecord)=>{const inspection=window.prompt('Inspection / release note');if(inspection?.trim())void run('room.unblock',block.id,{id:block.id,inspection:inspection.trim()})};"
+    },
+    {
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 1,
+      "rule": "form-busy-state-review",
+      "severity": "review",
+      "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
+      "source": "<form>"
+    },
+    {
+      "file": "src/runtime/web/WebMasterDataView.tsx",
+      "line": 1,
+      "rule": "form-busy-state-review",
+      "severity": "review",
+      "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
+      "source": "<form>"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 164,
+      "rule": "native-browser-prompt",
+      "severity": "error",
+      "message": "Replace browser prompt/confirm with an accessible in-app workflow.",
+      "source": "const approvalToken=balance>creditAvailable?window.prompt(`Credit limit exceeded. Available credit is ${money(creditAvailable)}. Enter the manager approval token.`):null;"
+    },
+    {
+      "file": "src/runtime/web/WebPosView.tsx",
+      "line": 228,
+      "rule": "business-time-input",
+      "severity": "warning",
+      "message": "Use the property timezone contract when converting this business wall time.",
+      "source": "{paying&&activeOrder&&<Modal title={`Settle ${String(data(activeOrder)?.tabName||data(activeOrder)?.orderNumber)}`} onClose={()=>setPaying(false)}><div className=\"space-y-3\"><div className=\"flex justify-between rounded-lg bg-slate-950 p-3\"><span>Outstanding</span><b>{money(balance)}</b></div>{tenders.map((line,index)=>{const method=String(data(accounts.find(a=>a.id===line.accountId))?.method||'');const permitted=method!=='MPESA'||allowed(session,'mpesa.record');return <fieldset key={index} class"
+    },
+    {
+      "file": "src/runtime/web/WebStaffAdminView.tsx",
+      "line": 1,
+      "rule": "form-busy-state-review",
+      "severity": "review",
+      "message": "Form has no obvious busy state in the component source; review duplicate-submit protection.",
+      "source": "<form>"
+    }
+  ],
   "interactions": [
     {
       "id": "src/App.tsx:97:12",

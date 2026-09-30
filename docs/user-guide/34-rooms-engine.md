@@ -13,6 +13,8 @@ Rooms Studio provides the native room-domain controls for room types, physical r
 
 Reservations use half-open occupancy intervals and hold the room through its configured turnaround period. Configure one room type and one `NIGHTLY` room-stay rate in Settings. Nightly stays end at the configured local checkout time (default `10:00`); day stays use that same rate, remain on one local calendar date, and must end by the configured cutoff (default `18:00`). Existing reservations retain their rate snapshot and quoted amount, so later rate edits do not silently reprice a booking.
 
+Reservation and room-block times are entered in the property's configured timezone (default `Africa/Nairobi`) and stored as UTC instants. If a timezone has a daylight-saving clock change, ServOS asks for another time when the entered wall time is skipped or occurs twice.
+
 Patch 05 deliberately stops before check-in and checkout. The staged ServOS contract requires reservation, stay, and folio state to move together when a guest checks in or out. That financial boundary is implemented with the stay/folio integration rather than through a non-financial shortcut.
 
 ## Procedure

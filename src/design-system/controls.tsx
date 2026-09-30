@@ -1,12 +1,27 @@
-import React, { useId } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { ds } from './tokens';
 import { Notice } from './components';
 
 export function Dialog({ title, onClose, children, footer, labelledBy }: { title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; labelledBy?: string }) {
-  const generated = useId(); const headingId = labelledBy || generated;
+  const generated = useId(); const headingId = labelledBy || generated; const panel = useRef<HTMLElement>(null); const closeRef = useRef(onClose); closeRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    panel.current?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); return; }
+      if (event.key !== 'Tab' || !panel.current) return;
+      const focusable = [...panel.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+      if (!focusable.length) { event.preventDefault(); panel.current.focus(); return; }
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => { document.removeEventListener('keydown', handleKey); previous?.focus(); };
+  }, []);
   return <div className="fixed inset-0 z-[180] grid place-items-center bg-black/70 p-3 sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby={headingId} className="flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-white shadow-2xl">
+    <section ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={headingId} className="flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-white shadow-2xl">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 p-4 sm:px-5"><h2 id={headingId} className="text-lg font-bold">{title}</h2><button type="button" className={ds.button} onClick={onClose} aria-label={`Close ${title}`}>Close</button></header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
       {footer && <footer className="sticky bottom-0 flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-800 bg-slate-900 p-3 sm:px-5">{footer}</footer>}

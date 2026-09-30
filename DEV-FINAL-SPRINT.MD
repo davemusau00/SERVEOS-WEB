@@ -6,6 +6,12 @@
 **Companion specification:** `PRODUCT-INVENTORY.MD`  
 **UX principle:** The operator states the real-world intent. ServOS derives, calculates, defaults, validates, reconciles, and records everything it can safely know.
 
+## Implementation progress - 2026-09-30
+
+P0/P1 foundation is in progress. The source now includes shared operator controls, a keyboard-aware native dialog shell, a generated operator UX audit, expanded operation-parity metadata, and property-time conversion used by native room reservations/blocks and web reservations/M-Pesa receipt entry. Audit output records workflows as `UNREVIEWED`; it does not claim runtime acceptance. The source test suite had 107 passing tests before this work. Current changes require fresh focused and full-gate execution before their status can advance.
+
+Still open in P0/P1: same-commit full CI verification, remediation of reported prompt/confirm and interaction findings, complete adoption of shared primitives, and review/acceptance of individual operator workflows. P2-P27 have not been completed by this foundation slice. The staged web-v2 authority remains default-off.
+
 ---
 
 # 1. SOURCE OF TRUTH

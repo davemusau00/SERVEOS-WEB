@@ -4,6 +4,7 @@ This ledger distinguishes source implementation from executed verification.
 
 | Slice | Backend | Installed UI | Docs | Executed evidence here | Acceptance status |
 |---|---|---|---|---|---|
+| DEV final sprint P0/P1 foundation | Shared property-time conversion; extended parity metadata | Shared operator controls and keyboard-aware dialog shell; timezone wiring in native room and web reservation/M-Pesa forms | Sprint progress, release state, room guidance, and generated operator UX audit | Focused timezone/source tests and full checks pending | partial implementation; workflows unreviewed; release gate not accepted |
 | Floorplan + table.ready | implemented | implemented | updated | source inspection; native suite pending | source implemented |
 | Native capability RBAC | implemented | permission-driven shell | RBAC guide | docs/source checks pending final run | source implemented |
 | Manager single-use approval | implemented | approval dialog | RBAC guide | native execution pending | source implemented |
