@@ -428,7 +428,7 @@ Implementation steps:
 
 ### WP-11 — Converge room policy, defaults and condition commands
 
-**Priority:** P0. **Status:** IN_PROGRESS; room policy and Native/cloud `room.condition` parity are locally verified, while the broader stay move/extension/checkout acceptance remains open. **Dependencies:** WP-01, WP-04, WP-07, WP-09; time abstraction WP-12.
+**Priority:** P0. **Status:** IN_PROGRESS; room policy and Native/cloud `room.condition` parity are locally verified, and staged cloud room stays now read the property timezone and require explicit `NIGHTLY`/`DAY` stay types. Broader stay move/extension/checkout and cross-runtime acceptance remain open. **Dependencies:** WP-01, WP-04, WP-07, WP-09; time abstraction WP-12.
 
 **Existing files:** `NativeRoomsView.tsx`, `NativeFrontDeskView.tsx`, `NativeHousekeepingView.tsx`, `WebBusinessApp.tsx` (`reserve`, `addRate`), `WebHospitalityViews.tsx`, Rust `room_execute`, expansion `007_rooms.sql`, `009_stays.sql`, `021_room_stay_policy.sql`, Native/cloud room tests.
 
@@ -978,7 +978,7 @@ Original section numbers are retained here so none of the earlier forensic work 
 | 28 | Humans copy approval UUIDs | OPEN; token/initiator/target fields remain | WP-20; manager inbox/internal capability |
 | 29 | Staff creation requires Auth UUID | OPEN; normal binding form still exposes IDs | WP-21; trusted invitation acceptance linking |
 | 30 | Browser prompts/confirms | PARTIAL PROGRESS; catalog deletion, outlet renaming, staff deletion and inventory deletion now use typed in-app dialogs, native close-save failures now use a recoverable in-app dialog, and the audit gate reports zero browser prompt/confirm findings; workflow review remains open | WP-19, WP-24; scoped zero-violation gate |
-| 31 | Time handling differs | PARTIAL PROGRESS; shared TS departure derivation now uses property-local calendar arithmetic, but Rust and cloud reservation paths still require timezone convergence | WP-11–12; cross-language time fixtures |
+| 31 | Time handling differs | PARTIAL PROGRESS; shared TS departure derivation and staged cloud room validation now use the configured property timezone, while Rust cross-runtime conversion and broader cloud zone fixtures remain open | WP-11–12; cross-language time fixtures |
 | 32 | Rate editor exposes basis points | OPEN; `addRate` still uses internal unit label | WP-22; percentage input/conversion |
 | 33 | Quick Product hardcodes tax class | PARTIAL PROGRESS; Web/Native interactive catalog flows, first-catalog setup and CSV product creation require explicit `A_16`, `B_0` or `C_EXEMPT`; configured default policy and historical fiscal snapshot acceptance remain | WP-07, WP-22; configured default/review |
 | 34 | Native POS mojibake | FIXED in the inspected production source; scanner, tab, portion, customer, price and table separators now use clean UTF-8 text | WP-26; reviewed UTF-8 normalization |
@@ -1330,7 +1330,7 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | WP-08 | IN_PROGRESS | Typed drafts, failed-online retention, supported Activity reopening, response-loss browser proof, and browser count-session reload/reopen recovery | Shared-device/logout durability | — |
 | WP-09 | OPEN | — | Minimal complete dependency sets | — |
 | WP-10 | IN_PROGRESS | Expansion 024 full-location cloud contract and Web failure/session slice verified locally, including focused reload/reopen and response-loss synchronization proof | Scanner/device acceptance and packaged-terminal workflow | — |
-| WP-11 | IN_PROGRESS | Native/cloud room policy and `room.condition` parity verified locally | Full move, extension, checkout and cross-runtime time acceptance | — |
+| WP-11 | IN_PROGRESS | 2026-09-30 | Native/cloud room policy and `room.condition` parity; staged cloud stay validation reads property timezone and requires explicit stay type | Full move, extension, checkout and cross-runtime time acceptance |
 | WP-12 | OPEN | — | Cross-runtime business time | — |
 | WP-13 | OPEN | — | All-writer fences/terminal v2 | — |
 | WP-14 | OPEN | — | Real import effects/reconciliation | — |
@@ -1338,7 +1338,7 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | WP-16 | OPEN | — | Verified artifact + restore | — |
 | WP-17 | OPEN | — | Safe typed CSV/string serialization | — |
 | WP-18 | OPEN | — | Purge/session/revocation policy | — |
-| WP-19 | PARTIAL PROGRESS | 2026-09-30 | Native `ActionDialog` forwards the shared footer and prevents wrapper dismissal while busy; native manager approval now uses its busy boundary; legacy prompt/confirm consumers and close-failure recovery use typed dialogs; shared `SearchCombobox` has option/listbox/keyboard states; shared `Drawer` now traps/restores focus for contextual help and remote manager details; staged Web modal wrappers and the main workflow editor use shared `Dialog`; generic editor and staff role selectors use `SearchCombobox`; focused source tests, 143-test suite, lint and docs checks pass | Remaining standalone selector migration, custom-overlay/footer migration, focus/inertness and target-viewport acceptance remain |
+| WP-19 | PARTIAL PROGRESS | 2026-09-30 | Native `ActionDialog` forwards the shared footer and prevents wrapper dismissal while busy; native manager approval now uses its busy boundary; legacy prompt/confirm consumers and close-failure recovery use typed dialogs; shared `SearchCombobox` has option/listbox/keyboard states; shared `Drawer` now traps/restores focus for contextual help and remote manager details; staged Web modal wrappers and the main workflow editor use shared `Dialog`; generic editor and staff role selectors use `SearchCombobox`; focused source tests, 144-test suite, lint and docs checks pass | Remaining standalone selector migration, custom-overlay/footer migration, focus/inertness and target-viewport acceptance remain |
 | WP-20 | OPEN | — | Approval request/consumption scope | — |
 | WP-21 | OPEN | — | Invitation acceptance/identity | — |
 | WP-22 | OPEN | — | Exact fiscal/unit conversion | — |

@@ -18,3 +18,12 @@ test('rooms route is permission gated and hotel services are owned by Patch 07 f
   assert.match(store,/hotelService\.save/);
   assert.match(store,/SERVOS_PATCH_07_FOLIOS/);
 });
+test('staged room stays use the property timezone and require an explicit stay type',()=>{
+  const sql=readFileSync('supabase/expansion/021_room_stay_policy.sql','utf8');
+  assert.match(sql,/property_timezone text/);
+  assert.match(sql,/property_timezone:=coalesce\(nullif\(property->>'timezone'/);
+  assert.match(sql,/unsupported property timezone/);
+  assert.match(sql,/stay_type:=nullif\(p->>'stayType',''\)/);
+  assert.match(sql,/stay type is required/);
+  assert.doesNotMatch(sql,/at time zone 'Africa\/Nairobi'/);
+});

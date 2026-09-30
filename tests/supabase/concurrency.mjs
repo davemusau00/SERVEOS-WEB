@@ -31,7 +31,7 @@ export async function testRoomConcurrency(container) {
     clientSequence: 1,
     operation: 'roomReservation.create',
     expectedVersions: [{ collection: 'roomReservations', id: `race-${index}`, version: 0 }],
-    payload: { id: `race-${index}`, roomId: 'race-room', ratePlanId: 'race-rate', customerId: 'race-guest', guests: 1, startsAt: '2030-06-01T14:00:00+03:00', endsAt: '2030-06-02T10:00:00+03:00' },
+    payload: { id: `race-${index}`, roomId: 'race-room', stayType: 'NIGHTLY', ratePlanId: 'race-rate', customerId: 'race-guest', guests: 1, startsAt: '2030-06-01T14:00:00+03:00', endsAt: '2030-06-02T10:00:00+03:00' },
   });
   const submit = (index, holdLock = false) => query(container, `
     begin;

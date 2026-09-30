@@ -37,7 +37,7 @@ select pg_temp.room_command('room.condition','{"id":"101","state":"OUT_OF_ORDER"
 select pg_temp.room_command('room.archive','{"id":"101"}','REJECTED','INVALID_STATE');
 select pg_temp.room_command('room.block','{"id":"collision","roomId":"101","startsAt":"2030-01-02T00:00:00Z","endsAt":"2030-01-04T00:00:00Z","reason":"Maintenance"}','REJECTED','ROOM_UNAVAILABLE');
 select pg_temp.room_command('room.block','{"id":"block","roomId":"101","startsAt":"2030-02-01T00:00:00Z","endsAt":"2030-02-04T00:00:00Z","reason":"Maintenance"}');
-select pg_temp.room_command('roomReservation.create','{"id":"blocked","roomId":"101","ratePlanId":"night","customerId":"guest","guests":1,"startsAt":"2030-02-02T14:00:00+03:00","endsAt":"2030-02-03T10:00:00+03:00"}','REJECTED','ROOM_UNAVAILABLE');
+select pg_temp.room_command('roomReservation.create','{"id":"blocked","roomId":"101","stayType":"NIGHTLY","ratePlanId":"night","customerId":"guest","guests":1,"startsAt":"2030-02-02T14:00:00+03:00","endsAt":"2030-02-03T10:00:00+03:00"}','REJECTED','ROOM_UNAVAILABLE');
 select pg_temp.room_command('room.unblock','{"id":"block","inspection":"Safe after inspection"}');
 -- Rate changes apply prospectively, preserving existing quoted stay snapshots.
 select pg_temp.room_command('ratePlan.save','{"id":"night","data":{"name":"Night","roomTypeId":"double","mode":"NIGHTLY","priceMinor":600000,"currency":"KES","taxBasisPoints":0}}');
@@ -55,7 +55,7 @@ select pg_temp.room_command('room.housekeeping','{"id":"101","state":"INSPECTION
 select pg_temp.room_command('room.housekeeping','{"id":"101","state":"CLEAN"}');
 insert into servos_v2.resources(kind,id,capacity) values('ROOM','101',1);
 select servos_v2.reserve('30000000-0000-4000-8000-000000000003','ROOM','101','10000000-0000-4000-8000-000000000002',1,now()-interval '2 days',now()-interval '1 day','2030-03-01T00:00:00Z','2030-03-04T00:00:00Z');
-select pg_temp.room_command('roomReservation.create','{"id":"other-allocation","roomId":"101","ratePlanId":"night","customerId":"guest","guests":1,"startsAt":"2030-03-02T14:00:00+03:00","endsAt":"2030-03-03T10:00:00+03:00"}','REJECTED','RESOURCE_OWNED');
+select pg_temp.room_command('roomReservation.create','{"id":"other-allocation","roomId":"101","stayType":"NIGHTLY","ratePlanId":"night","customerId":"guest","guests":1,"startsAt":"2030-03-02T14:00:00+03:00","endsAt":"2030-03-03T10:00:00+03:00"}','REJECTED','RESOURCE_OWNED');
 select pg_temp.room_command('room.archive','{"id":"101"}','REJECTED','RESOURCE_OWNED');
 update servos_v2.allocations set state='RETURNED' where kind='ROOM';
 select pg_temp.room_command('room.archive','{"id":"101"}');

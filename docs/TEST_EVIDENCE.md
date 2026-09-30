@@ -314,3 +314,12 @@ Native now uses the canonical `till.cashMovement` permission spelling in its exp
 - `npm run lint` and `git diff --check` — passed.
 
 This closes the identified Native spelling defect, not the full cross-runtime role/grant matrix or hosted/session-refresh acceptance.
+
+### CLEAN-ServOS WP-11/12 staged room-time boundary — 2026-09-30
+
+Expansion 021 now reads the configured property timezone for room-stay local-date, day-cutoff, and nightly-checkout validation. The canonical staged v2 path rejects an omitted `stayType` instead of silently applying legacy NIGHTLY behaviour. Room SQL fixtures and the concurrency payload now declare `NIGHTLY` or `DAY` explicitly.
+
+- `node --test tests/rooms-engine-source.test.mjs` — passed: 3/3, including the no-hardcoded-Nairobi and explicit-stay-type assertions.
+- `git diff --check` — passed.
+- `npm run test:cloud:v2` — passed through expansion 026, including the room fixtures and real two-connection booking race.
+- Rust timezone implementation/fixture and hosted production database acceptance remain open.
