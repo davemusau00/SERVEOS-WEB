@@ -2486,31 +2486,31 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             if cmd.target_version.is_some() {
                 return Err("A new catalog setup command cannot target an existing record".into());
             }
-            if !permissions(&user.role).contains(&"catalog.manage") {
+            let mut product=p.get("product").filter(|v|v.is_object()).cloned();
+            if product.is_some()&&!permissions(&user.role).contains(&"catalog.manage") {
                 return Err("Permission required: catalog.manage".into());
             }
             if !permissions(&user.role).contains(&"inventory.adjust") {
                 return Err("Permission required: inventory.adjust".into());
             }
 
-            let mut product=p.get("product").filter(|v|v.is_object()).ok_or("Product data is required")?.clone();
             let mut stock=p.get("stockItem").filter(|v|v.is_object()).ok_or("Stock item data is required")?.clone();
             let location_id=text(p,"locationId")?;
             let starting_quantity=quantity(p,"startingQuantity")?;
             let location=get(&tx,"stockLocations",location_id)?.1;
-            let product_id=id();
+            let product_id=product.as_ref().map(|_|id());
             let stock_id=id();
 
-            text(&product,"name")?;
-            money(&product,"price")?;
-            let product_code=text(&product,"code")?;
-            if !["BAR","KITCHEN","SERVICE"].contains(&text(&product,"routeTo")?) {
-                return Err("Invalid preparation station".into());
+            if let Some(product)=product.as_mut() {
+                text(product,"name")?;
+                money(product,"price")?;
+                let product_code=text(product,"code")?;
+                if !["BAR","KITCHEN","SERVICE"].contains(&text(product,"routeTo")?) { return Err("Invalid preparation station".into()); }
+                let outlets=product["outletIds"].as_array().filter(|items|!items.is_empty()).ok_or("Assign at least one outlet")?;
+                for outlet in outlets { get(&tx,"outlets",outlet.as_str().ok_or("Invalid outlet")?)?; }
+                let duplicate_product_code:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM records WHERE collection='products' AND archived=0 AND lower(json_extract(data,'$.code'))=lower(?))",[product_code],|r|r.get(0)).map_err(error)?;
+                if duplicate_product_code { return Err("This code already belongs to another product".into()); }
             }
-            let outlets=product["outletIds"].as_array().filter(|items|!items.is_empty()).ok_or("Assign at least one outlet")?;
-            for outlet in outlets { get(&tx,"outlets",outlet.as_str().ok_or("Invalid outlet")?)?; }
-            let duplicate_product_code:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM records WHERE collection='products' AND archived=0 AND lower(json_extract(data,'$.code'))=lower(?))",[product_code],|r|r.get(0)).map_err(error)?;
-            if duplicate_product_code { return Err("This code already belongs to another product".into()); }
 
             let stock_code=text(&stock,"code")?;
             text(&stock,"name")?;
@@ -2520,30 +2520,34 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             if !stock["reorderLevel"].is_null() { quantity(&stock,"reorderLevel")?; }
             let duplicate_stock_code:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM records WHERE collection='stockItems' AND archived=0 AND lower(json_extract(data,'$.code'))=lower(?))",[stock_code],|r|r.get(0)).map_err(error)?;
             if duplicate_stock_code { return Err("This code already belongs to another stock item".into()); }
-            let product_barcode=normalize_barcode_value(&mut product)?;
-            validate_unique_barcode(&tx,"products",&product_id,product_barcode.as_deref())?;
+            if let Some(product)=product.as_mut(){
+                let product_barcode=normalize_barcode_value(product)?;
+                validate_unique_barcode(&tx,"products",product_id.as_deref().ok_or("Missing product identifier")?,product_barcode.as_deref())?;
+            }
             let stock_barcode=normalize_barcode_value(&mut stock)?;
             validate_unique_barcode(&tx,"stockItems",&stock_id,stock_barcode.as_deref())?;
 
-            if product.get("productFamilyId").and_then(Value::as_str).is_some_and(|value|!value.trim().is_empty()) {
-                text(&product,"productFamilyName")?;
-                text(&product,"packageType")?;
-                let variant_label=text(&product,"variantLabel")?;
-                text(&product,"containerUnit")?;
-                if quantity(&product,"containerQuantity")?<=0.0 || quantity(&product,"portionVolume")?<=0.0 { return Err("Physical container and stock quantities must be greater than zero".into()); }
+            if let Some(product)=product.as_mut(){
+              if product.get("productFamilyId").and_then(Value::as_str).is_some_and(|value|!value.trim().is_empty()) {
+                text(product,"productFamilyName")?;
+                text(product,"packageType")?;
+                let variant_label=text(product,"variantLabel")?;
+                text(product,"containerUnit")?;
+                if quantity(product,"containerQuantity")?<=0.0 || quantity(product,"portionVolume")?<=0.0 { return Err("Physical container and stock quantities must be greater than zero".into()); }
                 let portions=product["portions"].as_array().filter(|items|!items.is_empty()).ok_or("Add at least one sale format for this physical size")?;
                 for portion in portions { text(portion,"id")?; text(portion,"name")?; if quantity(portion,"volume")?<=0.0{return Err("Sale format stock quantity must be greater than zero".into());} money(portion,"price")?; }
                 let duplicate_variant:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM records WHERE collection='products' AND archived=0 AND json_extract(data,'$.productFamilyId')=? AND lower(json_extract(data,'$.variantLabel'))=lower(?))",params![product["productFamilyId"].as_str(),variant_label],|r|r.get(0)).map_err(error)?;
                 if duplicate_variant { return Err("This product family already has that physical size".into()); }
+              }
+              product["id"]=json!(product_id.as_deref().ok_or("Missing product identifier")?);
+              product["stockItemId"]=json!(stock_id);
             }
 
-            product["id"]=json!(product_id);
-            product["stockItemId"]=json!(stock_id);
             stock["id"]=json!(stock_id);
             let mut current_stock=serde_json::Map::new();
             if starting_quantity>0.0 { current_stock.insert(location_id.to_string(),json!(starting_quantity)); }
             stock["currentStock"]=Value::Object(current_stock);
-            put(&tx,"products",&product_id,product.clone(),&mut changes)?;
+            if let (Some(product_id),Some(product))=(product_id.as_deref(),product){put(&tx,"products",product_id,product,&mut changes)?;}
             put(&tx,"stockItems",&stock_id,stock.clone(),&mut changes)?;
             if starting_quantity>0.0 {
                 let movement_id=id();

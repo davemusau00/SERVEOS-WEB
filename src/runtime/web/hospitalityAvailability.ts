@@ -44,7 +44,7 @@ export function roomMoveBlocker({
   blocks: Array<{ roomId: string; startsAt: string; endsAt: string; status: string }>;
 }): string | null {
   if (!destinationRoomId) return 'Choose a destination room.';
-  if (destinationRoomId === currentRoomId) return 'Choose a different room from the guest’s current room.';
+  if (destinationRoomId === currentRoomId) return "Choose a different room from the guest's current room.";
   if (!Number.isFinite(guestCount) || guestCount < 1 || guestCount > capacity) return 'This room does not have enough guest capacity.';
   if (maintenanceState === 'OUT_OF_ORDER') return 'This room is out of service. Choose another room.';
   if (housekeepingState !== 'CLEAN') return 'This room must be inspected and clean before a guest can move in.';

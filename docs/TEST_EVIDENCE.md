@@ -348,7 +348,15 @@ Per the implementation-first rush instruction, the final source/lint/browser/nat
 
 ### DEV final sprint P3 shared inventory math foundation — 2026-09-30
 
-Added shared TypeScript conversion and calculation functions for canonical measurement units, purchase-package quantities, cost per canonical unit, stock variance, and recipe ingredient costs. Native Quick Product now consumes the shared canonicalizer. No test/build/lint evidence has been collected for this addition; all new-source verification is intentionally deferred to the sprint's final test stage.
+Added shared TypeScript item-type presets and conversion/calculation functions for canonical measurement units, purchase-package quantities, cost per canonical unit, stock variance, recipe and batch costs, sealed/open totals, and theoretical serving yields. Native Quick Product now consumes the shared canonicalizer. No test/build/lint evidence has been collected for this addition; all new-source verification is intentionally deferred to the sprint's final test stage.
+
+### DEV final sprint P4 Native Smart Item Wizard — 2026-09-30
+
+Native Catalog Add Item now presents four stages and ten product/ingredient/service classes, with recipe ingredient costing and a batch-yield path. The review stage previews product/stock/opening values before native atomic create. The command supports stock-only count/weight ingredients without a sellable product. The operation manifest continues to mark Web `catalog.createWithOpeningStock` as missing. No verification has been run for this change; the P4 browser/native acceptance matrix is deferred to the final test stage.
+
+### DEV final sprint P5 Native package conversion — 2026-09-30
+
+The Smart Item Wizard now captures supplier package label, contents as sale-container count or canonical stock units, package price, and opening package count. The native payload derives scan quantity, average cost per stock unit, and opening balance quantity. Reusable package-definition records and PO/receiving conversion have not been implemented. No verification has been run; P5 tests are deferred to the final test stage.
 
 ### DEV final sprint current-source regression gate â€” 2026-09-30
 
