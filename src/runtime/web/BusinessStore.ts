@@ -1,20 +1,27 @@
 import type {BusinessCommandV2,ChangePage,RecordVersion,TransactionResult} from '../../types/transactions';
 
 export interface QueuedCommand {id:string; sequence:number; command:BusinessCommandV2; state:'PENDING_SYNC'|'SYNCHRONIZED'|'CONFLICT'|'REJECTED'; result?:TransactionResult}
+export interface WorkflowDraft {
+  id:string; schemaVersion:2; contractVersion:2; operation:string; collection:string; targetId:string;
+  editorKind:string; inputValues:Record<string,string>; payload:Record<string,unknown>; expectedVersions:RecordVersion[];
+  policyVersion?:string; validationSummary:string[]; requiresReview:boolean; createdAt:string; updatedAt:string;
+}
 const request=<T>(value:IDBRequest<T>)=>new Promise<T>((resolve,reject)=>{value.onsuccess=()=>resolve(value.result);value.onerror=()=>reject(value.error||new Error('Storage request failed'))});
+const sensitiveKey=/password|secret|token|credential|pin/i;
+const draftPayload=(value:unknown):unknown=>Array.isArray(value)?value.map(draftPayload):value&&typeof value==='object'?Object.fromEntries(Object.entries(value as Record<string,unknown>).filter(([name])=>!sensitiveKey.test(name)).map(([name,item])=>[name,draftPayload(item)])):value;
 
 /** Staged v2 store. Enqueuing master edits does not claim an offline sale commit. */
 export class BusinessStore {
   private constructor(private db:IDBDatabase,readonly scope:string,readonly deviceId:string,readonly actorId:string){}
   static async open(scope:string,deviceId:string,actorId:string,serverSequence=0):Promise<BusinessStore>{
     if(!scope||!deviceId||!actorId||!Number.isSafeInteger(serverSequence)||serverSequence<0)throw new Error('Valid business, device, actor and sequence are required');
-    const opening=indexedDB.open(`servos-v2:${scope}:${deviceId}:${actorId}`,1);
+    const opening=indexedDB.open(`servos-v2:${scope}:${deviceId}:${actorId}`,2);
     opening.onupgradeneeded=()=>{
       const db=opening.result;
-      db.createObjectStore('meta');
-      const queue=db.createObjectStore('queue',{keyPath:'id'});queue.createIndex('sequence','sequence',{unique:true});
-      db.createObjectStore('records',{keyPath:['collection','id']});
-      db.createObjectStore('drafts',{keyPath:'id'});
+      if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta');
+      if(!db.objectStoreNames.contains('queue')){const queue=db.createObjectStore('queue',{keyPath:'id'});queue.createIndex('sequence','sequence',{unique:true});}
+      if(!db.objectStoreNames.contains('records'))db.createObjectStore('records',{keyPath:['collection','id']});
+      if(!db.objectStoreNames.contains('drafts'))db.createObjectStore('drafts',{keyPath:'id'});
     };
     const db=await request(opening);db.onversionchange=()=>db.close();
     const store=new BusinessStore(db,scope,deviceId,actorId);
@@ -32,8 +39,23 @@ export class BusinessStore {
     void done.catch(()=>undefined);
     try{const result=await run(tx);await done;return result;}catch(error){try{tx.abort()}catch{/* already completed/aborted */}await done.catch(()=>undefined);throw error;}
   }
-  async saveDraft(id:string,operation:string,payload:Record<string,unknown>){
-    await this.transaction(['drafts'],'readwrite',async tx=>{await request(tx.objectStore('drafts').put({id,operation,payload,updatedAt:new Date().toISOString()}))});
+  async saveDraft(input:Omit<WorkflowDraft,'schemaVersion'|'contractVersion'|'createdAt'|'updatedAt'> & {createdAt?:string}){
+    const now=new Date().toISOString();
+    const draft:WorkflowDraft={...input,schemaVersion:2,contractVersion:2,payload:draftPayload(input.payload) as Record<string,unknown>,createdAt:input.createdAt||now,updatedAt:now};
+    await this.transaction(['drafts'],'readwrite',async tx=>{await request(tx.objectStore('drafts').put(draft))});
+  }
+  async resumeDraft(id:string):Promise<WorkflowDraft|undefined>{return this.transaction(['drafts'],'readonly',tx=>request(tx.objectStore('drafts').get(id)))}
+  async discardDraft(id:string):Promise<void>{await this.transaction(['drafts'],'readwrite',async tx=>{await request(tx.objectStore('drafts').delete(id))})}
+  async promoteDraftToCommand(id:string):Promise<BusinessCommandV2>{
+    return this.transaction(['drafts','queue','meta'],'readwrite',async tx=>{
+      const drafts=tx.objectStore('drafts');const draft=await request(drafts.get(id)) as WorkflowDraft|undefined;
+      if(!draft)throw new Error('Draft is no longer available; refresh saved work before submitting.');
+      const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
+      if(!Number.isSafeInteger(previous+1))throw new Error('Device sequence exhausted');
+      const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation:draft.operation,payload:draft.payload,expectedVersions:draft.expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
+      await request(tx.objectStore('queue').add({id:command.id,sequence:command.clientSequence,command,state:'PENDING_SYNC'} satisfies QueuedCommand));
+      await request(meta.put(command.clientSequence,'sequence'));await request(drafts.delete(id));return command;
+    });
   }
   async enqueue(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion[]):Promise<BusinessCommandV2>{
     return this.transaction(['queue','meta'],'readwrite',async tx=>{
@@ -68,7 +90,7 @@ export class BusinessStore {
       await request(tx.objectStore('meta').put(policyVersion,'policyVersion'));
     });
   }
-  async drafts():Promise<Array<{id:string;operation:string;payload:Record<string,unknown>;updatedAt:string}>>{return this.transaction(['drafts'],'readonly',tx=>request(tx.objectStore('drafts').getAll()))}
+  async drafts():Promise<WorkflowDraft[]>{return this.transaction(['drafts'],'readonly',tx=>request(tx.objectStore('drafts').getAll()))}
   async applyPage(page:ChangePage){
     await this.transaction(['records','meta'],'readwrite',async tx=>{
       const meta=tx.objectStore('meta');let cursor=(await request(meta.get('cursor')) as number|undefined)||0;

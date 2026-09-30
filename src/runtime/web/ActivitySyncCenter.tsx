@@ -1,10 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3, FileEdit, RefreshCw, Send, WifiOff, XCircle } from 'lucide-react';
-import type { QueuedCommand } from './BusinessStore';
+import type { QueuedCommand, WorkflowDraft } from './BusinessStore';
 import { ds } from '../../design-system/tokens';
 import { EmptyState, StatusBadge } from '../../design-system/components';
 
-type Draft = { id: string; operation: string; payload: Record<string, unknown>; updatedAt: string };
 type QueueFilter = 'ALL' | 'WAITING' | 'SYNCED' | 'CONFLICT' | 'REJECTED';
 
 const labels: Record<QueuedCommand['state'], string> = {
@@ -30,7 +29,7 @@ const icon: Record<QueuedCommand['state'], React.ComponentType<{ className?: str
 
 const operationLabel = (operation: string) => operation.replace(/[._]/g, ' ').replace(/\b\w/g, value => value.toUpperCase());
 
-export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync }: { queue: QueuedCommand[]; drafts: Draft[]; online: boolean; syncing: boolean; onSync: () => Promise<void> }) {
+export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync }: { queue: QueuedCommand[]; drafts: WorkflowDraft[]; online: boolean; syncing: boolean; onSync: () => Promise<void> }) {
   const [filter, setFilter] = useState<QueueFilter>('ALL');
   const filtered = useMemo(() => queue.slice().reverse().filter(item => {
     if (filter === 'ALL') return true;

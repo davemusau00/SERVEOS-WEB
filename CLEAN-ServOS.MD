@@ -178,7 +178,7 @@ Contract changes are dependencies for all domain patches. Write tests while impl
 
 ### WP-01 — Repair Native fixture/policy failures and preserve the browser fix
 
-**Priority:** P0. **Status:** OPEN. **Dependencies:** None.
+**Priority:** P0. **Status:** VERIFIED locally; hosted/package/physical acceptance remains open. **Dependencies:** None.
 
 **Existing files:** `src-tauri/src/tests.rs`, `src-tauri/src/store.rs`, `native-tests/Cargo.toml`, `tests/browser/transactions.spec.ts`, `src/runtime/web/workspaceRegistry.ts`.
 
@@ -200,7 +200,7 @@ Contract changes are dependencies for all domain patches. Write tests while impl
 
 ### WP-02 — Make CI verify the active engines
 
-**Priority:** P0. **Dependencies:** WP-01 for an interpretable baseline.
+**Priority:** P0. **Status:** IMPLEMENTED_UNVERIFIED locally; hosted CI and packaged-shell acceptance remain open. **Dependencies:** WP-01 for an interpretable baseline.
 
 **Existing files:** `.github/workflows/ci.yml`, `package.json`, `scripts/test-supabase.mjs`, `scripts/test-native-container.mjs`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `native-tests/Cargo.lock`, `playwright.config.ts`.
 
@@ -229,7 +229,7 @@ Run Tauri checking/testing on a supported runner with the repository's platform 
 
 ### WP-03 — Test production flags and terminal viewport behaviour
 
-**Priority:** P0/P1. **Dependencies:** WP-02; final dialog acceptance depends on WP-19.
+**Priority:** P0/P1. **Status:** VERIFIED locally for the isolated production browser matrix; final dialog/target-device acceptance depends on WP-19 and physical checks. **Dependencies:** WP-02; final dialog acceptance depends on WP-19.
 
 **Existing files:** `playwright.config.ts`, `tests/browser/transactions.spec.ts`, `tests/browser/web-storage.spec.ts`, `src/App.tsx`, `src/native/NativeRoomsView.tsx`, `src/runtime/web/WebBusinessApp.tsx`.
 
@@ -257,7 +257,7 @@ For reservation, count review, payment, refund, M-Pesa reconciliation, import re
 
 ### WP-04 — Create the executable operation and permission contract
 
-**Priority:** P0. **Dependencies:** Baseline from WP-02.
+**Priority:** P0. **Status:** OPEN; operation/permission registry and generated parity remain required. **Dependencies:** Baseline from WP-02.
 
 **Existing files:** `src/runtime/operationManifest.ts`, `src/types/transactions.ts`, `src/native/*`, `src/runtime/web/*`, `src-tauri/src/store.rs`, `supabase/expansion/001_protocol.sql` through `021_room_stay_policy.sql`, `tests/web-v2-permission-contract-source.test.mjs`.
 
@@ -325,7 +325,7 @@ Recommended event correlation fields: canonical staff ID, authenticating princip
 
 ### WP-07 — Make partial business settings updates lossless
 
-**Priority:** P0. **Dependencies:** WP-04; test infrastructure WP-02.
+**Priority:** P0. **Status:** VERIFIED locally for staged settings migration 022 and SQL preservation/rejection fixtures; hosted migration/application remains open. **Dependencies:** WP-04; test infrastructure WP-02.
 
 **Existing files:** `supabase/expansion/020_admin_operations.sql` (`business.settings.save`), `004_domain_helpers.sql` (`read_record`, `assert_version`, `put_record`), `src/runtime/web/WebAdministrationView.tsx`, Native business/property settings commands.
 
@@ -356,7 +356,7 @@ write_replacement(next + server_metadata)
 
 ### WP-08 — Separate drafts from commands and make recovery usable
 
-**Priority:** P0. **Dependencies:** WP-04–06.
+**Priority:** P0. **Status:** IN_PROGRESS; typed drafts, atomic promotion and browser proof are implemented, while review/reopen UI, policy recheck and count-session recovery remain open. **Dependencies:** WP-04–06.
 
 **Existing files:** `BusinessStore.ts`, `sync.ts`, `WebBusinessApp.tsx` (`submit`), `ActivitySyncCenter.tsx`, `src/types/transactions.ts`, `tests/browser/web-storage.spec.ts`.
 
@@ -386,7 +386,7 @@ Preserve pending-command sequence discipline. Discarding an unsent queue entry c
 
 ### WP-09 — Build operation-specific version dependencies
 
-**Priority:** P1, P0 where dependency omission could permit an invalid effect. **Dependencies:** WP-04, WP-08.
+**Priority:** P1, P0 where dependency omission could permit an invalid effect. **Status:** IN_PROGRESS; operation-specific resolver is implemented and production POS/room/browser proof passes, but the complete registry-backed dependency inventory remains open. **Dependencies:** WP-04, WP-08.
 
 **Existing files:** `WebBusinessApp.tsx` full-snapshot `baselines`, `src/types/transactions.ts`, cloud `assert_version` and execution locking, Native target/dependency version fields.
 

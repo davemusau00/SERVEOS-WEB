@@ -1,5 +1,11 @@
 # Test evidence
 
+## CLEAN-ServOS convergence slices - 2026-09-30
+
+The current convergence pass verified or advanced WP-01/02/03/07/08/09 locally. `npm run lint`, `npm test` (116 Node tests), and the isolated production browser suite passed. Production browser evidence is 32/32 across `pos-terminal` (1024 x 600), `aio-terminal` (1280 x 720), `laptop` (1366 x 768), and `mobile-layout` (390 x 844), including the transactional POS till/payment/refund/close-day flow. The focused storage suite is 3/3, including two-tab typed-draft promotion exactly once and sensitive-field redaction. Native MSVC evidence remains 71/71 from the current checkout; disposable cloud base/v2, build, docs, protocol and UI gates were also previously executed in this convergence run.
+
+The operation-specific dependency resolver is now wired into WebBusinessApp and covers the POS payment, till, refund, close-day, order, room and hospitality relation paths exercised by current handlers. This is not full WP-09 closure: the complete operation registry and every declared dependency fixture still need to be derived and checked. WP-08 also remains partial because review/reopen UI, policy revalidation at promotion and durable count-session recovery are not yet complete.
+
 ## DEV final sprint P0 local gate - 2026-09-30
 
 After `npm ci` (107 packages installed; 0 reported vulnerabilities), the following local checks passed on the same source state:

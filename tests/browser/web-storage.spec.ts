@@ -45,3 +45,18 @@ test('IndexedDB queue preserves identity across reload and rolls back incomplete
   expect(result.ids.sort()).toEqual(ids.map(x=>x.id).sort());expect(result.retained).toBe(true);expect(result.calls[0]).toBe(result.calls[1]);
   expect(result.states).toEqual(['SYNCHRONIZED','SYNCHRONIZED']);expect(result.gap).toBe(true);expect(result.afterGap).toEqual([]);expect(result.cursorAfterGap).toBe(0);expect(result.records[0].archived).toBe(true);
 });
+
+test('typed drafts survive storage upgrade and promote exactly once without retaining secrets',async({page})=>{
+  await page.goto('/');await page.addScriptTag({content:harness});
+  const result=await page.evaluate(async()=>{
+    const {BusinessStore}=(window as any).ServOSQueue;
+    const one=await BusinessStore.open('draft-test','device','actor');
+    await one.saveDraft({id:'draft-1',operation:'payment.record',collection:'orders',targetId:'order-1',editorKind:'Take payment',inputValues:{amount:'10'},payload:{orderId:'order-1',amountMinor:100,approvalToken:'do-not-store'},expectedVersions:[{collection:'orders',id:'order-1',version:2}],policyVersion:'p2',validationSummary:[],requiresReview:true});
+    const two=await BusinessStore.open('draft-test','device','actor');
+    const attempts=await Promise.allSettled([one.promoteDraftToCommand('draft-1'),two.promoteDraftToCommand('draft-1')]);
+    const queue=await one.queue();const drafts=await one.drafts();one.close();two.close();
+    return {attempts:attempts.map((attempt:any)=>attempt.status),queue,drafts};
+  });
+  expect(result.attempts.filter((status:string)=>status==='fulfilled')).toHaveLength(1);
+  expect(result.queue).toHaveLength(1);expect(result.queue[0].command.payload.approvalToken).toBeUndefined();expect(result.drafts).toHaveLength(0);
+});

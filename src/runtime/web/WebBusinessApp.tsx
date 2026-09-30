@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {Activity,BedDouble,Boxes,CheckCircle2,ChevronRight,ClipboardCheck,CreditCard,HelpCircle,Home,LockKeyhole,LogIn,Martini,PackageSearch,RefreshCw,Settings,ShieldCheck,Truck,Users,WalletCards,Wifi,WifiOff} from 'lucide-react';
-import {BusinessStore,type QueuedCommand} from './BusinessStore';
+import {BusinessStore,type QueuedCommand,type WorkflowDraft} from './BusinessStore';
 import {resolveOperationDependencies} from './dependencies';
 import {startAutomaticSync,synchronizeStore} from './sync';
 import {allowed,loadAuthorizedSnapshot,openWebDevice,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
@@ -44,7 +44,7 @@ const canSeeTab=(session:WebSession,tab:WorkspaceTab)=>canSeeWorkspace(session,w
 
 export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:WebSession;rpc:Rpc;onSignOut:()=>void}){
  const [session,setSession]=useState(initialSession);const [records,setRecords]=useState<BusinessRecord[]>([]);const [queue,setQueue]=useState<QueuedCommand[]>([]);
- const [drafts,setDrafts]=useState<Array<{id:string;operation:string;payload:Record<string,unknown>;updatedAt:string}>>([]);
+ const [drafts,setDrafts]=useState<WorkflowDraft[]>([]);
  const initialTab=()=>{const raw=decodeURIComponent(window.location.hash.replace(/^#\/?/,'').split('/')[0]||'Home');return visibleWorkspaces(initialSession).some(workspace=>workspace.id===raw)?raw as WorkspaceTab:'Home'};
  const [tab,setTab]=useState<WorkspaceTab>(initialTab);const [helpQuery,setHelpQuery]=useState('');const [helpDrawerOpen,setHelpDrawerOpen]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');const [ready,setReady]=useState(false);const [busy,setBusy]=useState(false);const [syncing,setSyncing]=useState(false);const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine);const [updateReady,setUpdateReady]=useState(false);const [tourOpen,setTourOpen]=useState(false);const [guidance,setGuidance]=useState<WebGuidanceProgress[]>([]);const [lifecycleRefresh,setLifecycleRefresh]=useState(0);
  const [editor,setEditor]=useState<Editor|null>(null);const [values,setValues]=useState<Values>({});
@@ -94,8 +94,8 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
  const submit=async(operation:string,collection:string,id:string,payload:Record<string,unknown>):Promise<boolean>=>{
   if(!store.current||!ready)return false;setBusy(true);setError('');setNotice('');
   try{
-    if(!navigator.onLine){await store.current.saveDraft(crypto.randomUUID(),operation,payload);setNotice('Saved on this browser. It will be sent when you are back online.');await refresh();setEditor(null);return false}
     const baselines=resolveOperationDependencies(operation,collection,id,payload,records);
+    if(!navigator.onLine){await store.current.saveDraft({id:crypto.randomUUID(),operation,collection,targetId:id,editorKind:editor?.title||operation,inputValues:editor?values:{},payload,expectedVersions:baselines,policyVersion:await store.current.policyVersion(),validationSummary:[],requiresReview:/payment|refund|credit|approval/i.test(operation)});setNotice('Draft saved on this browser. Review and submit when online.');await refresh();setEditor(null);return false}
     const command=await store.current.enqueue(operation,payload,baselines);setEditor(null);setNotice('Saved on this browser; waiting to sync.');await refresh();
    try{await syncRef.current()}catch(e){setError(`${String(e)}. The queued command is retained for retry.`);return false}
    const result=(await store.current.queue()).find(q=>q.id===command.id)?.result;
