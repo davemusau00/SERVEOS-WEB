@@ -16,7 +16,7 @@ This completes the local P0 gate only. Hosted CI state, Tauri package installati
 
 ### P1 audit heuristic follow-up - 2026-09-30
 
-`scripts/audit-ui.mjs` now additionally reports potentially unexplained disabled actions, directly surfaced exception text, custom overlays, forms without an obvious busy signal, and forms exceeding the required-field threshold, alongside browser prompt and business-time checks. `node --test tests/operator-ux-source.test.mjs` passed 5/5. The latest `npm run audit:ui` reports 3,492 interactions and 366 review candidates (234 disabled-action, 84 raw-error, 37 overlay, 11 form-busy); no form crossed the required-field threshold. These are static candidates only; no workflow has been manually reviewed or accepted. This is P1 progress, not acceptance.
+`scripts/audit-ui.mjs` now additionally reports potentially unexplained disabled actions, directly surfaced exception text, custom overlays, forms without an obvious busy signal, and forms exceeding the required-field threshold, alongside browser prompt and business-time checks. The focused source suite now passes 8/8. The latest `npm run audit:ui:gate` reports 3,492 interactions and 365 review candidates (233 disabled-action, 84 raw-error, 37 overlay, 11 form-busy); no form crossed the required-field threshold. These are static candidates only; no workflow has been manually reviewed or accepted. This is P1 progress, not acceptance.
 
 ### P2 property-time hospitality slice - 2026-09-30
 

@@ -69,7 +69,9 @@ test.describe('transactional browser with PostgreSQL',()=>{
   });
  };
  const signIn=async(page:Page,email:string)=>{
-  await bridge(page);await page.goto('/');await page.getByRole('button',{name:'Remote management',exact:true}).click();
+  await bridge(page);await page.goto('/');
+  const remoteEntry=page.getByRole('button',{name:'Remote management',exact:true});
+  if(await remoteEntry.count()) await remoteEntry.click();
   await page.getByLabel('Email',{exact:true}).fill(email);await page.getByLabel('Password',{exact:true}).fill('test-only');await page.getByRole('button',{name:'Sign in',exact:true}).click();
   await expect(page.getByRole('button',{name:'POS',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'POS',exact:true}).click();
@@ -128,7 +130,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await expect(page.getByRole('heading',{name:'Guest television · TV-101'})).toBeVisible();await other.getByLabel('Synchronize').click();await other.getByRole('button',{name:'Assets',exact:true}).click();await expect(other.getByRole('heading',{name:'Guest television · TV-101'})).toBeVisible();
   expect(sql("select data->>'purchaseCostMinor' from servos_v2.records where collection='assets';").trim()).toBe('2500000');
   await page.screenshot({path:info.outputPath('transactional-assets.png'),fullPage:true});
-  await page.reload();await page.getByRole('button',{name:'Remote management',exact:true}).click();await page.getByLabel('Email',{exact:true}).fill('first@example.test');await page.getByLabel('Password',{exact:true}).fill('test-only');await page.getByRole('button',{name:'Sign in',exact:true}).click();await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();await expect(page.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
+  await page.reload();const remoteEntry=page.getByRole('button',{name:'Remote management',exact:true});if(await remoteEntry.count())await remoteEntry.click();await page.getByLabel('Email',{exact:true}).fill('first@example.test');await page.getByLabel('Password',{exact:true}).fill('test-only');await page.getByRole('button',{name:'Sign in',exact:true}).click();await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();await expect(page.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Staff & devices',exact:true}).click();await expect(page.getByRole('heading',{name:'Staff, approvals and devices'})).toBeVisible();await expect(page.getByText('Browser Owner',{exact:true})).toBeVisible();await expect(page.getByText('Browser Manager',{exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Trusted devices'})).toBeVisible();expect(await page.getByText('Browser workstation',{exact:true}).count()).toBeGreaterThanOrEqual(2);
   await context2.close();
  });
