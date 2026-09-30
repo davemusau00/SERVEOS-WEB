@@ -485,6 +485,8 @@ P22 Auth refresh continuation (2026-09-30; source only): native Auth sessions no
 
 P22 operator setup/security continuation (2026-09-30; source only): the operator setup guide now describes one Auth account per operator, stable Auth-user-to-staff-ID binding, one-time terminal pairing, OS-vault refresh-token storage, operator switching/sign-out, and the separate local-PIN legacy/offline route. New staged migration 030 adds the same deterministic permission-policy fingerprint to `servos_v2_terminal_identity` as `servos_v2_session`. Native shared-shadow reads fail closed if the active operator's policy fingerprint differs from the installed baseline, preventing a wider prior operator baseline from being exposed after a staff/grant change. Migration, test, and packaged acceptance are not claimed; v2 remains default-off.
 
+P22 operator setup guide refresh (2026-10-01; documentation only): the guide now identifies expansion source through `039_controlled_csv_import.sql` as the current repository set, removes the stale claim that `034_sealed_location_counts.sql` is the current end point, and distinguishes identity/snapshot migrations needed for the read-only setup exercise from later feature migrations. It explicitly says source presence is not evidence of staging/hosted application and does not authorize v2 writes. No migration, build, or test was run; operator identity and all shared-v2 release gates remain unverified/default-off.
+
 P22 stable staff binding correction (2026-10-01; source only): the Web staff binding form now accepts an existing terminal Staff ID, while retaining UUID generation for a genuinely new staff record. This is required because native online sign-in rejects an Auth identity whose server `staffId` differs from the selected local Staff ID. Guide and source-contract assertion updated; tests/builds/hosted Auth and packaged-terminal checks remain deferred. V2 remains default-off.
 
 P22 server-grant read boundary follow-up (2026-09-30; source only): native v2 snapshot synthesis now receives the active Auth-resolved permission list; room-charge target projections are created only for server `folio.room_charge` or wildcard grants, rather than the legacy terminal role. The snapshot actor also carries server grants directly. Source assertions were added but not run; Rust compile, cross-operator privacy tests, hosted migration checks, packaged acceptance, and all authority/cutover gates remain open.
@@ -531,7 +533,7 @@ P15 implementation has started: Web goods-receipt entry defaults each line's del
 
 P15 invoice review continuation (2026-10-01; source only): the supplier invoice match action now requires an explicit operator acknowledgement that invoice quantities and unit prices were compared with the approved PO and accepted GRN before submitting the exact server-side three-way match. Server mismatch checks remain authoritative and unchanged. The existing procurement source-contract test now asserts the review gate; it was not run. Cross-client and accounting acceptance remain open.
 
-P16 implementation has started: Administration's controlled Import Center inspects only the selected CSV/TSV header row and suggests likely field matches for product, stock, guest, and supplier templates. Suggestions are explicitly advisory and are not submitted as mappings or used to alter import data; the server dry-run remains authoritative. Staff role choices are presented as built-in role templates with plain-language scope reminders. Direct readiness-to-settings links, generated staff identifiers, sensitive-action re-authentication, custom mapping workflows and acceptance remain open. No verification has been run.
+P16 implementation has started: Administration's controlled Import Center inspects only the selected CSV/TSV header row and suggests likely field matches for product, stock, guest, and supplier templates. Suggestions are explicitly advisory. The Web v2 import slice is now connected to a server CSV parser and dry-run for those four master-data templates; see P16/P19 continuation below. Staff role choices are presented as built-in role templates with plain-language scope reminders. Direct readiness-to-settings links, generated staff identifiers, sensitive-action re-authentication, custom mapping workflows and acceptance remain open. No verification has been run.
 
 P16 stable staff-key continuation (2026-10-01; source only): the Auth-to-staff binding form now generates a UUID staff key, displays it read-only, and offers explicit regeneration before submission. The exact generated key is both the `staff.create` target and `staffId` payload, preserving stable Auth-to-staff linkage without asking operators to invent an identifier. Successful creation generates the next blank-form key. A source-contract test was authored but not run. Readiness links, sensitive-action re-authentication, and broader P16 acceptance remain open.
 
@@ -550,6 +552,8 @@ P19 implementation has started: audit against current call sites found Guest Acc
 P19 maintenance parity continuation (2026-10-01; source only): Web now has a separately permission-discoverable Maintenance workspace with asset issue reporting, assignment to active staff, work start, completion with resolution and optional supplier/invoice-backed service cost, and reason-required cancellation. It queues the existing exact `maintenance.*` commands; native SQLite and staged PostgreSQL remain authoritative. Web completion currently submits an empty parts list (parts consumption UI remains open). The manifest removes the unsupported `asset.maintenance` alias and records the actual report/assign/start/complete/cancel operations. No broad tests or build have run; maintenance acceptance, parts issue, asset parity and imports remain open.
 
 P19 floorplan parity continuation (2026-10-01; source only): Web now exposes a permission-gated outlet floorplan editor with visual positioning, shape/capacity/section/minimum-spend/server assignment fields, whole-layout submit, stale-version reload, and occupied-table protection. `floorplan.save` now resolves expected versions for the outlet and all baseline/new tables; expansion 038 adds a staged atomic handler that serializes by outlet, validates table IDs/labels/geometry/staff, preserves active table state and archives only removable unoccupied tables. A disposable PostgreSQL acceptance fixture is wired into both cloud and browser transaction harnesses; the floorplan guide and parity metadata are updated. No tests/builds ran; staged migration application and runtime/native/Web acceptance remain unverified.
+
+P16/P19 controlled-import source continuation (2026-10-01; source only): expansion 039 replaces the metadata-only Web import path with bounded CSV/TSV parsing (2 MB, 20,000 rows), header aliases, duplicate-mapped-header, populated-unmapped-header and row-width checks, text-preserved external IDs/barcodes, and strict decimal parsing that rejects scientific notation. Raw source and parsed apply plans reside in a private RLS-enabled, non-API table and are excluded from browser snapshots; normal batch records contain status/hash and sanitized row summaries. Server dry-run invokes existing catalog, supplier and master-data domain validators inside rolled-back subtransactions; rejected rows retain row/reason details. A fully valid, hash-bound plan applies new products, stock-item definitions, customers or suppliers through those domain handlers in the same `servos_v2_execute` transaction, requiring import and corresponding domain permissions; existing target IDs/codes that conflict are rejected rather than updated. Outer command replay/idempotency applies. Raw files are deleted after successful apply. The Web Import Center now lists batches and exposes dry-run, rejected rows and explicit apply. This is master data only: no opening balances, historical transactions, staff, rooms, assets, dependency-complete migration, control-total reconciliation, inline correction, cancellation/retention policy or hosted evidence. A disposable acceptance fixture is wired into cloud and browser SQL harnesses but was not run. The parity manifest records these operations as partial. Tests/build/migration application were deferred; FS-21 and v2 cutover remain incomplete/default-off.
 
 P20 implementation has started: the new Guest Accounts reversal flow now adopts shared `FormField`, `BusyButton`, and `BlockerCard` primitives for accessible field state, consistent busy/disabled feedback, and explicit reversal limits. This is a focused consumer adoption; feature-local styles remain across the application. No verification has run.
 
@@ -2356,20 +2360,18 @@ folio reopen rules
 
 ## Controlled Import
 
-Complete:
+Web v2 source currently supports only four server-validated master-data templates; the broader FS-21 workflow remains incomplete:
 
 ```text
-upload/paste
-→ map
-→ validate
-→ dry-run
-→ error rows
-→ correct
-→ review
-→ admin.import.apply
-→ result
-→ audit
+upload
+→ advisory header suggestions
+→ server row validation and dry-run
+→ rejected-row review (restage corrected source; no inline editor)
+→ explicit apply of a fully valid plan
+→ command result and audit
 ```
+
+Not yet supported by Web v2 imports: opening balances or movements, historical transactions, staff, rooms, assets, dependency-ordered full-terminal migration, control-total reconciliation, snapshot comparison, or cutover evidence. Native controlled import remains the existing local-terminal route; this Web slice does not enable dual writers.
 
 ## Floorplan
 

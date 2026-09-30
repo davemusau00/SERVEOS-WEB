@@ -37,7 +37,7 @@ try {
     );
   }
   const files = ['tests/supabase/bootstrap.sql', ...readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort().map(f => `supabase/migrations/${f}`), 'tests/supabase/protocol.sql'];
-  if (process.argv.includes('--expansion')) files.push(...readdirSync('supabase/expansion').filter(f=>f.endsWith('.sql')).sort().map(f=>`supabase/expansion/${f}`),'tests/supabase/expansion.sql','tests/supabase/allocations.sql','tests/supabase/assets.sql','tests/supabase/rooms.sql','tests/supabase/folios.sql','tests/supabase/web-session.sql','tests/supabase/inventory.sql','tests/supabase/smart-items.sql','tests/supabase/procurement.sql','tests/supabase/pos.sql','tests/supabase/floorplan.sql','tests/supabase/staff-devices.sql','tests/supabase/financial-controls.sql','tests/supabase/settings.sql');
+  if (process.argv.includes('--expansion')) files.push(...readdirSync('supabase/expansion').filter(f=>f.endsWith('.sql')).sort().map(f=>`supabase/expansion/${f}`),'tests/supabase/expansion.sql','tests/supabase/allocations.sql','tests/supabase/assets.sql','tests/supabase/rooms.sql','tests/supabase/folios.sql','tests/supabase/web-session.sql','tests/supabase/inventory.sql','tests/supabase/smart-items.sql','tests/supabase/procurement.sql','tests/supabase/pos.sql','tests/supabase/floorplan.sql','tests/supabase/staff-devices.sql','tests/supabase/financial-controls.sql','tests/supabase/settings.sql','tests/supabase/controlled-import.sql');
   for (const file of files) {
     run(['exec', '-i', container, 'psql', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1'], readFileSync(file, 'utf8'));
     console.log(`Passed: ${file}`);

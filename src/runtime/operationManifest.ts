@@ -33,6 +33,9 @@ const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'ap
   { operation: 'business.identity', domain: 'Administration', permission: 'business.configure', collection: 'property', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Business identity and property timezone configuration.' },
   { operation: 'setup.completeStep', domain: 'Administration', permission: 'system.configure', collection: 'installation', native: 'implemented', backend: 'implemented', web: 'missing' },
   { operation: 'setup.goLive', domain: 'Administration', permission: 'system.configure', collection: 'installation', native: 'implemented', backend: 'implemented', web: 'missing' },
+  { operation: 'admin.import.stage', domain: 'Administration', permission: 'data.import.stage', collection: 'importBatches', native: 'implemented', backend: 'partial', web: 'partial', notes: 'Web stages up to four master-data templates only; historical transactions, opening balances and full migration dependency coverage are excluded.' },
+  { operation: 'admin.import.dryRun', domain: 'Administration', permission: 'data.import.stage', collection: 'importBatches', native: 'implemented', backend: 'partial', web: 'partial', notes: 'Server validates staged CSV rows by running existing domain validators in rolled-back subtransactions; apply requires the matching domain permission too.' },
+  { operation: 'admin.import.apply', domain: 'Administration', permission: 'data.import.execute', collection: 'importBatches', native: 'implemented', backend: 'partial', web: 'partial', notes: 'Applies only a hash-bound, fully valid product/stock-item-definition/customer/supplier plan atomically through existing domain validators; no balances or historical transactions.' },
   { operation: 'record.save', domain: 'Administration', permission: 'customers.manage', collection: 'master records', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Web Master Data scopes this shared command to authorized customer, supplier, room-type, and asset-category masters.' },
   { operation: 'record.archive', domain: 'Administration', permission: 'customers.manage', collection: 'master records', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Archive remains subject to server-side reference checks and optimistic concurrency.' },
   { operation: 'roomType.save', domain: 'Rooms', permission: 'rooms.manage', collection: 'roomTypes', native: 'implemented', backend: 'implemented', web: 'missing' },
@@ -120,13 +123,13 @@ const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'ap
 /** Unknown is intentional until a workflow has evidence in the parity and operator audit. */
 export const WEB_OPERATION_MANIFEST: readonly OperationDefinition[] = operationDefinitions.map(item => ({
   ...item,
-  offlineEligibility: item.operation === 'floorplan.save' ? 'online-only' : item.web === 'blocked' ? 'blocked' : 'unknown',
-  approval: item.operation === 'floorplan.save' ? 'none' : item.notes?.toLowerCase().includes('approval') ? 'conditional' : 'unknown',
-  versioning: item.operation === 'floorplan.save' ? 'required' : 'unknown',
-  auditEffect: item.operation === 'floorplan.save' ? 'required' : 'unknown',
-  stockEffect: item.operation === 'floorplan.save' ? 'none' : 'unknown',
-  financialEffect: item.operation === 'floorplan.save' ? 'none' : 'unknown',
-  acceptanceTest: item.operation === 'floorplan.save' ? 'Verify atomic full-outlet save, optimistic baseline, occupied-table preservation, removal rejection, authorization, replay, and cross-client visibility.' : `Add or maintain acceptance coverage for ${item.operation} across permission, persistence, conflict, and recovery behavior.`,
+  offlineEligibility: ['floorplan.save','admin.import.stage','admin.import.dryRun','admin.import.apply'].includes(item.operation) ? 'online-only' : item.web === 'blocked' ? 'blocked' : 'unknown',
+  approval: item.operation === 'floorplan.save' || item.operation.startsWith('admin.import.') ? 'none' : item.notes?.toLowerCase().includes('approval') ? 'conditional' : 'unknown',
+  versioning: item.operation === 'floorplan.save' || item.operation.startsWith('admin.import.') ? 'required' : 'unknown',
+  auditEffect: item.operation === 'floorplan.save' || item.operation.startsWith('admin.import.') ? 'required' : 'unknown',
+  stockEffect: item.operation === 'floorplan.save' || item.operation.startsWith('admin.import.') ? 'none' : 'unknown',
+  financialEffect: item.operation === 'floorplan.save' || item.operation.startsWith('admin.import.') ? 'none' : 'unknown',
+  acceptanceTest: item.operation === 'floorplan.save' ? 'Verify atomic full-outlet save, optimistic baseline, occupied-table preservation, removal rejection, authorization, replay, and cross-client visibility.' : item.operation.startsWith('admin.import.') ? 'Verify staged permissions, RFC-style CSV parsing, identifier/barcode preservation, exact numeric validation, dry-run rollback, duplicate rejection, source/plan hashes, atomic application, replay, private source retention/removal, and authorized cross-client batch summaries.' : `Add or maintain acceptance coverage for ${item.operation} across permission, persistence, conflict, and recovery behavior.`,
   operatorUxStatus: item.operation === 'floorplan.save' ? 'implemented' : item.web === 'implemented' ? 'unreviewed' : 'blocked-by-domain',
 }));
 
