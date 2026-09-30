@@ -349,9 +349,12 @@ fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
 }
 #[tauri::command]
 fn runtime_snapshot(state: State<Runtime>, token: String) -> store::Result<Value> {
-    let use_v2=state.operator_auth.lock().map_err(|e|e.to_string())?.as_ref().is_some_and(|auth|auth.identity["enabled"]==true);
+    let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone();
+    let use_v2=active.as_ref().is_some_and(|auth|auth.identity["enabled"]==true);
     let db = state.db.lock().map_err(|e| e.to_string())?;
     if use_v2{
+        let local=store::actor(&db,&token,false)?;
+        if active.as_ref().is_some_and(|auth|auth.staff_id!=local.staff_id){return Err("The local operator and authenticated v2 operator do not match".into());}
         let device=store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?;
         let installed:Option<i64>=db.query_row("SELECT snapshot_complete FROM native_v2_state WHERE device_id=?",[&device],|row|row.get(0)).optional().map_err(|e|e.to_string())?;
         if installed==Some(1){return store::native_v2_snapshot(&db,&token,&device);}
@@ -411,6 +414,8 @@ async fn runtime_command(
             }
             let (url,key,terminal,business_id)={
                 let db=state.db.lock().map_err(|e|e.to_string())?;
+                let local=store::actor(&db,&token,false)?;
+                if local.staff_id!=active.staff_id{return Err("The local operator and authenticated v2 operator do not match".into());}
                 (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?,store::text(&active.identity,"businessId")?.to_string())
             };
             let session=rpc(&url,&key,Some(&active.access_token),"servos_v2_session",json!({})).await?;
