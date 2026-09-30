@@ -2,7 +2,9 @@
 
 ## DEV final sprint P22 operator identity foundation - 2026-09-30 (unverified)
 
-Implemented native online PIN+Auth sign-in with stable Staff ID verification, one-time staged terminal registration, OS credential-vault refresh-token storage, sign-out cleanup, and a local-PIN-only offline path. Expansion 028 adds Auth-bound terminal identity and active-member use of the paired device. A second-operator identity assertion was added to the disposable SQL suite. No tests, build, Cargo lock refresh, disposable migration run, hosted Auth validation, or migration application have been performed for this slice. Token refresh/rotation, v2 command/outbox reconciliation, rollback/fencing and all v2/cutover gates remain open; v2 stays disabled.
+Implemented native online PIN+Auth sign-in with stable Staff ID verification, one-time staged terminal registration, OS credential-vault refresh-token storage/rotation, server identity revalidation, sign-out cleanup, and a local-PIN-only offline path. Expansion 028 adds Auth-bound terminal identity and active-member use of the paired device. A second-operator identity assertion and `tests/native-operator-identity-source.test.mjs` source assertions were authored but not run. No tests, build, Cargo lock refresh, disposable migration run, hosted Auth validation, or migration application have been performed for this slice. Refresh lifecycle source was subsequently implemented but remains unverified; the v2 command/outbox adapter, rollback/fencing and all v2/cutover gates remain open; v2 stays disabled.
+
+Web v2 command creation now rejects offline enqueue/promotion at the BusinessStore boundary while retaining the existing local draft path; `tests/web-v2-online-only-source.test.mjs` was added but not run. A request that began online and loses its response may remain queued for idempotent status recovery; this is not an offline grant or a confirmed transaction.
 
 ## CLEAN-ServOS convergence slices - 2026-09-30
 

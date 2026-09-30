@@ -40,6 +40,7 @@ export class BusinessStore {
     void done.catch(()=>undefined);
     try{const result=await run(tx);await done;return result;}catch(error){try{tx.abort()}catch{/* already completed/aborted */}await done.catch(()=>undefined);throw error;}
   }
+  private requireOnline(){if(typeof navigator==='undefined'||!navigator.onLine)throw new Error('Business v2 submission requires an online connection. Save the workflow as a draft to continue offline.')}
   async saveDraft(input:Omit<WorkflowDraft,'schemaVersion'|'contractVersion'|'createdAt'|'updatedAt'> & {createdAt?:string}){
     const now=new Date().toISOString();
     const draft:WorkflowDraft={...input,schemaVersion:2,contractVersion:2,payload:draftPayload(input.payload) as Record<string,unknown>,createdAt:input.createdAt||now,updatedAt:now};
@@ -48,10 +49,12 @@ export class BusinessStore {
   async resumeDraft(id:string):Promise<WorkflowDraft|undefined>{return this.transaction(['drafts'],'readonly',tx=>request(tx.objectStore('drafts').get(id)))}
   async discardDraft(id:string):Promise<void>{await this.transaction(['drafts'],'readwrite',async tx=>{await request(tx.objectStore('drafts').delete(id))})}
   async promoteDraftToCommand(id:string):Promise<BusinessCommandV2>{
+    this.requireOnline();
     return this.transaction(['drafts','queue','meta'],'readwrite',async tx=>{
       const drafts=tx.objectStore('drafts');const draft=await request(drafts.get(id)) as WorkflowDraft|undefined;
       if(!draft)throw new Error('Draft is no longer available; refresh saved work before submitting.');
       const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
+      this.requireOnline();
       if(!Number.isSafeInteger(previous+1))throw new Error('Device sequence exhausted');
       const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation:draft.operation,...(draft.supersedes?{supersedes:draft.supersedes}:{}),payload:draft.payload,expectedVersions:draft.expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
       await request(tx.objectStore('queue').add({id:command.id,sequence:command.clientSequence,command,state:'PENDING_SYNC'} satisfies QueuedCommand));
@@ -59,8 +62,10 @@ export class BusinessStore {
     });
   }
   async enqueue(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion[],supersedes?:string):Promise<BusinessCommandV2>{
+    this.requireOnline();
     return this.transaction(['queue','meta'],'readwrite',async tx=>{
       const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
+      this.requireOnline();
       if(!Number.isSafeInteger(previous+1))throw new Error('Device sequence exhausted');
       const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation,...(supersedes?{supersedes}:{}),payload,expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
       await request(tx.objectStore('queue').add({id:command.id,sequence:command.clientSequence,command,state:'PENDING_SYNC'} satisfies QueuedCommand));

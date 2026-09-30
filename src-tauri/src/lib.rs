@@ -12,9 +12,11 @@ struct Runtime {
     path: PathBuf,
     syncing: Mutex<bool>,
     operator_auth: Mutex<Option<OperatorAuth>>,
+    auth_refreshing: Mutex<bool>,
     startup_nonce: String,
 }
-struct OperatorAuth { staff_id: String, access_token: String }
+#[derive(Clone)]
+struct OperatorAuth { staff_id: String, access_token: String, expires_at: i64, identity: Value }
 #[tauri::command]
 fn runtime_status(state: State<Runtime>) -> store::Result<Value> {
     let db=state.db.lock().map_err(|e|e.to_string())?;
@@ -100,7 +102,7 @@ fn runtime_intake_clear(state: State<Runtime>) -> store::Result<()> {
 }
 #[tauri::command]
 async fn runtime_login(
-    state: State<Runtime>,
+    state: State<'_, Runtime>,
     staff_id: String,
     pin: String,
     email: String,
@@ -126,6 +128,7 @@ async fn runtime_login(
         let auth:Value=response.json().await.map_err(|_|"Invalid authentication response".to_string())?;
         let access=auth["access_token"].as_str().ok_or("Authentication token missing")?.to_string();
         let refresh=auth["refresh_token"].as_str().ok_or("Refresh token missing")?.to_string();
+        let expires_in=auth["expires_in"].as_i64().unwrap_or(3600).clamp(60,86400);
         let paired={let db=state.db.lock().map_err(|e|e.to_string())?;store::meta(&db,"v2_device_paired")?.as_deref()==Some("true")};
         if !paired {
             rpc(&url,&key,Some(&access),"servos_v2_register_device",json!({"device_id":terminal,"label":"ServOS Terminal","kind":"DESKTOP"})).await?;
@@ -133,30 +136,84 @@ async fn runtime_login(
             store::set_meta(&db,"v2_device_paired","true")?;
         }
         let identity=rpc(&url,&key,Some(&access),"servos_v2_terminal_identity",json!({"device_id":terminal})).await?;
-        if identity["staffId"].as_str()!=Some(local.staff_id.as_str()){
+        if identity["staffId"].as_str()!=Some(local.staff_id.as_str()) || identity["actorId"].as_str().is_none() || identity["deviceId"].as_str()!=Some(terminal.as_str()){
             let _=client.post(format!("{url}/auth/v1/logout")).header("apikey",&key).bearer_auth(&access).send().await;
             return Err("This Auth account is not bound to the selected local staff ID. Ask an Admin to bind the correct staff record.".into());
         }
         let entry=keyring::Entry::new("ServOS",&format!("{}:{}",terminal,local.staff_id)).map_err(|_|"OS secure credential storage is unavailable".to_string())?;
         entry.set_password(&refresh).map_err(|_|"Could not securely store the operator session".to_string())?;
-        *state.operator_auth.lock().map_err(|e|e.to_string())?=Some(OperatorAuth{staff_id:local.staff_id.clone(),access_token:access});
+        *state.operator_auth.lock().map_err(|e|e.to_string())?=Some(OperatorAuth{staff_id:local.staff_id.clone(),access_token:access,expires_at:chrono::Utc::now().timestamp()+expires_in,identity});
         Ok(local)
     }.await;
     if auth_result.is_err(){let _=state.db.lock().map(|db|db.execute("DELETE FROM sessions WHERE token=?",[&local.token]));}
     auth_result
 }
+async fn refresh_operator_auth_inner(state:&Runtime,force_refresh:bool)->store::Result<bool>{
+    let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone();
+    let Some(active)=active else{return Ok(false)};
+    if !force_refresh&&active.expires_at>chrono::Utc::now().timestamp()+120{return Ok(false)};
+    let (url,key,terminal)={
+        let db=state.db.lock().map_err(|e|e.to_string())?;
+        (store::meta(&db,"cloud_url")?.ok_or("Cloud synchronization is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,store::meta(&db,"terminal_id")?.ok_or("Terminal identity is missing")?)
+    };
+    let entry=keyring::Entry::new("ServOS",&format!("{}:{}",terminal,active.staff_id)).map_err(|_|"OS secure credential storage is unavailable".to_string())?;
+    let refresh=entry.get_password().map_err(|_|"Secure operator credential is unavailable; sign in again".to_string())?;
+    let client=reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build().map_err(|e|e.to_string())?;
+    let response=client.post(format!("{url}/auth/v1/token?grant_type=refresh_token")).header("apikey",&key).json(&json!({"refresh_token":refresh})).send().await.map_err(|_|"Authentication server unavailable; local work remains available".to_string())?;
+    if !response.status().is_success(){
+        if response.status().as_u16()==400||response.status().as_u16()==401{
+            let _=entry.delete_credential();
+            *state.operator_auth.lock().map_err(|e|e.to_string())?=None;
+            return Err("Business sign-in expired or was revoked. Sign in again to restore online identity.".into());
+        }
+        return Err("Authentication server rejected session renewal; local work remains available".into());
+    }
+    let refreshed:Value=response.json().await.map_err(|_|"Invalid refreshed authentication response".to_string())?;
+    let access=refreshed["access_token"].as_str().ok_or("Refreshed access token missing")?.to_string();
+    let refresh=refreshed["refresh_token"].as_str().ok_or("Rotated refresh token missing")?.to_string();
+    let expires_in=refreshed["expires_in"].as_i64().unwrap_or(3600).clamp(60,86400);
+    // Persist the newly rotated single-use token before any subsequent network work.
+    if entry.set_password(&refresh).is_err(){let _=entry.delete_credential();*state.operator_auth.lock().map_err(|e|e.to_string())?=None;return Err("Could not securely save the rotated operator credential; sign in again".into());}
+    {
+        let mut current=state.operator_auth.lock().map_err(|e|e.to_string())?;
+        if let Some(auth)=current.as_mut().filter(|auth|auth.staff_id==active.staff_id){
+            auth.access_token=access.clone();auth.expires_at=chrono::Utc::now().timestamp()+expires_in;
+        }else{return Ok(false)}
+    }
+    let identity=rpc(&url,&key,Some(&access),"servos_v2_terminal_identity",json!({"device_id":terminal})).await?;
+    if identity["staffId"].as_str()!=Some(active.staff_id.as_str())||identity["deviceId"].as_str()!=Some(terminal.as_str()){
+        let _=entry.delete_credential();
+        *state.operator_auth.lock().map_err(|e|e.to_string())?=None;
+        return Err("Server operator or terminal authorization changed; sign in again".into());
+    }
+    if let Some(auth)=state.operator_auth.lock().map_err(|e|e.to_string())?.as_mut().filter(|auth|auth.staff_id==active.staff_id){auth.identity=identity;}
+    Ok(true)
+}
+#[tauri::command]
+async fn runtime_refresh_operator_auth(state:State<'_,Runtime>,force_refresh:bool)->store::Result<bool>{
+    {
+        let mut busy=state.auth_refreshing.lock().map_err(|e|e.to_string())?;
+        if *busy{return Ok(false)}
+        *busy=true;
+    }
+    let result=refresh_operator_auth_inner(&state,force_refresh).await;
+    if let Ok(mut busy)=state.auth_refreshing.lock(){*busy=false;}
+    result
+}
 #[tauri::command]
 fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
-    if let Ok(mut active)=state.operator_auth.lock(){
-        if let Some(auth)=active.take(){
-            if let Ok(db)=state.db.lock(){
-                if let (Ok(Some(url)),Ok(Some(key)),Ok(Some(terminal)))=(store::meta(&db,"cloud_url"),store::meta(&db,"cloud_key"),store::meta(&db,"terminal_id")){
-                    if let Ok(entry)=keyring::Entry::new("ServOS",&format!("{}:{}",terminal,auth.staff_id)){let _=entry.delete_credential();}
-                    let token=auth.access_token.clone();
-                    tauri::async_runtime::spawn(async move{let _=reqwest::Client::new().post(format!("{url}/auth/v1/logout")).header("apikey",key).bearer_auth(token).send().await;});
-                }
+    let active=state.operator_auth.lock().map_err(|e|e.to_string())?.take();
+    let mut credential_clear_failed=false;
+    if let Some(auth)=active{
+        let config=state.db.lock().ok().and_then(|db|Some((store::meta(&db,"cloud_url").ok()??,store::meta(&db,"cloud_key").ok()??,store::meta(&db,"terminal_id").ok()??)));
+        if let Some((url,key,terminal))=config{
+            match keyring::Entry::new("ServOS",&format!("{}:{}",terminal,auth.staff_id)){
+                Ok(entry)=>credential_clear_failed=entry.delete_credential().is_err(),
+                Err(_)=>credential_clear_failed=true,
             }
-        }
+            let auth_token=auth.access_token.clone();
+            tauri::async_runtime::spawn(async move{let _=reqwest::Client::new().post(format!("{url}/auth/v1/logout")).header("apikey",key).bearer_auth(auth_token).send().await;});
+        }else{credential_clear_failed=true;}
     }
     state
         .db
@@ -164,6 +221,7 @@ fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
         .map_err(|e| e.to_string())?
         .execute("DELETE FROM sessions WHERE token=?", [token])
         .map_err(|e| e.to_string())?;
+    if credential_clear_failed{return Err("The active terminal session was cleared, but its OS credential could not be removed. Contact an administrator before another operator signs in.".into());}
     Ok(())
 }
 #[tauri::command]
@@ -1051,6 +1109,7 @@ pub fn run() {
                 path,
                 syncing: Mutex::new(false),
                 operator_auth: Mutex::new(None),
+                auth_refreshing: Mutex::new(false),
                 startup_nonce: uuid::Uuid::new_v4().to_string(),
             });
             Ok(())
@@ -1063,6 +1122,7 @@ pub fn run() {
             runtime_intake_clear,
             runtime_login,
             runtime_login_offline,
+            runtime_refresh_operator_auth,
             runtime_lock,
             runtime_snapshot,
             runtime_guidance_progress,

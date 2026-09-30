@@ -106,6 +106,7 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
   const lastActivity = useRef(Date.now());
   const inFlight = useRef(false);
   const nextSync = useRef(0);
+  const nextAuthRefresh = useRef(0);
   const failures = useRef(0);
 
   const retryClose = async () => {
@@ -174,10 +175,13 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     catch (e) { report(e); throw e; } finally { setBusy(false); }
   };
   const lock = useCallback(async () => {
-    await flushLocalWork();
+    let failure:unknown=null;
+    try { await flushLocalWork(); } catch(error) { failure=error; }
     try { if (session) await invoke('runtime_lock', { token: session.token }); }
-    finally { setSession(null); setSnapshot(null); await reloadStatus(); }
-  }, [session, reloadStatus]);
+    catch(error) { failure ??= error; }
+    finally { setSession(null); setSnapshot(null); try{await reloadStatus();}catch(error){failure ??=error;} }
+    if(failure) report(failure);
+  }, [session, reloadStatus, report]);
   const command = useCallback(async (operation: string, payload: Record<string, unknown> = {}, targetVersion?: number, commandId?: string) => {
     if (!session) throw new Error('Unlock the terminal first');
     const request: BusinessCommand = { id: commandId || crypto.randomUUID(), schemaVersion: 1, operation, payload, targetVersion };
@@ -312,14 +316,17 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     if (!session) return;
     lastActivity.current = Date.now();
     const active = () => { lastActivity.current = Date.now(); };
-    const resume = () => { if (document.visibilityState === 'visible' && navigator.onLine) void sync().catch(() => undefined); };
+    nextAuthRefresh.current=Date.now()+30*60_000;
+    const renewAuth = (forceRefresh=false) => { if(navigator.onLine) void invoke<boolean>('runtime_refresh_operator_auth',{forceRefresh}).catch(report); };
+    const resume = () => { if (document.visibilityState === 'visible' && navigator.onLine) { renewAuth(true); void sync().catch(() => undefined); } };
     const timer = window.setInterval(() => {
       if (Date.now() - lastActivity.current >= 900_000) { void lock(); return; }
+      if(Date.now()>=nextAuthRefresh.current){nextAuthRefresh.current=Date.now()+30*60_000;renewAuth();}
       if (Date.now() >= nextSync.current && navigator.onLine && document.visibilityState === 'visible') void sync().catch(() => undefined);
     }, 15_000);
     window.addEventListener('pointerdown', active); window.addEventListener('keydown', active); window.addEventListener('online', resume); window.addEventListener('servos:local-commit', resume); document.addEventListener('visibilitychange', resume);
     return () => { clearInterval(timer); window.removeEventListener('pointerdown', active); window.removeEventListener('keydown', active); window.removeEventListener('online', resume); window.removeEventListener('servos:local-commit', resume); document.removeEventListener('visibilitychange', resume); };
-  }, [session, sync, lock]);
+  }, [session, sync, lock, report]);
 
   return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
 };
