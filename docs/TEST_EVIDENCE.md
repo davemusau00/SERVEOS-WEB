@@ -366,6 +366,10 @@ Web PO drafting now attaches a saved package identity to STOCK lines, labels qua
 
 Web Stock exposes a separate correction action to `inventory.adjust` permission holders, previews the absolute balance and delta, requires a reason, and queues `inventory.adjust`. Native and staged SQL sources emit `ADMIN_CORRECTION` movements and retain version checks. This source slice has not been verified; re-authentication and operator acceptance remain open.
 
+### DEV final sprint P8 inline barcode resolution — 2026-09-30
+
+The Web count dialog now offers an inline stock-target selector for unknown scanned barcodes to `inventory.adjust` operators. A successful queued stock-master save adds a barcode alias without changing on-hand quantity; operators rescan to include it. Duplicate/ambiguous code matches are not assignable, explicit removal remains possible, and unresolved codes block count submission. Native generic stock saves and staged SQL stock saves validate bounded alias lists and collisions while preserving package definitions. No verification was run; full scanner and cross-client acceptance remain deferred.
+
 ### DEV final sprint current-source regression gate â€” 2026-09-30
 
 - `npm test` â€” passed 146/146; `npm run lint` and `npm run build` passed (existing Vite large-chunk warning remains).
@@ -380,3 +384,31 @@ Web Stock exposes a separate correction action to `inventory.adjust` permission 
 The reported inventory TypeError is consistent with a resumed stock-count session stored in browser localStorage without a `counts` map: the stock selector indexed `resumable.counts[stockId]` on click. The Web inventory source now normalizes persisted count-session structure and uses guarded map access in read, selection, count, and commit paths. This diagnosis is a source-based inference; the deployed minified chunk was not retrievable for source-level confirmation.
 
 Independent deployment evidence: the live app root returned HTTP 200 and referenced `/assets/index-DwUvRkVu.js`, but that asset returned HTTP 404 when fetched. All four exact asset URLs reported in the incident also returned 404 at investigation time. This supports a deployment artifact/HTML-cache inconsistency as the likely cause of the missing-module and corrupted-content messages; it does not by itself explain the count-map TypeError. The `servos_v2_guidance_progress` RPC also returned HTTP 404; its function exists in staged migration `017_web_lifecycle_guidance.sql`, so the deployed Supabase project likely lacks that migration or is targeting a project without it. No production mutation or deployment was performed. The inventory hardening change remains unverified; preserve separate hosted migration and deployment gates.
+### Live Web deployment incident investigation — 2026-09-30
+
+Read-only HTTP checks found that all four user-reported Vercel chunk URLs (`WebCatalogInventory-D5U9JeHX.js`, `WebPosView-DKY47-eT.js`, `receipt-Dp24HHuH.js`, and `utensils-DYqpNFla.js`) return 404. At the same time, `/` returns current HTML referencing `index-BhGwssST.js`; this supports a stale-tab/deployment chunk mismatch as the cause of dynamic-import failures and `NS_ERROR_CORRUPTED_CONTENT`. The exact `n[83df…]` catalog property access cannot be mapped to current source because the referenced bundle is unavailable. The user-reported hosted Supabase `servos_v2_guidance_progress` 404 was not independently authenticated/reproduced; staged migration `017_web_lifecycle_guidance.sql` defines and grants it, so the hosted project needs an authorized migration-state check. Added a one-time guarded Vite preload-error reload in `src/main.tsx`. No hosted writes/deployments were made, and no app-level test was run.
+
+### DEV final sprint P10 sealed/open inventory source slice — 2026-09-30
+
+Native setup, sale deduction, and correction paths now carry per-location sealed/open bottle state; staged SQL supports explicit sealed/open corrections and POS `order.fire` serving/whole-container consumption when product metadata is present. Web stock editing configures ml container size, and Web correction collects bottle count plus open ml. No tests, build, lint, or hosted checks were run; transfer/count semantics and complete P10 acceptance remain open.
+
+### DEV final sprint P11 physical-unit recipe entry â€” 2026-09-30
+
+Native Smart Item accepts weight package contents as a human quantity/unit and converts packages to canonical grams. Native and Web product recipe editors convert compatible kitchen units to the linked stock base unit; native and staged SQL validate bounded ingredient lists and stock references. Full Web Smart Item parity, dimensional rejection coverage, legacy compatibility and acceptance remain open. No tests, build, lint, or verification were run.
+
+### DEV final sprint P12/P13 recipe yield and POS serving source slice â€” 2026-09-30
+
+The existing native batch wizard derives per-portion recipe lines and cost from declared yield. Web Catalog now authors recipe lines, converts entered kitchen units, previews cost, and queues `product.save`; staged SQL validates and persists those linked stock ingredients while preserving existing sale metadata. POS staged order-fire consumes recipe/portion stock with sealed/open effects. No execution evidence was collected; batch preparation, acceptance, and staged hosted behavior remain unverified.
+
+### DEV final sprint P14 till variance and payment recovery source slice â€” 2026-09-30
+
+Web Finance now previews expected drawer cash, counted cash and variance, accepts an explicit zero, requires a reason for any non-zero variance, and blocks authority-required closure when the actor lacks `till.override_variance`. Native and staged close handlers apply `tillPolicy.varianceThreshold` (KES), requiring override permission only when the absolute variance exceeds the tolerance. Web POS/Finance/Refunds use an operator-facing protocol error formatter. No tests, build, lint, or runtime checks were run; payment/cash-up acceptance remains deferred.
+
+### DEV final sprint P15 receipt defaults source slice — 2026-09-30
+
+Web receiving now initializes each PO line to its outstanding approved quantity and uses integer-only package counts. Rejected quantities remain separate, require an explanation, and do not decrement received quantity; server-side over-receipt approval remains authoritative. No tests, build, lint, or runtime checks were run; procurement acceptance remains deferred.
+
+### Hosted incident evidence correction — 2026-09-30
+
+The earlier paragraph attributing the UUID property exception to a missing persisted `counts` map was too specific: current inventory code already normalizes malformed persisted sessions, and the retired minified chunk cannot confirm that hypothesis. Treat the exception cause as unknown. At 2026-09-30 17:19 UTC the current site entry was `index-BhGwssST.js`; the four reported legacy chunk URLs returned 404, consistent with a stale tab's lazy-import graph. An unauthenticated POST to the guidance RPC returned 401, not 404, and cannot verify the authenticated user's reported result or hosted function availability. Migration 017 defines the function in source. No hosted mutations/deployment or app tests were performed.
+

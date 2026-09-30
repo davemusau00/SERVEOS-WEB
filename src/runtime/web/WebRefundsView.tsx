@@ -1,6 +1,7 @@
 import React,{useState} from 'react';
 import type {BusinessRecord,WebSession} from './session';
 import {allowed} from './session';
+import {operatorError} from './operatorError';
 import {Dialog} from '../../design-system/controls';
 
 type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
@@ -15,13 +16,13 @@ const toMinor=(value:string)=>{const amount=Number(value);if(!Number.isFinite(am
 export function WebRefundsView({records,session,disabled,command}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:CommandFn}){
  const payments=active(records,'payments').slice().sort((a,b)=>String(data(b)?.occurredAt||'').localeCompare(String(data(a)?.occurredAt||'')));
  const refunds=active(records,'refunds');
- const [current,setCurrent]=useState<BusinessRecord|null>(null);const [amount,setAmount]=useState('');const [reason,setReason]=useState('');const [reference,setReference]=useState('');const [confirmed,setConfirmed]=useState(false);const [notice,setNotice]=useState('');
+ const [current,setCurrent]=useState<BusinessRecord|null>(null);const [amount,setAmount]=useState('');const [reason,setReason]=useState('');const [reference,setReference]=useState('');const [confirmed,setConfirmed]=useState(false);const [notice,setNoticeState]=useState('');const setNotice=(message:string)=>setNoticeState(message?operatorError(message):'');
  const refundedFor=(paymentId:string)=>refunds.filter(refund=>data(refund)?.paymentId===paymentId).reduce((sum,refund)=>sum+Number(data(refund)?.amountMinor||0),0);
  const begin=(payment:BusinessRecord)=>{const remaining=Math.max(0,Number(data(payment)?.amountMinor||0)-refundedFor(payment.id));setCurrent(payment);setAmount((remaining/100).toFixed(2));setReason('');setReference('');setConfirmed(false);setNotice('')};
  const submit=async(reverse:boolean)=>{
   if(!current)return;
   const method=String(data(current)?.method||'').toUpperCase();const payload={paymentId:current.id,reason:reason.trim(),...(reverse?{}:{amountMinor:toMinor(amount)}),...(method!=='CASH'?{externalReference:reference.trim(),manuallyConfirmed:confirmed}:{})};
-  try{await command(reverse?'payment.reverse':'payment.refund','payments',current.id,payload);setCurrent(null)}catch(error){setNotice(String(error))}
+  try{await command(reverse?'payment.reverse':'payment.refund','payments',current.id,payload);setCurrent(null)}catch(error){setNotice(operatorError(error))}
  };
  return <section className="space-y-5">
   <header><h2 className="text-2xl font-bold">Payments &amp; refunds</h2><p className="mt-1 text-sm text-slate-400">Refunds reverse money and accounting. Ingredient stock is not automatically restored.</p></header>

@@ -650,7 +650,7 @@ fn build_order_item(tx: &Connection, product_id: &str, payload: &Value, item_id:
     let line_minor=(unit_minor as f64*quantity_value).round() as i64;
     let (net,vat,levy)=tax_split(&policy,&product,line_minor)?;
     let mut ingredients=product["recipeIngredients"].as_array().cloned().unwrap_or_default();
-    if ingredients.is_empty(){if let Some(stock)=product["stockItemId"].as_str(){let volume=selected_portion.as_ref().and_then(|v|v["volume"].as_f64()).or_else(||product["portionVolume"].as_f64()).unwrap_or(1.0);ingredients.push(json!({"stockItemId":stock,"quantity":volume,"tracked":true}));}}
+    if ingredients.is_empty(){if let Some(stock)=product["stockItemId"].as_str(){let volume=selected_portion.as_ref().and_then(|v|v["volume"].as_f64()).or_else(||product["portionVolume"].as_f64()).unwrap_or(1.0);let container=product["portionVolume"].as_f64().unwrap_or(0.0);let inventory_type=product["inventoryType"].as_str().or_else(||product["category"].as_str()).unwrap_or("").to_ascii_uppercase();let measured_spirit=["SPIRIT","SPIRITS","WINE"].contains(&inventory_type.as_str());let whole_container_sale=measured_spirit&&container>0.0&&(volume-container).abs()<0.000001;ingredients.push(json!({"stockItemId":stock,"quantity":volume,"tracked":true,"wholeContainerSale":whole_container_sale,"containerSize":if measured_spirit{json!(container)}else{Value::Null}}));}}
     for modifier in &modifiers { for adjustment in modifier["ingredientAdjustments"].as_array().cloned().unwrap_or_default(){
         let stock=text(&adjustment,"stockItemId")?; let delta=adjustment["quantityDelta"].as_f64().ok_or("Invalid modifier ingredient quantity")?;
         if let Some(existing)=ingredients.iter_mut().find(|v|v["stockItemId"].as_str()==Some(stock)){existing["quantity"]=json!(existing["quantity"].as_f64().unwrap_or(0.0)+delta);}else if delta>0.0{ingredients.push(json!({"stockItemId":stock,"quantity":delta,"tracked":true}));}
@@ -2532,6 +2532,10 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             text(&stock,"name")?;
             text(&stock,"baseUnit")?;
             money(&stock,"averageUnitCost")?;
+            if !stock["sealedContainerSize"].is_null() {
+                let size=quantity(&stock,"sealedContainerSize")?;
+                if size<=0.0||size>100_000.0||stock["baseUnit"].as_str()!=Some("ml"){return Err("Sealed/open bottle tracking requires a valid ml container size".into());}
+            }
             if !stock["scanUnitQuantity"].is_null() && quantity(&stock,"scanUnitQuantity")?<=0.0 { return Err("Quantity represented by one scan must be greater than zero".into()); }
             if !stock["reorderLevel"].is_null() { quantity(&stock,"reorderLevel")?; }
             let duplicate_stock_code:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM records WHERE collection='stockItems' AND archived=0 AND lower(json_extract(data,'$.code'))=lower(?))",[stock_code],|r|r.get(0)).map_err(error)?;
@@ -2563,6 +2567,13 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             let mut current_stock=serde_json::Map::new();
             if starting_quantity>0.0 { current_stock.insert(location_id.to_string(),json!(starting_quantity)); }
             stock["currentStock"]=Value::Object(current_stock);
+            if let Some(size)=stock["sealedContainerSize"].as_f64().filter(|value|value.is_finite()&&*value>0.0) {
+                let sealed=(starting_quantity/size).floor();
+                let open=((starting_quantity-sealed*size)*1_000_000.0).round()/1_000_000.0;
+                let mut by_location=serde_json::Map::new();
+                by_location.insert(location_id.to_string(),json!({"sealedContainers":sealed,"openQuantity":open,"containerSize":size}));
+                stock["sealedOpenStock"]=Value::Object(by_location);
+            }
             if let (Some(product_id),Some(product))=(product_id.as_deref(),product){put(&tx,"products",product_id,product,&mut changes)?;}
             put(&tx,"stockItems",&stock_id,stock.clone(),&mut changes)?;
             if starting_quantity>0.0 {
@@ -2572,6 +2583,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                     "id":movement_id,"organizationId":"business","propertyId":"property","stockItemId":stock_id,
                     "stockItemName":stock["name"],"locationId":location_id,"locationName":location["name"],
                     "quantityDelta":starting_quantity,"baseUnit":stock["baseUnit"],"movementType":"OPENING_BALANCE",
+                    "sealedOpenAfter":stock["sealedOpenStock"][location_id],
                     "sourceId":cmd.id,"reasonCode":"Initial quantity captured with new item",
                     "occurredAt":now(),"actorUserId":user.staff_id,"actorName":user.name,
                     "unitCostSnapshot":cost,"totalCostValuation":((starting_quantity*cost*100.0).round())/100.0
@@ -2754,6 +2766,18 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                     for outlet in outlets {
                         get(&tx, "outlets", outlet.as_str().ok_or("Invalid outlet")?)?;
                     }
+                    if let Some(recipe)=data.get("recipeIngredients") {
+                        let lines=recipe.as_array().filter(|items|items.len()<=100).ok_or("Recipe ingredients must be a list of at most 100 lines")?;
+                        let mut linked_stocks:Vec<String>=Vec::new();
+                        for line in lines {
+                            let stock_id=text(line,"stockItemId")?.to_string();
+                            if linked_stocks.contains(&stock_id){return Err("A stock item can appear only once in a recipe".into());}
+                            let (_,stock)=get(&tx,"stockItems",&stock_id)?;
+                            quantity(line,"quantity")?;
+                            if stock.get("baseUnit").and_then(Value::as_str).map_or(true,|unit|unit.trim().is_empty()){return Err("Recipe ingredient must have a stock unit".into());}
+                            linked_stocks.push(stock_id);
+                        }
+                    }
                     if data.get("productFamilyId").and_then(Value::as_str).is_some_and(|id| !id.trim().is_empty()) {
                         let family_id=text(&data,"productFamilyId")?;
                         text(&data,"productFamilyName")?;
@@ -2782,6 +2806,17 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                                 params![record_id,family_id,stock_id],|r|r.get(0)
                             ).map_err(error)?;
                             if shared_stock { return Err("Each physical size in a product family needs its own stock item".into()); }
+                        }
+                    }
+                    let inventory_type=data["inventoryType"].as_str().or_else(||data["category"].as_str()).unwrap_or("").to_ascii_uppercase();
+                    if ["SPIRIT","SPIRITS","WINE"].contains(&inventory_type.as_str())&&data["portionVolume"].as_f64().is_some() {
+                        if let Some(stock_id)=data.get("stockItemId").and_then(Value::as_str).map(str::trim).filter(|id|!id.is_empty()) {
+                            let (_,mut stock)=get(&tx,"stockItems",stock_id)?;
+                            let size=quantity(&data,"portionVolume")?;
+                            if size<=0.0||stock["baseUnit"].as_str()!=Some("ml"){return Err("Spirit and wine sealed/open tracking requires a linked stock item measured in ml".into());}
+                            if stock["sealedContainerSize"].as_f64().is_some_and(|existing|(existing-size).abs()>0.000001){return Err("The linked stock item already uses a different sealed container size".into());}
+                            stock["sealedContainerSize"]=json!(size);
+                            put(&tx,"stockItems",stock_id,stock,&mut changes)?;
                         }
                     }
                 }
@@ -2825,6 +2860,18 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                 if collection == "products" || collection == "stockItems" {
                     let barcode=normalize_barcode_value(&mut data)?;
                     validate_unique_barcode(&tx,collection,record_id,barcode.as_deref())?;
+                    if collection=="stockItems" {
+                        let aliases=data.get("barcodeAliases").and_then(Value::as_array).cloned().unwrap_or_default();
+                        if aliases.len()>100{return Err("At most 100 stock barcode aliases may be assigned".into());}
+                        let normalized:Vec<String>=aliases.iter().map(|alias|alias.as_str().map(str::trim).filter(|value|!value.is_empty()&&value.len()<=128).map(str::to_lowercase).ok_or("Stock barcode aliases must be non-empty text up to 128 characters")).collect::<Result<Vec<_>>>()?;
+                        let mut unique=std::collections::HashSet::new();
+                        if normalized.iter().any(|value|!unique.insert(value.clone())){return Err("Duplicate stock barcode alias".into());}
+                        let primary=barcode.unwrap_or_default().to_lowercase();let stock_code=data.get("code").and_then(Value::as_str).unwrap_or("").trim().to_lowercase();
+                        let package_barcodes:Vec<String>=data.get("purchasePackages").and_then(Value::as_array).into_iter().flatten().filter_map(|package|package.get("barcode").and_then(Value::as_str).map(|value|value.trim().to_lowercase())).collect();
+                        if normalized.iter().any(|alias|alias==&primary||alias==&stock_code||package_barcodes.contains(alias))||(!primary.is_empty()&&package_barcodes.contains(&primary)){return Err("Barcode alias duplicates this stock item's code, primary barcode or purchase package barcode".into());}
+                        for other in list(&tx,"stockItems")? {if other["id"].as_str()==Some(record_id){continue;}let d=&other["data"];let mut existing=vec![d["barcode"].as_str().unwrap_or("").trim().to_lowercase(),d["code"].as_str().unwrap_or("").trim().to_lowercase()];existing.extend(d["barcodeAliases"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|value|value.trim().to_lowercase()));existing.extend(d["purchasePackages"].as_array().into_iter().flatten().filter_map(|package|package["barcode"].as_str()).map(|value|value.trim().to_lowercase()));if normalized.iter().any(|alias|existing.contains(alias))||(!primary.is_empty()&&existing.contains(&primary)){return Err("This barcode already belongs to another stock item".into());}}
+                        data["barcodeAliases"]=json!(aliases.iter().filter_map(Value::as_str).map(str::trim).collect::<Vec<_>>());
+                    }
                 }
                 put(&tx, collection, record_id, data, &mut changes)?;
             }
@@ -3128,8 +3175,18 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                 let receipt_id=id();
                 put(&tx,"inventoryReceipts",&receipt_id,json!({"id":receipt_id,"stockItemId":stock_id,"locationId":location,"quantity":qty,"unitCost":unit_cost,"supplierId":p.get("supplierId"),"deliveryNote":p.get("deliveryNote"),"invoiceReference":p.get("invoiceReference"),"reference":reference,"receivedAt":now(),"receivedBy":user.staff_id}),&mut changes)?;
             } else if cmd.operation=="inventory.adjust" {
-                let counted=quantity(p,"countedQty")?;
-                stock_delta(&tx,user,stock_id,location,counted-current,if cmd.operation=="inventory.adjust"{"ADMIN_CORRECTION"}else{"COUNT_ADJUSTMENT"},&cmd.id,text(p,"reason")?,&mut changes)?;
+                let reason=text(p,"reason")?;
+                if p.get("sealedContainers").is_some()||p.get("openQuantity").is_some() {
+                    let sealed=quantity(p,"sealedContainers")?;let open=quantity(p,"openQuantity")?;
+                    let (_,stock)=get(&tx,"stockItems",stock_id)?;let size=stock["sealedContainerSize"].as_f64().ok_or("Configure a sealed container size before entering sealed/open correction")?;
+                    if (sealed.round()-sealed).abs()>0.000001||open>=size{return Err("Sealed containers must be whole and open quantity must be less than one container".into());}
+                    let counted=sealed*size+open;
+                    if p.get("countedQty").and_then(Value::as_f64).is_some_and(|value|(value-counted).abs()>0.001){return Err("Corrected total does not match sealed containers plus open quantity".into());}
+                    stock_delta_sealed_correction(&tx,&user,stock_id,location,sealed,open,&cmd.id,reason,&mut changes)?;
+                } else {
+                    let counted=quantity(p,"countedQty")?;
+                    stock_delta(&tx,user,stock_id,location,counted-current,"ADMIN_CORRECTION",&cmd.id,reason,&mut changes)?;
+                }
             } else {
                 let qty=quantity(p,"quantity")?; if qty==0.0{return Err("Quantity must be positive".into());}
                 if cmd.operation=="inventory.transfer" {
@@ -3413,7 +3470,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                         if ingredient["tracked"]==false{continue;}
                         let stock_id=text(&ingredient,"stockItemId")?; let per=ingredient["quantity"].as_f64().ok_or("Invalid recipe quantity")?; let consumed=per*qty;
                         if !consumed.is_finite()||consumed<0.0{return Err("Invalid recipe quantity".into());}
-                        if consumed>0.0{stock_delta(&tx,user,stock_id,&location,-consumed,"SALE_CONSUMPTION",order_id,"Order fired",&mut changes)?;}
+                        if consumed>0.0{if ingredient["wholeContainerSale"]==true{stock_delta_whole_container(&tx,user,stock_id,&location,-consumed,"SALE_CONSUMPTION",order_id,"Whole-container sale",&mut changes)?;}else{stock_delta(&tx,user,stock_id,&location,-consumed,"SALE_CONSUMPTION",order_id,"Order fired",&mut changes)?;}}
                     }
                     item["stockFired"]=json!(true); item["state"]=json!("FIRED"); item["courseStatus"]=json!("FIRED"); item["firedAt"]=json!(now()); fired_any=true;
                 }
@@ -3612,8 +3669,14 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
         "till.close" => {
             let till_id=text(p,"tillId")?; let (_,mut till)=get(&tx,"tillSessions",till_id)?; if till["status"]!="OPEN"{return Err("Till is already closed".into());}
             let open_orders=list(&tx,"orders")?.into_iter().filter(|r|!["COMPLETED","VOIDED"].contains(&r["data"]["state"].as_str().unwrap_or(""))).count(); if open_orders>0{return Err(format!("Resolve {open_orders} open tab(s) before closing the till"));}
-            let counted=money(p,"countedCash")?; let expected=money(&till,"expectedCashInDrawer")?; if counted!=expected {authorize(&tx,user,"till.override_variance",p,Some(till_id))?; text(p,"reason")?;}
-            till["countedCashAtClose"]=json!(counted as f64/100.0);till["cashVariance"]=json!((counted-expected) as f64/100.0);till["closedAt"]=json!(now());till["status"]=json!("CLOSED");till["reason"]=json!(p.get("reason").and_then(Value::as_str).unwrap_or(""));till["closedBy"]=json!(user.staff_id);put(&tx,"tillSessions",till_id,till,&mut changes)?;
+            let counted=money(p,"countedCash")?; let expected=money(&till,"expectedCashInDrawer")?;let variance=counted-expected;
+            if variance!=0 {
+                let reason=text(p,"reason")?;
+                let threshold=get(&tx,"tillPolicy","main").ok().map(|(_,policy)|money(&policy,"varianceThreshold").unwrap_or(0)).unwrap_or(0);
+                if variance.abs()>threshold {authorize(&tx,user,"till.override_variance",p,Some(till_id))?;}
+                till["varianceReason"]=json!(reason);
+            }
+            till["countedCashAtClose"]=json!(counted as f64/100.0);till["cashVariance"]=json!(variance as f64/100.0);till["closedAt"]=json!(now());till["status"]=json!("CLOSED");till["reason"]=json!(p.get("reason").and_then(Value::as_str).unwrap_or(""));till["closedBy"]=json!(user.staff_id);put(&tx,"tillSessions",till_id,till,&mut changes)?;
         }
         "closeDay.generate" => {
             if !permissions(&user.role).contains(&"reports.view"){return Err("Reports permission required".into());}
@@ -3822,7 +3885,23 @@ fn stock_delta(
     reason: &str,
     changes: &mut Vec<Value>,
 ) -> Result<()> {
-    stock_delta_with_cost(tx,user,stock_id,location,delta,kind,source,reason,None,changes)
+    stock_delta_with_cost_and_container(tx,user,stock_id,location,delta,kind,source,reason,None,false,changes)
+}
+fn stock_delta_whole_container(tx:&Transaction,user:&Session,stock_id:&str,location:&str,delta:f64,kind:&str,source:&str,reason:&str,changes:&mut Vec<Value>)->Result<()> {
+    stock_delta_with_cost_and_container(tx,user,stock_id,location,delta,kind,source,reason,None,true,changes)
+}
+fn stock_delta_sealed_correction(tx:&Transaction,user:&Session,stock_id:&str,location:&str,sealed:f64,open:f64,source:&str,reason:&str,changes:&mut Vec<Value>)->Result<()> {
+    let (_,mut stock)=get(tx,"stockItems",stock_id)?;let (_,location_record)=get(tx,"stockLocations",location)?;
+    let size=stock["sealedContainerSize"].as_f64().filter(|value|value.is_finite()&&*value>0.0&&*value<=100_000.0).ok_or("Sealed/open correction requires a configured container size")?;
+    if stock["baseUnit"].as_str()!=Some("ml")||(sealed.round()-sealed).abs()>0.000001||sealed<0.0||open<0.0||open>=size{return Err("Invalid sealed/open stock correction".into());}
+    let current=stock["currentStock"][location].as_f64().unwrap_or(0.0);let target=sealed*size+open;let delta=((target-current)*1_000_000.0).round()/1_000_000.0;
+    let saved=&stock["sealedOpenStock"][location];let before_sealed=saved["sealedContainers"].as_f64().unwrap_or_else(||(current/size).floor());let before_open=saved["openQuantity"].as_f64().unwrap_or_else(||current-before_sealed*size);
+    if ((before_sealed*size+before_open)-current).abs()>0.001{return Err("Existing sealed/open balance does not reconcile; reconcile it before correction".into());}
+    if !stock["sealedOpenStock"].is_object(){stock["sealedOpenStock"]=json!({});}
+    stock["sealedOpenStock"][location]=json!({"sealedContainers":sealed,"openQuantity":open,"containerSize":size});stock["currentStock"][location]=json!(target);
+    let movement_id=id();let cost=stock["averageUnitCost"].as_f64().unwrap_or(0.0);
+    put(tx,"stockMovements",&movement_id,json!({"id":movement_id,"organizationId":"business","propertyId":"property","stockItemId":stock_id,"stockItemName":stock["name"],"locationId":location,"locationName":location_record["name"],"quantityDelta":delta,"baseUnit":stock["baseUnit"],"movementType":"ADMIN_CORRECTION","sourceId":source,"reasonCode":reason,"occurredAt":now(),"actorUserId":user.staff_id,"actorName":user.name,"unitCostSnapshot":cost,"totalCostValuation":((delta*cost*100.0).round())/100.0,"sealedOpenEffect":{"containerSize":size,"sealedContainersBefore":before_sealed,"sealedContainersAfter":sealed,"openQuantityBefore":before_open,"openQuantityAfter":open}}),changes)?;
+    put(tx,"stockItems",stock_id,stock,changes)
 }
 fn stock_delta_with_cost(
     tx: &Transaction,
@@ -3836,6 +3915,12 @@ fn stock_delta_with_cost(
     unit_cost_override: Option<f64>,
     changes: &mut Vec<Value>,
 ) -> Result<()> {
+    stock_delta_with_cost_and_container(tx,user,stock_id,location,delta,kind,source,reason,unit_cost_override,false,changes)
+}
+fn stock_delta_with_cost_and_container(
+    tx:&Transaction,user:&Session,stock_id:&str,location:&str,delta:f64,kind:&str,source:&str,reason:&str,
+    unit_cost_override:Option<f64>,whole_container_sale:bool,changes:&mut Vec<Value>
+) -> Result<()> {
     let (_, mut stock) = get(tx, "stockItems", stock_id)?;
     let (_, location_record) = get(tx, "stockLocations", location)?;
     let current = stock["currentStock"][location].as_f64().unwrap_or(0.0);
@@ -3843,14 +3928,54 @@ fn stock_delta_with_cost(
     if next < 0.0 {
         return Err("Insufficient stock; no movement was recorded".into());
     }
+    let mut sealed_effect=None;
+    let sealed_size=stock["sealedContainerSize"].as_f64().filter(|value|value.is_finite()&&*value>0.0&&*value<=100_000.0);
+    if whole_container_sale&&(stock["baseUnit"].as_str()!=Some("ml")||sealed_size.is_none()){return Err("Whole-bottle sales require a configured sealed-container stock size".into());}
+    if stock["baseUnit"].as_str()==Some("ml") {
+        if let Some(size)=sealed_size {
+            let saved=&stock["sealedOpenStock"][location];
+            let mut sealed=saved["sealedContainers"].as_f64().unwrap_or_else(||(current/size).floor());
+            let mut open=saved["openQuantity"].as_f64().unwrap_or_else(||current-sealed*size);
+            let before_sealed=sealed;let before_open=open;
+            let reconstructed=sealed*size+open;
+            if sealed<0.0||open<0.0||open>=size+0.000001||(reconstructed-current).abs()>0.001{return Err("Sealed/open stock record is inconsistent with the canonical quantity; reconcile inventory before movement".into());}
+            if delta>0.0 {
+                let added_sealed=(delta/size).floor();
+                sealed+=added_sealed;open+=delta-added_sealed*size;
+                if open>=size-0.000001{let extra=(open/size).floor();sealed+=extra;open-=extra*size;}
+            } else if delta<0.0 {
+                let needed=-delta;
+                if whole_container_sale {
+                    let containers=(needed/size).round();
+                    if (needed-containers*size).abs()>0.001||containers<1.0{return Err("Whole-container sale quantity does not match the configured bottle size".into());}
+                    if sealed+0.000001<containers{return Err("No sealed bottle available; open liquid cannot satisfy a whole-bottle sale".into());}
+                    sealed-=containers;
+                } else {
+                    if open+0.000001<needed {
+                        let additional=( ((needed-open).max(0.0)/size)-0.000001 ).ceil();
+                        if sealed+0.000001<additional{return Err("Insufficient sealed and open stock for this serving".into());}
+                        sealed-=additional;open+=additional*size;
+                    }
+                    open-=needed;
+                }
+            }
+            if open.abs()<0.000001{open=0.0;}
+            if open<0.0||open>=size+0.000001||((sealed*size+open)-next).abs()>0.001{return Err("Sealed/open bottle quantities do not reconcile to stock balance".into());}
+            if !stock["sealedOpenStock"].is_object(){stock["sealedOpenStock"]=json!({});}
+            stock["sealedOpenStock"][location]=json!({"sealedContainers":sealed,"openQuantity":open,"containerSize":size});
+            sealed_effect=Some(json!({"containerSize":size,"sealedContainersBefore":before_sealed,"sealedContainersAfter":sealed,"openQuantityBefore":before_open,"openQuantityAfter":open}));
+        }
+    }
     stock["currentStock"][location] = json!(next);
     let movement = id();
     let cost = unit_cost_override.unwrap_or_else(||stock["averageUnitCost"].as_f64().unwrap_or(0.0));
+    let mut movement_data=json!({"id":movement,"organizationId":"business","propertyId":"property","stockItemId":stock_id,"stockItemName":stock["name"],"locationId":location,"locationName":location_record["name"],"quantityDelta":delta,"baseUnit":stock["baseUnit"],"movementType":kind,"sourceId":source,"reasonCode":reason,"occurredAt":now(),"actorUserId":user.staff_id,"actorName":user.name,"unitCostSnapshot":cost,"totalCostValuation":((delta*cost*100.0).round())/100.0});
+    if let Some(effect)=sealed_effect{movement_data["sealedOpenEffect"]=effect;}
     put(
         tx,
         "stockMovements",
         &movement,
-        json!({"id":movement,"organizationId":"business","propertyId":"property","stockItemId":stock_id,"stockItemName":stock["name"],"locationId":location,"locationName":location_record["name"],"quantityDelta":delta,"baseUnit":stock["baseUnit"],"movementType":kind,"sourceId":source,"reasonCode":reason,"occurredAt":now(),"actorUserId":user.staff_id,"actorName":user.name,"unitCostSnapshot":cost,"totalCostValuation":((delta*cost*100.0).round())/100.0}),
+        movement_data,
         changes,
     )?;
     put(tx, "stockItems", stock_id, stock, changes)

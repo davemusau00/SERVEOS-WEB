@@ -38,6 +38,8 @@ declare
  next_data jsonb;
  stock jsonb;
  purchase_packages jsonb;
+ barcode_aliases jsonb;
+ barcode_alias text;
  stock_key text;
  location_key text;
  target_key text;
@@ -55,6 +57,17 @@ declare
  price_minor bigint;
  cost_minor bigint;
  stock_total numeric;
+ container_size numeric;
+ sealed_count numeric;
+ open_quantity numeric;
+ sealed_state jsonb;
+ sealed_before jsonb;
+ sealed_after jsonb;
+ recipe_line jsonb;
+ recipe_stock jsonb;
+ recipe_ingredients jsonb:='[]'::jsonb;
+ recipe_qty numeric;
+ field_name text;
  changes jsonb:='[]';
 begin
  if jsonb_typeof(p) is distinct from 'object' then raise exception 'VALIDATION_FAILED: payload';end if;
@@ -78,6 +91,16 @@ begin
    if barcode is not null and (length(barcode)>128 or exists(select 1 from servos_v2.records r where r.collection='products' and r.id<>key and not r.archived and r.data->>'barcode'=barcode)) then raise exception 'DUPLICATE_REFERENCE: product barcode';end if;
    stock_key:=nullif(trim(data->>'stockItemId'),'');
    if stock_key is not null then perform servos_v2.read_record('stockItems',stock_key);end if;
+   if data ? 'recipeIngredients' then
+    if jsonb_typeof(data->'recipeIngredients') is distinct from 'array' or jsonb_array_length(data->'recipeIngredients')>100 then raise exception 'VALIDATION_FAILED: recipe ingredients';end if;
+    for recipe_line in select value from jsonb_array_elements(data->'recipeIngredients') loop
+     stock_key:=servos_v2.required_text(recipe_line,'stockItemId');
+     recipe_qty:=servos_v2.quantity_value(recipe_line,'quantity',false);
+     recipe_stock:=servos_v2.read_record('stockItems',stock_key);
+     if exists(select 1 from jsonb_array_elements(recipe_ingredients) existing where existing->>'stockItemId'=stock_key) then raise exception 'DUPLICATE_REFERENCE: recipe stock item';end if;
+     recipe_ingredients:=recipe_ingredients||jsonb_build_array(jsonb_build_object('stockItemId',stock_key,'quantity',recipe_qty,'tracked',true));
+    end loop;
+   end if;
    next_data:=jsonb_build_object(
     'name',trim(data->>'name'),'code',code_value,'priceMinor',price_minor,
     'category',coalesce(nullif(trim(data->>'category'),''),'GENERAL'),
@@ -88,6 +111,11 @@ begin
    if barcode is not null then next_data:=next_data||jsonb_build_object('barcode',barcode);end if;
    if data ? 'costPriceMinor' then next_data:=next_data||jsonb_build_object('costPriceMinor',servos_v2.minor(data,'costPriceMinor'));end if;
    if data ? 'portionVolume' then next_data:=next_data||jsonb_build_object('portionVolume',servos_v2.quantity_value(data,'portionVolume',false));end if;
+   if data ? 'inventoryType' then next_data:=next_data||jsonb_build_object('inventoryType',upper(servos_v2.required_text(data,'inventoryType')));end if;
+   if data ? 'recipeIngredients' then next_data:=next_data||jsonb_build_object('recipeIngredients',recipe_ingredients);end if;
+   foreach field_name in array array['inventoryType','recipeIngredients','portions','portionVolume','containerQuantity','containerUnit','productFamilyId','productFamilyName','packageType','variantLabel','recipeYield','recipeBatchCostMinor','modifiers'] loop
+    if not (data ? field_name) and current_data ? field_name then next_data:=next_data||jsonb_build_object(field_name,current_data->field_name);end if;
+   end loop;
    if data ? 'outletIds' then
     if jsonb_typeof(data->'outletIds') is distinct from 'array' then raise exception 'VALIDATION_FAILED: outletIds';end if;
     next_data:=next_data||jsonb_build_object('outletIds',data->'outletIds');
@@ -118,20 +146,49 @@ begin
    reorder_qty:=case when data ? 'reorderLevel' then servos_v2.quantity_value(data,'reorderLevel',true) else 0 end;
    cost_minor:=case when data ? 'averageUnitCostMinor' then servos_v2.minor(data,'averageUnitCostMinor') else coalesce((current_data->>'averageUnitCostMinor')::bigint,0) end;
    purchase_packages:=coalesce(data->'purchasePackages',current_data->'purchasePackages','[]'::jsonb);
+   barcode_aliases:=coalesce(data->'barcodeAliases',current_data->'barcodeAliases','[]'::jsonb);
    if jsonb_typeof(purchase_packages) is distinct from 'array' or jsonb_array_length(purchase_packages)>50 then raise exception 'VALIDATION_FAILED: purchase packages';end if;
    if exists(select 1 from jsonb_array_elements(purchase_packages) as packages(pkg) where jsonb_typeof(pkg) is distinct from 'object' or nullif(trim(pkg->>'id'),'') is null or nullif(trim(pkg->>'name'),'') is null or coalesce((pkg->>'baseQuantity')::numeric,0)<=0 or coalesce(pkg->>'baseUnit','') not in ('piece','g','ml')) then raise exception 'VALIDATION_FAILED: purchase package definition';end if;
    if exists(select 1 from jsonb_array_elements(purchase_packages) as packages(pkg) group by pkg->>'id' having count(*)>1) then raise exception 'DUPLICATE_REFERENCE: purchase package id';end if;
+   if jsonb_typeof(barcode_aliases) is distinct from 'array' or jsonb_array_length(barcode_aliases)>100 then raise exception 'VALIDATION_FAILED: barcode aliases';end if;
+   if exists(select 1 from jsonb_array_elements_text(barcode_aliases) as aliases(alias) where nullif(trim(alias),'') is null or length(trim(alias))>128) then raise exception 'VALIDATION_FAILED: barcode alias';end if;
+   if exists(select 1 from jsonb_array_elements_text(barcode_aliases) as aliases(alias) group by lower(trim(alias)) having count(*)>1) then raise exception 'DUPLICATE_REFERENCE: barcode alias';end if;
    if exists(select 1 from servos_v2.records r where r.collection='stockItems' and r.id<>key and not r.archived and upper(r.data->>'code')=code_value) then raise exception 'DUPLICATE_REFERENCE: stock code';end if;
    barcode:=nullif(trim(data->>'barcode'),'');
-   if barcode is not null and (length(barcode)>128 or exists(select 1 from servos_v2.records r where r.collection='stockItems' and r.id<>key and not r.archived and r.data->>'barcode'=barcode)) then raise exception 'DUPLICATE_REFERENCE: stock barcode';end if;
+   if barcode is not null and length(barcode)>128 then raise exception 'VALIDATION_FAILED: stock barcode';end if;
+   if barcode is not null and lower(barcode)=lower(code_value) then raise exception 'DUPLICATE_REFERENCE: barcode cannot equal stock code';end if;
+   if exists(select 1 from jsonb_array_elements_text(barcode_aliases) as aliases(alias) where lower(trim(alias)) in (lower(code_value),lower(coalesce(barcode,''))) or exists(select 1 from jsonb_array_elements(purchase_packages) as packages(pkg) where lower(coalesce(packages.pkg->>'barcode',''))=lower(trim(alias)))) then raise exception 'DUPLICATE_REFERENCE: barcode alias collides with this stock item';end if;
+   if barcode is not null and exists(select 1 from jsonb_array_elements(purchase_packages) as packages(pkg) where lower(coalesce(packages.pkg->>'barcode',''))=lower(barcode)) then raise exception 'DUPLICATE_REFERENCE: primary barcode collides with purchase package barcode';end if;
+   for barcode_alias in select trim(value) from jsonb_array_elements_text(barcode_aliases) as aliases(value) loop
+    if barcode_alias=barcode then raise exception 'DUPLICATE_REFERENCE: barcode alias matches primary barcode';end if;
+    if exists(select 1 from servos_v2.records r where r.collection='stockItems' and r.id<>key and not r.archived and (
+      lower(coalesce(r.data->>'barcode',''))=lower(barcode_alias) or lower(coalesce(r.data->>'code',''))=lower(barcode_alias)
+      or exists(select 1 from jsonb_array_elements_text(coalesce(r.data->'barcodeAliases','[]'::jsonb)) as a(value) where lower(a.value)=lower(barcode_alias))
+      or exists(select 1 from jsonb_array_elements(coalesce(r.data->'purchasePackages','[]'::jsonb)) as pk(value) where lower(coalesce(pk.value->>'barcode',''))=lower(barcode_alias))
+    )) then raise exception 'DUPLICATE_REFERENCE: stock barcode alias';end if;
+   end loop;
+   select coalesce(jsonb_agg(to_jsonb(trim(value))),'[]'::jsonb) into barcode_aliases from jsonb_array_elements_text(barcode_aliases) as aliases(value);
+   if barcode is not null and exists(select 1 from servos_v2.records r where r.collection='stockItems' and r.id<>key and not r.archived and (
+      lower(coalesce(r.data->>'barcode',''))=lower(barcode) or lower(coalesce(r.data->>'code',''))=lower(barcode)
+      or exists(select 1 from jsonb_array_elements_text(coalesce(r.data->'barcodeAliases','[]'::jsonb)) as a(value) where lower(a.value)=lower(barcode))
+      or exists(select 1 from jsonb_array_elements(coalesce(r.data->'purchasePackages','[]'::jsonb)) as pk(value) where lower(coalesce(pk.value->>'barcode',''))=lower(barcode))
+   )) then raise exception 'DUPLICATE_REFERENCE: stock barcode';end if;
    select coalesce(sum(value::numeric),0) into stock_total from jsonb_each_text(coalesce(current_data->'currentStock','{}'::jsonb));
    if current_data is not null and stock_total<>0 and cost_minor is distinct from coalesce((current_data->>'averageUnitCostMinor')::bigint,0) then
     raise exception 'VALIDATION_FAILED: average cost changes require procurement while stock exists';
    end if;
+   container_size:=coalesce((data->>'sealedContainerSize')::numeric,(current_data->>'sealedContainerSize')::numeric,0);
+   if container_size<0 or container_size>100000 or round(container_size,6)<>container_size then raise exception 'VALIDATION_FAILED: sealed container size';end if;
+   if container_size>0 and base_unit<>'ml' then raise exception 'VALIDATION_FAILED: sealed container tracking requires ml base unit';end if;
+   if current_data is not null and container_size>0 and container_size is distinct from coalesce((current_data->>'sealedContainerSize')::numeric,0) and stock_total<>0 then raise exception 'INVALID_STATE: sealed container size cannot change while stock exists';end if;
+   if container_size=0 and stock_total<>0 and coalesce(current_data->>'sealedContainerSize','')<>'' then raise exception 'INVALID_STATE: sealed container tracking cannot be removed while stock exists';end if;
    next_data:=jsonb_build_object(
     'name',trim(data->>'name'),'code',code_value,'baseUnit',base_unit,
     'scanUnitQuantity',scan_qty,'reorderLevel',reorder_qty,'averageUnitCostMinor',cost_minor,
     'purchasePackages',purchase_packages,
+    'barcodeAliases',barcode_aliases,
+    'sealedContainerSize',case when container_size>0 then to_jsonb(container_size) else 'null'::jsonb end,
+    'sealedOpenStock',coalesce(current_data->'sealedOpenStock','{}'::jsonb),
     'currentStock',coalesce(current_data->'currentStock','{}'::jsonb)
    );
    if barcode is not null then next_data:=next_data||jsonb_build_object('barcode',barcode);end if;
@@ -193,6 +250,28 @@ begin
 
   if op in ('inventory.count','inventory.adjust') then
    counted:=servos_v2.quantity_value(p,'countedQty',true);
+   if op='inventory.adjust' and (p ? 'sealedContainers' or p ? 'openQuantity') then
+    if stock->>'baseUnit'<>'ml' then raise exception 'VALIDATION_FAILED: sealed/open correction requires ml stock';end if;
+    container_size:=coalesce((stock->>'sealedContainerSize')::numeric,0);
+    if container_size<=0 then raise exception 'INVALID_STATE: configure a sealed container size first';end if;
+    if jsonb_typeof(p->'sealedContainers') is distinct from 'number' or jsonb_typeof(p->'openQuantity') is distinct from 'number' then raise exception 'VALIDATION_FAILED: sealed/open quantities';end if;
+    sealed_count:=(p->>'sealedContainers')::numeric;open_quantity:=(p->>'openQuantity')::numeric;
+    if sealed_count<0 or round(sealed_count)<>sealed_count or open_quantity<0 or open_quantity>=container_size or round(open_quantity,6)<>open_quantity then raise exception 'VALIDATION_FAILED: sealed/open quantities';end if;
+    if abs(counted-(sealed_count*container_size+open_quantity))>0.000001 then raise exception 'VALIDATION_FAILED: counted total does not match sealed/open quantities';end if;
+    sealed_state:=coalesce(stock->'sealedOpenStock','{}'::jsonb);sealed_before:=coalesce(sealed_state->location_key,jsonb_build_object('sealedContainers',floor(current_qty/container_size),'openQuantity',current_qty-floor(current_qty/container_size)*container_size));
+    if coalesce((sealed_before->>'sealedContainers')::numeric,-1)<0 or coalesce((sealed_before->>'openQuantity')::numeric,-1)<0 or coalesce((sealed_before->>'openQuantity')::numeric,container_size)>=container_size or abs(coalesce((sealed_before->>'sealedContainers')::numeric,0)*container_size+coalesce((sealed_before->>'openQuantity')::numeric,0)-current_qty)>0.001 then raise exception 'INVALID_STATE: sealed/open stock inconsistent; reconcile before correction';end if;
+    sealed_after:=jsonb_build_object('sealedContainers',sealed_count,'openQuantity',open_quantity);
+    sealed_state:=jsonb_set(sealed_state,array[location_key],sealed_after,true);
+    next_data:=jsonb_set(jsonb_set(stock,'{currentStock}',coalesce(stock->'currentStock','{}'::jsonb)||jsonb_build_object(location_key,counted),true),'{sealedOpenStock}',sealed_state,true);
+    changes:=changes||servos_v2.put_record('stockItems',stock_key,next_data);
+    changes:=changes||servos_v2.put_record('stockMovements','count-'||(command->>'id'),jsonb_build_object(
+     'stockItemId',stock_key,'locationId',location_key,'quantityDelta',counted-current_qty,
+     'movementType','ADMIN_CORRECTION','reason',reason,'baseUnit',stock->>'baseUnit',
+     'sealedOpenEffect',jsonb_build_object('sealedContainersBefore',(sealed_before->>'sealedContainers')::numeric,'sealedContainersAfter',sealed_count,'openQuantityBefore',(sealed_before->>'openQuantity')::numeric,'openQuantityAfter',open_quantity),
+     'sourceCommandId',command->>'id','occurredAt',now(),'actorId',auth.uid()
+    ));
+    return changes;
+   end if;
    next_data:=jsonb_set(stock,'{currentStock}',coalesce(stock->'currentStock','{}'::jsonb)||jsonb_build_object(location_key,counted),true);
    changes:=changes||servos_v2.put_record('stockItems',stock_key,next_data);
    changes:=changes||servos_v2.put_record('stockMovements','count-'||(command->>'id'),jsonb_build_object(

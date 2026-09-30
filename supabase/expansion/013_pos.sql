@@ -27,7 +27,7 @@ declare product jsonb;policy jsonb;portion jsonb;modifier jsonb;adjustment jsonb
  selected_modifiers jsonb:='[]';ingredients jsonb:='[]';selected_ids jsonb:=coalesce(input->'modifierIds','[]'::jsonb);
  qty numeric;unit_minor bigint;base_minor bigint;modifier_minor bigint:=0;line_minor bigint;
  vat_bps integer;levy_bps integer;net bigint;vat bigint;levy bigint;denominator integer;
- volume numeric;
+ volume numeric;container_size numeric;inventory_type text;whole_container boolean:=false;
 begin
  perform servos_v2.assert_version(command,'products',product_key);
  product:=servos_v2.read_record('products',product_key);
@@ -57,7 +57,10 @@ begin
  ingredients:=coalesce(product->'recipeIngredients','[]'::jsonb);
  if jsonb_array_length(ingredients)=0 and nullif(product->>'stockItemId','') is not null then
   volume:=coalesce((portion->>'volume')::numeric,(product->>'portionVolume')::numeric,1);
-  ingredients:=jsonb_build_array(jsonb_build_object('stockItemId',product->>'stockItemId','quantity',volume,'tracked',true));
+  container_size:=coalesce((product->>'portionVolume')::numeric,0);
+  inventory_type:=upper(coalesce(product->>'inventoryType',product->>'category',''));
+  whole_container:=inventory_type in ('SPIRIT','SPIRITS','WINE') and container_size>0 and abs(volume-container_size)<0.000001;
+  ingredients:=jsonb_build_array(jsonb_build_object('stockItemId',product->>'stockItemId','quantity',volume,'tracked',true,'wholeContainerSale',whole_container));
  end if;
 
  for modifier in select value from jsonb_array_elements(selected_modifiers) loop
@@ -110,9 +113,10 @@ declare
  op text:=command->>'operation';p jsonb:=command->'payload';key text:=p->>'id';who uuid:=auth.uid();
  current_data jsonb;current_archived boolean;next_data jsonb;order_data jsonb;table_data jsonb;outlet jsonb;product jsonb;stock jsonb;
  item jsonb;source_item jsonb;ingredient jsonb;portion jsonb;modifier jsonb;adjustment jsonb;
- changes jsonb:='[]';items jsonb;needs jsonb:='{}';stock_key text;location_key text;table_key text;outlet_key text;customer_key text;
+ changes jsonb:='[]';items jsonb;needs jsonb:='{}';whole_needs jsonb:='{}';stock_key text;location_key text;table_key text;outlet_key text;customer_key text;
  item_key text;target_key text;reason text;disposition text;state text;route text;
- qty numeric;need numeric;current_qty numeric;percent numeric;line_total bigint;discount bigint;net bigint;vat bigint;levy bigint;
+ qty numeric;need numeric;whole_need numeric;current_qty numeric;percent numeric;line_total bigint;discount bigint;net bigint;vat bigint;levy bigint;
+ container_size numeric;sealed_count numeric;open_quantity numeric;extra_open numeric;sealed_state jsonb;sealed_effect jsonb;
  current_round integer;last_round integer;has_fired boolean:=false;
 begin
  if jsonb_typeof(p) is distinct from 'object' then raise exception 'VALIDATION_FAILED: payload';end if;
@@ -281,6 +285,7 @@ begin
      if coalesce((ingredient->>'tracked')::boolean,true)=false then continue;end if;
      stock_key:=servos_v2.required_text(ingredient,'stockItemId');need:=(ingredient->>'quantity')::numeric*(item->>'quantity')::numeric;
      needs:=needs||jsonb_build_object(stock_key,coalesce((needs->>stock_key)::numeric,0)+need);
+     if coalesce((ingredient->>'wholeContainerSale')::boolean,false) then whole_needs:=whole_needs||jsonb_build_object(stock_key,coalesce((whole_needs->>stock_key)::numeric,0)+need);end if;
     end loop;
    end loop;
    if not has_fired then raise exception 'INVALID_STATE: no held items in current round';end if;
@@ -289,13 +294,42 @@ begin
     select r.data into stock from servos_v2.records r where r.collection='stockItems' and r.id=stock_key and not r.archived for update;
     current_qty:=coalesce((stock->'currentStock'->>location_key)::numeric,0);
     if current_qty<need then raise exception 'VALIDATION_FAILED: insufficient stock for %',stock_key;end if;
+   whole_need:=coalesce((whole_needs->>stock_key)::numeric,0);container_size:=coalesce((stock->>'sealedContainerSize')::numeric,0);sealed_effect:=null;
+   if stock->>'baseUnit'='ml' and container_size>0 then
+    sealed_state:=coalesce(stock->'sealedOpenStock','{}'::jsonb)->location_key;
+    sealed_count:=coalesce((sealed_state->>'sealedContainers')::numeric,floor(current_qty/container_size));
+    open_quantity:=coalesce((sealed_state->>'openQuantity')::numeric,current_qty-sealed_count*container_size);
+    if sealed_count<0 or open_quantity<0 or open_quantity>=container_size or abs(sealed_count*container_size+open_quantity-current_qty)>0.001 then raise exception 'INVALID_STATE: sealed/open stock inconsistent; reconcile before sale';end if;
+    if whole_need>0 then
+     if abs(whole_need/container_size-round(whole_need/container_size))>0.000001 then raise exception 'VALIDATION_FAILED: whole-container sale quantity does not match configured bottle size';end if;
+     if sealed_count+0.000001<whole_need/container_size then raise exception 'VALIDATION_FAILED: no sealed bottle available; open liquid cannot satisfy a whole-bottle sale';end if;
+     sealed_count:=sealed_count-whole_need/container_size;
+    end if;
+    need:=need-whole_need;
+    if open_quantity+0.000001<need then
+     extra_open:=ceil(greatest(0,need-open_quantity)/container_size);
+     if sealed_count+0.000001<extra_open then raise exception 'VALIDATION_FAILED: insufficient sealed and open stock for serving';end if;
+     sealed_count:=sealed_count-extra_open;open_quantity:=open_quantity+extra_open*container_size;
+    end if;
+    open_quantity:=open_quantity-need;
+    current_qty:=coalesce((stock->'currentStock'->>location_key)::numeric,0);
+    sealed_effect:=jsonb_build_object('containerSize',container_size,'sealedContainersBefore',coalesce((sealed_state->>'sealedContainers')::numeric,floor(current_qty/container_size)),'sealedContainersAfter',sealed_count,'openQuantityBefore',coalesce((sealed_state->>'openQuantity')::numeric,current_qty-floor(current_qty/container_size)*container_size),'openQuantityAfter',open_quantity);
+   elsif whole_need>0 then raise exception 'INVALID_STATE: whole-container sale requires configured sealed-container tracking';
+   end if;
+   -- Restore the aggregate requested quantity after using need for the serving remainder.
+   need:=coalesce((needs->>stock_key)::numeric,0);
     next_data:=jsonb_set(stock,'{currentStock}',coalesce(stock->'currentStock','{}'::jsonb)||jsonb_build_object(location_key,current_qty-need),true);
+   if sealed_effect is not null then
+    next_data:=jsonb_set(next_data,'{sealedOpenStock}',coalesce(next_data->'sealedOpenStock','{}'::jsonb),true);
+    next_data:=jsonb_set(next_data,array['sealedOpenStock',location_key],jsonb_build_object('sealedContainers',(sealed_effect->>'sealedContainersAfter')::numeric,'openQuantity',(sealed_effect->>'openQuantityAfter')::numeric,'containerSize',container_size),true);
+   end if;
     changes:=changes||servos_v2.put_record('stockItems',stock_key,next_data);
-    changes:=changes||servos_v2.put_record('stockMovements','sale-'||(command->>'id')||'-'||stock_key,jsonb_build_object(
+   changes:=changes||servos_v2.put_record('stockMovements','sale-'||(command->>'id')||'-'||stock_key,jsonb_build_object(
      'stockItemId',stock_key,'locationId',location_key,'quantityDelta',-need,'movementType','SALE_CONSUMPTION',
      'sourceId',key,'sourceCommandId',command->>'id','reason',order_data->>'orderNumber',
      'baseUnit',stock->>'baseUnit','occurredAt',now(),'actorId',who
-    ));
+     )||case when sealed_effect is null then '{}'::jsonb else jsonb_build_object('sealedOpenEffect',sealed_effect) end
+    );
    end loop;
    items:='[]';
    for item in select value from jsonb_array_elements(order_data->'items') loop

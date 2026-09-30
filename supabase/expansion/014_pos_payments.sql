@@ -16,7 +16,7 @@ returns jsonb language plpgsql set search_path='' as $$
 declare
  op text:=command->>'operation';p jsonb:=command->'payload';who uuid:=auth.uid();
  order_key text:=p->>'orderId';order_data jsonb;table_data jsonb;account jsonb;till jsonb;
- till_key text;table_key text;method text;reference text;payment_id text;journal_id text;receipt_id text;
+ till_key text;table_key text;method text;reference text;payment_id text;journal_id text;receipt_id text;policy jsonb;variance_threshold bigint;
  amount bigint;received bigint;tender bigint;paid bigint;total bigint;vat bigint;levy bigint;net bigint;
  tax_piece bigint;levy_piece bigint;leg jsonb;line_no integer:=0;legs integer:=0;sum_amount bigint:=0;
  changed jsonb:='[]';journal_lines jsonb;payment_ids jsonb:='[]';order_items jsonb;
@@ -57,8 +57,11 @@ begin
   counted:=servos_v2.minor(p,'countedCashMinor');expected:=(till->>'expectedCashMinor')::bigint;
   variance:=counted-expected;
   if variance<>0 then
-   perform servos_v2.require_permission('till.override_variance');
    reason:=servos_v2.required_text(p,'varianceReason');
+   select r.data into policy from servos_v2.records r where r.collection='tillPolicy' and r.id='main' and not r.archived;
+   variance_threshold:=coalesce(nullif(policy->>'varianceThresholdMinor','')::bigint,round(coalesce(nullif(policy->>'varianceThreshold','')::numeric,0)*100)::bigint,0);
+   if variance_threshold<0 or variance_threshold>1000000000000 then raise exception 'VALIDATION_FAILED: till variance threshold';end if;
+   if abs(variance)>variance_threshold then perform servos_v2.require_permission('till.override_variance');end if;
   end if;
   return servos_v2.put_record('tillSessions',till_key,till||jsonb_build_object(
    'status','CLOSED','countedCashMinor',counted,'cashVarianceMinor',variance,
@@ -197,6 +200,7 @@ begin
  if grants is null then return false;end if;if '*'=any(grants) then return true;end if;
  needed:=case
   when collection_name in ('cashMovements','tillSessions') then array['till.view','till.open','till.close','till.cashMovement','payments.view','payments.manage']
+  when collection_name='tillPolicy' then array['till.view','till.close','business.configure']
   when collection_name in ('payments','receiptDocuments','refunds') then array['payments.view','payments.manage','order.refund','payment.reverse']
   when collection_name in ('customers','roomTypes','assetCategories') then array['records.view']
   when collection_name='suppliers' then array['procurement.view','procurement.manage']

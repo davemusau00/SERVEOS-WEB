@@ -20,6 +20,8 @@ Use **Add item** to open the staged Smart Item Wizard. Select the closest item t
 
 This wizard is currently a terminal workflow. It saves the supplier purchase-package definition with stock; Web Smart Item/package editing and broader recipe/measurement UX remain in progress. A saved opening quantity is a local committed movement; it is not a supplier receipt.
 
+For a weight ingredient, enter the physical amount in one supplier package (for example, `5 kg` per bag). ServOS converts it to `5,000 g`, derives cost per gram, and uses grams for new stock and recipe deductions. Native Smart Item and the Web product recipe editor let you enter a compatible kitchen unit such as `0.2 kg` or `200 g`; ServOS converts it to the selected stock item's stored unit before previewing cost and saving. Web Smart Item creation and final acceptance remain pending.
+
 ## Stock control dashboard
 
 The Inventory screen summarizes stock value, low-stock and out-of-stock masters using the same location-driven stock records. Search by stock name, SKU or barcode, filter by stock state, and focus quantities on one location without creating a second stock balance. A configured reorder level is advisory only: it highlights a stock master when total on-hand is at or below that threshold. Replenishment still enters through Procurement.
@@ -32,7 +34,7 @@ Review each stock item across the configured locations. Current stock is derived
 
 For a purchase order, select the saved supplier package. Order and receive whole package counts at the price per package. A package scan on that PO adds one package (not the package's contents as PO quantity); the posted receipt converts accepted packages to base stock quantity and unit cost. If accepted quantity exceeds the remaining approved PO balance, a manager approval token is required. The separate physical-count scanner always adds base quantity.
 
-If a scan is unknown, duplicated, or assigned to the wrong stock master, stop and fix Catalog first. Do not compensate by scanning a different item or by treating a package count as a base-unit count.
+If a scan is unknown, an operator with `inventory.adjust` may assign it inline to the correct stock master. Assignment only adds a barcode alias; it does not change quantity. Rescan the assigned code to count its stock quantity. Duplicate matches must be resolved in Catalog, and removing an unknown scan explicitly excludes it from the count. Do not compensate by scanning a different item or by treating a package count as a base-unit count.
 
 ## What ServOS records
 
@@ -41,3 +43,9 @@ Actions that change the business are committed through the native backend. When 
 ## Common mistakes and correction
 
 Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.
+# Spirit and wine stock (source slice)
+
+For eligible stock tracked in millilitres, configure a sealed-container size (for example, one bottle's ml capacity). Opening stock is split into whole sealed containers plus any open remainder. Serving sales draw from the open amount first and open only as many sealed containers as needed. A whole-container sale uses sealed stock only; open liquid does not count as a sealed bottle.
+
+When correcting this stock, enter sealed bottles and open millilitres separately and provide a reason. The two values must reconcile to the total balance; the correction creates an auditable stock movement. This workflow is implemented in source but has not yet passed final acceptance. Transfers/count parity and staged Web POS behavior remain pending.
+

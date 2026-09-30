@@ -4,6 +4,7 @@ import {barcodeEquals,useBarcodeScanner} from '../../hooks/useBarcodeScanner';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import {businessDateTimeInput,businessDateTimeToUtc} from '../../utils/businessTime';
 import {Dialog} from '../../design-system/controls';
+import {operatorError} from './operatorError';
 
 type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
 const field='w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-amber-400';
@@ -35,7 +36,7 @@ export function WebPosView({records,session,disabled,command}:{records:BusinessR
  const [outletId,setOutletId]=useState(outlets[0]?.id||'');
  const [activeId,setActiveId]=useState(openOrders[0]?.id||'');
  const [query,setQuery]=useState('');
- const [notice,setNotice]=useState('');
+ const [notice,setNoticeState]=useState('');const setNotice=(message:string)=>setNoticeState(message?operatorError(message):'');
  const [newTab,setNewTab]=useState(false);
  const [tabName,setTabName]=useState('');
  const [customerId,setCustomerId]=useState('');
