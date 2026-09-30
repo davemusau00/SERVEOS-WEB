@@ -62,3 +62,24 @@ test('transactional PostgreSQL bridge accepts booleans objects and arrays',()=>{
   assert.match(spec,/line\.startsWith\('\['\)/);
   assert.match(spec,/servos_v2_list_devices/);
 });
+
+test('literal runtime command call sites are represented in the operation manifest',()=>{
+  const manifest=read('src/runtime/operationManifest.ts');
+  const declared=new Set([...manifest.matchAll(/operation:\s*'([^']+)'/g)].map(match=>match[1]));
+  const found=new Set();
+  const files=[];
+  const walk=(directory)=>{
+    for(const name of readdirSync(directory,{withFileTypes:true})){
+      const file=path.join(directory,name.name);
+      if(name.isDirectory())walk(file);
+      else if(/\.(ts|tsx)$/.test(name.name)&&file!=='src/runtime/operationManifest.ts')files.push(file);
+    }
+  };
+  walk('src');
+  for(const file of files){
+    const source=read(file);
+    for(const match of source.matchAll(/(?:runtime\.)?command\(\s*'([^']+)'/g))found.add(match[1]);
+  }
+  const unknown=[...found].filter(operation=>!declared.has(operation)).sort();
+  assert.deepEqual(unknown,[],`literal runtime commands missing from operation manifest: ${unknown.join(', ')}`);
+});
