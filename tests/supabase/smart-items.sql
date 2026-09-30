@@ -75,7 +75,7 @@ do $$declare command_data jsonb;result jsonb;recipe_product jsonb;begin
  if result->>'status'<>'REJECTED' or result->'error'->>'code'<>'VERSION_CONFLICT' then raise exception 'Stale recipe stock baseline was accepted: %',result;end if;
  if exists(select 1 from servos_v2.records where collection='products' and id='stale-recipe-product') then raise exception 'Rejected stale recipe created a product';end if;
 
- update servos_v2.members set permissions=array['catalog.manage'] where user_id=auth.uid();
+ update servos_v2.members set permissions=array['records.view','catalog.manage'] where user_id=auth.uid();
  command_data:=jsonb_set(command_data,'{id}','"20000000-0000-4000-8000-000000000077"'::jsonb);
  command_data:=jsonb_set(command_data,'{clientSequence}','5'::jsonb);
  command_data:=jsonb_set(command_data,'{payload,id}','"denied-recipe-product"'::jsonb);

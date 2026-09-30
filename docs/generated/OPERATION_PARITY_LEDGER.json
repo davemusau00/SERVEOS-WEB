@@ -372,7 +372,7 @@
       "native": "implemented",
       "backend": "implemented",
       "web": "implemented",
-      "notes": "Product saves can persist linked recipe ingredient quantities; Native and Web entry convert familiar kitchen weight/volume units to each stock item unit before save. Full Smart Item parity and operator acceptance remain pending.",
+      "notes": "Product saves persist recipe ingredients; Web Smart Item creates recipe-only dishes/mixed drinks through this queued operation and converts familiar units to stock units. Recipe creation also requires inventory.view; expansion 032 enforces ingredient and supplied outlet baselines. Full item-type/portion parity and operator acceptance remain pending.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",

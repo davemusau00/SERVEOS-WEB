@@ -33,6 +33,8 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(smart,/product\.save/);
   assert.match(smart,/recipeIngredients/);
   assert.match(smart,/Save recipe item/);
+  assert.match(smart,/pendingReview/);
+  assert.match(smart,/avoid a duplicate item/);
   assert.match(deps,/catalog\.createWithOpeningStock/);
   assert.match(deps,/operation === 'product\.save'/);
   assert.match(deps,/productData\.recipeIngredients/);

@@ -29,7 +29,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
   const canRecipe = canCatalog && (session.permissions.includes('*') || session.permissions.includes('inventory.view'));
   const [step, setStep] = useState(0);
   const [setupKind, setSetupKind] = useState<SetupKind>(canCatalog && canInventory ? 'STOCKED' : canRecipe ? 'RECIPE' : 'STOCK_ONLY');
-  const [itemType, setItemType] = useState('DRINK');
+  const [itemType, setItemType] = useState(setupKind === 'RECIPE' ? 'DISH' : 'DRINK');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [codeEdited, setCodeEdited] = useState(false);
@@ -52,6 +52,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
   const [error, setError] = useState('');
   const [recipeError, setRecipeError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pendingReview, setPendingReview] = useState(false);
 
   const mode: MeasurementMode = unit === 'g' || unit === 'kg' ? 'WEIGHT' : unit === 'ml' || unit === 'l' ? 'VOLUME' : 'COUNT';
   const baseUnit = mode === 'WEIGHT' ? 'g' : mode === 'VOLUME' ? 'ml' : 'piece';
@@ -128,7 +129,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
 
   const save = async () => {
     setError('');
-    if (busy) return;
+    if (busy || pendingReview) return;
     if (setupKind === 'RECIPE') {
       if (!canRecipe) {
         setError('Recipe setup requires catalog management and inventory viewing access. Ask an Admin to review your role.');
@@ -158,9 +159,10 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
     }
     setBusy(true);
     try {
+      let result: unknown;
       if (setupKind === 'RECIPE') {
         const productId = crypto.randomUUID();
-        await command('product.save', 'products', productId, {
+        result = await command('product.save', 'products', productId, {
           id: productId,
           data: {
             id: productId,
@@ -191,13 +193,18 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
           averageUnitCost: calculation!.unitCost / 100,
           reorderLevel: 0,
         };
-        await command('catalog.createWithOpeningStock', 'stockItems', stockItemId, {
+        result = await command('catalog.createWithOpeningStock', 'stockItems', stockItemId, {
           ...(setupKind === 'STOCKED' ? { product: await sellable(productId) } : {}),
           stockItem,
           locationId,
           startingQuantity: calculation!.opening,
           openingMovementId,
         });
+      }
+      if (result !== true) {
+        setPendingReview(true);
+        setError('The save was not confirmed. Check workspace status and Saved Changes before retrying; this form is locked to avoid a duplicate item.');
+        return;
       }
       onClose();
     } catch (cause) {
@@ -230,7 +237,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
 
   const stepTitle = ['Identity', 'Selling', setupKind === 'RECIPE' ? 'Recipe' : 'Package & stock', 'Review'][step];
   return <Dialog title={`Smart item setup - ${stepTitle}`} onClose={busy ? () => undefined : onClose}>
-    <div className="max-h-[min(70vh,620px)] space-y-4 overflow-y-auto pr-1">
+    <div aria-disabled={pendingReview} className={`max-h-[min(70vh,620px)] space-y-4 overflow-y-auto pr-1 ${pendingReview ? 'pointer-events-none opacity-60' : ''}`}>
       {step === 0 && <div className="space-y-3">
         <label className="block text-sm">What are you setting up?
           <select className={input} value={setupKind} onChange={event => { const nextKind = event.target.value as SetupKind; setSetupKind(nextKind); if (nextKind === 'RECIPE') setItemType('DISH'); else if (nextKind === 'STOCKED') setItemType('DRINK'); }}>
@@ -305,8 +312,8 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
       {error && <p role="alert" className="rounded-lg border border-rose-800 p-3 text-sm text-rose-200">{error}</p>}
     </div>
     <div className="mt-4 flex justify-between gap-2 border-t border-slate-800 pt-3">
-      <button type="button" className={button} disabled={busy || step === 0} onClick={() => setStep(value => Math.max(0, value - 1))}>Back</button>
-      {step < 3 ? <button type="button" className={primary} disabled={disabled || busy} onClick={next}>Continue</button> : <button type="button" className={primary} disabled={disabled || busy || setupKind === 'RECIPE' && (!outlets.length || !recipeIngredients.length) || setupKind !== 'RECIPE' && (!calculation || !locationId || setupKind === 'STOCKED' && !outlets.length)} onClick={() => void save()}>{busy ? 'Saving item...' : setupKind === 'RECIPE' ? 'Save recipe item' : 'Save item and opening stock'}</button>}
+      <button type="button" className={button} disabled={busy || pendingReview || step === 0} onClick={() => setStep(value => Math.max(0, value - 1))}>Back</button>
+      {step < 3 ? <button type="button" className={primary} disabled={disabled || busy || pendingReview} onClick={next}>Continue</button> : <button type="button" className={primary} disabled={disabled || busy || pendingReview || setupKind === 'RECIPE' && (!outlets.length || !recipeIngredients.length) || setupKind !== 'RECIPE' && (!calculation || !locationId || setupKind === 'STOCKED' && !outlets.length)} onClick={() => void save()}>{busy ? 'Saving item...' : pendingReview ? 'Check save status' : setupKind === 'RECIPE' ? 'Save recipe item' : 'Save item and opening stock'}</button>}
     </div>
   </Dialog>;
 }
