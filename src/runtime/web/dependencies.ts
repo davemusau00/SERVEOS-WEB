@@ -21,6 +21,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
     ['orders', payload.orderId], ['orders', payload.targetOrderId], ['tables', payload.sourceTableId],
     ['tables', payload.targetTableId], ['ratePlans', payload.ratePlanId],
     ['outlets', payload.outletId], ['products', payload.productId], ['paymentAccounts', payload.accountId],
+    ['tillSessions', payload.tillSessionId], ['tillSessions', payload.tillId],
   ] as Array<[string, unknown]>) add(target, targetId);
   const paymentLines = operation === 'payment.split' && Array.isArray(payload.payments)
     ? payload.payments.filter((line): line is Record<string, unknown> => !!line && typeof line === 'object')
@@ -37,7 +38,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
     add('posPolicy', 'policy');
     const product = typeof payload.productId === 'string' ? byKey.get(key('products', payload.productId)) : undefined;
     const productData = product?.data as Record<string, unknown> | undefined;
-    const ingredients = Array.isArray(productData?.recipeIngredients) ? productData.recipeIngredients : [];
+    const ingredients: unknown[] = Array.isArray(productData?.recipeIngredients) ? productData.recipeIngredients : [];
     for (const ingredient of ingredients) {
       if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
     }
@@ -55,7 +56,8 @@ export function resolveOperationDependencies(operation: string, collection: stri
     const items = Array.isArray(order.data.items) ? order.data.items : [];
     for (const item of items) {
       if (!item || typeof item !== 'object') continue;
-      const ingredients = Array.isArray((item as Record<string, unknown>).ingredientSnapshot) ? (item as Record<string, unknown>).ingredientSnapshot : [];
+      const itemData = item as Record<string, unknown>;
+      const ingredients: unknown[] = Array.isArray(itemData.ingredientSnapshot) ? itemData.ingredientSnapshot : [];
       for (const ingredient of ingredients) {
         if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
       }
