@@ -339,3 +339,12 @@ Resolution: the failing attempt used incomplete fixtures (a selected room withou
 Current P2 slice evidence: `npx playwright test tests/browser/transactions.spec.ts -g "Quick Reservation" --project=desktop` and the same command with `--project=mobile-layout` both pass. `npm run test:cloud:v2` passes through expansion 027, including the historical-overlap regression and two-connection booking race.
 
 Web Housekeeping extension: source tests verify queued operation names and permission boundaries; `npm run lint` passes. The PostgreSQL-backed block/create, inspection/release, and maintenance/report flow passes under both Playwright projects (`desktop` and `mobile-layout`).
+
+### DEV final sprint current-source regression gate â€” 2026-09-30
+
+- `npm test` â€” passed 146/146; `npm run lint` and `npm run build` passed (existing Vite large-chunk warning remains).
+- `npm run test:browser` â€” passed 32/32 across desktop and mobile, including Quick Reservation, Housekeeping block/release/report, two-operator response-loss retry, Native preview, inventory, and POS flows.
+- `npm run test:native:container` â€” passed 72/72.
+- `npm run test:cloud:v2` â€” passed through expansion 027, including legacy reservation overlap fallback and the real two-connection room booking race.
+- `npm run audit:ui:gate` â€” passed; 3,578 interactions / 389 static review findings; no prompt/confirm findings. `npm run docs:check` and `git diff --check` passed.
+- All evidence is local/disposable. Hosted CI, staged migration deployment, packaged terminal, physical hardware, and live cutover are not proven.
