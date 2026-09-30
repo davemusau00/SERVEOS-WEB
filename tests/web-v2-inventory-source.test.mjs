@@ -18,7 +18,16 @@ test('inventory expansion is staged and never self-activates v2',()=>{
 
 test('web v2 catalog and inventory use command queue rather than direct Supabase table writes',()=>{
   const ui=readFileSync('src/runtime/web/WebCatalogInventory.tsx','utf8');
+  const smart=readFileSync('src/runtime/web/SmartItemDialog.tsx','utf8');
+  const deps=readFileSync('src/runtime/web/dependencies.ts','utf8');
+  const manifest=readFileSync('src/runtime/operationManifest.ts','utf8');
   assert.match(ui,/product\.save/);
+  assert.match(ui,/SmartItemDialog/);
+  assert.match(smart,/catalog\.createWithOpeningStock/);
+  assert.match(smart,/package.*opening/i);
+  assert.match(deps,/catalog\.createWithOpeningStock/);
+  assert.match(deps,/stockMovements/);
+  assert.match(manifest,/catalog\.createWithOpeningStock[^\n]*backend: 'implemented'[^\n]*web: 'partial'/);
   assert.match(ui,/stockItem\.save/);
   assert.match(ui,/inventory\.count/);
   assert.match(ui,/inventory\.transfer/);

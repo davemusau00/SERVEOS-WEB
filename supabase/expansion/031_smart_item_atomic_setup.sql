@@ -10,7 +10,7 @@ declare
  stock_command jsonb; product_command jsonb; changes jsonb:='[]'::jsonb; result jsonb;
  stock_key text; product_key text; location_key text; movement_key text;
  starting_qty numeric; unit_cost_minor bigint; price_minor bigint; sealed_size numeric;
- location_data jsonb; current_stock jsonb; sealed_state jsonb;
+ location_data jsonb; current_stock jsonb; sealed_state jsonb; portion_input jsonb; portions jsonb:='[]'::jsonb; portion_price bigint;
 begin
  if jsonb_typeof(p) is distinct from 'object' or jsonb_typeof(stock_input) is distinct from 'object' then raise exception 'VALIDATION_FAILED: Smart Item payload';end if;
  perform servos_v2.require_permission('inventory.adjust');
@@ -41,10 +41,23 @@ begin
   product_data:=product_input-'price';
   price_minor:=round(coalesce(nullif(product_input->>'price','')::numeric,0)*100)::bigint;
   if price_minor<0 or price_minor>9000000000000000 then raise exception 'VALIDATION_FAILED: product price';end if;
+  if jsonb_typeof(coalesce(product_input->'portions','[]'::jsonb)) is distinct from 'array' or jsonb_array_length(coalesce(product_input->'portions','[]'::jsonb))>50 then raise exception 'VALIDATION_FAILED: sale portions';end if;
+  for portion_input in select value from jsonb_array_elements(coalesce(product_input->'portions','[]'::jsonb)) loop
+   perform servos_v2.required_text(portion_input,'id');perform servos_v2.required_text(portion_input,'name');
+   if portion_input ? 'volume' then perform servos_v2.quantity_value(portion_input,'volume',false);end if;
+   portion_price:=case when portion_input ? 'priceMinor' then servos_v2.minor(portion_input,'priceMinor') else round(coalesce((portion_input->>'price')::numeric,0)*100)::bigint end;
+   portions:=portions||jsonb_build_array((portion_input-'price')||jsonb_build_object('priceMinor',portion_price));
+  end loop;
   product_data:=product_data||jsonb_build_object('id',product_key,'stockItemId',stock_key,'priceMinor',price_minor);
   product_command:=jsonb_set(jsonb_set(command,'{operation}','"product.save"'::jsonb),'{payload}',jsonb_build_object('id',product_key,'data',product_data),true);
   result:=servos_v2.apply_catalog_inventory(product_command);
   changes:=changes||result;
+  -- product.save preserves legacy fields but does not author portions. Store
+  -- normalized minor-unit prices explicitly while keeping its created record
+  -- as one final version in this command's change set.
+  select data into product_data from servos_v2.records where collection='products' and id=product_key and not archived for update;
+  if jsonb_array_length(changes)>0 then changes:=changes-(jsonb_array_length(changes)-1);end if;
+  changes:=changes||servos_v2.put_record('products',product_key,product_data||jsonb_build_object('portions',portions,'modifiers',coalesce(product_input->'modifiers','[]'::jsonb)));
  end if;
 
  if starting_qty>0 then
