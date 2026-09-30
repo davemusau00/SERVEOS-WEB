@@ -1,6 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {Activity,BedDouble,Boxes,CheckCircle2,ChevronRight,ClipboardCheck,CreditCard,HelpCircle,Home,LockKeyhole,LogIn,Martini,PackageSearch,RefreshCw,Settings,ShieldCheck,Truck,Users,WalletCards,Wifi,WifiOff} from 'lucide-react';
 import {BusinessStore,type QueuedCommand} from './BusinessStore';
+import {resolveOperationDependencies} from './dependencies';
 import {startAutomaticSync,synchronizeStore} from './sync';
 import {allowed,loadAuthorizedSnapshot,openWebDevice,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
 
@@ -94,9 +95,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
   if(!store.current||!ready)return false;setBusy(true);setError('');setNotice('');
   try{
     if(!navigator.onLine){await store.current.saveDraft(crypto.randomUUID(),operation,payload);setNotice('Saved on this browser. It will be sent when you are back online.');await refresh();setEditor(null);return false}
-   const baselines=records.map(({collection,id,version})=>({collection,id,version}));
-    for(const target of [collection,...(operation.startsWith('stay.')?['folios','stays']:[])])if(!baselines.some(r=>r.collection===target&&r.id===id))baselines.push({collection:target,id,version:0});
-    for(const [target,targetId] of [['folios',String(payload.folioId||'')],['tables',String(payload.sourceTableId||'')],['tables',String(payload.targetTableId||'')],['orders',String(payload.targetOrderId||'')]] as Array<[string,string]>)if(targetId&&!baselines.some(r=>r.collection===target&&r.id===targetId)){const record=records.find(row=>row.collection===target&&row.id===targetId);baselines.push({collection:target,id:targetId,version:record?.version||0})}
+    const baselines=resolveOperationDependencies(operation,collection,id,payload,records);
     const command=await store.current.enqueue(operation,payload,baselines);setEditor(null);setNotice('Saved on this browser; waiting to sync.');await refresh();
    try{await syncRef.current()}catch(e){setError(`${String(e)}. The queued command is retained for retry.`);return false}
    const result=(await store.current.queue()).find(q=>q.id===command.id)?.result;

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "generatedBy": "npm run audit:ui",
-  "generatedAt": "2026-09-30T02:57:44.674Z",
+  "generatedAt": "2026-09-30T04:00:39.277Z",
   "scope": "Static source signals plus unreviewed workflow inventory; generation does not imply acceptance",
   "interactionCount": 3492,
   "findingCount": 365,
