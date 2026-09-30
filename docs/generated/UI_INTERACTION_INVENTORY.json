@@ -1,9 +1,9 @@
 {
   "generatedBy": "npm run audit:ui",
   "schemaVersion": 2,
-  "sourceDigest": "0c01f324eb8462abf0c9aff789be9fe89df5982fc4aa3ab7d8004d61b07b9913",
+  "sourceDigest": "384fe69aca2e1ca854bfb8e9a341591c0fa85941b916cbfb9d92b52eda4a405c",
   "scope": "Compact tracked summary; full static inventory is a CI artifact and findings require human review",
-  "count": 3554,
+  "count": 3578,
   "fullArtifact": "artifacts/ui-audit/UI_INTERACTION_INVENTORY.full.json",
   "interactions": [
     {
@@ -22750,135 +22750,303 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2062",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:73:426",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2205",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2321",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2403",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2488",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2570",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2654",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2736",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2797",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:2879",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3132",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "form",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3160",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "onSubmit",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3246",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "textarea",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3322",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3423",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3464",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:3515",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:499",
-      "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
+      "line": 73,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebHospitalityViews.tsx:69:580",
+      "id": "src/runtime/web/WebHospitalityViews.tsx:73:507",
       "file": "src/runtime/web/WebHospitalityViews.tsx",
-      "line": 69,
+      "line": 73,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:1306",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:1461",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:1577",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:1659",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:1744",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:1826",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:1910",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:1992",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:2053",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:2134",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:2293",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:2340",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:2589",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:75:2636",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 75,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:76:114",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 76,
+      "surface": "form",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:76:142",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 76,
+      "surface": "onSubmit",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:76:228",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 76,
+      "surface": "textarea",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:76:304",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 76,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:76:405",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 76,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:76:468",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 76,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:76:519",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 76,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:1084",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:1182",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "textarea",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:1249",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:131",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:194",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:242",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:468",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "form",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:517",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "onSubmit",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:744",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:863",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:77:967",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 77,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:78:1031",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 78,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:78:1090",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 78,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:78:144",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 78,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:78:207",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 78,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:78:256",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 78,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:78:512",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 78,
+      "surface": "form",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:78:574",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 78,
+      "surface": "onSubmit",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:78:822",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 78,
+      "surface": "textarea",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebHospitalityViews.tsx:78:922",
+      "file": "src/runtime/web/WebHospitalityViews.tsx",
+      "line": 78,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
