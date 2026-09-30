@@ -15,7 +15,7 @@ const date=(value:unknown,timeZone='Africa/Nairobi')=>value?new Intl.DateTimeFor
 
 export function WebFrontDeskView({records,session,disabled,command}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:CommandFn}){
  const reservations=active(records,'roomReservations');const rooms=active(records,'rooms');const customers=active(records,'customers');const stays=active(records,'stays');
- const propertyTimeZone=String(data(active(records,'property')[0])?.timezone||'Africa/Nairobi');
+ const propertyTimeZone=String(session.propertyContext?.timeZone||data(active(records,'property')[0])?.timezone||'Africa/Nairobi');
  const [query,setQuery]=useState('');const [moveId,setMoveId]=useState('');const [destination,setDestination]=useState('');const [reason,setReason]=useState('');const [notice,setNotice]=useState('');
  const guest=(id:string)=>name(customers.find(record=>record.id===id));const room=(id:string)=>name(rooms.find(record=>record.id===id));
  const filtered=useMemo(()=>reservations.filter(record=>{const value=query.trim().toLowerCase();if(!value)return true;return `${guest(String(data(record)?.customerId))} ${room(String(data(record)?.roomId))} ${record.id}`.toLowerCase().includes(value)}),[reservations,customers,rooms,query]);

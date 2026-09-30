@@ -2,11 +2,14 @@ begin;
 insert into servos_v2.members values('00000000-0000-4000-8000-000000000001',true,array['*']) on conflict(user_id) do update set active=true,permissions=array['*'];
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
 update servos_v2.control set enabled=true;
+select servos_v2.put_record('property','property','{"timezone":"Africa/Nairobi","nightlyCheckoutTime":"11:00","dayStayCutoffTime":"17:00","kraPin":"SENSITIVE-TEST-VALUE"}');
 select servos_v2.put_record('customers','a','{"name":"First"}');
 select servos_v2.put_record('customers','b','{"name":"Second"}');
 select servos_v2.put_record('employees','private','{"name":"Private employee"}');
 do $$declare session jsonb;page jsonb;failed boolean:=false;begin
  session:=public.servos_v2_session();page:=public.servos_v2_snapshot('','',null,session->>'policyVersion',1);
+ if session->'propertyContext'->>'timeZone'<>'Africa/Nairobi' or session->'propertyContext'->>'nightlyCheckoutTime'<>'11:00' or session->'propertyContext'->>'dayStayCutoffTime'<>'17:00' then raise exception 'Hospitality property context missing';end if;
+ if session::text like '%SENSITIVE-TEST-VALUE%' then raise exception 'Session leaked a non-whitelisted property field';end if;
  if page->>'hasMore'<>'true' or page->'records'->0->>'id'<>'a' then raise exception 'Snapshot first page wrong';end if;
  page:=public.servos_v2_snapshot(page->>'afterCollection',page->>'afterId',(page->>'cursor')::bigint,session->>'policyVersion',1);
  if page->'records'->0->>'id'<>'b' then raise exception 'Snapshot keyset skipped record';end if;

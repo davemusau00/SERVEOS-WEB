@@ -9,7 +9,7 @@ Screen: Front Desk
 
 Front Desk is the operational view over the native Rooms engine. It combines today's arrivals and departures, occupied-room counts, search, a multi-day tape chart, check-in, and room moves.
 
-The screen uses the business hotel timezone `Africa/Nairobi`. Reservation availability still comes from the native backend, including turnaround buffers and room blocks.
+The screen uses the timezone configured on the property (currently `Africa/Nairobi` for this installation). In the staged Web workspace, the session returns only the timezone and room-stay policy times needed by operational screens; it does not expose the full property record. Reservation availability still comes from the authorized business records and backend rules, including turnaround buffers and room blocks.
 
 Check-in creates the stay and, when one does not already exist, a zero-value folio shell using the reservation ID as the stable ID. Room moves preserve the reservation rate snapshot, dirty the old room, and create a turnaround block.
 
@@ -29,7 +29,7 @@ The backend rechecks reservation and room versions, room cleanliness, room condi
 
 ### Review departures
 
-The **Departures today** queue shows active reservations whose planned departure falls on the current Nairobi hotel date.
+The **Departures today** queue shows active reservations whose planned departure falls on the current property-local date.
 
 Checkout remains unavailable until Patch 07. Do not simulate checkout by cancelling a checked-in reservation or manually changing room state.
 

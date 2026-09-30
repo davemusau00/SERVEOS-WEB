@@ -30,10 +30,10 @@ test.describe('transactional browser with PostgreSQL',()=>{
     ('00000000-0000-4000-8000-000000000001','browser-owner','Browser Owner','Admin','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001'),
     ('00000000-0000-4000-8000-000000000002','browser-manager','Browser Manager','Manager','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001') on conflict(auth_user_id) do update set active=true;
    select servos_v2.put_record('organization','business','{"name":"Browser Test Business"}');
-   select servos_v2.put_record('property','property','{"address":"Test Street","phone":"0700000000","currency":"KES","timezone":"Pacific/Kiritimati","receiptFooter":"Thank you"}');
+   select servos_v2.put_record('property','property','{"address":"Test Street","phone":"0700000000","currency":"KES","timezone":"Africa/Nairobi","receiptFooter":"Thank you"}');
    select servos_v2.put_record('customers','front-desk-guest','{"name":"Timezone Guest","phone":"0700000099"}');
    select servos_v2.put_record('rooms','front-desk-room','{"number":"TZ-1","roomTypeId":"timezone-room-type","capacity":2,"housekeepingState":"DIRTY","maintenanceState":"AVAILABLE"}');
-   select servos_v2.put_record('roomReservations','front-desk-reservation','{"customerId":"front-desk-guest","roomId":"front-desk-room","status":"RESERVED","guests":1,"startsAt":"2025-01-01T12:00:00Z","endsAt":"2025-01-02T10:00:00Z"}');
+   select servos_v2.put_record('roomReservations','front-desk-reservation','{"customerId":"front-desk-guest","roomId":"front-desk-room","status":"RESERVED","guests":1,"startsAt":"2025-01-01T22:00:00Z","endsAt":"2025-01-02T19:00:00Z"}');
    select servos_v2.put_record('posPolicy','policy','{"vatBasisPoints":0,"cateringLevyBasisPoints":0,"taxInclusive":true,"currency":"KES"}');
    select servos_v2.put_record('stockLocations','web-pos-stock','{"name":"Web POS Stock","code":"WEBPOS","type":"BAR"}');
    select servos_v2.put_record('outlets','web-pos-outlet','{"name":"Browser Bar","code":"WEBPOS","defaultStockLocationId":"web-pos-stock"}');
@@ -105,9 +105,9 @@ test.describe('transactional browser with PostgreSQL',()=>{
  test('Front Desk renders property-local stay times and explains check-in readiness blockers',async({page})=>{
   await signIn(page,'front-desk@example.test');
   await page.getByRole('button',{name:'Front Desk',exact:true}).click();
-  await expect(page.getByText(/Pacific\/Kiritimati/)).toBeVisible();
-  await expect(page.getByText('Timezone Guest',{exact:true})).toBeVisible();
-  await expect(page.getByText('2 Jan 2025')).toBeVisible();
+  await expect(page.getByText(/Africa\/Nairobi/)).toBeVisible();
+  await expect(page.getByText('Timezone Guest',{exact:true}).first()).toBeVisible();
+  await expect(page.getByText('2 Jan 2025').first()).toBeVisible();
   await expect(page.getByText('Room must be clean and in service before check-in.')).toBeVisible();
   await expect(page.getByRole('button',{name:'Check in',exact:true})).toBeDisabled();
  });

@@ -18,6 +18,14 @@ This completes the local P0 gate only. Hosted CI state, Tauri package installati
 
 `scripts/audit-ui.mjs` now additionally reports potentially unexplained disabled actions, directly surfaced exception text, custom overlays, forms without an obvious busy signal, and forms exceeding the required-field threshold, alongside browser prompt and business-time checks. `node --test tests/operator-ux-source.test.mjs` passed 5/5. The latest `npm run audit:ui` reports 3,492 interactions and 366 review candidates (234 disabled-action, 84 raw-error, 37 overlay, 11 form-busy); no form crossed the required-field threshold. These are static candidates only; no workflow has been manually reviewed or accepted. This is P1 progress, not acceptance.
 
+### P2 property-time hospitality slice - 2026-09-30
+
+The staged Web session contract now returns only the configured property timezone, nightly checkout time, and day-use cutoff; a disposable SQL assertion verified that the property's test tax identifier is not returned. Terminal Front Desk derives arrival/departure day buckets and tape-chart day boundaries from property-local dates. Web Front Desk formats stays in the session timezone and exposes why check-in is unavailable (not yet due or room not ready), while the command remains queued through the established v2 path.
+
+Evidence: 8 focused source tests passed; the full Node suite passed 115 tests; lint and documentation checks passed; the Web Front Desk scenario passed on desktop and mobile against disposable PostgreSQL; `npm run test:cloud:v2` passed all expansion SQL suites including migration 023, Web session privacy assertions, and the two-connection room race. Browser production build succeeded during the focused Playwright run. Native domain tests (71 passed) were run before this later TS/UI-only slice; they were not rerun afterward.
+
+This is not full P2 acceptance: quick guest/reservation creation, availability/rate summaries, derived-stay preview, checkout blockers/recovery, room-block and maintenance quick actions, low-height/keyboard/stale-version/duplicate-submit/permission cases, Terminal component runtime, packaged terminal, and hosted deployment remain unverified. Migration 023 is only applied inside disposable test databases.
+
 ## Expansion checks — 2026-09-26
 
 ### Stay, folio and paid-extension continuation

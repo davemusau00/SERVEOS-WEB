@@ -42,9 +42,19 @@ test('Terminal and Web Front Desk use property-local arrival/departure dates and
   assert.match(terminalDesk, /businessDate\(r\.startsAt,timeZone\)/);
   assert.match(terminalDesk, /overlapsDay\(r\.startsAt,[^,]+,d,timeZone\)/);
   assert.doesNotMatch(terminalDesk, /HOTEL_TZ|\+03:00/);
-  assert.match(webDesk, /propertyTimeZone=String\(data\(active\(records,'property'\)\[0\]\)/);
+  assert.match(webDesk, /session\.propertyContext\?\.timeZone/);
   assert.match(webDesk, /housekeepingState==='CLEAN'/);
   assert.match(webDesk, /Check-in opens at the reservation arrival time/);
+});
+
+test('staged Web session exposes only whitelisted hospitality property policy fields', () => {
+  const contract = readFileSync('src/runtime/web/session.ts', 'utf8');
+  const migration = readFileSync('supabase/expansion/023_hospitality_property_context.sql', 'utf8');
+  const sqlTest = readFileSync('tests/supabase/web-session.sql', 'utf8');
+  assert.match(contract, /propertyContext\?:\{timeZone:string;nightlyCheckoutTime:string;dayStayCutoffTime:string\}/);
+  for (const field of ['timeZone', 'nightlyCheckoutTime', 'dayStayCutoffTime']) assert.match(migration, new RegExp(`'${field}'`));
+  assert.match(migration, /property_data->>'timezone'/);
+  assert.match(sqlTest, /SENSITIVE-TEST-VALUE/);
 });
 
 test('operation parity manifest includes acceptance and operator audit metadata', () => {
