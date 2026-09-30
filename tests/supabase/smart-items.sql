@@ -67,10 +67,27 @@ do $$declare command_data jsonb;result jsonb;recipe_product jsonb;begin
  command_data:=jsonb_set(command_data,'{clientSequence}','4'::jsonb);
  command_data:=jsonb_set(command_data,'{payload,id}','"stale-recipe-product"'::jsonb);
  command_data:=jsonb_set(command_data,'{payload,data,id}','"stale-recipe-product"'::jsonb);
+ command_data:=jsonb_set(command_data,'{payload,data,name}','"Stale Recipe Bowl"'::jsonb);
+ command_data:=jsonb_set(command_data,'{payload,data,code}','"STALE-RECIPE-BOWL"'::jsonb);
+ command_data:=jsonb_set(command_data,'{expectedVersions,0,id}','"stale-recipe-product"'::jsonb);
  command_data:=jsonb_set(command_data,'{expectedVersions,1,version}','0'::jsonb);
  result:=public.servos_v2_execute(command_data);
  if result->>'status'<>'REJECTED' or result->'error'->>'code'<>'VERSION_CONFLICT' then raise exception 'Stale recipe stock baseline was accepted: %',result;end if;
  if exists(select 1 from servos_v2.records where collection='products' and id='stale-recipe-product') then raise exception 'Rejected stale recipe created a product';end if;
+
+ update servos_v2.members set permissions=array['catalog.manage'] where user_id=auth.uid();
+ command_data:=jsonb_set(command_data,'{id}','"20000000-0000-4000-8000-000000000077"'::jsonb);
+ command_data:=jsonb_set(command_data,'{clientSequence}','5'::jsonb);
+ command_data:=jsonb_set(command_data,'{payload,id}','"denied-recipe-product"'::jsonb);
+ command_data:=jsonb_set(command_data,'{payload,data,id}','"denied-recipe-product"'::jsonb);
+ command_data:=jsonb_set(command_data,'{payload,data,name}','"Denied Recipe Bowl"'::jsonb);
+ command_data:=jsonb_set(command_data,'{payload,data,code}','"DENIED-RECIPE-BOWL"'::jsonb);
+ command_data:=jsonb_set(command_data,'{expectedVersions,0,id}','"denied-recipe-product"'::jsonb);
+ command_data:=jsonb_set(command_data,'{expectedVersions,1,version}',to_jsonb((select version from servos_v2.records where collection='stockItems' and id='smart-stock-id')));
+ result:=public.servos_v2_execute(command_data);
+ if result->>'status'<>'REJECTED' or result->'error'->>'code'<>'PERMISSION_DENIED' then raise exception 'Recipe without inventory.view was not denied: %',result;end if;
+ if exists(select 1 from servos_v2.records where collection='products' and id='denied-recipe-product') then raise exception 'Permission-rejected recipe created a product';end if;
+ update servos_v2.members set permissions=array['*'] where user_id=auth.uid();
 end$$;
 
 do $$declare command_data jsonb;result jsonb;begin
@@ -78,7 +95,7 @@ do $$declare command_data jsonb;result jsonb;begin
  -- the entire command back, including the new stock row and opening movement.
  command_data:=jsonb_build_object(
   'id','20000000-0000-4000-8000-000000000073','schemaVersion',2,
-  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',5,
+  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',6,
   'operation','catalog.createWithOpeningStock',
   'payload',jsonb_build_object(
    'product',jsonb_build_object('id','','name','Duplicate Smart Soda','code','SMART-SODA','price',3,'routeTo','BAR','outletIds',jsonb_build_array('smart-outlet'),'taxClassId','A_STANDARD'),
@@ -98,7 +115,7 @@ do $$declare command_data jsonb;result jsonb;begin
  update servos_v2.members set permissions=array['records.view'] where user_id=auth.uid();
  command_data:=jsonb_build_object(
   'id','20000000-0000-4000-8000-000000000074','schemaVersion',2,
-  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',6,
+  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),'clientSequence',7,
   'operation','catalog.createWithOpeningStock',
   'payload',jsonb_build_object('stockItem',jsonb_build_object('name','Denied Stock','code','DENIED-STOCK','baseUnit','piece','scanUnitQuantity',1,'purchasePackages','[]'::jsonb,'averageUnitCost',0,'reorderLevel',0),'locationId','smart-main','startingQuantity',0),
   'expectedVersions',jsonb_build_array(

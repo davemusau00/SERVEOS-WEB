@@ -15,6 +15,7 @@ begin
  if command->>'operation'='product.save'
     and jsonb_typeof(product_data->'recipeIngredients')='array'
     and jsonb_array_length(product_data->'recipeIngredients')>0 then
+  perform servos_v2.require_permission('inventory.view');
   if jsonb_array_length(product_data->'recipeIngredients')>100 then raise exception 'VALIDATION_FAILED: recipe ingredients';end if;
   for ingredient in select value from jsonb_array_elements(product_data->'recipeIngredients') loop
    ingredient_id:=servos_v2.required_text(ingredient,'stockItemId');

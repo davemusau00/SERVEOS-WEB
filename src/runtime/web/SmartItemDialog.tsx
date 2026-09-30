@@ -26,8 +26,9 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
   const stocks = fields(records, 'stockItems');
   const canCatalog = session.permissions.includes('*') || session.permissions.includes('catalog.manage');
   const canInventory = session.permissions.includes('*') || session.permissions.includes('inventory.adjust');
+  const canRecipe = canCatalog && (session.permissions.includes('*') || session.permissions.includes('inventory.view'));
   const [step, setStep] = useState(0);
-  const [setupKind, setSetupKind] = useState<SetupKind>(canCatalog && canInventory ? 'STOCKED' : canCatalog ? 'RECIPE' : 'STOCK_ONLY');
+  const [setupKind, setSetupKind] = useState<SetupKind>(canCatalog && canInventory ? 'STOCKED' : canRecipe ? 'RECIPE' : 'STOCK_ONLY');
   const [itemType, setItemType] = useState('DRINK');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -129,6 +130,10 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
     setError('');
     if (busy) return;
     if (setupKind === 'RECIPE') {
+      if (!canRecipe) {
+        setError('Recipe setup requires catalog management and inventory viewing access. Ask an Admin to review your role.');
+        return;
+      }
       if (!session.permissions.includes('*') && !session.permissions.includes('catalog.manage')) {
         setError('This role cannot create sellable catalog items. Ask an Admin for catalog access.');
         return;
@@ -230,7 +235,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
         <label className="block text-sm">What are you setting up?
           <select className={input} value={setupKind} onChange={event => { const nextKind = event.target.value as SetupKind; setSetupKind(nextKind); if (nextKind === 'RECIPE') setItemType('DISH'); else if (nextKind === 'STOCKED') setItemType('DRINK'); }}>
             {canInventory && canCatalog && <option value="STOCKED">Sellable item with linked stock</option>}
-            {canCatalog && <option value="RECIPE">Menu item made from a recipe</option>}
+            {canRecipe && <option value="RECIPE">Menu item made from a recipe</option>}
             {canInventory && <option value="STOCK_ONLY">Stock-only ingredient or supply</option>}
           </select>
         </label>

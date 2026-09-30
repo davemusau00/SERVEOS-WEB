@@ -41,6 +41,7 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(smartSql,/OPENING_BALANCE/);
   assert.match(recipeSql,/assert_version\(command,'stockItems'/);
   assert.match(recipeSql,/dispatch_before_recipe_product_dependencies/);
+  assert.match(recipeSql,/require_permission\('inventory\.view'\)/);
   assert.match(recipeSql,/revoke all on function servos_v2\.dispatch/);
   assert.match(harness,/smart-items\.sql/);
   assert.match(cloudAcceptance,/Smart Item command replay changed its acknowledgement/);
@@ -48,6 +49,7 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(cloudAcceptance,/Smart Item permission was not enforced/);
   assert.match(cloudAcceptance,/Recipe product lost its validated ingredients/);
   assert.match(cloudAcceptance,/Stale recipe stock baseline was accepted/);
+  assert.match(cloudAcceptance,/Recipe without inventory\.view was not denied/);
   assert.match(manifest,/catalog\.createWithOpeningStock[^\n]*backend: 'implemented'[^\n]*web: 'partial'/);
   assert.match(ui,/stockItem\.save/);
   assert.match(ui,/inventory\.count/);
