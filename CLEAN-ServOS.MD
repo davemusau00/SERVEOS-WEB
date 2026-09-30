@@ -681,7 +681,7 @@ The current Auth lifecycle function provides a foundation. Verify authorization,
 
 ### WP-22 — Make fiscal, quantity and tax inputs operator-friendly
 
-**Priority:** P1. **Dependencies:** WP-04, WP-07, WP-11, WP-19.
+**Priority:** P1. **Status:** IN_PROGRESS; exact operator percentage and money parsing now covers Web/Native room rates, Native hotel services and the Web/Native setup conversion path. Configured tax-class selection, quantity precision policy and full fiscal snapshot acceptance remain open. **Dependencies:** WP-04, WP-07, WP-11, WP-19.
 
 **Existing files:** `WebBusinessApp.tsx` (`addRate`, `quickProduct`, `minor`), catalog/payment/rate forms, Native fiscal conversion/helpers, import schema definitions.
 

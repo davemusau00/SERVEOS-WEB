@@ -36,7 +36,7 @@ export const SetupWizard = () => {
         let roomTypeId=values.roomTypeId;
         if(!roomTypeId){roomTypeId=crypto.randomUUID();await runtime.command('roomType.save',{id:roomTypeId,data:{name:values.roomTypeName.trim(),code:values.roomTypeCode.trim().toUpperCase(),maxGuests:values.maxGuests}});}
         let ratePlanId=values.ratePlanId;
-        if(!ratePlanId){ratePlanId=crypto.randomUUID();await runtime.command('ratePlan.save',{id:ratePlanId,data:{name:values.rateName.trim(),roomTypeId,mode:'NIGHTLY',priceMinor:Math.round(values.price*100),currency:'KES',taxBasisPoints:values.taxBasisPoints,mealPlan:values.mealPlan,minNights:values.minNights,maxNights:values.maxNights}});}
+        if(!ratePlanId){ratePlanId=crypto.randomUUID();await runtime.command('ratePlan.save',{id:ratePlanId,data:{name:values.rateName.trim(),roomTypeId,mode:'NIGHTLY',priceMinor:Math.round(values.price*100),currency:'KES',taxBasisPoints:parsePercentToBasisPoints(values.taxRatePct??String(Number(values.taxBasisPoints||0)/100)),mealPlan:values.mealPlan,minNights:values.minNights,maxNights:values.maxNights}});}
         await runtime.command('roomStay.settings',{roomTypeId,ratePlanId,nightlyCheckoutTime:values.nightlyCheckoutTime,dayStayCutoffTime:values.dayStayCutoffTime,propertyVersion:recordOf(runtime.snapshot,'property','property')?.version});
         await complete(active,'RECIPES_PORTIONS');
       }} />;
