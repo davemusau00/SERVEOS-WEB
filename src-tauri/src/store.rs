@@ -306,7 +306,7 @@ pub fn acknowledge_native_v2_command(db:&mut Connection,result:&Value)->Result<V
     Ok(json!({"commandId":command_id,"recordIds":result["recordVersions"].as_array().into_iter().flatten().filter_map(|entry|entry["id"].as_str()).collect::<Vec<_>>(),"auditReference":result["auditReference"],"sequence":server_sequence.unwrap_or(client_sequence)}))
 }
 
-pub fn native_v2_snapshot(db:&Connection,token:&str,device_id:&str)->Result<Value>{
+pub fn native_v2_snapshot(db:&Connection,token:&str,device_id:&str,server_permissions:&Value)->Result<Value>{
     let user=actor(db,token,false)?;
     let legacy_pending:i64=db.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|row|row.get(0)).map_err(error)?;
     if legacy_pending>0{return Err("Shared v2 view is blocked until pending legacy work is drained and reconciled".into());}
@@ -318,7 +318,8 @@ pub fn native_v2_snapshot(db:&Connection,token:&str,device_id:&str)->Result<Valu
         let data=serde_json::from_str::<Value>(&data).map_err(|error|rusqlite::Error::FromSqlConversionFailure(3,rusqlite::types::Type::Text,Box::new(error)))?;
         Ok(json!({"collection":row.get::<_,String>(0)?,"id":row.get::<_,String>(1)?,"version":row.get::<_,i64>(2)?,"data":data,"archived":row.get::<_,i64>(4)?!=0}))
     }).map_err(error)?.collect::<std::result::Result<Vec<_>,_>>().map_err(error)?;
-    if permissions(&user.role).contains(&"folio.room_charge"){
+    let can_charge_room=server_permissions.as_array().is_some_and(|grants|grants.iter().any(|grant|grant.as_str().is_some_and(|permission|permission=="*"||permission=="folio.room_charge")));
+    if can_charge_room{
         let mut room_targets=Vec::new();
         for folio in records.iter().filter(|record|record["collection"]=="folios"&&record["archived"]==false&&record["data"]["status"]=="OPEN"){
             let Some(folio_id)=folio["id"].as_str() else{continue};
@@ -332,7 +333,7 @@ pub fn native_v2_snapshot(db:&Connection,token:&str,device_id:&str)->Result<Valu
         records.extend(room_targets);
     }
     let pending:i64=db.query_row("SELECT COUNT(*) FROM native_v2_outbox WHERE state='PENDING'",[],|row|row.get(0)).map_err(error)?;
-    Ok(json!({"records":records,"pendingCount":pending,"lastSync":updated_at,"lastBackup":meta(db,"last_backup")?,"terminalId":device_id,"installationStage":installation_stage(db)?,"actor":{"id":user.staff_id,"name":user.name,"role":user.role,"permissions":permissions(&user.role)},"v2":{"businessId":business_id,"feedCursor":feed_cursor,"policyVersion":policy}}))
+    Ok(json!({"records":records,"pendingCount":pending,"lastSync":updated_at,"lastBackup":meta(db,"last_backup")?,"terminalId":device_id,"installationStage":installation_stage(db)?,"actor":{"id":user.staff_id,"name":user.name,"role":user.role,"permissions":server_permissions},"v2":{"businessId":business_id,"feedCursor":feed_cursor,"policyVersion":policy}}))
 }
 
 

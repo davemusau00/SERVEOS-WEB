@@ -17,6 +17,12 @@ struct Runtime {
 }
 #[derive(Clone)]
 struct OperatorAuth { staff_id: String, access_token: String, expires_at: i64, identity: Value }
+fn reject_legacy_business_write_when_v2_active(state:&Runtime)->store::Result<()>{
+    if state.operator_auth.lock().map_err(|e|e.to_string())?.as_ref().is_some_and(|auth|auth.identity["enabled"]==true){
+        return Err("This local workflow is not available while shared v2 authority is active. Use an online v2 command workflow.".into());
+    }
+    Ok(())
+}
 #[tauri::command]
 fn runtime_status(state: State<Runtime>) -> store::Result<Value> {
     let db=state.db.lock().map_err(|e|e.to_string())?;
@@ -75,6 +81,7 @@ fn validate_intake_profile(profile: &Value, complete: bool) -> store::Result<()>
 
 #[tauri::command]
 fn runtime_intake_save(state: State<Runtime>, profile: Value) -> store::Result<Value> {
+    reject_legacy_business_write_when_v2_active(&state)?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     if store::meta(&db,"terminal_id")?.is_some(){return Err("Intake cannot be changed after enrollment".into());}
     validate_intake_profile(&profile,false)?;
@@ -82,6 +89,7 @@ fn runtime_intake_save(state: State<Runtime>, profile: Value) -> store::Result<V
 }
 #[tauri::command]
 fn runtime_intake_complete(state: State<Runtime>, profile: Value) -> store::Result<Value> {
+    reject_legacy_business_write_when_v2_active(&state)?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     if store::meta(&db,"terminal_id")?.is_some(){return Err("Intake cannot be changed after enrollment".into());}
     validate_intake_profile(&profile,true)?;
@@ -89,6 +97,7 @@ fn runtime_intake_complete(state: State<Runtime>, profile: Value) -> store::Resu
 }
 #[tauri::command]
 fn runtime_intake_reopen(state: State<Runtime>) -> store::Result<()> {
+    reject_legacy_business_write_when_v2_active(&state)?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     if store::meta(&db,"terminal_id")?.is_some(){return Err("Intake cannot be reopened after enrollment".into());}
     if store::meta(&db,"intake_profile")?.is_none(){return Err("No saved Intake profile is available".into());}
@@ -96,6 +105,7 @@ fn runtime_intake_reopen(state: State<Runtime>) -> store::Result<()> {
 }
 #[tauri::command]
 fn runtime_intake_clear(state: State<Runtime>) -> store::Result<()> {
+    reject_legacy_business_write_when_v2_active(&state)?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     if store::meta(&db,"terminal_id")?.is_some(){return Err("Intake cannot be cleared after enrollment".into());}
     db.execute("DELETE FROM metadata WHERE key IN ('intake_profile','installation_stage')",[]).map_err(|e|e.to_string())?; Ok(())
@@ -348,7 +358,12 @@ fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
     Ok(())
 }
 #[tauri::command]
-fn runtime_snapshot(state: State<Runtime>, token: String) -> store::Result<Value> {
+async fn runtime_snapshot(state: State<'_,Runtime>, token: String) -> store::Result<Value> {
+    if state.operator_auth.lock().map_err(|e|e.to_string())?.is_some(){
+        // Revalidate the grant fingerprint before exposing the shared shadow;
+        // periodic refresh alone leaves a revocation window between polls.
+        refresh_operator_auth_inner(&state,true).await?;
+    }
     let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone();
     let use_v2=active.as_ref().is_some_and(|auth|auth.identity["enabled"]==true);
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -357,7 +372,19 @@ fn runtime_snapshot(state: State<Runtime>, token: String) -> store::Result<Value
         if active.as_ref().is_some_and(|auth|auth.staff_id!=local.staff_id){return Err("The local operator and authenticated v2 operator do not match".into());}
         let device=store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?;
         let installed:Option<i64>=db.query_row("SELECT snapshot_complete FROM native_v2_state WHERE device_id=?",[&device],|row|row.get(0)).optional().map_err(|e|e.to_string())?;
-        if installed==Some(1){return store::native_v2_snapshot(&db,&token,&device);}
+        if installed==Some(1){
+            let saved_policy:Option<String>=db.query_row("SELECT snapshot_policy FROM native_v2_state WHERE device_id=?",[&device],|row|row.get(0)).optional().map_err(|e|e.to_string())?.flatten();
+            let current_policy=active.as_ref().and_then(|auth|auth.identity["policyVersion"].as_str());
+            if saved_policy.as_deref()!=current_policy{return Err("Operator permissions changed since this v2 snapshot was installed. Refresh the authorized snapshot before viewing shared records.".into());}
+            let server_permissions=active.as_ref().map(|auth|&auth.identity["permissions"]).ok_or("Authenticated operator identity is unavailable")?;
+            let mut snapshot=store::native_v2_snapshot(&db,&token,&device,server_permissions)?;
+            if let Some(identity)=active.as_ref().map(|auth|&auth.identity){
+                snapshot["actor"]["permissions"]=identity["permissions"].clone();
+                snapshot["actor"]["role"]=identity["role"].clone();
+                snapshot["actor"]["name"]=identity["name"].clone();
+            }
+            return Ok(snapshot);
+        }
     }
     store::snapshot(&db, &token)
 }
@@ -409,8 +436,7 @@ async fn runtime_command(
             if !refresh_operator_auth_inner(&state,true).await? {return Err("Online operator authentication is required for shared v2 writes".into());}
             let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
             if active.identity["enabled"]!=true{
-                let mut db=state.db.lock().map_err(|e|e.to_string())?;
-                return store::execute(&mut db,&token,command);
+                return Ok(json!({"__legacyFallback":true}));
             }
             let (url,key,terminal,business_id)={
                 let db=state.db.lock().map_err(|e|e.to_string())?;
@@ -450,6 +476,7 @@ async fn runtime_command(
             Ok(result)
         }.await;
         if let Ok(mut running)=state.syncing.lock(){*running=false;}
+        if result.as_ref().is_ok_and(|value|value["__legacyFallback"]==true){let mut db=state.db.lock().map_err(|e|e.to_string())?;return store::execute(&mut db,&token,command);}
         return result;
     }
     let mut db=state.db.lock().map_err(|e|e.to_string())?;
@@ -457,6 +484,7 @@ async fn runtime_command(
 }
 #[tauri::command]
 fn runtime_manager_approve(state: State<Runtime>, token: String, approver_id: String, pin: String, permission: String, target: Option<String>) -> store::Result<Value> {
+    reject_legacy_business_write_when_v2_active(&state)?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     store::create_approval(&db,&token,&approver_id,&pin,&permission,target.as_deref())
 }
@@ -862,6 +890,7 @@ fn runtime_import_plan_detail(state: State<Runtime>, token: String, plan_id: Str
 }
 #[tauri::command]
 fn runtime_import_apply(state: State<Runtime>, token: String, plan_id: String) -> store::Result<Value> {
+    reject_legacy_business_write_when_v2_active(&state)?;
     let mut db=state.db.lock().map_err(|e|e.to_string())?;
     store::import_apply(&mut db,&token,&plan_id)
 }
@@ -1157,6 +1186,7 @@ fn runtime_acceptance_status(state:State<Runtime>,token:String)->store::Result<V
 }
 #[tauri::command]
 fn runtime_acceptance_action(state:State<Runtime>,token:String,action:String,payload:Value)->store::Result<Value>{
+    reject_legacy_business_write_when_v2_active(&state)?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     let actor=acceptance_actor(&db,&token)?;
     match action.as_str(){

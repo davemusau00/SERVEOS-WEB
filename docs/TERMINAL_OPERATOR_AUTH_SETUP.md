@@ -6,7 +6,7 @@ This guide configures individual business accounts on an installed ServOS termin
 
 - Use a staging Supabase project for the first setup and testing.
 - Keep the project URL and publishable key in the terminal build configuration as `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never use a service-role key in the app or terminal.
-- Apply the approved expansion migrations through `029_native_readonly_snapshot.sql` to the target staging project. These migrations are source only until your normal reviewed migration process applies them.
+- Apply the approved expansion migrations through `030_terminal_identity_policy_version.sql` to the target staging project. These migrations are source only until your normal reviewed migration process applies them.
 - Confirm each operator already has a local ServOS staff record with a stable, unique Staff ID. The v2 `staff_profiles.staff_id` must match that ID exactly.
 - During first enrollment, the initial local Administrator's stable ID is `auth:<Auth UUID>`, matching the staged owner-profile backfill. For every other operator, bind the Auth user to the exact stable Staff ID from the terminal's staff record; do not guess or use an email/name as the ID.
 - Confirm the business membership and operator permissions are active. Permissions are resolved from the authenticated server session and role profile, not from a terminal role selector.
@@ -16,25 +16,37 @@ This guide configures individual business accounts on an installed ServOS termin
 
 ## Invite and bind operators
 
-1. Sign in to Web Administration as an authorized Admin and open Auth invitation/recovery.
-2. Invite each operator using their own work email. The email link and password lifecycle belong to Supabase Auth; ServOS does not collect or store passwords.
-3. Have the operator accept the invitation and set their password.
-4. In Staff, bind that existing Auth user to the operator's existing stable Staff ID and assign the approved role/outlet/service areas. Do not create a second local staff identity to work around a mismatch.
-5. Verify the active profile maps the Auth UUID to the expected stable Staff ID. The terminal checks that mapping at sign-in and rejects a different account.
+1. In Supabase Auth (or the organization's approved invitation console), invite every operator using an individual work email. The existing ServOS Staff workspace binds Auth users; it does not create Auth accounts or send invitations.
+2. Have the operator accept the invitation and set their password. Supabase Auth owns password recovery; ServOS never asks an Admin to collect an operator password.
+3. In ServOS Staff, choose “Bind invited Auth user” and enter the invited user's Auth UUID, the existing terminal Staff ID, display name, and approved role. Assign outlet/service-area scope through the established staff profile workflow. Do not substitute an email, name, or newly generated ID for the stable Staff ID.
+4. Verify that the Auth UUID maps to exactly one active server staff profile and that its `staff_id` exactly equals the local Staff ID. Confirm active business membership and least-privilege role permissions.
+5. Give the operator their own credentials privately. They must sign in as themselves on the terminal; never keep a shared cashier Auth session active.
 
 ## Pair a terminal once
 
-1. Enroll the terminal using the existing owner enrollment process. The terminal keeps its device ID and legacy device credential separate from operator accounts.
+1. Enroll the terminal using the existing owner enrollment process. The terminal keeps its device ID and legacy device credential separate from operator accounts. Do this once per installation, not once per operator.
 2. On the first online operator sign-in, the terminal registers its terminal ID as a staged `DESKTOP` device once. Subsequent operator sessions reuse that paired device ID; they do not register a new device per operator.
 3. Keep the terminal paired-device metadata intact during normal operator changes. Admins may inspect or revoke paired devices in Staff/Devices. Revocation should stop staged access; it does not erase local business records.
 4. The pairing owner is registration metadata only. Each operator authenticates separately; active business membership, the active device, and server-side operation permissions govern staged command acceptance.
 
 ## Sign in, switch, and sign out
 
-- Online sign-in: choose the local Staff ID, enter the local PIN, then enter the matching Supabase email/password. The terminal validates the Auth session against the server profile before unlocking.
+- Online sign-in: unlock/select the matching local staff record and sign in with that operator's individual Supabase Auth email/password. The terminal validates the Auth session against the stable server Staff ID before enabling online identity. Never share an operator account. The local PIN remains the legacy/offline unlock credential; it is not the online server identity.
 - Operator switch: sign out/lock, then select the next staff record and authenticate with that operator's own Auth credentials. Sign-out always clears the active local session even if draft flushing or OS-vault cleanup reports an error; resolve the displayed recovery message before another online sign-in. Do not share one account between cashiers or attribute work through a device identity.
 - The access token and server-resolved operator permissions stay in process memory. The refresh token is stored via the operating system credential vault (Windows Credential Manager, macOS Keychain, or Linux Secret Service); it is never written to SQLite business tables or browser storage. The terminal checks for expiry while active and on resume, rotates the refresh token, and revalidates the staff/device identity before continuing. Signing out removes the active credential and clears the active local session. If the OS vault is unavailable, online sign-in fails closed.
 - Password reset uses the existing Auth recovery flow. A lost/reinstalled terminal must be paired and verified again by an Admin; do not copy credential-vault contents or device credentials between terminals.
+
+## First-use runbook
+
+1. Build/configure the terminal with the staging project URL and publishable key, then complete existing terminal enrollment and verify that its terminal ID is stable after restart.
+2. Sign in once with an authorized operator account. Confirm the Auth UUID, local Staff ID, and server `staff_profiles.staff_id` agree. The first online sign-in registers the paired DESKTOP device if needed.
+3. Sign out, sign in as a second invited operator, and confirm the paired device ID is unchanged while the active actor and permissions change. Test a denied operation with a role that lacks its grant.
+4. Restart the terminal and confirm refresh-token renewal uses OS secure storage. Sign out and verify the active operator session is cleared. Do not inspect, export, or copy vault contents.
+5. Disconnect the server and verify local-PIN access uses only the existing SQLite/legacy path. Reconnect and reconcile that work before any v2 trial.
+6. Only in staging, apply reviewed migrations through `030_terminal_identity_policy_version.sql`. Verify `servos_v2_terminal_identity` and `servos_v2_session` return the same `policyVersion`. Install the read-only shadow baseline, change an operator grant, and verify the old baseline is hidden until refreshed.
+7. Keep `servos_v2.control.enabled` false. Pairing and identity checks do not authorize v2 writes. Record source, disposable SQL, native, packaged-terminal, hosted, and hardware evidence separately.
+
+If a v2 identity/snapshot RPC returns an error, stop v2 use and leave the control disabled. Confirm which reviewed expansion migrations are actually applied to the target project and that the configured URL/key point to that project; do not try to fix a hosted 404 by embedding a service-role key or by manually modifying production grants.
 
 ## Offline operation and v2 boundary
 
@@ -49,6 +61,7 @@ The v2 expansion control remains disabled by default. Do not enable it because o
 - [ ] A terminal was registered once and subsequent operators resolve through the same device ID.
 - [ ] An inactive or unbound Auth user is denied; a revoked terminal is denied.
 - [ ] A user lacking an operation permission is rejected even when signed in on a paired terminal.
+- [ ] The terminal identity RPC returns the same permission-policy fingerprint as the authenticated session RPC; after a grant change, the prior shadow view fails closed until its authorized snapshot is refreshed.
 - [ ] Switching operators clears the old local session and activates only the newly authenticated identity.
 - [ ] Refresh credentials are absent from SQLite and reside in OS credential storage only.
 - [ ] Offline local-PIN use still follows the legacy path; v2 remains disabled.

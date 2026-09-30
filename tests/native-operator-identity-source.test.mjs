@@ -10,6 +10,7 @@ const provider = read('../src/runtime/RuntimeProvider.tsx');
 const unlock = read('../src/native/UnlockView.tsx');
 const identityMigration = read('../supabase/expansion/028_terminal_operator_identity.sql');
 const snapshotMigration = read('../supabase/expansion/029_native_readonly_snapshot.sql');
+const identityPolicyMigration = read('../supabase/expansion/030_terminal_identity_policy_version.sql');
 const snapshotAcceptance = read('../tests/supabase/web-session.sql');
 const runtimeProvider = read('../src/runtime/RuntimeProvider.tsx');
 const reconciliationPanel = read('../src/native/NativeDataReconciliationPanel.tsx');
@@ -20,6 +21,8 @@ test('native operator online identity binds Auth, stable staff, and the paired t
   assert.match(runtime, /servos_v2_terminal_identity/);
   assert.match(runtime, /identity\["staffId"\]\.as_str\(\)!=Some\(local\.staff_id\.as_str\(\)\)/);
   assert.match(runtime, /identity\["deviceId"\]\.as_str\(\)!=Some\(terminal\.as_str\(\)\)/);
+  assert.match(identityPolicyMigration,/policyVersion/);
+  assert.match(identityPolicyMigration,/order by 1/);
   assert.match(identityMigration, /staff_profiles s where s\.auth_user_id=who and s\.active/);
   assert.match(identityMigration, /where id=\$1 and d\.active/);
 });
@@ -47,7 +50,7 @@ test('one terminal can be reused by active operators without transferring regist
   assert.match(identityMigration, /owner_id=original_owner/);
 });
 
-test('authenticated identity seeds monotonic staged protocol state without dispatching v2 commands', () => {
+test('authenticated identity initializes staged protocol state and isolates v2 feed reconciliation', () => {
   assert.match(nativeStore, /pub fn seed_native_v2_state/);
   assert.match(nativeStore, /pub fn apply_native_v2_page/);
   assert.match(nativeStore, /pub fn install_native_v2_snapshot/);
@@ -65,7 +68,7 @@ test('authenticated identity seeds monotonic staged protocol state without dispa
   assert.match(runtimeProvider, /runtime_v2_install_snapshot/);
   assert.match(runtimeProvider, /runtime_v2_sync_replica/);
   assert.match(runtime, /"servos_v2_pull"/);
-  assert.match(reconciliationPanel, /Install v2 shadow snapshot/);
+  assert.match(reconciliationPanel, /Install or refresh v2 shadow snapshot/);
   assert.match(nativeV2Migration, /WHERE state='PENDING'/);
   assert.match(runtime, /seed_native_v2_state\(&db,&identity\)/);
   assert.match(nativeV2Migration, /PRAGMA user_version=14/);
@@ -82,4 +85,12 @@ test('native v2 command routing persists intent before authenticated dispatch an
   assert.match(runtimeProvider,/expectedVersions\s*\}\)/);
   assert.match(runtimeProvider,/runtime_v2_sync_replica/);
   assert.match(runtime,/store::native_v2_snapshot/);
+  assert.match(runtime,/native_v2_snapshot\(&db,&token,&device,server_permissions\)/);
+  assert.match(nativeStore,/server_permissions\.as_array\(\)\.is_some_and/);
+  assert.match(nativeStore,/permission=="\*"\|\|permission=="folio\.room_charge"/);
+  assert.match(runtime,/snapshot\["actor"\]\["permissions"\]=identity\["permissions"\]/);
+  assert.match(runtime,/saved_policy\.as_deref\(\)!=current_policy/);
+  assert.match(runtime,/Operator permissions changed since this v2 snapshot was installed/);
+  assert.match(runtime,/async fn runtime_snapshot[\s\S]*?refresh_operator_auth_inner\(&state,true\)\.await\?/);
+  assert.match(runtime,/reject_legacy_business_write_when_v2_active/);
 });

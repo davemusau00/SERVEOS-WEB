@@ -43,7 +43,7 @@ This is evidence only. Patch 02A does not perform v2 cutover.
 
 ## Native v2 feed-replica groundwork
 
-SQLite schema 14 adds `native_v2_state`, `native_v2_outbox`, and `native_v2_records` as separate storage from the legacy records/outbox. Authenticated identity initializes device sequence/feed state once; later refreshes cannot advance the cursor past unapplied records. The native baseline install/refresh and paginated feed applier validate snapshot policy/cursor and ordered feed continuity, then atomically store data in `native_v2_records`; they do not update the operational legacy replica. Snapshot refresh refuses to proceed with pending v2 commands. This is not cutover reconciliation acceptance and must not be used to enable v2.
+SQLite schema 14 adds `native_v2_state`, `native_v2_outbox`, and `native_v2_records` as separate storage from the legacy records/outbox. Authenticated identity initializes device sequence/feed state once; later refreshes cannot advance the cursor past unapplied records. The native baseline install/refresh and paginated feed applier validate snapshot policy/cursor and ordered feed continuity, then atomically store data in `native_v2_records`; they do not update the operational legacy replica. Native shared commands are conditionally queued with their expected-version set, sent through the Auth-bound RPC, and acknowledged durably before feed reconciliation. Legacy pending work blocks this path. This is not cutover reconciliation acceptance and must not be used to enable v2.
 
 ## Development verification
 

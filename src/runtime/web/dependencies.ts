@@ -13,6 +13,24 @@ export function resolveOperationDependencies(operation: string, collection: stri
     dependencies.set(key(target, targetId), { collection: target, id: targetId, version: record?.version ?? 0 });
   };
   add(collection, id);
+  if (operation === 'catalog.createWithOpeningStock') {
+    // The native/local dispatcher allocates random IDs itself. The online v2
+    // contract derives stable IDs from the command ID so retries and server
+    // expected-version checks target the same new records.
+    const product = payload.product && typeof payload.product === 'object' ? payload.product as Record<string, unknown> : undefined;
+    const stock = payload.stockItem && typeof payload.stockItem === 'object' ? payload.stockItem as Record<string, unknown> : undefined;
+    const stockId = typeof stock?.id === 'string' && stock.id.trim() ? stock.id : id;
+    add('stockItems', stockId);
+    add('stockLocations', payload.locationId);
+    if (product) {
+      add('products', typeof product.id === 'string' && product.id.trim() ? product.id : `${id}:product`);
+      if (Array.isArray(product.recipeIngredients)) {
+        for (const ingredient of product.recipeIngredients) if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
+      }
+    }
+    const opening = Number(payload.startingQuantity);
+    if (Number.isFinite(opening) && opening > 0) add('stockMovements', `${id}:opening`);
+  }
   if (operation === 'roomStay.settings') add('property', 'property');
   const data = (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>;
   for (const [target, targetId] of [
