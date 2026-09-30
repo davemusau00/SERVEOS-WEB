@@ -670,6 +670,9 @@ fn rooms_engine_enforces_blocks_housekeeping_and_reservation_closure() {
     run(&mut db,&s,"ratePlan.save",json!({"id":"rate","data":{"name":"Suite Night","roomTypeId":"type","mode":"NIGHTLY","priceMinor":20000,"currency":"KES","taxBasisPoints":0}}));
     configure_room_stay(&mut db,&s,"type","rate");
     run(&mut db,&s,"room.save",json!({"id":"room","data":{"number":"201","roomTypeId":"type","capacity":3,"turnaroundMinutes":0,"initialStatus":"DIRTY"}}));
+    let (v,_)=get(&db,"rooms","room").unwrap();let mut out=cmd("room.condition",json!({"id":"room","state":"OUT_OF_ORDER","reason":"Inspection hold"}));out.target_version=Some(v);execute(&mut db,&s.token,out).unwrap();
+    assert_eq!(get(&db,"rooms","room").unwrap().1["maintenanceState"],"OUT_OF_ORDER");assert_eq!(get(&db,"rooms","room").unwrap().1["housekeepingState"],"DIRTY");
+    let (v,_)=get(&db,"rooms","room").unwrap();let mut available=cmd("room.condition",json!({"id":"room","state":"AVAILABLE","reason":"Inspection passed"}));available.target_version=Some(v);execute(&mut db,&s.token,available).unwrap();
     let (v,_)=get(&db,"rooms","room").unwrap();let mut clean=cmd("room.housekeeping",json!({"id":"room","state":"CLEANING"}));clean.target_version=Some(v);execute(&mut db,&s.token,clean).unwrap();
     let (v,_)=get(&db,"rooms","room").unwrap();let mut inspect=cmd("room.housekeeping",json!({"id":"room","state":"INSPECTION"}));inspect.target_version=Some(v);execute(&mut db,&s.token,inspect).unwrap();
     let (v,_)=get(&db,"rooms","room").unwrap();let mut ready=cmd("room.housekeeping",json!({"id":"room","state":"CLEAN"}));ready.target_version=Some(v);execute(&mut db,&s.token,ready).unwrap();
@@ -677,6 +680,7 @@ fn rooms_engine_enforces_blocks_housekeeping_and_reservation_closure() {
     assert!(execute(&mut db,&s.token,cmd("roomReservation.create",json!({"id":"blocked","roomId":"room","ratePlanId":"rate","customerId":"guest","guests":1,"startsAt":"2030-02-01T10:00:00Z","endsAt":"2030-02-02T07:00:00Z"}))).is_err());
     let (bv,_)=get(&db,"roomBlocks","block").unwrap();let mut unblock=cmd("room.unblock",json!({"id":"block","inspection":"Paint cured and room inspected"}));unblock.target_version=Some(bv);execute(&mut db,&s.token,unblock).unwrap();
     run(&mut db,&s,"roomReservation.create",json!({"id":"res","roomId":"room","ratePlanId":"rate","customerId":"guest","guests":1,"startsAt":"2030-02-01T10:00:00Z","endsAt":"2030-02-02T07:00:00Z"}));
+    let (v,_)=get(&db,"rooms","room").unwrap();let mut blocked_condition=cmd("room.condition",json!({"id":"room","state":"OUT_OF_ORDER","reason":"Active reservation"}));blocked_condition.target_version=Some(v);assert!(execute(&mut db,&s.token,blocked_condition).is_err());
     let (rv,_)=get(&db,"roomReservations","res").unwrap();let mut cancel=cmd("roomReservation.cancel",json!({"id":"res","reason":"Guest cancelled"}));cancel.target_version=Some(rv);execute(&mut db,&s.token,cancel).unwrap();
     assert_eq!(get(&db,"roomReservations","res").unwrap().1["status"],"CANCELLED");
 }

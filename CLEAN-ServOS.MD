@@ -428,7 +428,7 @@ Implementation steps:
 
 ### WP-11 — Converge room policy, defaults and condition commands
 
-**Priority:** P0. **Dependencies:** WP-01, WP-04, WP-07, WP-09; time abstraction WP-12.
+**Priority:** P0. **Status:** IN_PROGRESS; room policy and Native/cloud `room.condition` parity are locally verified, while the broader stay move/extension/checkout acceptance remains open. **Dependencies:** WP-01, WP-04, WP-07, WP-09; time abstraction WP-12.
 
 **Existing files:** `NativeRoomsView.tsx`, `NativeFrontDeskView.tsx`, `NativeHousekeepingView.tsx`, `WebBusinessApp.tsx` (`reserve`, `addRate`), `WebHospitalityViews.tsx`, Rust `room_execute`, expansion `007_rooms.sql`, `009_stays.sql`, `021_room_stay_policy.sql`, Native/cloud room tests.
 

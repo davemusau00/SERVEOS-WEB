@@ -45,29 +45,18 @@ begin
  return changes;
 end$$;
 
-create or replace function servos_v2.can_read_collection(collection_name text)
+-- Preserve the later POS/admin permission wrappers and add only the new
+-- stockCounts collection to the read contract.
+alter function servos_v2.can_read_collection(text) rename to can_read_collection_before_count;
+create function servos_v2.can_read_collection(collection_name text)
 returns boolean language plpgsql stable set search_path='' as $$
-declare grants text[];needed text[];
+declare grants text[];
 begin
  select permissions into grants from servos_v2.members where user_id=auth.uid() and active;
- if grants is null then return false;end if;if '*'=any(grants) then return true;end if;
- needed:=case
-  when collection_name='stockCounts' then array['inventory.view','inventory.count','inventory.adjust']
-  when collection_name in ('customers','suppliers','roomTypes','assetCategories') then array['records.view']
-  when collection_name='products' then array['catalog.view','catalog.manage']
-  when collection_name in ('stockItems','stockMovements','stockLocations') then array['inventory.view','inventory.count','inventory.adjust','inventory.transfer','inventory.waste','stock.view','stock.manage']
-  when collection_name in ('assets','assetEvents') then array['assets.view','assets.manage','assets.operate']
-  when collection_name='maintenanceOrders' then array['maintenance.view','maintenance.manage']
-  when collection_name in ('rooms','ratePlans','roomBlocks') then array['rooms.view','rooms.manage','rooms.operate']
-  when collection_name in ('roomReservations','stays','stayEvents','stayExtensions') then array['rooms.guests.view','rooms.operate']
-  when collection_name in ('folios','folioEntries') then array['folio.view','folio.manage']
-  when collection_name in ('hotelServices','paymentAccounts') then array['folio.view','folio.manage','payment.record','business.configure']
-  when collection_name='journalEntries' then array['accounting.view','accounting.manage']
-  when collection_name='supplierPayables' then array['procurement.view','procurement.manage','accounting.view','accounting.manage']
-  when collection_name='employees' then array['staff.view','staff.manage']
-  when collection_name in ('payments','receiptDocuments') then array['payments.view','payments.manage']
-  else array[]::text[] end;
- return grants&&needed;
+ if grants is null then return false;end if;
+ if '*'=any(grants) then return true;end if;
+ if collection_name='stockCounts' then return grants&&array['inventory.view','inventory.count','inventory.adjust'];end if;
+ return servos_v2.can_read_collection_before_count(collection_name);
 end$$;
 
 alter function servos_v2.dispatch(jsonb) rename to dispatch_before_inventory_location_count;

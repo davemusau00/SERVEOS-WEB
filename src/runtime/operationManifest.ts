@@ -56,6 +56,7 @@ const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'ap
   { operation: 'stay.checkIn', domain: 'Rooms', permission: 'rooms.operate', collection: 'stays', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Remote action exists in the Rooms view; Front Desk/tape-chart parity is pending.' },
   { operation: 'stay.move', domain: 'Rooms', permission: 'rooms.operate', collection: 'stays', native: 'implemented', backend: 'implemented', web: 'partial' },
   { operation: 'stay.checkOut', domain: 'Rooms', permission: 'rooms.operate', collection: 'stays', native: 'implemented', backend: 'implemented', web: 'partial' },
+  { operation: 'room.condition', domain: 'Rooms', permission: 'rooms.manage', collection: 'rooms', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Maintenance state is separate from housekeeping; active reservations block OUT_OF_ORDER.' },
   { operation: 'folio.postService', domain: 'Rooms', permission: 'folio.manage', collection: 'folios', native: 'implemented', backend: 'implemented', web: 'missing' },
   { operation: 'folio.pay', domain: 'Rooms', permission: 'folio.manage', collection: 'folios', native: 'implemented', backend: 'implemented', web: 'partial' },
   { operation: 'pos.roomCharge', domain: 'Rooms', permission: 'folio.room_charge', collection: 'folios', native: 'implemented', backend: 'partial', web: 'missing' },

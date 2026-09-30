@@ -20,12 +20,19 @@ declare c jsonb;r jsonb;versions jsonb;target text;begin
  return r;
 end$$;
 select pg_temp.room_command('room.save','{"id":"101","data":{"number":"101","roomTypeId":"double","capacity":2,"turnaroundMinutes":30,"amenities":["WiFi"]}}');
+select pg_temp.room_command('room.condition','{"id":"101","state":"OUT_OF_ORDER","reason":"Pre-service inspection"}');
+do $$declare room_data jsonb;begin
+ room_data:=servos_v2.read_record('rooms','101');
+ if room_data->>'maintenanceState'<>'OUT_OF_ORDER' or room_data->>'housekeepingState'<>'CLEAN' then raise exception 'Room condition changed the wrong state';end if;
+end$$;
+select pg_temp.room_command('room.condition','{"id":"101","state":"AVAILABLE","reason":"Inspection passed"}');
 select pg_temp.room_command('ratePlan.save','{"id":"night","data":{"name":"Night","roomTypeId":"double","mode":"NIGHTLY","priceMinor":500000,"currency":"KES","taxBasisPoints":1600}}');
  select pg_temp.room_command('roomReservation.create','{"id":"booking","roomId":"101","stayType":"NIGHTLY","customerId":"guest","guests":2,"startsAt":"2030-01-01T14:00:00+03:00","endsAt":"2030-01-03T10:00:00+03:00"}');
 -- A second registered client cannot book nightly/day-use overlap or turnaround.
  select pg_temp.room_command('roomReservation.create','{"id":"overlap","roomId":"101","stayType":"DAY","customerId":"guest","guests":1,"startsAt":"2030-01-02T11:00:00+03:00","endsAt":"2030-01-02T15:00:00+03:00"}','REJECTED','ROOM_UNAVAILABLE','10000000-0000-4000-8000-000000000002');
  select pg_temp.room_command('roomReservation.create','{"id":"turnaround","roomId":"101","stayType":"DAY","customerId":"guest","guests":1,"startsAt":"2030-01-03T10:29:00+03:00","endsAt":"2030-01-03T14:29:00+03:00"}','REJECTED','ROOM_UNAVAILABLE');
  select pg_temp.room_command('roomReservation.create','{"id":"next","roomId":"101","stayType":"DAY","customerId":"guest","guests":1,"startsAt":"2030-01-03T10:30:00+03:00","endsAt":"2030-01-03T14:30:00+03:00"}');
+select pg_temp.room_command('room.condition','{"id":"101","state":"OUT_OF_ORDER","reason":"Active booking must block maintenance state"}','REJECTED','INVALID_STATE');
  select pg_temp.room_command('roomReservation.create','{"id":"after-cutoff","roomId":"101","stayType":"DAY","customerId":"guest","guests":1,"startsAt":"2030-01-04T10:30:00+03:00","endsAt":"2030-01-04T18:30:00+03:00"}','REJECTED','VALIDATION_FAILED');
 select pg_temp.room_command('room.archive','{"id":"101"}','REJECTED','INVALID_STATE');
 select pg_temp.room_command('room.block','{"id":"collision","roomId":"101","startsAt":"2030-01-02T00:00:00Z","endsAt":"2030-01-04T00:00:00Z","reason":"Maintenance"}','REJECTED','ROOM_UNAVAILABLE');
