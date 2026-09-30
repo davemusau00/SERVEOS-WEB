@@ -346,6 +346,10 @@ Web Front Desk now previews room-move destination capacity, cleanliness/service 
 
 Per the implementation-first rush instruction, the final source/lint/browser/native/cloud/docs verification pass is deferred until the feature work is complete. A previous concurrent Playwright attempt encountered preview-port contention and was interrupted; it is not acceptance evidence. No browser acceptance is claimed for these move/checkout additions. Existing prior green-gate evidence above applies only to the source state and flows stated in its dated entries.
 
+### DEV final sprint P3 shared inventory math foundation — 2026-09-30
+
+Added shared TypeScript conversion and calculation functions for canonical measurement units, purchase-package quantities, cost per canonical unit, stock variance, and recipe ingredient costs. Native Quick Product now consumes the shared canonicalizer. No test/build/lint evidence has been collected for this addition; all new-source verification is intentionally deferred to the sprint's final test stage.
+
 ### DEV final sprint current-source regression gate â€” 2026-09-30
 
 - `npm test` â€” passed 146/146; `npm run lint` and `npm run build` passed (existing Vite large-chunk warning remains).
