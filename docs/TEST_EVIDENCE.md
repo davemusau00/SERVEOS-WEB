@@ -366,3 +366,9 @@ The Smart Item Wizard now captures supplier package label, contents as sale-cont
 - `npm run test:cloud:v2` â€” passed through expansion 027, including legacy reservation overlap fallback and the real two-connection room booking race.
 - `npm run audit:ui:gate` â€” passed; 3,578 interactions / 389 static review findings; no prompt/confirm findings. `npm run docs:check` and `git diff --check` passed.
 - All evidence is local/disposable. Hosted CI, staged migration deployment, packaged terminal, physical hardware, and live cutover are not proven.
+
+### Hosted Web incident investigation — 2026-09-30
+
+The reported inventory TypeError is consistent with a resumed stock-count session stored in browser localStorage without a `counts` map: the stock selector indexed `resumable.counts[stockId]` on click. The Web inventory source now normalizes persisted count-session structure and uses guarded map access in read, selection, count, and commit paths. This diagnosis is a source-based inference; the deployed minified chunk was not retrievable for source-level confirmation.
+
+Independent deployment evidence: the live app root returned HTTP 200 and referenced `/assets/index-DwUvRkVu.js`, but that asset returned HTTP 404 when fetched. All four exact asset URLs reported in the incident also returned 404 at investigation time. This supports a deployment artifact/HTML-cache inconsistency as the likely cause of the missing-module and corrupted-content messages; it does not by itself explain the count-map TypeError. The `servos_v2_guidance_progress` RPC also returned HTTP 404; its function exists in staged migration `017_web_lifecycle_guidance.sql`, so the deployed Supabase project likely lacks that migration or is targeting a project without it. No production mutation or deployment was performed. The inventory hardening change remains unverified; preserve separate hosted migration and deployment gates.
