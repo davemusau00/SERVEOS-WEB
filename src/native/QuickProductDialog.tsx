@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ActionDialog } from './ActionDialog';
 import { fieldClass, primaryButtonClass, buttonClass, money } from './records';
+import { canonicalizeMeasurement } from '../utils/inventoryUnits';
 
 type Serving = { id: string; name: string; quantity: number; price: number };
 type Props = {
@@ -16,9 +17,8 @@ type Props = {
 
 const packages = ['Bottle', 'Can', 'PET Bottle', 'Carton', 'Packet', 'Keg', 'Box', 'Bag', 'Piece', 'Other'];
 const canonicalSize = (quantity: number, unit: string) => {
-  const normalized = unit.trim().toLowerCase();
-  if (['l', 'liter', 'litre', 'liters', 'litres'].includes(normalized)) return { quantity: Number((quantity * 1000).toFixed(3)), unit: 'ml' };
-  return { quantity: Number(quantity.toFixed(3)), unit: normalized };
+  try { return canonicalizeMeasurement(quantity, unit); }
+  catch { return { quantity: Number.NaN, unit: '' }; }
 };
 
 export function QuickProductDialog({ stocks, products, outlets, locations, variantOnly = false, onSave, onCreateWithStock, onClose }: Props) {
@@ -115,7 +115,7 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
       productFamilyName: physical ? (familyName.trim() || name.trim()) : undefined,
       packageType: physical ? packageType : undefined,
       containerQuantity: physical ? Number(containerQuantity) : undefined,
-      containerUnit: physical ? containerUnit.trim() : undefined,
+      containerUnit: physical ? normalizedSize.unit : undefined,
       variantLabel: physical ? variantLabel : undefined,
       portionVolume: physical ? Number(wholeContainerQuantity) : undefined,
       portions, modifiers: [], recipeIngredients: [],
@@ -125,7 +125,7 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
       void onCreateWithStock({ product, stockItem: { name: normalizedStockName, code: stockCode.trim(), barcode: barcode.trim(), baseUnit: stockBaseUnit, scanUnitQuantity: stockQuantityPerContainer, averageUnitCost: Number(averageUnitCost), reorderLevel: 0 }, locationId: stockLocationId, startingQuantity: openingStockQuantity });
     } else void onSave(product);
   };
-  const physicalValid = !physical || (familyName.trim() && packageType.trim() && Number.isFinite(containerQuantity) && containerQuantity > 0 && containerUnit.trim() && Number.isFinite(wholeContainerQuantity) && wholeContainerQuantity > 0 && !duplicateVariant);
+  const physicalValid = !physical || (familyName.trim() && packageType.trim() && Number.isFinite(containerQuantity) && containerQuantity > 0 && Number.isFinite(normalizedSize.quantity) && normalizedSize.quantity > 0 && Number.isFinite(wholeContainerQuantity) && wholeContainerQuantity > 0 && !duplicateVariant);
   const linkedStockAvailable = !tracked || (stockItemId && (!familyId || !reservedStockIds.includes(stockItemId)));
   const atomicStockValid = !createStock || (stockName.trim() && stockCode.trim() && stockLocationId && Number.isInteger(openingContainers) && openingContainers >= 0 && Number.isFinite(openingStockQuantity) && openingStockQuantity <= 1_000_000_000 && Number.isFinite(averageUnitCost) && averageUnitCost >= 0 && !(physical && servings.length > 0 && stockBaseUnit !== 'ml'));
 

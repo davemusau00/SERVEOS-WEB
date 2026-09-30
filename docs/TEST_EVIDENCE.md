@@ -340,6 +340,12 @@ Current P2 slice evidence: `npx playwright test tests/browser/transactions.spec.
 
 Web Housekeeping extension: source tests verify queued operation names and permission boundaries; `npm run lint` passes. The PostgreSQL-backed block/create, inspection/release, and maintenance/report flow passes under both Playwright projects (`desktop` and `mobile-layout`).
 
+### DEV final sprint P2 room-move and checkout-readiness implementation continuation — 2026-09-30
+
+Web Front Desk now previews room-move destination capacity, cleanliness/service state, committed reservation/turnaround overlap, and active blocks. The move uses the staged handler's `roomId` plus reason payload, retains the form on queue failure, and exposes a busy state to prevent duplicate submits. Checkout readiness explains missing stay/folio state, accommodation periods, balance, and unapplied deposit before the queued checkout command. `stay.move` remains partial in the parity manifest until browser acceptance.
+
+Per the implementation-first rush instruction, the final source/lint/browser/native/cloud/docs verification pass is deferred until the feature work is complete. A previous concurrent Playwright attempt encountered preview-port contention and was interrupted; it is not acceptance evidence. No browser acceptance is claimed for these move/checkout additions. Existing prior green-gate evidence above applies only to the source state and flows stated in its dated entries.
+
 ### DEV final sprint current-source regression gate â€” 2026-09-30
 
 - `npm test` â€” passed 146/146; `npm run lint` and `npm run build` passed (existing Vite large-chunk warning remains).
