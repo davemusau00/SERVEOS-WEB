@@ -34,6 +34,30 @@ export function stayCheckoutBlocker({
   return null;
 }
 
+export function roomMoveBlocker({
+  stayId, currentRoomId, destinationRoomId, startsAt, endsAt, maintenanceState,
+  housekeepingState, reservations, blocks,
+}: {
+  stayId: string; currentRoomId: string; destinationRoomId: string; startsAt: string; endsAt: string;
+  maintenanceState: string; housekeepingState: string;
+  reservations: Array<{ id: string; roomId: string; startsAt: string; endsAt: string; blockedUntil?: string; status: string }>;
+  blocks: Array<{ roomId: string; startsAt: string; endsAt: string; status: string }>;
+}): string | null {
+  if (!destinationRoomId) return 'Choose a destination room.';
+  if (destinationRoomId === currentRoomId) return 'Choose a different room from the guest’s current room.';
+  if (maintenanceState === 'OUT_OF_ORDER') return 'This room is out of service. Choose another room.';
+  if (housekeepingState !== 'CLEAN') return 'This room must be inspected and clean before a guest can move in.';
+  const start = Date.parse(startsAt), end = Date.parse(endsAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 'The stay dates are unavailable; refresh Front Desk and retry.';
+  const overlaps = (left: string, right: string) => {
+    const a = Date.parse(left), b = Date.parse(right);
+    return Number.isFinite(a) && Number.isFinite(b) && start < b && a < end;
+  };
+  if (reservations.some(item => item.id !== stayId && item.roomId === destinationRoomId && ['RESERVED', 'CHECKED_IN'].includes(item.status) && overlaps(item.startsAt, item.blockedUntil || item.endsAt))) return 'This room is already reserved or occupied during the stay.';
+  if (blocks.some(item => item.roomId === destinationRoomId && ['ACTIVE', 'OPEN'].includes(item.status) && overlaps(item.startsAt, item.endsAt))) return 'This room has an active block during the stay.';
+  return null;
+}
+
 /** Advisory only: the room command rechecks all intervals authoritatively. */
 export function roomReservationBlocker({
   roomId,
