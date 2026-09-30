@@ -27,6 +27,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
       if (Array.isArray(product.recipeIngredients)) {
         for (const ingredient of product.recipeIngredients) if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
       }
+      if (Array.isArray(product.outletIds)) for (const outletId of product.outletIds) add('outlets', outletId);
     }
     const opening = Number(payload.startingQuantity);
     if (Number.isFinite(opening) && opening > 0) add('stockMovements', `${id}:opening`);

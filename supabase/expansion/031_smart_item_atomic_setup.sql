@@ -9,6 +9,7 @@ declare
  stock_input jsonb:=command->'payload'->'stockItem'; product_data jsonb; stock_data jsonb;
  stock_command jsonb; product_command jsonb; changes jsonb:='[]'::jsonb; result jsonb;
  stock_key text; product_key text; location_key text; movement_key text;
+ outlet_key text;
  starting_qty numeric; unit_cost_minor bigint; price_minor bigint; sealed_size numeric;
  location_data jsonb; current_stock jsonb; sealed_state jsonb; portion_input jsonb; portions jsonb:='[]'::jsonb; portion_price bigint;
 begin
@@ -17,6 +18,11 @@ begin
  if product_input is not null then
   if jsonb_typeof(product_input) is distinct from 'object' then raise exception 'VALIDATION_FAILED: product';end if;
   perform servos_v2.require_permission('catalog.manage');
+  if jsonb_typeof(product_input->'outletIds') is distinct from 'array' or jsonb_array_length(product_input->'outletIds') not between 1 and 50 then raise exception 'VALIDATION_FAILED: assign at least one outlet';end if;
+  for outlet_key in select jsonb_array_elements_text(product_input->'outletIds') loop
+   perform servos_v2.assert_version(command,'outlets',outlet_key);
+   perform servos_v2.read_record('outlets',outlet_key);
+  end loop;
  end if;
  stock_key:=coalesce(nullif(trim(stock_input->>'id'),''),command->>'id');
  if stock_key is null or length(stock_key)>110 then raise exception 'VALIDATION_FAILED: generated stock item id';end if;
@@ -42,12 +48,14 @@ begin
   price_minor:=round(coalesce(nullif(product_input->>'price','')::numeric,0)*100)::bigint;
   if price_minor<0 or price_minor>9000000000000000 then raise exception 'VALIDATION_FAILED: product price';end if;
   if jsonb_typeof(coalesce(product_input->'portions','[]'::jsonb)) is distinct from 'array' or jsonb_array_length(coalesce(product_input->'portions','[]'::jsonb))>50 then raise exception 'VALIDATION_FAILED: sale portions';end if;
+  if jsonb_typeof(coalesce(product_input->'modifiers','[]'::jsonb)) is distinct from 'array' or jsonb_array_length(coalesce(product_input->'modifiers','[]'::jsonb))>0 then raise exception 'PROTOCOL_UNSUPPORTED: add modifiers after item creation';end if;
   for portion_input in select value from jsonb_array_elements(coalesce(product_input->'portions','[]'::jsonb)) loop
    perform servos_v2.required_text(portion_input,'id');perform servos_v2.required_text(portion_input,'name');
    if portion_input ? 'volume' then perform servos_v2.quantity_value(portion_input,'volume',false);end if;
    portion_price:=case when portion_input ? 'priceMinor' then servos_v2.minor(portion_input,'priceMinor') else round(coalesce((portion_input->>'price')::numeric,0)*100)::bigint end;
    portions:=portions||jsonb_build_array((portion_input-'price')||jsonb_build_object('priceMinor',portion_price));
   end loop;
+  if exists(select 1 from jsonb_array_elements(portions) x group by x->>'id' having count(*)>1) then raise exception 'DUPLICATE_REFERENCE: sale portion id';end if;
   product_data:=product_data||jsonb_build_object('id',product_key,'stockItemId',stock_key,'priceMinor',price_minor);
   product_command:=jsonb_set(jsonb_set(command,'{operation}','"product.save"'::jsonb),'{payload}',jsonb_build_object('id',product_key,'data',product_data),true);
   result:=servos_v2.apply_catalog_inventory(product_command);
@@ -57,7 +65,7 @@ begin
   -- as one final version in this command's change set.
   select data into product_data from servos_v2.records where collection='products' and id=product_key and not archived for update;
   if jsonb_array_length(changes)>0 then changes:=changes-(jsonb_array_length(changes)-1);end if;
-  changes:=changes||servos_v2.put_record('products',product_key,product_data||jsonb_build_object('portions',portions,'modifiers',coalesce(product_input->'modifiers','[]'::jsonb)));
+  changes:=changes||servos_v2.put_record('products',product_key,product_data||jsonb_build_object('portions',portions,'modifiers','[]'::jsonb));
  end if;
 
  if starting_qty>0 then
@@ -85,6 +93,21 @@ begin
  return changes;
 end$$;
 
+-- Catalog managers need the configured outlet identifiers to bind a newly
+-- created sellable item; no other authorization class gains this projection.
+alter function servos_v2.can_read_collection(text) rename to can_read_collection_before_smart_item_setup;
+create function servos_v2.can_read_collection(collection_name text)
+returns boolean language plpgsql stable set search_path='' as $$
+declare grants text[];
+begin
+ if collection_name='outlets' then
+  select permissions into grants from servos_v2.members where user_id=auth.uid() and active;
+  if grants is null then return false;end if;
+  if '*'=any(grants) or 'catalog.manage'=any(grants) then return true;end if;
+ end if;
+ return servos_v2.can_read_collection_before_smart_item_setup(collection_name);
+end$$;
+
 alter function servos_v2.dispatch(jsonb) rename to dispatch_before_smart_item_setup;
 create function servos_v2.dispatch(command jsonb)
 returns jsonb language plpgsql set search_path='' as $$
@@ -92,5 +115,5 @@ begin
  if command->>'operation'='catalog.createWithOpeningStock' then return servos_v2.apply_smart_item_setup(command);end if;
  return servos_v2.dispatch_before_smart_item_setup(command);
 end$$;
-revoke all on function servos_v2.apply_smart_item_setup(jsonb),servos_v2.dispatch(jsonb) from public,anon,authenticated;
+revoke all on function servos_v2.apply_smart_item_setup(jsonb),servos_v2.dispatch(jsonb),servos_v2.can_read_collection_before_smart_item_setup(text),servos_v2.can_read_collection(text) from public,anon,authenticated;
 commit;

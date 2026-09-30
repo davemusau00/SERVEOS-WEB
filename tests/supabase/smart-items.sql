@@ -7,6 +7,7 @@ set local role authenticated;
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000071','Smart Item terminal','DESKTOP');
 reset role;
 update servos_v2.control set enabled=true;
+select servos_v2.put_record('outlets','smart-outlet',jsonb_build_object('name','Smart Item Outlet','active',true));
 select public.servos_v2_execute(jsonb_build_object(
  'id','20000000-0000-4000-8000-000000000071','schemaVersion',2,
  'deviceId','10000000-0000-4000-8000-000000000071','actorId',auth.uid(),
@@ -20,14 +21,15 @@ do $$declare command_key text:='20000000-0000-4000-8000-000000000072';command_da
   'id',command_key,'schemaVersion',2,'deviceId','10000000-0000-4000-8000-000000000071',
   'actorId',auth.uid(),'clientSequence',2,'operation','catalog.createWithOpeningStock',
   'payload',jsonb_build_object(
-   'product',jsonb_build_object('id','','name','Smart Soda','code','SMART-SODA','price',2.5,'category','DRINKS','inventoryType','DRINK','routeTo','BAR','stockItemId','','outletIds','[]'::jsonb,'taxClassId','A_STANDARD','favorite',false,'barcode','','portionVolume',1,'portions',jsonb_build_array(jsonb_build_object('id','each','name','Each','volume',1,'priceMinor',250)),'recipeIngredients','[]'::jsonb,'modifiers','[]'::jsonb),
+   'product',jsonb_build_object('id','','name','Smart Soda','code','SMART-SODA','price',2.5,'category','DRINKS','inventoryType','DRINK','routeTo','BAR','stockItemId','','outletIds',jsonb_build_array('smart-outlet'),'taxClassId','A_STANDARD','favorite',false,'barcode','','portionVolume',1,'portions',jsonb_build_array(jsonb_build_object('id','each','name','Each','volume',1,'priceMinor',250)),'recipeIngredients','[]'::jsonb,'modifiers','[]'::jsonb),
    'stockItem',jsonb_build_object('name','Smart Soda stock','code','SMART-SODA-STOCK','barcode','','baseUnit','piece','scanUnitQuantity',24,'purchasePackages',jsonb_build_array(jsonb_build_object('id','case-24','name','Case','unitsPerPackage',24,'baseQuantity',24,'baseUnit','piece')),'averageUnitCost',0.1,'reorderLevel',0),
    'locationId','smart-main','startingQuantity',48),
   'expectedVersions',jsonb_build_array(
    jsonb_build_object('collection','stockItems','id',command_key,'version',0),
    jsonb_build_object('collection','products','id',command_key||':product','version',0),
    jsonb_build_object('collection','stockMovements','id',command_key||':opening','version',0),
-   jsonb_build_object('collection','stockLocations','id','smart-main','version',(select version from servos_v2.records where collection='stockLocations' and id='smart-main'))
+   jsonb_build_object('collection','stockLocations','id','smart-main','version',(select version from servos_v2.records where collection='stockLocations' and id='smart-main')),
+   jsonb_build_object('collection','outlets','id','smart-outlet','version',(select version from servos_v2.records where collection='outlets' and id='smart-outlet'))
   ));
  result:=public.servos_v2_execute(command_data);
  if result->>'status'<>'SYNCHRONIZED' then raise exception 'Smart Item transaction rejected: %',result;end if;

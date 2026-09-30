@@ -2,6 +2,7 @@ import React,{useMemo,useState} from 'react';
 import {definePurchasePackage,costPerCanonicalUnit,canonicalizeMeasurement,type MeasurementMode} from '../../utils/inventoryUnits';
 import {Dialog} from '../../design-system/controls';
 import type {BusinessRecord,WebSession} from './session';
+import {operatorError} from './operatorError';
 
 type Command=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
 const input='mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white';
@@ -32,7 +33,7 @@ export function SmartItemDialog({records,session,disabled,command,onClose}:{reco
    const stockItem={name:name.trim(),code:code.trim(),barcode:barcode.trim(),baseUnit,scanUnitQuantity:calculation.pkg.baseQuantity,purchasePackages:[calculation.pkg],averageUnitCost:calculation.unitCost/100,reorderLevel:0};
    await command('catalog.createWithOpeningStock','stockItems',crypto.randomUUID(),{...(stockOnly?{}:{product:await sellable()}),stockItem,locationId,startingQuantity:calculation.opening});
    onClose();
-  }catch(cause){setError(cause instanceof Error?cause.message:'The item was not saved. Review the details and try again.')}finally{setBusy(false)}
+  }catch(cause){setError(operatorError(cause))}finally{setBusy(false)}
  };
  const next=()=>{setError('');if(step===0&&(!name.trim()||!code.trim())){setError('Enter an item name and code.');return}if(step===1&&!stockOnly&&(!Number.isFinite(price)||price<0)){setError('Enter a valid selling price.');return}if(step===2&&(!locationId||!calculation)){setError('Choose a storage place and enter a valid package conversion.');return}setStep(value=>Math.min(3,value+1))};
  return <Dialog title={`Smart item setup · ${['Identity','Selling','Package & stock','Review'][step]}`} onClose={busy?()=>undefined:onClose}>
