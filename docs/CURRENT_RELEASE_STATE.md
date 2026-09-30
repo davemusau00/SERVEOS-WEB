@@ -30,6 +30,8 @@ P14 has started: Web till close presents expected/count/variance, preserves expl
 
 P15 has started: Web goods-receipt drafts prefill each line with its outstanding approved quantity; package lines use whole-number input steps and validation. Partial receipts continue to derive from accepted quantities, rejected quantities require a reason, and over-receipt requires separate manager approval. Native and staged SQL already enforce PO versions, partial receipts, and package conversion. Broader procurement defaults and acceptance remain open; this source is unverified.
 
+P16 has started: Administration previews advisory header-to-field suggestions for supported CSV/TSV import templates; no inferred mapping is applied or sent, and server dry-run remains authoritative. Staff roles now include plain-language scope descriptions. Direct readiness configuration links, generated identifiers, sensitive-action re-authentication and acceptance remain open; source is unverified.
+
 Live deployment incident (2026-09-30): the supplied hashed Vercel chunks now 404 while the live HTML references a newer bundle, consistent with stale tabs requesting removed lazy chunks. The client now reloads once after a Vite preload failure. The user-reported hosted `servos_v2_guidance_progress` 404 was not independently authenticated/reproduced; staged migration 017 defines the RPC, and hosted migration status needs authorized confirmation. Exact minified catalog exception remains unattributed because that old asset is no longer available.
 
 ## UX and Guidance foundation — 2026-09-28

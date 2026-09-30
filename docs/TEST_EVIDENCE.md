@@ -408,7 +408,13 @@ Web Finance now previews expected drawer cash, counted cash and variance, accept
 
 Web receiving now initializes each PO line to its outstanding approved quantity and uses integer-only package counts. Rejected quantities remain separate, require an explanation, and do not decrement received quantity; server-side over-receipt approval remains authoritative. No tests, build, lint, or runtime checks were run; procurement acceptance remains deferred.
 
+### DEV final sprint P16 import/admin guidance source slice — 2026-09-30
+
+Administration now derives advisory field-match suggestions from the selected CSV/TSV first row for supported templates. No map is posted; existing server staging and dry-run authority is unchanged. Staff role options display scope guidance. No tests, build, lint, or runtime checks were run; administration acceptance remains deferred.
+
 ### Hosted incident evidence correction — 2026-09-30
 
 The earlier paragraph attributing the UUID property exception to a missing persisted `counts` map was too specific: current inventory code already normalizes malformed persisted sessions, and the retired minified chunk cannot confirm that hypothesis. Treat the exception cause as unknown. At 2026-09-30 17:19 UTC the current site entry was `index-BhGwssST.js`; the four reported legacy chunk URLs returned 404, consistent with a stale tab's lazy-import graph. An unauthenticated POST to the guidance RPC returned 401, not 404, and cannot verify the authenticated user's reported result or hosted function availability. Migration 017 defines the function in source. No hosted mutations/deployment or app tests were performed.
+
+Follow-up snapshot at 17:28 UTC observed a new root HTML ETag/Last-Modified and entry `/assets/index-BrNGxRSK.js` (200, cache MISS). That entry's current lazy imports included `WebCatalogInventory-DIiVOT7U.js` and `WebPosView-B1ZR-SdA.js`; both returned 200, as did the referenced receipt and utensils chunks. The formerly observed entry `index-BhGwssST.js` began returning 404 during the transition. The changing root/entry responses plus old-chunk 404s and new-chunk 200s are direct evidence of a deployment transition/edge cache inconsistency during observation, which explains the reported lazy-import failures better than a persistent missing-asset condition. It remains a point-in-time read-only sample; refresh the client and recheck under the same deployed revision.
 
