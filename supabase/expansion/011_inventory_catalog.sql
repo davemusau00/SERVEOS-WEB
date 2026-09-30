@@ -119,8 +119,8 @@ begin
    cost_minor:=case when data ? 'averageUnitCostMinor' then servos_v2.minor(data,'averageUnitCostMinor') else coalesce((current_data->>'averageUnitCostMinor')::bigint,0) end;
    purchase_packages:=coalesce(data->'purchasePackages',current_data->'purchasePackages','[]'::jsonb);
    if jsonb_typeof(purchase_packages) is distinct from 'array' or jsonb_array_length(purchase_packages)>50 then raise exception 'VALIDATION_FAILED: purchase packages';end if;
-   if exists(select 1 from jsonb_array_elements(purchase_packages) pkg where jsonb_typeof(pkg) is distinct from 'object' or nullif(trim(pkg->>'id'),'') is null or nullif(trim(pkg->>'name'),'') is null or coalesce((pkg->>'baseQuantity')::numeric,0)<=0 or coalesce(pkg->>'baseUnit','') not in ('piece','g','ml')) then raise exception 'VALIDATION_FAILED: purchase package definition';end if;
-   if exists(select 1 from jsonb_array_elements(purchase_packages) pkg group by pkg->>'id' having count(*)>1) then raise exception 'DUPLICATE_REFERENCE: purchase package id';end if;
+   if exists(select 1 from jsonb_array_elements(purchase_packages) as packages(pkg) where jsonb_typeof(pkg) is distinct from 'object' or nullif(trim(pkg->>'id'),'') is null or nullif(trim(pkg->>'name'),'') is null or coalesce((pkg->>'baseQuantity')::numeric,0)<=0 or coalesce(pkg->>'baseUnit','') not in ('piece','g','ml')) then raise exception 'VALIDATION_FAILED: purchase package definition';end if;
+   if exists(select 1 from jsonb_array_elements(purchase_packages) as packages(pkg) group by pkg->>'id' having count(*)>1) then raise exception 'DUPLICATE_REFERENCE: purchase package id';end if;
    if exists(select 1 from servos_v2.records r where r.collection='stockItems' and r.id<>key and not r.archived and upper(r.data->>'code')=code_value) then raise exception 'DUPLICATE_REFERENCE: stock code';end if;
    barcode:=nullif(trim(data->>'barcode'),'');
    if barcode is not null and (length(barcode)>128 or exists(select 1 from servos_v2.records r where r.collection='stockItems' and r.id<>key and not r.archived and r.data->>'barcode'=barcode)) then raise exception 'DUPLICATE_REFERENCE: stock barcode';end if;
@@ -176,8 +176,9 @@ begin
   return servos_v2.put_record('stockLocations',key,current_data,false);
  end if;
 
- if op in ('inventory.count','inventory.transfer','inventory.waste') then
+ if op in ('inventory.count','inventory.adjust','inventory.transfer','inventory.waste') then
   if op='inventory.count' then perform servos_v2.require_any_permission(array['inventory.count','inventory.adjust']);
+  elsif op='inventory.adjust' then perform servos_v2.require_any_permission(array['inventory.adjust']);
   elsif op='inventory.transfer' then perform servos_v2.require_any_permission(array['inventory.transfer']);
   else perform servos_v2.require_any_permission(array['inventory.waste']);end if;
 
@@ -190,13 +191,13 @@ begin
   if stock is null then raise exception 'VALIDATION_FAILED: active stock item missing';end if;
   current_qty:=coalesce((stock->'currentStock'->>location_key)::numeric,0);
 
-  if op='inventory.count' then
+  if op in ('inventory.count','inventory.adjust') then
    counted:=servos_v2.quantity_value(p,'countedQty',true);
    next_data:=jsonb_set(stock,'{currentStock}',coalesce(stock->'currentStock','{}'::jsonb)||jsonb_build_object(location_key,counted),true);
    changes:=changes||servos_v2.put_record('stockItems',stock_key,next_data);
    changes:=changes||servos_v2.put_record('stockMovements','count-'||(command->>'id'),jsonb_build_object(
     'stockItemId',stock_key,'locationId',location_key,'quantityDelta',counted-current_qty,
-    'movementType','COUNT_ADJUSTMENT','reason',reason,'baseUnit',stock->>'baseUnit',
+    'movementType',case when op='inventory.adjust' then 'ADMIN_CORRECTION' else 'COUNT_ADJUSTMENT' end,'reason',reason,'baseUnit',stock->>'baseUnit',
     'sourceCommandId',command->>'id','occurredAt',now(),'actorId',auth.uid()
    ));
    return changes;

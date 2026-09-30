@@ -147,7 +147,7 @@ begin
     purchase_package:=null;
     quantity_base_per_package:=1;
     if nullif(trim(line->>'purchasePackageId'),'') is not null then
-     select value into purchase_package from jsonb_array_elements(coalesce(stock->'purchasePackages','[]'::jsonb)) value where value->>'id'=line->>'purchasePackageId';
+     select pkg into purchase_package from jsonb_array_elements(coalesce(stock->'purchasePackages','[]'::jsonb)) as packages(pkg) where pkg->>'id'=line->>'purchasePackageId';
      if purchase_package is null then raise exception 'VALIDATION_FAILED: purchase package does not belong to stock item';end if;
      quantity_base_per_package:=(purchase_package->>'baseQuantity')::numeric;
      if quantity_base_per_package<=0 or quantity_base_per_package>1000000000 or qty<>trunc(qty) then raise exception 'VALIDATION_FAILED: whole purchase packages and supported package size required';end if;
