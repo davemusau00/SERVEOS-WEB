@@ -226,6 +226,8 @@ pub fn install_native_v2_snapshot(db: &mut Connection, device_id: &str, business
         return Err("Invalid or oversized v2 baseline snapshot".into());
     }
     let tx = db.transaction().map_err(error)?;
+    let legacy_pending:i64=tx.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|row|row.get(0)).map_err(error)?;
+    if legacy_pending>0{return Err("Install the v2 baseline only after the legacy outbox is drained and reconciled".into());}
     let (stored_business,previous_cursor,complete):(String,i64,i64)=tx.query_row(
         "SELECT business_id,feed_cursor,snapshot_complete FROM native_v2_state WHERE device_id=?",
         [device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
@@ -302,6 +304,8 @@ pub fn acknowledge_native_v2_command(db:&mut Connection,result:&Value)->Result<V
 
 pub fn native_v2_snapshot(db:&Connection,token:&str,device_id:&str)->Result<Value>{
     let user=actor(db,token,false)?;
+    let legacy_pending:i64=db.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|row|row.get(0)).map_err(error)?;
+    if legacy_pending>0{return Err("Shared v2 view is blocked until pending legacy work is drained and reconciled".into());}
     let (business_id,feed_cursor,policy,complete,updated_at):(String,i64,Option<String>,i64,String)=db.query_row("SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete,updated_at FROM native_v2_state WHERE device_id=?",[device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?))).map_err(error)?;
     if complete!=1{return Err("The v2 shadow baseline has not been installed".into());}
     let mut statement=db.prepare("SELECT collection,record_id,version,data,archived FROM native_v2_records ORDER BY collection,record_id").map_err(error)?;

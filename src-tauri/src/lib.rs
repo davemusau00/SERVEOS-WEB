@@ -259,8 +259,10 @@ async fn runtime_v2_sync_replica(state:State<'_,Runtime>)->store::Result<Value>{
     let result=async {
         if !refresh_operator_auth_inner(&state,true).await? { return Err("Sign in online to synchronize the v2 replica".into()); }
         let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
-        flush_native_v2_pending(&state,&active).await?;
-        sync_native_v2_feed(&state,&active).await
+        let acknowledged=flush_native_v2_pending(&state,&active).await?;
+        let mut report=sync_native_v2_feed(&state,&active).await?;
+        report["acknowledgedCommands"]=json!(acknowledged);
+        Ok(report)
     }.await;
     if let Ok(mut running)=state.syncing.lock(){*running=false;}
     result
@@ -268,6 +270,8 @@ async fn runtime_v2_sync_replica(state:State<'_,Runtime>)->store::Result<Value>{
 async fn flush_native_v2_pending(state:&Runtime,active:&OperatorAuth)->store::Result<usize>{
     let (url,key,terminal,expected_actor)={
         let db=state.db.lock().map_err(|e|e.to_string())?;
+        let legacy_pending:i64=db.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|row|row.get(0)).map_err(|e|e.to_string())?;
+        if legacy_pending>0{return Err("V2 dispatch is blocked while legacy terminal commands remain unacknowledged".into());}
         (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?,store::text(&active.identity,"actorId")?.to_string())
     };
     let mut sent=0;
@@ -291,6 +295,8 @@ async fn flush_native_v2_pending(state:&Runtime,active:&OperatorAuth)->store::Re
 async fn sync_native_v2_feed(state:&Runtime,active:&OperatorAuth)->store::Result<Value>{
     let (url,key,terminal,business_id,mut cursor,snapshot_policy,complete)={
         let db=state.db.lock().map_err(|e|e.to_string())?;
+        let legacy_pending:i64=db.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|row|row.get(0)).map_err(|e|e.to_string())?;
+        if legacy_pending>0{return Err("V2 feed sync is blocked until the legacy outbox is drained and reconciled".into());}
         let terminal=store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?;
         let row:Option<(String,i64,Option<String>,i64)>=db.query_row("SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete FROM native_v2_state WHERE device_id=?",[&terminal],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(|e|e.to_string())?;
         let (business,cursor,policy,installed)=row.ok_or("Authenticated v2 device state is missing")?;
@@ -411,7 +417,11 @@ async fn runtime_command(
             if session["actorId"].as_str()!=active.identity["actorId"].as_str()||session["businessId"].as_str()!=Some(business_id.as_str()){
                 return Err("Authenticated v2 actor or business changed; sign in again".into());
             }
-            flush_native_v2_pending(&state,&active).await?;
+            let replayed=flush_native_v2_pending(&state,&active).await?;
+            if replayed>0{
+                if sync_native_v2_feed(&state,&active).await.is_err(){return Err("A previously queued v2 command was acknowledged by the server, but this new action was not sent and the local shared view is still refreshing. Do not repeat the earlier action.".into());}
+                return Err("A previously queued v2 command was just acknowledged. This new action was not sent; review the refreshed business state before retrying.".into());
+            }
             let versions=expected_versions.unwrap_or_else(||json!([]));
             let envelope={
                 let mut db=state.db.lock().map_err(|e|e.to_string())?;
@@ -555,8 +565,10 @@ async fn runtime_sync(state: State<'_, Runtime>, token: String) -> store::Result
             if !refresh_operator_auth_inner(&state,true).await?{return Err("Online operator authentication is required for v2 synchronization".into());}
             let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
             if active.identity["enabled"]==true{
-                flush_native_v2_pending(&state,&active).await?;
-                return sync_native_v2_feed(&state,&active).await;
+                let acknowledged=flush_native_v2_pending(&state,&active).await?;
+                let mut report=sync_native_v2_feed(&state,&active).await?;
+                report["acknowledgedCommands"]=json!(acknowledged);
+                return Ok(report);
             }
         }
         sync_inner(&state,&token).await

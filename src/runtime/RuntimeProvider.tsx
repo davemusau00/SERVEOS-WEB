@@ -56,7 +56,7 @@ interface RuntimeContextValue {
   approve: (approverId: string, pin: string, permission: Permission, target?: string) => Promise<ManagerApproval>;
   sync: () => Promise<void>;
   installV2Snapshot: () => Promise<{ installed:boolean; records:number; cursor:number; policyVersion:string; pageCount:number }>;
-  syncV2Replica: () => Promise<{ appliedChanges:number; cursor:number; hasMore:boolean }>;
+  syncV2Replica: () => Promise<{ appliedChanges:number; acknowledgedCommands:number; cursor:number; hasMore:boolean }>;
   backup: () => Promise<string>;
   healthAudit: () => Promise<ProductionHealthAudit>;
   acceptanceStatus: () => Promise<TerminalAcceptanceStatus>;
@@ -248,7 +248,7 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     catch (e) { report(e); throw e; }
   };
   const syncV2Replica = async () => {
-    try { return await invoke<{ appliedChanges:number; cursor:number; hasMore:boolean }>('runtime_v2_sync_replica'); }
+    try { const result=await invoke<{ appliedChanges:number; acknowledgedCommands:number; cursor:number; hasMore:boolean }>('runtime_v2_sync_replica'); await refresh(); return result; }
     catch (e) { report(e); throw e; }
   };
   const backup = async () => {
