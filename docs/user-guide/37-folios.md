@@ -79,6 +79,8 @@ A Manager/Admin with `folio.reverse` can reverse a folio charge that is still re
 
 Reversal links to the source entry, requires a reason, and posts the opposite receivable/revenue/tax journal. Paid charges require a separate refund workflow rather than silent mutation.
 
+In Web, open **Guest Accounts → Reverse an unpaid folio charge**, select the open guest folio and unreversed charge, and enter the correction reason. This also covers an unpaid POS room charge; the server verifies the folio state, permission, versions, and remaining receivable. If the charge has already been settled, use the applicable refund workflow instead.
+
 ### Extend an active stay
 
 1. Select a checked-in folio.

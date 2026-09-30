@@ -77,6 +77,7 @@ export function WebProcurementView({
   const [receiving,setReceiving]=useState<BusinessRecord|null>(null);
   const [receiptLocation,setReceiptLocation]=useState('');
   const [receiptDraft,setReceiptDraft]=useState<Record<string,ReceiptDraft>>({});
+  const [receiptError,setReceiptError]=useState('');
   const [receiptInvoice,setReceiptInvoice]=useState('');
   const [receiptDeliveryNote,setReceiptDeliveryNote]=useState('');
   const [receiptNotes,setReceiptNotes]=useState('');
@@ -161,6 +162,7 @@ export function WebProcurementView({
     setReceiving(order);
     setReceiptLocation(locations[0]?.id||'');
     setReceiptDraft(defaults);
+    setReceiptError('');
     setReceiptInvoice('');setReceiptDeliveryNote('');setReceiptNotes('');setReceiptApprovalToken('');setScanCode('');
   };
 
@@ -186,11 +188,13 @@ export function WebProcurementView({
   const postReceipt=async()=>{
     if(!receiving)return;
     const order=data(receiving)!;
-    const lines=(order.items||[]).map((line:any)=>{
+    setReceiptError('');
+    const drafts=(order.items||[]).map((line:any)=>{
       const draft=receiptDraft[line.lineId]||{delivered:0,rejected:0,reason:''};
       let delivered:number;let rejected:number;
-      try{delivered=parseQuantity(draft.delivered,{integer:Boolean(line?.purchasePackageId)});rejected=parseQuantity(draft.rejected,{integer:Boolean(line?.purchasePackageId)})}catch{return null}
-      if(rejected>delivered)return null;
+      try{delivered=parseQuantity(draft.delivered,{integer:Boolean(line?.purchasePackageId)});rejected=parseQuantity(draft.rejected,{integer:Boolean(line?.purchasePackageId)})}catch{return {error:`Enter a valid ${line?.purchasePackageId?'whole package':'quantity'} count for ${String(line?.displayName||'this line')}.`}}
+      if(rejected>delivered)return {error:`Rejected quantity cannot exceed delivered quantity for ${String(line?.displayName||'this line')}.`};
+      if(rejected>0&&!String(draft.reason||'').trim())return {error:`Add a rejection reason for ${String(line?.displayName||'this line')}.`};
       return {
         lineId:line.lineId,
         quantityDelivered:delivered,
@@ -198,7 +202,9 @@ export function WebProcurementView({
         quantityRejected:rejected,
         rejectionReason:draft.reason
       };
-    }).filter((line:any)=>line&&line.quantityDelivered>0);
+    });
+    const invalid=drafts.find((line:any)=>line?.error);if(invalid){setReceiptError(String(invalid.error));return}
+    const lines=drafts.filter((line:any)=>line&&line.quantityDelivered>0);
     if(!lines.length)return;
     await command('purchaseOrder.receive','purchaseOrders',receiving.id,{
       purchaseOrderId:receiving.id,
@@ -325,6 +331,7 @@ export function WebProcurementView({
     </div></Modal>}
 
     {receiving&&<Modal title={`Receive ${String(data(receiving)?.poNumber)}`} onClose={()=>setReceiving(null)}><div className="space-y-4">
+      {receiptError&&<p role="alert" className="rounded-lg border border-rose-700/40 bg-rose-950/30 p-3 text-sm text-rose-200">{receiptError}</p>}
       {receiptHasOverage&&<p role="alert" className="rounded-lg border border-amber-600/40 bg-amber-500/10 p-3 text-sm text-amber-100">Accepted quantities exceed the approved PO balance. A manager approval token is required; rejected units do not count as received stock.</p>}
       {(data(receiving)?.items||[]).map((line:any)=>{const d=receiptDraft[line.lineId]||{delivered:0,rejected:0,reason:''};const outstanding=Math.max(0,Number(line.quantityOrdered||0)-Number(line.quantityReceived||0));return <div key={line.lineId} className="rounded-xl border border-slate-800 p-3"><div className="flex justify-between text-sm"><b>{String(line.displayName)}{line.purchasePackageName?` · ${line.purchasePackageName}`:''}</b><Tag>{String(line.treatment)}</Tag></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="text-sm">{line.purchasePackageId?'Packages delivered':'Delivered quantity'}<input type="number" min="0" step={line.purchasePackageId?'1':'0.001'} className={field} value={d.delivered} onChange={e=>{try{const value=parseQuantity(e.target.value,{integer:Boolean(line.purchasePackageId)});setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,delivered:value}}))}catch{}}}/></label><label className="text-sm">Rejected<input type="number" min="0" step={line.purchasePackageId?'1':'0.001'} className={field} value={d.rejected} onChange={e=>{try{const value=parseQuantity(e.target.value,{integer:Boolean(line.purchasePackageId)});setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,rejected:value}}))}catch{}}}/></label>{d.rejected>0&&<Input label="Rejection reason" value={d.reason} set={value=>setReceiptDraft(prev=>({...prev,[line.lineId]:{...d,reason:value}}))}/>}</div><div className="mt-1 text-xs text-slate-500">Remaining approved {line.purchasePackageId?'packages':'quantity'}: {outstanding}{line.purchasePackageId?` · ${(outstanding*Number(line.quantityBasePerPackage||1)).toLocaleString()} ${String(line.quantityBaseUnit||'base units')} stock units`:''} · defaulted to remaining</div></div>})}
       {(data(receiving)?.items||[]).some((line:any)=>line.treatment==='STOCK')&&<><label className="block text-sm">Receiving stock location<select className={field} value={receiptLocation} onChange={e=>setReceiptLocation(e.target.value)}>{locations.map(location=><option key={location.id} value={location.id}>{String(data(location)?.name)}</option>)}</select></label><label className="block text-sm"><Barcode className="mr-1 inline h-4 w-4"/>Scan stock barcode / SKU<input data-barcode-capture="true" className={field} value={scanCode} onChange={e=>setScanCode(e.target.value)}/></label><button className={button} disabled={!scanCode.trim()} onClick={()=>applyScan(scanCode)}>Apply typed scan</button></>}

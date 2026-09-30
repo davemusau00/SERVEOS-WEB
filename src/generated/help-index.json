@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T13:56:35.097Z",
+  "generatedAt": "2026-09-30T17:37:31.475Z",
   "source": "docs/user-guide",
   "count": 40,
   "articles": [
@@ -17,6 +17,22 @@
       ],
       "screen": "help",
       "summary": "ServOS runs one business from one installed terminal. Local SQLite remains authoritative during internet loss.",
+      "example": "",
+      "steps": [
+        "Unlock with your own PIN.",
+        "Use the left navigation for permitted workspaces.",
+        "Watch the pending-sync indicator, but continue local trading when offline.",
+        "Use Change Staff / Lock whenever another person takes over the terminal."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Getting Started\nRoles: Admin, Manager, Server\nPermission: help.view\nScreen: help\nKeywords: getting started, getting started, ServOS\n\n## Overview\n\nServOS runs one business from one installed terminal. Local SQLite remains authoritative during internet loss.\n\n## Procedure\n\nUnlock with your own PIN. Use the left navigation for permitted workspaces. Watch the pending-sync indicator, but continue local trading when offline. Use Change Staff / Lock whenever another person takes over the terminal.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "getting started",
@@ -36,6 +52,25 @@
       ],
       "screen": "intake",
       "summary": "The Intake Wizard records how the bar operates before owner enrollment.",
+      "example": "",
+      "steps": [
+        "Choose the venue type, service modes, operating pattern, payments, service areas, stock areas, equipment and import strategy.",
+        "Save progress safely.",
+        "Confirm the summary before owner enrollment.",
+        "Intake creates configuration intent only, not trading records."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [
+        "03-enrollment",
+        "04-business-setup"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: First-Time Setup\nRoles: Admin\nPermission: system.configure\nScreen: intake\nKeywords: intake wizard, first-time setup, ServOS\n\n## Overview\n\nThe Intake Wizard records how the bar operates before owner enrollment.\n\n## Procedure\n\nChoose the venue type, service modes, operating pattern, payments, service areas, stock areas, equipment and import strategy. Save progress safely. Confirm the summary before owner enrollment. Intake creates configuration intent only, not trading records.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "intake wizard",
@@ -55,6 +90,25 @@
       ],
       "screen": "enrollment",
       "summary": "Enrollment links the one terminal to the owner account and creates the first local Admin PIN.",
+      "example": "",
+      "steps": [
+        "Complete intake first.",
+        "Sign in with the owner online account.",
+        "Enter the real business and owner names and create a 6–12 digit local PIN.",
+        "After successful enrollment, local staff PINs work offline."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [
+        "02-intake",
+        "04-business-setup"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: First-Time Setup\nRoles: Admin\nPermission: system.configure\nScreen: enrollment\nKeywords: owner enrollment, first-time setup, ServOS\n\n## Overview\n\nEnrollment links the one terminal to the owner account and creates the first local Admin PIN.\n\n## Procedure\n\nComplete intake first. Sign in with the owner online account. Enter the real business and owner names and create a 6–12 digit local PIN. After successful enrollment, local staff PINs work offline.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "owner enrollment",
@@ -74,6 +128,24 @@
       ],
       "screen": "setup",
       "summary": "The setup wizard creates the real operating configuration and resumes after restart.",
+      "example": "",
+      "steps": [
+        "Complete business identity, tax, payments, service areas, stock locations, catalog, opening inventory, staff access and till policy.",
+        "Optional recipes/portions, floorplan and backup/sync can be completed as appropriate.",
+        "Only the native go-live check can set the system LIVE."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [
+        "02-intake",
+        "03-enrollment"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: First-Time Setup\nRoles: Admin\nPermission: business.configure\nScreen: setup\nKeywords: business setup wizard, first-time setup, ServOS\n\n## Overview\n\nThe setup wizard creates the real operating configuration and resumes after restart.\n\n## Procedure\n\nComplete business identity, tax, payments, service areas, stock locations, catalog, opening inventory, staff access and till policy. Optional recipes/portions, floorplan and backup/sync can be completed as appropriate. Only the native go-live check can set the system LIVE.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "business setup wizard",
@@ -95,6 +167,23 @@
       ],
       "screen": "admin",
       "summary": "Authority comes from the authenticated staff PIN session, never from a role dropdown.",
+      "example": "",
+      "steps": [
+        "Admin owns business/security configuration.",
+        "Manager supervises protected operations.",
+        "Server is the bar operator.",
+        "Protected actions can request a single-use manager approval without changing the operator session.",
+        "Change staff by locking and unlocking with the next person’s PIN."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 2,
       "body": "Section: User Access\nRoles: Admin, Manager, Server\nPermission: help.view\nScreen: admin\nKeywords: roles and permissions, user access, ServOS\n\n## Overview\n\nAuthority comes from the authenticated staff PIN session, never from a role dropdown.\n\n## Procedure\n\nAdmin owns business/security configuration. Manager supervises protected operations. Server is the bar operator. Protected actions can request a single-use manager approval without changing the operator session. Change staff by locking and unlocking with the next person’s PIN.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "roles and permissions",
@@ -116,6 +205,22 @@
       ],
       "screen": "admin",
       "summary": "Open one till with the physical opening float before cash service.",
+      "example": "",
+      "steps": [
+        "Unlock ServOS.",
+        "Confirm products and stock are visible.",
+        "Open Business Admin, enter the actual opening float and open the till.",
+        "Only one till can be open on the one-terminal installation."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Opening the Bar\nRoles: Admin, Manager, Server\nPermission: till.open\nScreen: admin\nKeywords: opening the bar, opening the bar, ServOS\n\n## Overview\n\nOpen one till with the physical opening float before cash service.\n\n## Procedure\n\nUnlock ServOS. Confirm products and stock are visible. Open Business Admin, enter the actual opening float and open the till. Only one till can be open on the one-terminal installation.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "opening the bar",
@@ -137,6 +242,24 @@
       ],
       "screen": "pos",
       "summary": "Use quick tabs or available tables, add products, fire rounds and settle from one native order. A USB scanner that presents itself as a keyboard can find a sellable by barcode without a model-specific ServOS driver.",
+      "example": "",
+      "steps": [
+        "Open a quick tab or an available table.",
+        "Search by product name, category, SKU or barcode, or scan directly while Bar POS is open.",
+        "A unique barcode match follows the same product-selection path as a click, including any required portion or modifier choice.",
+        "Check the order line before firing the round.",
+        "Change quantities before firing, then fire and repeat for each new round.",
+        "Settle using an enabled tender."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 2,
       "body": "Section: POS\nRoles: Admin, Manager, Server\nPermission: pos.sell\nScreen: pos\nKeywords: running bar tabs, pos, ServOS\n\n## Overview\n\nUse quick tabs or available tables, add products, fire rounds and settle from one native order. A USB scanner that presents itself as a keyboard can find a sellable by barcode without a model-specific ServOS driver.\n\n## Before scanning\n\n1. In Catalog, edit the sellable and enter its physical barcode in **Barcode / EAN / UPC**. Keep its internal SKU in the separate **Code** field.\n2. Save the item and confirm that the barcode is assigned to the intended sellable. ServOS prevents the same barcode from being assigned twice within the sellable catalog.\n3. Connect the scanner and open Bar POS. Use **Test scanner** and scan a code. The test only displays the received text; it does not add a sale line or change stock.\n\nFor spirits sold by measures and bottles, assign the retail bottle barcode to the sealed-bottle sellable. Assign measure barcodes only when the actual label identifies that measure sellable.\n\n## Procedure\n\nOpen a quick tab or an available table. Search by product name, category, SKU or barcode, or scan directly while Bar POS is open. A unique barcode match follows the same product-selection path as a click, including any required portion or modifier choice. Check the order line before firing the round. Change quantities before firing, then fire and repeat for each new round. Settle using an enabled tender.\n\nIf a scan is unknown, ServOS displays the code and leaves the order unchanged. If a code matches multiple sellables, resolve the duplicate in Catalog before selling. Search manually by name or SKU while the barcode is being corrected.\n\n## Scanner behavior\n\nThe supported integration is USB HID keyboard-wedge input: the scanner types the decoded characters and terminates the code with Enter. It works offline and does not need WebUSB or vendor-specific scanner software. The scanner is captured by the open POS screen; avoid scanning while a modal action is open. The search box can also be focused for scanner input.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "running bar tabs",
@@ -157,6 +280,23 @@
       ],
       "screen": "catalog",
       "summary": "Portions and recipes turn one stock item into correctly measured sellables.",
+      "example": "",
+      "steps": [
+        "Create a stock item such as a 750ml spirit.",
+        "Add sellable portions with volumes and prices.",
+        "Add modifiers/mixers with optional price and ingredient adjustments.",
+        "Add recipe ingredients for cocktails.",
+        "The frozen ingredient snapshot is consumed when the order is fired."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 2,
       "body": "Section: Portions\nRoles: Admin, Manager\nPermission: catalog.manage\nScreen: catalog\nKeywords: portions, modifiers and recipes, portions, ServOS\n\n## Overview\n\nPortions and recipes turn one stock item into correctly measured sellables.\n\n## Procedure\n\nCreate a stock item such as a 750ml spirit. Add sellable portions with volumes and prices. Add modifiers/mixers with optional price and ingredient adjustments. Add recipe ingredients for cocktails. The frozen ingredient snapshot is consumed when the order is fired.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "portions",
@@ -179,6 +319,22 @@
       ],
       "screen": "kds",
       "summary": "Preparation state is item-specific and routed by BAR, KITCHEN or SERVICE.",
+      "example": "",
+      "steps": [
+        "Fire the order first.",
+        "In Bar Pass select the station.",
+        "Move each item FIRED → PREPARING → READY → SERVED.",
+        "The station filter changes which routed items are displayed."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: KDS / Bar Pass\nRoles: Admin, Manager, Server\nPermission: kds.update\nScreen: kds\nKeywords: bar pass / kds, kds / bar pass, ServOS\n\n## Overview\n\nPreparation state is item-specific and routed by BAR, KITCHEN or SERVICE.\n\n## Procedure\n\nFire the order first. In Bar Pass select the station. Move each item FIRED → PREPARING → READY → SERVED. The station filter changes which routed items are displayed.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "bar pass / kds",
@@ -200,6 +356,21 @@
       ],
       "screen": "floorplan",
       "summary": "Paid, transferred or voided tables enter CLEANING before reuse.",
+      "example": "",
+      "steps": [
+        "Open an AVAILABLE table from POS.",
+        "After settlement or movement it enters CLEANING.",
+        "Staff select the cleaning table to mark it ready; the native table.ready command verifies the state and version before returning it to AVAILABLE."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Tables\nRoles: Admin, Manager, Server\nPermission: pos.manage_table\nScreen: floorplan\nKeywords: tables and cleaning, tables, ServOS\n\n## Overview\n\nPaid, transferred or voided tables enter CLEANING before reuse.\n\n## Procedure\n\nOpen an AVAILABLE table from POS. After settlement or movement it enters CLEANING. Staff select the cleaning table to mark it ready; the native table.ready command verifies the state and version before returning it to AVAILABLE.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "tables and cleaning",
@@ -221,6 +392,24 @@
       ],
       "screen": "pos",
       "summary": "Cash payments require an open till and actual cash tendered.",
+      "example": "",
+      "steps": [
+        "Choose Cash, enter the payment amount and cash tendered, then record payment.",
+        "ServOS increases expected drawer cash by the paid amount and calculates change in the UI.",
+        "Partial payments remain attached to the same order."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [
+        "13-card",
+        "14-split"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Payments\nRoles: Admin, Manager, Server\nPermission: payment.record\nScreen: pos\nKeywords: cash payments, payments, ServOS\n\n## Overview\n\nCash payments require an open till and actual cash tendered.\n\n## Procedure\n\nChoose Cash, enter the payment amount and cash tendered, then record payment. ServOS increases expected drawer cash by the paid amount and calculates change in the UI. Partial payments remain attached to the same order.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "cash payments",
@@ -242,6 +431,22 @@
       ],
       "screen": "pos",
       "summary": "M-Pesa is manually confirmed from the real business receipt, then reconciled later by a manager.",
+      "example": "",
+      "steps": [
+        "Check the business M-Pesa receipt.",
+        "Select M-Pesa and enter the transaction code against the configured account.",
+        "ServOS enforces account/code uniqueness and allocation limits.",
+        "This is not Daraja verification."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: M-Pesa\nRoles: Admin, Manager, Server\nPermission: mpesa.record\nScreen: pos\nKeywords: manual m-pesa, m-pesa, ServOS\n\n## Overview\n\nM-Pesa is manually confirmed from the real business receipt, then reconciled later by a manager.\n\n## Procedure\n\nCheck the business M-Pesa receipt. Select M-Pesa and enter the transaction code against the configured account. ServOS enforces account/code uniqueness and allocation limits. This is not Daraja verification.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "manual m-pesa",
@@ -263,6 +468,24 @@
       ],
       "screen": "pos",
       "summary": "Card is an external handoff. ServOS stores the external approval reference.",
+      "example": "",
+      "steps": [
+        "Run the card on the actual terminal/provider.",
+        "In ServOS select Card, enter the exact approval/reference code and record payment.",
+        "ServOS never claims it processed the external provider transaction."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [
+        "11-cash",
+        "14-split"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Payments\nRoles: Admin, Manager, Server\nPermission: payment.record\nScreen: pos\nKeywords: card payments, payments, ServOS\n\n## Overview\n\nCard is an external handoff. ServOS stores the external approval reference.\n\n## Procedure\n\nRun the card on the actual terminal/provider. In ServOS select Card, enter the exact approval/reference code and record payment. ServOS never claims it processed the external provider transaction.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "card payments",
@@ -284,6 +507,25 @@
       ],
       "screen": "pos",
       "summary": "Split tender posts multiple payment lines atomically against the exact outstanding balance.",
+      "example": "",
+      "steps": [
+        "Choose Split Tender.",
+        "Pick two enabled payment methods and allocate the amounts so they equal the outstanding balance.",
+        "Supply M-Pesa/card evidence when those methods are used.",
+        "If any line fails the transaction rolls back."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [
+        "11-cash",
+        "13-card"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Payments\nRoles: Admin, Manager, Server\nPermission: payment.split\nScreen: pos\nKeywords: mixed / split tender, payments, ServOS\n\n## Overview\n\nSplit tender posts multiple payment lines atomically against the exact outstanding balance.\n\n## Procedure\n\nChoose Split Tender. Pick two enabled payment methods and allocate the amounts so they equal the outstanding balance. Supply M-Pesa/card evidence when those methods are used. If any line fails the transaction rolls back.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "mixed / split tender",
@@ -304,6 +546,20 @@
       ],
       "screen": "close",
       "summary": "Paid-in and paid-out movements change expected drawer cash with audit and journal evidence.",
+      "example": "",
+      "steps": [
+        "Use Shift & Day Close, choose Paid In or Paid Out, enter amount and reason, and obtain manager approval if your role requires it.",
+        "Use Paid Out for cash drops/expenses and Paid In for float top-ups."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Cash Drawer\nRoles: Admin, Manager\nPermission: till.cashMovement\nScreen: close\nKeywords: cash drawer movements, cash drawer, ServOS\n\n## Overview\n\nPaid-in and paid-out movements change expected drawer cash with audit and journal evidence.\n\n## Procedure\n\nUse Shift & Day Close, choose Paid In or Paid Out, enter amount and reason, and obtain manager approval if your role requires it. Use Paid Out for cash drops/expenses and Paid In for float top-ups.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "cash drawer movements",
@@ -324,6 +580,21 @@
       ],
       "screen": "pos",
       "summary": "Discounts and comps are protected, reasoned and audited.",
+      "example": "",
+      "steps": [
+        "For a discount enter the percentage and reason.",
+        "A comp targets one order item and keeps its stock consumption intact.",
+        "Operators can request a manager PIN approval; the approval is single-use and attached to the audit."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Discounts & Comps\nRoles: Admin, Manager\nPermission: order.discount\nScreen: pos\nKeywords: discounts and comps, discounts & comps, ServOS\n\n## Overview\n\nDiscounts and comps are protected, reasoned and audited.\n\n## Procedure\n\nFor a discount enter the percentage and reason. A comp targets one order item and keeps its stock consumption intact. Operators can request a manager PIN approval; the approval is single-use and attached to the audit.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "discounts and comps",
@@ -344,6 +615,22 @@
       ],
       "screen": "refunds",
       "summary": "Money reversal and stock disposition are separate decisions.",
+      "example": "",
+      "steps": [
+        "Unpaid orders can be voided.",
+        "Fired items require a disposition such as WASTE, CONSUMED, RETURN_SEALED or MANAGER_ADJUSTMENT.",
+        "Payment refunds reverse money and journals but never automatically recreate consumed cocktail ingredients.",
+        "Non-cash refunds require external reversal evidence."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Voids & Refunds\nRoles: Admin, Manager\nPermission: order.refund\nScreen: refunds\nKeywords: voids and refunds, voids & refunds, ServOS\n\n## Overview\n\nMoney reversal and stock disposition are separate decisions.\n\n## Procedure\n\nUnpaid orders can be voided. Fired items require a disposition such as WASTE, CONSUMED, RETURN_SEALED or MANAGER_ADJUSTMENT. Payment refunds reverse money and journals but never automatically recreate consumed cocktail ingredients. Non-cash refunds require external reversal evidence.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "voids and refunds",
@@ -365,7 +652,25 @@
       ],
       "screen": "inventory",
       "summary": "Inventory is location-driven and every operational change creates a stock movement. Barcodes identify stock masters; they do not bypass location, quantity or ledger rules.",
-      "body": "Section: Inventory\nRoles: Admin, Manager, Server\nPermission: inventory.view\nScreen: inventory\nKeywords: inventory overview, inventory, ServOS\n\n## Overview\n\nInventory is location-driven and every operational change creates a stock movement. Barcodes identify stock masters; they do not bypass location, quantity or ledger rules.\n\n## Configure stock barcodes\n\nIn Catalog, open a stock master and enter its physical barcode or EAN in **Physical barcode / EAN / UPC**. Set **Quantity represented by one scan** in the item's base unit. Examples: a 750 ml bottle tracked as ml uses 750; a case of 24 cans tracked as cans uses 24; a single bottle tracked as bottles uses 1. Keep the internal stock code separate from the barcode. A barcode must be unique within stock masters.\n\n## Stock control dashboard\n\nThe Inventory screen summarizes stock value, low-stock and out-of-stock masters using the same location-driven stock records. Search by stock name, SKU or barcode, filter by stock state, and focus quantities on one location without creating a second stock balance. A configured reorder level is advisory only: it highlights a stock master when total on-hand is at or below that threshold. Replenishment still enters through Procurement.\n\nSelect a stock item to review its per-location quantities and recent movement history. Count, transfer and waste actions continue through their existing native inventory commands. A physical count shows expected quantity and draft variance before commit, and barcode scans remain draft input until the count is committed.\n\n## Procedure\n\nReview each stock item across the configured locations. Current stock is derived from durable stock records, while the movement ledger explains receipts, opening balance, sale consumption, transfers, counts and waste. When counting, select **Count**, choose the location, then scan the stock barcode or SKU. Each scan adds the configured scan quantity to the count draft. You can scan several packages or edit the counted total directly in base units. Scans do not change stock until you submit the count with a reason; the backend records the resulting delta as an inventory adjustment.\n\nIf a scan is unknown, duplicated, or assigned to the wrong stock master, stop and fix Catalog first. Do not compensate by scanning a different item or by treating a package count as a base-unit count.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
+      "example": "",
+      "steps": [
+        "Review each stock item across the configured locations.",
+        "Current stock is derived from durable stock records, while the movement ledger explains receipts, opening balance, sale consumption, transfers, counts, Admin corrections and waste.",
+        "When counting, select **Count**, choose the location, then scan the stock barcode, saved purchase-package barcode or SKU.",
+        "A package barcode adds its canonical base quantity; other stock barcodes add the configured scan quantity.",
+        "You can scan several packages or edit the counted total directly in base units.",
+        "Scans do not change stock until you submit the count with a reason; the backend records the resulting delta as a count adjustment."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 2,
+      "body": "Section: Inventory\nRoles: Admin, Manager, Server\nPermission: inventory.view\nScreen: inventory\nKeywords: inventory overview, inventory, ServOS\n\n## Overview\n\nInventory is location-driven and every operational change creates a stock movement. Barcodes identify stock masters; they do not bypass location, quantity or ledger rules.\n\n## Configure stock barcodes\n\nIn Catalog, open a stock master and enter its physical barcode or EAN in **Physical barcode / EAN / UPC**. Set **Quantity represented by one scan** in the item's base unit. Examples: a 750 ml bottle tracked as ml uses 750; a case of 24 cans tracked as cans uses 24; a single bottle tracked as bottles uses 1. Keep the internal stock code separate from the barcode. A barcode must be unique within stock masters.\n\n## Add an item on the terminal\n\nUse **Add item** to open the staged Smart Item Wizard. Select the closest item type, enter its identity, configure selling/recipe details, optionally link or create stock and enter opening stock, then review the derived summary. Raw count- or weight-based ingredients create a stock-only item; dishes and batch recipes create sellable items with stock-linked recipe lines. For a physical sellable item, enter the container contents separately from its stock quantity (for example, a 330 ml can can be tracked as one piece). For a dish or batch recipe, add each ingredient using its stock base unit; a batch also asks how many sale portions it yields. The wizard displays calculated ingredient cost. The purchase-package flow derives stock units and average unit cost from package size/price. Creating a sellable product with stock, or a stock-only ingredient, plus its optional opening balance uses one native atomic command; rejection leaves all records and movements unchanged.\n\nThis wizard is currently a terminal workflow. It saves the supplier purchase-package definition with stock; Web Smart Item/package editing and broader recipe/measurement UX remain in progress. A saved opening quantity is a local committed movement; it is not a supplier receipt.\n\nFor a weight ingredient, enter the physical amount in one supplier package (for example, `5 kg` per bag). ServOS converts it to `5,000 g`, derives cost per gram, and uses grams for new stock and recipe deductions. Native Smart Item and the Web product recipe editor let you enter a compatible kitchen unit such as `0.2 kg` or `200 g`; ServOS converts it to the selected stock item's stored unit before previewing cost and saving. Web Smart Item creation and final acceptance remain pending.\n\n## Stock control dashboard\n\nThe Inventory screen summarizes stock value, low-stock and out-of-stock masters using the same location-driven stock records. Search by stock name, SKU or barcode, filter by stock state, and focus quantities on one location without creating a second stock balance. A configured reorder level is advisory only: it highlights a stock master when total on-hand is at or below that threshold. Replenishment still enters through Procurement.\n\nSelect a stock item to review its per-location quantities and recent movement history. Count, transfer and waste actions continue through their existing native inventory commands. Authorized operators with `inventory.adjust` also have a distinct **Correct selected stock** action: it previews current balance and delta, requires a reason, and posts an absolute corrected balance as an `ADMIN_CORRECTION` movement. Use it for a reviewed correction; use **Count stock** for the physical count workflow.\n\n## Procedure\n\nReview each stock item across the configured locations. Current stock is derived from durable stock records, while the movement ledger explains receipts, opening balance, sale consumption, transfers, counts, Admin corrections and waste. When counting, select **Count**, choose the location, then scan the stock barcode, saved purchase-package barcode or SKU. A package barcode adds its canonical base quantity; other stock barcodes add the configured scan quantity. You can scan several packages or edit the counted total directly in base units. Scans do not change stock until you submit the count with a reason; the backend records the resulting delta as a count adjustment.\n\nFor a purchase order, select the saved supplier package. Order and receive whole package counts at the price per package. A package scan on that PO adds one package (not the package's contents as PO quantity); the posted receipt converts accepted packages to base stock quantity and unit cost. If accepted quantity exceeds the remaining approved PO balance, a manager approval token is required. The separate physical-count scanner always adds base quantity.\n\nIf a scan is unknown, an operator with `inventory.adjust` may assign it inline to the correct stock master. Assignment only adds a barcode alias; it does not change quantity. Rescan the assigned code to count its stock quantity. Duplicate matches must be resolved in Catalog, and removing an unknown scan explicitly excludes it from the count. Do not compensate by scanning a different item or by treating a package count as a base-unit count.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.\n# Spirit and wine stock (source slice)\n\nFor eligible stock tracked in millilitres, configure a sealed-container size (for example, one bottle's ml capacity). Opening stock is split into whole sealed containers plus any open remainder. Serving sales draw from the open amount first and open only as many sealed containers as needed. A whole-container sale uses sealed stock only; open liquid does not count as a sealed bottle.\n\nWhen correcting this stock, enter sealed bottles and open millilitres separately and provide a reason. The two values must reconcile to the total balance; the correction creates an auditable stock movement. This workflow is implemented in source but has not yet passed final acceptance. Transfers/count parity and staged Web POS behavior remain pending.",
       "keywords": [
         "inventory overview",
         "inventory",
@@ -388,6 +693,19 @@
       ],
       "screen": "procurement",
       "summary": "The Procurement screen keeps the purchase order (PO), goods received note (GRN), accepted stock and supplier accrual linked. It works offline: successful commands commit to the installed terminal's SQLite database and queue for synchronization. Creating a PO requires `procurement.manage`; receiving requires `procurement.receive`.",
+      "example": "",
+      "steps": [
+        "### Create the purchase order"
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. Receiving writes the GRN, stock movement and payable accrual atomically. Invoice matching and each confirmed payment separately commit the payable, journal, audit evidence and outbox together; synchronization remains pending until the terminal reconnects."
+      ],
+      "commonMistakes": [
+        "Do not post a second GRN to fix a mistake without first reviewing the posted receipt. Posted GRNs are historical records and are not deleted by editing the PO. Record rejected goods before posting; after a receipt is posted, use the approved stock adjustment/return process and retain the supplier evidence. A price, quantity or total variance cannot be paid through the match flow; settle it with the supplier and correct the approved source documents first. A successful local commit is not proof that remote synchronization has completed."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Procurement\nRoles: Admin, Manager, Server\nPermission: procurement.view, procurement.manage, procurement.receive\nScreen: procurement\nKeywords: purchase order, procurement, GRN, goods receipt, barcode scanner, ServOS\n\n## Overview\n\nThe Procurement screen keeps the purchase order (PO), goods received note (GRN), accepted stock and supplier accrual linked. It works offline: successful commands commit to the installed terminal's SQLite database and queue for synchronization. Creating a PO requires `procurement.manage`; receiving requires `procurement.receive`.\n\n## Procedure\n\n### Create the purchase order\n\n1. Confirm that the supplier exists in Catalog. If it is missing and your role cannot manage the catalog, ask an Admin or Manager with `catalog.manage` to add it.\n2. Open **Procurement** and choose **New purchase order**.\n3. Select the supplier. Scan a stock barcode or SKU to select a stock master, or choose it from the list.\n4. Enter the number of packages being ordered and the agreed price per package. The screen converts packages to the stock base unit using the scan quantity saved on the stock master. Review the converted quantity and price before adding the line.\n5. Add each stock item once. Review the PO lines and total, then choose **Create and approve PO**. The PO stores ordered quantities and agreed cost per base unit; tax is not inferred.\n\n### Receive a delivery and post its GRN\n\n1. Open an **APPROVED** or **PARTIALLY_RECEIVED** PO and choose **Receive delivery**.\n2. Select the stock location where the delivery physically arrived.\n3. Scan each delivered package in **Scan delivered packages**. One scan adds the package size captured when that PO was created. You can edit the **Delivered** count manually; the number is in stock base units.\n4. For damaged, short-dated or otherwise refused goods, enter the rejected quantity and a reason. Accepted quantity is delivered minus rejected. Check every line against the supplier's delivery before posting.\n5. If accepted quantity would exceed the remaining PO quantity, a different Admin or Manager must approve with their own PIN. The approval is for this PO only, expires after two minutes and can be used once.\n6. Enter the supplier invoice number and delivery note when available, add receipt notes, and choose **Post goods receipt**.\n\nAn unknown or duplicate barcode does not add quantity. Do not scan a barcode for a product that is not on the PO. Add the correct stock master or correct its barcode before receiving.\n\n### Review the result\n\nOpen **Goods receipts** to review the GRN, delivery evidence, delivered/accepted/rejected quantities, receiver and timestamp. Accepted quantity alone increases stock and weighted-average cost and creates the stock movement. The GRN, accepted stock ledger, PO cumulative quantities, audit/outbox records, payable accrual and journal entry are written in one local transaction. Rejected quantities stay on the GRN with their reason and create no stock or payable value.\n\nThe **Payables** section is visible to users with `accounting.view`. Its receipt accrual uses accepted quantities at the agreed PO price. A typed invoice reference on the GRN is evidence only; it does not match or pay the invoice.\n\n### Match the supplier invoice\n\n1. In **Payables**, choose **Match supplier invoice** for the payable linked to the GRN.\n2. Enter the invoice number, invoice date and due date. The supplier's payment terms prefill the due date; verify it against the invoice.\n3. Compare each billed base-unit quantity and unit price with the accepted GRN and approved PO. Enter the invoice total.\n4. Choose **Match invoice to PO and GRN**. Quantity, unit-price and total differences block matching and therefore block payment. This release does not override price variances, discounts or invoice tax. Resolve those with the supplier and an approved PO correction before matching.\n\nEach payable is matched to one supplier invoice for one GRN. A supplier invoice spanning multiple GRNs must be split by the supplier or held outside this workflow until the invoice can be matched per GRN. The match records evidence only; it does not release money.\n\n### Record a confirmed supplier payment\n\n1. Make the supplier payment using the business's normal bank, business M-Pesa or cash process outside ServOS.\n2. Open the matched payable and choose **Record payment**. Enter the amount, payment method, bank/M-Pesa reference or cash voucher, and a short note.\n3. Confirm that the money has already been paid, then record the payment. Partial payments are supported; the screen shows the remaining balance and payment history.\n4. The posted entry debits Accounts Payable and credits the selected cash, bank or business M-Pesa account. The payable becomes **PARTIALLY_PAID** or **PAID**. It does not call a bank or Safaricom service.\n\nThe due date and days overdue appear on the payable. Only users with `procurement.pay` can record payment; this capability is limited to Admin and Manager roles.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. Receiving writes the GRN, stock movement and payable accrual atomically. Invoice matching and each confirmed payment separately commit the payable, journal, audit evidence and outbox together; synchronization remains pending until the terminal reconnects.\n\n## Common mistakes and correction\n\nDo not post a second GRN to fix a mistake without first reviewing the posted receipt. Posted GRNs are historical records and are not deleted by editing the PO. Record rejected goods before posting; after a receipt is posted, use the approved stock adjustment/return process and retain the supplier evidence. A price, quantity or total variance cannot be paid through the match flow; settle it with the supplier and correct the approved source documents first. A successful local commit is not proof that remote synchronization has completed.",
       "keywords": [
         "purchase order",
@@ -411,6 +729,21 @@
       ],
       "screen": "inventory",
       "summary": "Transfers move stock between logical locations; waste removes stock with a reason.",
+      "example": "",
+      "steps": [
+        "For transfer choose source, destination, quantity and reason.",
+        "ServOS records matching transfer-out and transfer-in movements.",
+        "For waste select item/location/quantity and state the reason such as spillage or breakage."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Transfers & Waste\nRoles: Admin, Manager\nPermission: inventory.transfer\nScreen: inventory\nKeywords: transfers and waste, transfers & waste, ServOS\n\n## Overview\n\nTransfers move stock between logical locations; waste removes stock with a reason.\n\n## Procedure\n\nFor transfer choose source, destination, quantity and reason. ServOS records matching transfer-out and transfer-in movements. For waste select item/location/quantity and state the reason such as spillage or breakage.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "transfers and waste",
@@ -431,6 +764,23 @@
       ],
       "screen": "inventory",
       "summary": "A stock count posts the difference between expected and physical quantity as an auditable adjustment. Barcode scans speed up counting while preserving the base-unit stock ledger.",
+      "example": "Select **Count** and choose the stock location. Scan a stock barcode or SKU for each package counted. Each scan adds the item's configured **Quantity represented by one scan**, in base units, to the count draft. For example, scanning a 750 ml bottle three times adds 2,250 ml when the stock master is tracked in ml and has a scan quantity of 750. You may also edit the total counted quantity directly; it must remain in base units.",
+      "steps": [
+        "Select **Count** and choose the stock location.",
+        "Scan a stock barcode or SKU for each package counted.",
+        "Each scan adds the item's configured **Quantity represented by one scan**, in base units, to the count draft.",
+        "For example, scanning a 750 ml bottle three times adds 2,250 ml when the stock master is tracked in ml and has a scan quantity of 750.",
+        "You may also edit the total counted quantity directly; it must remain in base units."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 2,
       "body": "Section: Stocktake\nRoles: Admin, Manager\nPermission: inventory.count\nScreen: inventory\nKeywords: physical stocktake, stocktake, ServOS\n\n## Overview\n\nA stock count posts the difference between expected and physical quantity as an auditable adjustment. Barcode scans speed up counting while preserving the base-unit stock ledger.\n\n## Procedure\n\nSelect **Count** and choose the stock location. Scan a stock barcode or SKU for each package counted. Each scan adds the item's configured **Quantity represented by one scan**, in base units, to the count draft. For example, scanning a 750 ml bottle three times adds 2,250 ml when the stock master is tracked in ml and has a scan quantity of 750. You may also edit the total counted quantity directly; it must remain in base units.\n\nCheck the item and location before applying each scan. If a code is unknown or matches multiple stock masters, fix the catalog mapping first. Enter the count reason and commit when the draft matches the physical stocktake. Until commit, scans are only draft input and do not alter inventory. ServOS calculates the delta against expected stock and rejects invalid quantities.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "physical stocktake",
@@ -451,6 +801,22 @@
       ],
       "screen": "catalog",
       "summary": "Price rules are persisted, time-aware and snapshotted onto order items.",
+      "example": "",
+      "steps": [
+        "Create a fixed or percentage rule.",
+        "Scope it to all products, a product or category, set time window and priority.",
+        "Overnight windows such as 17:00–02:00 are supported.",
+        "Historical order lines retain their original applied rule snapshot."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Pricing\nRoles: Admin, Manager\nPermission: pricing.manage\nScreen: catalog\nKeywords: pricing and happy hour, pricing, ServOS\n\n## Overview\n\nPrice rules are persisted, time-aware and snapshotted onto order items.\n\n## Procedure\n\nCreate a fixed or percentage rule. Scope it to all products, a product or category, set time window and priority. Overnight windows such as 17:00–02:00 are supported. Historical order lines retain their original applied rule snapshot.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "pricing and happy hour",
@@ -471,6 +837,21 @@
       ],
       "screen": "floorplan",
       "summary": "The floorplan saves the complete outlet layout atomically and preserves active table ownership.",
+      "example": "",
+      "steps": [
+        "Choose the service outlet, add/edit/remove unoccupied tables and save.",
+        "Active tables cannot be removed.",
+        "Each save includes baseline record versions so stale editors cannot overwrite a newer layout."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Floor Plan\nRoles: Admin, Manager\nPermission: floorplan.manage\nScreen: floorplan\nKeywords: floorplan, floor plan, ServOS\n\n## Overview\n\nThe floorplan saves the complete outlet layout atomically and preserves active table ownership.\n\n## Procedure\n\nChoose the service outlet, add/edit/remove unoccupied tables and save. Active tables cannot be removed. Each save includes baseline record versions so stale editors cannot overwrite a newer layout.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "floorplan",
@@ -491,6 +872,22 @@
       ],
       "screen": "close",
       "summary": "Close day resolves open tabs, counts the drawer, closes the till, backs up, syncs and generates a persisted report.",
+      "example": "",
+      "steps": [
+        "Resolve all open tabs first.",
+        "Reconcile available M-Pesa evidence.",
+        "Enter the blind physical cash count; a variance requires manager authority and reason.",
+        "After till close, create backup, synchronize when online and generate the close-day report."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Closing the Bar\nRoles: Admin, Manager\nPermission: till.close\nScreen: close\nKeywords: closing the bar, closing the bar, ServOS\n\n## Overview\n\nClose day resolves open tabs, counts the drawer, closes the till, backs up, syncs and generates a persisted report.\n\n## Procedure\n\nResolve all open tabs first. Reconcile available M-Pesa evidence. Enter the blind physical cash count; a variance requires manager authority and reason. After till close, create backup, synchronize when online and generate the close-day report.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "closing the bar",
@@ -511,6 +908,20 @@
       ],
       "screen": "reports",
       "summary": "Close-day reports summarize sales, tenders, cash, tax, adjustments, stock cost, waste, staff sales and system state.",
+      "example": "",
+      "steps": [
+        "Generate after the till is closed.",
+        "Review gross/net sales, VAT/levy, cash/M-Pesa/card, refunds, discounts/comps, COGS/waste, gross profit, cash variance, top products, staff sales and pending sync."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Reports\nRoles: Admin, Manager\nPermission: reports.view\nScreen: reports\nKeywords: reports, reports, ServOS\n\n## Overview\n\nClose-day reports summarize sales, tenders, cash, tax, adjustments, stock cost, waste, staff sales and system state.\n\n## Procedure\n\nGenerate after the till is closed. Review gross/net sales, VAT/levy, cash/M-Pesa/card, refunds, discounts/comps, COGS/waste, gross profit, cash variance, top products, staff sales and pending sync.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "reports",
@@ -532,6 +943,22 @@
       ],
       "screen": "help",
       "summary": "Local committed operations continue when the server is unreachable.",
+      "example": "",
+      "steps": [
+        "Keep trading after local staff unlock.",
+        "The outbox records every committed operation.",
+        "When connectivity returns ServOS uploads operations in sequence and only removes pending status after durable server acknowledgement.",
+        "Replication is not backup."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Offline Mode\nRoles: Admin, Manager, Server\nPermission: help.view\nScreen: help\nKeywords: offline mode and synchronization, offline mode, ServOS\n\n## Overview\n\nLocal committed operations continue when the server is unreachable.\n\n## Procedure\n\nKeep trading after local staff unlock. The outbox records every committed operation. When connectivity returns ServOS uploads operations in sequence and only removes pending status after durable server acknowledgement. Replication is not backup.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "offline mode and synchronization",
@@ -552,6 +979,21 @@
       ],
       "screen": "admin",
       "summary": "A local backup copies the authoritative SQLite database consistently.",
+      "example": "",
+      "steps": [
+        "Create a backup at day close and before upgrades.",
+        "Keep seven daily and four weekly copies as the target policy.",
+        "Encryption, remote rotation and replacement-terminal restore must be acceptance-tested before claiming deployment verification."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Backup & Recovery\nRoles: Admin, Manager\nPermission: backup.create\nScreen: admin\nKeywords: backup and recovery, backup & recovery, ServOS\n\n## Overview\n\nA local backup copies the authoritative SQLite database consistently.\n\n## Procedure\n\nCreate a backup at day close and before upgrades. Keep seven daily and four weekly copies as the target policy. Encryption, remote rotation and replacement-terminal restore must be acceptance-tested before claiming deployment verification.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "backup and recovery",
@@ -573,6 +1015,21 @@
       ],
       "screen": "help",
       "summary": "Error messages are designed to describe the failed business invariant without claiming success.",
+      "example": "",
+      "steps": [
+        "If a command fails, read the red runtime message.",
+        "Reload is safe because committed records are durable.",
+        "Common issues include no open till, table not ready, insufficient stock, duplicate M-Pesa code, missing manager approval and setup not LIVE."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Troubleshooting\nRoles: Admin, Manager, Server\nPermission: help.view\nScreen: help\nKeywords: troubleshooting, troubleshooting, ServOS\n\n## Overview\n\nError messages are designed to describe the failed business invariant without claiming success.\n\n## Procedure\n\nIf a command fails, read the red runtime message. Reload is safe because committed records are durable. Common issues include no open till, table not ready, insufficient stock, duplicate M-Pesa code, missing manager approval and setup not LIVE.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "troubleshooting",
@@ -594,6 +1051,21 @@
       ],
       "screen": "help",
       "summary": "Short daily paths for Operator, Manager and Owner/Admin.",
+      "example": "",
+      "steps": [
+        "Operator: unlock → open/select tab → add → fire → payment → receipt → clean table → lock.",
+        "Manager: open till → approve exceptions → adjust stock/waste → reconcile M-Pesa → count cash → close/report.",
+        "Owner/Admin: configure business → manage staff → pricing → reports → backup/sync."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Operator Guide\nRoles: Admin, Manager, Server\nPermission: help.view\nScreen: help\nKeywords: role quick starts, operator guide, ServOS\n\n## Overview\n\nShort daily paths for Operator, Manager and Owner/Admin.\n\n## Procedure\n\nOperator: unlock → open/select tab → add → fire → payment → receipt → clean table → lock. Manager: open till → approve exceptions → adjust stock/waste → reconcile M-Pesa → count cash → close/report. Owner/Admin: configure business → manage staff → pricing → reports → backup/sync.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "role quick starts",
@@ -615,6 +1087,23 @@
       ],
       "screen": "help",
       "summary": "Common ServOS terms used throughout the product.",
+      "example": "",
+      "steps": [
+        "Outbox: locally committed operations awaiting server acknowledgement.",
+        "Snapshot: the current native record set returned to the UI.",
+        "Portion: sellable measure tied to product/stock.",
+        "Disposition: stock consequence of a fired void.",
+        "Go Live: native stage that permits operational trading commands."
+      ],
+      "systemHandles": [
+        "Actions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together."
+      ],
+      "commonMistakes": [
+        "Do not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions."
+      ],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 2,
       "body": "Section: Glossary\nRoles: Admin, Manager, Server\nPermission: help.view\nScreen: help\nKeywords: glossary, glossary, ServOS\n\n## Overview\n\nCommon ServOS terms used throughout the product.\n\n## Procedure\n\nOutbox: locally committed operations awaiting server acknowledgement. Snapshot: the current native record set returned to the UI. Portion: sellable measure tied to product/stock. Disposition: stock consequence of a fired void. Go Live: native stage that permits operational trading commands.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "glossary",
@@ -636,6 +1125,13 @@
       ],
       "screen": "POS, Business Setup",
       "summary": "ServOS supports four receipt routes: direct XP-80T LAN ESC/POS, direct ESC/POS through a Windows USB printer queue, the operating system print dialog, and manual copy. Direct profiles send a two-copy receipt without opening a print dialog. The LAN profile uses TCP port 9100 by default.",
+      "example": "",
+      "steps": [],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Hardware and Receipts\nRoles: Admin, Manager, Server\nPermission: pos.sell\nScreen: POS, Business Setup\nKeywords: XP-80T, Xprinter, USB printer, receipt printing, customer copy, business copy, Windows driver\n\n## Overview\n\nServOS supports four receipt routes: direct XP-80T LAN ESC/POS, direct ESC/POS through a Windows USB printer queue, the operating system print dialog, and manual copy. Direct profiles send a two-copy receipt without opening a print dialog. The LAN profile uses TCP port 9100 by default.\n\n## Procedure\n\n## Before connecting\n\nThe XP-80T is an 80 mm thermal receipt printer. Use the supplied 24 V, 1.25 A adapter and load an 80 mm thermal paper roll with the paper feeding from the correct side. Set receipt width to 48 columns unless a printed test shows that the installed font needs another width.\n\n## Install and test the Windows queue\n\n1. Install the XP-80T-compatible 80-series Windows driver from the [official Xprinter driver page](https://www.xprinter.net/companyfile/11/).\n2. Connect printer power and USB data, then run `scripts/configure-xprinter-usb.ps1` from elevated PowerShell. It reuses an XP-80 queue already assigned to the selected USB port, or creates `XP-80T USB` from the installed driver. Record the exact queue name it reports.\n3. To check the USB queue with a short non-sale receipt, run `scripts/test-xprinter-usb.ps1 -QueueName '<queue name>' -Send` and confirm that paper physically prints. This test sends no cash-drawer signal. Replace `<queue name>` with the exact name reported by the setup helper.\n4. For direct USB printing, open ServOS Business Setup → Till policy, choose **XP-80T direct USB (Windows queue)**, and enter that exact local queue name.\n5. For direct LAN printing, reserve or set the printer's local network address using its setup utility, connect its Ethernet cable, select **XP-80T direct LAN (ESC/POS)**, and enter the printer's private-network IP. Keep port **9100** unless the printer was configured differently.\n6. Set receipt width (default 48 columns) and whether to cut after each copy. Save the profile and choose **Save & send test slip**.\n\nFor **Windows / OS print dialog**, ServOS opens the operating system print window and the operator selects the installed queue. Direct USB uses the local Windows queue to pass ESC/POS data in RAW mode. Direct LAN connects to the configured address and sends ESC/POS bytes. The LAN address must be local to the POS network.\n\n## Print the sale receipts\n\nAfter a native POS payment is recorded, ServOS opens the receipt dialog. Choose **Print both copies**. The print job includes:\n\n- **Customer copy:** business and outlet, receipt number and time, ordered items, total, tender and reference, and any cash change.\n- **Business record copy:** the same sale details plus the transaction ID and operator name for filing and reconciliation.\n\nDirect profiles print the customer copy and business record copy as separate receipts, with an optional cut after each copy. The OS print dialog may paginate according to driver settings. A `SENT` status means the printer socket or Windows spooler accepted the bytes; it cannot confirm that paper physically came out. Inspect the test slip and first sale before relying on the printer. Receipt printing is not eTIMS confirmation; fiscal submission is not connected.\n\n## If nothing prints\n\n1. Use the printer's self-test: turn it off, hold **FEED**, turn it on, and release FEED when the test starts.\n2. If self-test works but the ServOS test slip does not, verify the Windows queue name or LAN IP, then check that the selected connection matches the cable in use.\n3. For USB, check Windows Printers & scanners and the queue's paused/error state. For LAN, check that the POS and printer share the local network and that TCP port 9100 is reachable.\n4. If a send is **QUEUED**, fix the connection and select **Retry**. If it is **DELIVERY_UNCERTAIN**, check the paper first; choose **Reprint anyway (may duplicate)** only when the receipt did not print.\n5. If text is clipped, adjust receipt width and cut setting in Till policy, save, and send another test slip. A sent job is not proof of paper output.\n\n## Related workflows\n\nUse [Business Setup](04-business-setup.md) to set till policy, [M-Pesa](12-mpesa.md) to reconcile manual receipt codes, and [Close Day](24-close-day.md) to retain transaction and shift records.",
       "keywords": [
         "XP-80T",
@@ -660,6 +1156,15 @@
       ],
       "screen": "Catalog & Pricing",
       "summary": "Import catalog records with validated SKU and barcode relationships.",
+      "example": "",
+      "steps": [
+        "Required columns:"
+      ],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "# CSV product and inventory import\n\nServOS can import product and stock master data from a CSV in **Catalog & Pricing â†’ Import CSV**.\n\nSection: Catalog\nRoles: Admin, Manager\nPermission: catalog.manage\nScreen: Catalog & Pricing\n\n## Overview\n\nImport catalog records with validated SKU and barcode relationships.\n\n## Procedure\n\nRequired columns:\n\n- `sku`\n- `name`\n\nSupported columns:\n\n- `barcode`\n- `category`\n- `sale_price`\n- `cost_price`\n- `quantity`\n- `base_unit`\n- `scan_unit_quantity`\n- `route_to`\n- `tax_class_id`\n- `create_product`\n- `portion_volume`\n- `notes`\n\nExisting records are matched case-insensitively by SKU/code. Duplicate product and stock barcodes remain blocked by the native backend.\n\n## Import modes\n\n**Products / stock master only** updates master data and ignores the quantity column.\n\nBefore Go Live, **opening balance** mode records the CSV quantity through the existing auditable `inventory.openingBalance` operation.\n\nAfter Go Live, **receive stock** mode records the CSV quantity through `inventory.receive`, requires a receipt or invoice reference, and updates weighted-average inventory cost.\n\nUse `create_product=FALSE` for stock that should not yet appear as a POS sellable, for example a keg before its serving yield is configured or an item whose retail price is still unknown.\n\n## Barcode scanning at POS\n\nThe POS scanner path treats a normal USB scanner as a keyboard-wedge device. It now accepts both Enter and Tab scan suffixes and allows a slightly wider inter-key timing window for older scanners and Windows POS hardware.\n\nA physical EAN/UPC belongs in the CSV `barcode` column. Supplier SKU remains in `sku`; POS can match either barcode or SKU/code.",
       "keywords": []
     },
@@ -677,6 +1182,16 @@
       ],
       "screen": "Bar POS / Business Admin",
       "summary": "New payments capture their receipt from saved transaction data. Both 80mm copies show the fixed developer attribution. Print failures do not reverse payments. Business Admin settings require the separate business.configure capability (Admin).",
+      "example": "",
+      "steps": [
+        "Record a payment.",
+        "Review both saved copies, then print or copy the text."
+      ],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Administration\nRoles: Admin, Manager, Server\nPermission: pos.sell\nScreen: Bar POS / Business Admin\n\n## Overview\n\nNew payments capture their receipt from saved transaction data. Both 80mm copies show the fixed developer attribution. Print failures do not reverse payments. Business Admin settings require the separate business.configure capability (Admin).\n\n## Procedure\n\n1. Record a payment. Review both saved copies, then print or copy the text.\n2. For an offline printer, retry the retained job. If delivery is uncertain, inspect the paper before confirming a duplicate-risk reprint.\n3. Use Receipt history in POS to reopen one of the latest 100 captured receipts. Reprints are labelled. Earlier payments without captured documents are not fabricated from current settings.\n4. In Business Admin, open Business identity, Tax and receipt message, Payment methods, or Till and printer. Save changes; stale settings require reopening the editor.\n5. Test the saved direct printer configuration and check actual paper output. The system dialog and spooler acknowledgement are not proof of physical printing.\n\nExisting transactions and receipt documents retain their original identity/tax/payment snapshots. Business thank-you text is configurable; the attribution footer is fixed. KES, Africa/Nairobi and tax-inclusive pricing remain the supported installed policy.",
       "keywords": []
     },
@@ -694,7 +1209,20 @@
         "rooms.operate"
       ],
       "screen": "Rooms Studio",
-      "summary": "Rooms Studio provides the native room-domain controls for room types, physical rooms, rate plans, room blocks, housekeeping state, room condition, and reservations.\n\nReservations use half-open occupancy intervals and hold the room through its configured turnaround period. Configure one room type and one `NIGHTLY` room-stay rate in Settings. Nightly stays end at the configured local checkout time (default `10:00`); day stays use that same rate, remain on one local calendar date, and must end by the configured cutoff (default `18:00`). Existing reservations retain their rate snapshot and quoted amount, so later rate edits do not silently reprice a booking.\n\nReservation and room-block times are entered in the property's configured timezone (default `Africa/Nairobi`) and stored as UTC instants. If a timezone has a daylight-saving clock change, ServOS asks for another time when the entered wall time is skipped or occurs twice.\n\nPatch 05 deliberately stops before check-in and checkout. The staged ServOS contract requires reservation, stay, and folio state to move together when a guest checks in or out. That financial boundary is implemented with the stay/folio integration rather than through a non-financial shortcut.",
+      "summary": "Rooms Studio provides the native room-domain controls for room types, physical rooms, rate plans, room blocks, housekeeping state, room condition, and reservations.",
+      "example": "",
+      "steps": [
+        "### Configure room types"
+      ],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [
+        "35-front-desk",
+        "36-housekeeping",
+        "37-folios"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "ServOS Rooms Studio manages room inventory and reservation availability through the native command boundary.\n\nSection: Rooms\nRoles: Admin, Manager\nPermission: rooms.view, rooms.manage, rooms.operate\nScreen: Rooms Studio\n\n## Overview\n\nRooms Studio provides the native room-domain controls for room types, physical rooms, rate plans, room blocks, housekeeping state, room condition, and reservations.\n\nReservations use half-open occupancy intervals and hold the room through its configured turnaround period. Configure one room type and one `NIGHTLY` room-stay rate in Settings. Nightly stays end at the configured local checkout time (default `10:00`); day stays use that same rate, remain on one local calendar date, and must end by the configured cutoff (default `18:00`). Existing reservations retain their rate snapshot and quoted amount, so later rate edits do not silently reprice a booking.\n\nReservation and room-block times are entered in the property's configured timezone (default `Africa/Nairobi`) and stored as UTC instants. If a timezone has a daylight-saving clock change, ServOS asks for another time when the entered wall time is skipped or occurs twice.\n\nPatch 05 deliberately stops before check-in and checkout. The staged ServOS contract requires reservation, stay, and folio state to move together when a guest checks in or out. That financial boundary is implemented with the stay/folio integration rather than through a non-financial shortcut.\n\n## Procedure\n\n### Configure room types\n\n1. Open **Rooms Studio**.\n2. Choose **Room type**.\n3. Enter a unique code, name, and maximum guest capacity.\n4. Save the room type before creating rooms or rate plans that depend on it.\n5. Archive a room type only after all active rooms and rate plans referencing it have been resolved.\n\n### Configure physical rooms\n\n1. Choose **Room**.\n2. Enter the room number and select its room type.\n3. Set guest capacity and turnaround minutes.\n4. Optionally record the floor, wing, amenities, and notes.\n5. For a new room, choose its initial state: `READY`, `DIRTY`, or `OUT_OF_ORDER`.\n6. Save the room. Active room numbers must remain unique.\n\nRoom housekeeping follows:\n\n`DIRTY → CLEANING → INSPECTION → CLEAN`\n\nInspection can return a room to `DIRTY`.\n\nRoom condition is independent from housekeeping. `OUT_OF_ORDER` rooms cannot accept reservations.\n\n### Configure the room-stay rate\n\n1. Create or edit the single `NIGHTLY` rate for the configured room type.\n2. Enter the KES rate and tax basis points.\n3. Open **Business settings → Room stays**.\n4. Select the one room type and rate, then set nightly checkout and day-stay cutoff times.\n5. Do not create a separate day rate: day stays use the configured room-stay rate.\n6. Set meal plan and applicable nightly stay limits.\n7. Save the rate plan.\n\nA reservation snapshots the selected rate plan. Editing the master rate later does not alter existing reservation quotes.\n\n### Create a reservation\n\n1. Choose **New reservation**.\n2. Select the guest and room.\n3. Choose `Nightly` or `Day stay`.\n4. Enter the number of guests, arrival, and departure.\n5. Review the displayed checkout/cutoff rule and save.\n\nServOS rejects:\n\n- guest counts above room capacity;\n- rate plans belonging to another room type;\n- overlapping active reservations;\n- overlaps with active room blocks;\n- invalid day-use durations;\n- nightly stays outside the rate plan limits;\n- reservations on an out-of-order room.\n\nThe reservation holds the room through departure plus its configured turnaround minutes.\n\n### Update or close a reservation\n\nA reservation can be edited only while it is `RESERVED`.\n\nChoose **Cancel / no-show** to close a reservation with a reason. A no-show cannot be recorded before the scheduled arrival time. If a later folio contains money, cancellation/no-show requires the folio funds to be resolved first.\n\n### Block or release a room\n\nUse **Block** when a room should be unavailable for a specific interval without permanently taking it out of service.\n\nA block cannot overlap another active booking or block. To release it, record an inspection note.\n\nUse **Out of order** for a broader room-condition problem. A room with active reservations cannot simply be switched out of order without first resolving the affected reservations.\n\n### Import room data\n\nAfter Patch 05, Import Center can dry-run and apply:\n\n- `room_types.csv`\n- `rooms.csv`\n- `rate_plans.csv`\n\nApply room types first because rooms and rate plans resolve `room_type_external_id` through the durable migration mapping.\n\n`hotel_services.csv` remains staged until Folios so service price/tax snapshots and posting rules are atomic.\n\n## Reservation and stay boundary\n\nPatch 05 does not expose check-in or checkout.\n\nThe hospitality transaction contract requires one reservation, one stay, and one folio. Check-in and checkout therefore arrive with the stay/folio integration, where accommodation charges, deposits, receivables, and room-state transitions can be validated atomically.",
       "keywords": []
     },
@@ -712,8 +1240,21 @@
         "rooms.guests.view"
       ],
       "screen": "Front Desk",
-      "summary": "Front Desk is the operational view over the native Rooms engine. It combines today's arrivals and departures, occupied-room counts, search, a multi-day tape chart, check-in, and room moves.\n\nThe screen uses the timezone configured on the property (currently `Africa/Nairobi` for this installation). In the staged Web workspace, the session returns only the timezone and room-stay policy times needed by operational screens; it does not expose the full property record. Reservation availability still comes from the authorized business records and backend rules, including turnaround buffers and room blocks.\n\nCheck-in creates the stay and, when one does not already exist, a zero-value folio shell using the reservation ID as the stable ID. Room moves preserve the reservation rate snapshot, dirty the old room, and create a turnaround block.\n\nPaid extensions and checkout remain disabled until Patch 07 Folios because they require accommodation posting, deposits, payment evidence, and zero-balance conservation.",
-      "body": "Section: Rooms\nRoles: Admin, Manager\nPermission: rooms.view, rooms.operate, rooms.guests.view\nScreen: Front Desk\n\n## Overview\n\nFront Desk is the operational view over the native Rooms engine. It combines today's arrivals and departures, occupied-room counts, search, a multi-day tape chart, check-in, and room moves.\n\nThe screen uses the timezone configured on the property (currently `Africa/Nairobi` for this installation). In the staged Web workspace, the session returns only the timezone and room-stay policy times needed by operational screens; it does not expose the full property record. Reservation availability still comes from the authorized business records and backend rules, including turnaround buffers and room blocks.\n\nCheck-in creates the stay and, when one does not already exist, a zero-value folio shell using the reservation ID as the stable ID. Room moves preserve the reservation rate snapshot, dirty the old room, and create a turnaround block.\n\nPaid extensions and checkout remain disabled until Patch 07 Folios because they require accommodation posting, deposits, payment evidence, and zero-balance conservation.\n\n## Procedure\n\n### Review arrivals\n\n1. Open **Front Desk**.\n2. Review **Arrivals today**.\n3. Confirm that the arrival time has been reached.\n4. Confirm that the assigned room is `CLEAN` and not `OUT_OF_ORDER`.\n5. Choose **Check in**.\n\nThe backend rechecks reservation and room versions, room cleanliness, room condition, timing, and interval availability before committing.\n\n### Review departures\n\nThe **Departures today** queue shows active reservations whose planned departure falls on the current property-local date.\n\nCheckout remains unavailable until Patch 07. Do not simulate checkout by cancelling a checked-in reservation or manually changing room state.\n\n### Use the tape chart\n\nChoose a start date and a seven- or fourteen-day view. Each row is a room. Reservation cells show reserved or checked-in occupancy. Block cells show active availability blocks.\n\nTurnaround time is included in reservation occupancy for availability even when the displayed departure has passed.\n\n### Move an in-house guest\n\n1. Choose **Move** on a checked-in stay.\n2. Select a clean, available room with enough guest capacity.\n3. Record the reason.\n4. Confirm the move.\n\nServOS checks versions for the stay, reservation, current room, and destination room. It updates reservation and stay together, marks the old room dirty, preserves the existing rate snapshot, and adds a turnaround block for the old room.\n\n### Handle conflicts\n\nA version conflict means another committed action changed the reservation, stay, or room after the screen loaded. Refresh the Front Desk and repeat the action using the current data.",
+      "summary": "Front Desk is the operational view over the native Rooms engine. It combines today's arrivals and departures, occupied-room counts, search, a multi-day tape chart, check-in, and room moves.",
+      "example": "",
+      "steps": [
+        "### Review arrivals"
+      ],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [
+        "34-rooms-engine",
+        "36-housekeeping",
+        "37-folios"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
+      "body": "Section: Rooms\nRoles: Admin, Manager\nPermission: rooms.view, rooms.operate, rooms.guests.view\nScreen: Front Desk\n\n## Overview\n\nFront Desk is the operational view over the native Rooms engine. It combines today's arrivals and departures, occupied-room counts, search, a multi-day tape chart, check-in, and room moves.\n\nThe screen uses the timezone configured on the property (currently `Africa/Nairobi` for this installation). In the staged Web workspace, the session returns only the timezone and room-stay policy times needed by operational screens; it does not expose the full property record. Reservation availability still comes from the authorized business records and backend rules, including turnaround buffers and room blocks.\n\nCheck-in creates the stay and, when one does not already exist, a zero-value folio shell using the reservation ID as the stable ID. Room moves preserve the reservation rate snapshot, dirty the old room, and create a turnaround block. The Web Front Desk previews destination capacity, cleanliness/service state, overlapping reservations, and active room blocks; the business server rechecks these facts when it accepts the queued move.\n\nCheckout is available only after booked accommodation is posted, the folio balance is settled, and any deposit is applied or refunded. The Front Desk readiness panel explains the next action when one of these conditions is not met. The server remains authoritative and may reject a submission if the folio or stay changed after the screen loaded.\n\n## Procedure\n\n### Review arrivals\n\n1. Open **Front Desk**.\n2. Review **Arrivals today**.\n3. Confirm that the arrival time has been reached.\n4. Confirm that the assigned room is `CLEAN` and not `OUT_OF_ORDER`.\n5. Choose **Check in**.\n\nThe backend rechecks reservation and room versions, room cleanliness, room condition, timing, and interval availability before committing.\n\n### Review departures\n\nThe **Departures today** queue shows active reservations whose planned departure falls on the current property-local date.\n\nCheckout remains unavailable until Patch 07. Do not simulate checkout by cancelling a checked-in reservation or manually changing room state.\n\n### Use the tape chart\n\nChoose a start date and a seven- or fourteen-day view. Each row is a room. Reservation cells show reserved or checked-in occupancy. Block cells show active availability blocks.\n\nTurnaround time is included in reservation occupancy for availability even when the displayed departure has passed.\n\n### Move an in-house guest\n\n1. Choose **Move** on a checked-in stay.\n2. Select a room; ServOS previews capacity, room condition, bookings, and active blocks.\n3. Record the reason.\n4. Confirm the move.\n\nServOS checks versions for the stay, reservation, current room, and destination room. It updates reservation and stay together, marks the old room dirty, preserves the existing rate snapshot, and adds a turnaround block for the old room. If a destination blocker appears, resolve it and refresh before retrying. A queued command is not complete until accepted by the business server.\n\n### Handle conflicts\n\nA version conflict means another committed action changed the reservation, stay, or room after the screen loaded. Refresh the Front Desk and repeat the action using the current data.",
       "keywords": []
     },
     {
@@ -729,7 +1270,20 @@
         "rooms.view"
       ],
       "screen": "Housekeeping",
-      "summary": "Housekeeping is the room-readiness board for the native Rooms engine. It separates cleaning state from occupancy and from the room's maintenance condition.\n\nThe supported housekeeping sequence is:\n\n`DIRTY → CLEANING → INSPECTION → CLEAN`\n\nInspection can fail back to `DIRTY`. A clean room can be marked dirty when operational evidence requires it.\n\n`OUT_OF_ORDER` is a separate room condition and prevents reservation/check-in availability.",
+      "summary": "Housekeeping is the room-readiness board for the native Rooms engine. It separates cleaning state from occupancy and from the room's maintenance condition.",
+      "example": "",
+      "steps": [
+        "### Work the cleaning board"
+      ],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [
+        "34-rooms-engine",
+        "35-front-desk",
+        "37-folios"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Rooms\nRoles: Admin, Manager\nPermission: rooms.manage, rooms.view\nScreen: Housekeeping\n\n## Overview\n\nHousekeeping is the room-readiness board for the native Rooms engine. It separates cleaning state from occupancy and from the room's maintenance condition.\n\nThe supported housekeeping sequence is:\n\n`DIRTY → CLEANING → INSPECTION → CLEAN`\n\nInspection can fail back to `DIRTY`. A clean room can be marked dirty when operational evidence requires it.\n\n`OUT_OF_ORDER` is a separate room condition and prevents reservation/check-in availability.\n\n## Procedure\n\n### Work the cleaning board\n\n1. Open **Housekeeping**.\n2. Find the room under `DIRTY`.\n3. Choose **Start cleaning**.\n4. When cleaning is complete, choose **Send to inspection**.\n5. During inspection choose **Pass inspection** or **Fail inspection**.\n\nEvery transition is version checked and audited.\n\n### Take a room out of service\n\n1. Choose **Out of order**.\n2. Record the defect or operational reason.\n3. Resolve any active reservations before taking a conflicting room out of service.\n4. When the room is safe again, choose **Return to service**.\n\n### Review room blocks\n\nActive blocks appear on the room card with their interval and reason. Choose **Release block** only after recording an inspection/release note.\n\nPatch 08 adds maintenance work orders and maintenance-linked blocks. Until then, use room condition and ordinary room blocks without pretending they are completed maintenance records.\n\n### Occupied rooms\n\nHousekeeping state and occupancy are independent. An occupied room can appear in the board, but staff should not change cleaning state unless the real-world room workflow supports that action.",
       "keywords": []
     },
@@ -747,8 +1301,21 @@
         "payment.record"
       ],
       "screen": "Folios",
-      "summary": "Folios is the financial control surface for a room reservation and stay. One reservation, one stay, and one folio use the same stable ID.\n\nThe folio stores two independent amounts:\n\n- `balanceMinor` is the guest receivable.\n- `depositMinor` is unapplied guest deposit liability.\n\nDeposits are not revenue. Applying a deposit reduces both deposit liability and guest receivable. Direct settlement cannot exceed the outstanding receivable.\n\nAccommodation, services, POS room charges, payments, deposit applications, refunds, and reversals create immutable folio history. Checkout requires all booked accommodation periods to be posted and both balances to equal zero.",
-      "body": "Section: Rooms\nRoles: Admin, Manager\nPermission: folio.view, folio.manage, payment.record\nScreen: Folios\n\n## Overview\n\nFolios is the financial control surface for a room reservation and stay. One reservation, one stay, and one folio use the same stable ID.\n\nThe folio stores two independent amounts:\n\n- `balanceMinor` is the guest receivable.\n- `depositMinor` is unapplied guest deposit liability.\n\nDeposits are not revenue. Applying a deposit reduces both deposit liability and guest receivable. Direct settlement cannot exceed the outstanding receivable.\n\nAccommodation, services, POS room charges, payments, deposit applications, refunds, and reversals create immutable folio history. Checkout requires all booked accommodation periods to be posted and both balances to equal zero.\n\n## Procedure\n\n### Open a folio before arrival\n\n1. Open **Folios**.\n2. Select a reserved booking.\n3. Choose **Open folio**.\n4. Record any advance deposit using **Record deposit**.\n\nA folio can exist before check-in. Check-in reuses the same folio and rejects an incompatible or closed folio.\n\n### Post accommodation\n\nChoose **Post due accommodation** to catch up accommodation periods whose billing boundary has been reached.\n\nChoose **Post booked stay** when settling the full originally booked stay before checkout. Each original reservation period has a deterministic immutable key, so repeating the action cannot bill the same period twice.\n\nAccommodation uses the rate/tax snapshot captured by the reservation.\n\n### Post hotel services\n\n1. Configure active hotel service masters with a code, KES price, and tax basis points.\n2. Select a checked-in folio.\n3. Choose **Hotel service**.\n4. Select the service and quantity.\n5. Confirm.\n\nThe folio entry snapshots the service master and posts guest receivable, service revenue, and inclusive tax atomically.\n\n### Record a deposit\n\nChoose **Record deposit** and select CASH, MPESA, or CARD.\n\nCash requires an open till. External methods require a reference and explicit manual confirmation. ServOS never infers provider confirmation.\n\nA deposit debits the received tender and credits `GUEST_DEPOSITS`. It does not credit sales or accommodation revenue.\n\n### Apply a deposit\n\nWhen the guest has both an outstanding receivable and unapplied deposit, choose **Apply deposit**.\n\nServOS applies no more than the smaller of the receivable and deposit liability. The journal debits guest deposits and credits guest receivable.\n\n### Settle the receivable\n\nChoose **Settle balance**.\n\nDirect settlement cannot overpay. Excess funds must be recorded separately as a deposit. Cash tender/change is explicit. External references are normalized and protected against duplicate use.\n\n### Refund unapplied deposit\n\nChoose **Refund deposit** and record the payout method, amount, reason, and external payout reference when applicable.\n\nThe payout reduces guest deposit liability and records separate refund evidence. Historical receipt/payment records are never edited to simulate a refund.\n\n### Reverse an unpaid charge\n\nA Manager/Admin with `folio.reverse` can reverse a folio charge that is still represented in the outstanding receivable.\n\nReversal links to the source entry, requires a reason, and posts the opposite receivable/revenue/tax journal. Paid charges require a separate refund workflow rather than silent mutation.\n\n### Extend an active stay\n\n1. Select a checked-in folio.\n2. Choose **Extend stay**.\n3. Select a compatible active rate plan and number of rate units.\n4. Record exact payment evidence.\n5. Confirm.\n\nThe extra room interval, extension charge, exact payment, immutable extension record, reservation departure, and audit/outbox commit together. A rejected duplicate payment reference leaves the original departure unchanged.\n\n### Check out\n\nBefore checkout:\n\n1. Post all booked accommodation.\n2. Settle the receivable to zero.\n3. Apply or refund all remaining deposit liability.\n4. Choose **Check out**.\n\nCheckout closes reservation, stay, and folio together, marks the room DIRTY, creates a turnaround block when required, records an immutable stay event, and captures an immutable hotel receipt.\n\n## POS room charge\n\nAt POS, **Charge room** transfers the outstanding restaurant order to a checked-in guest folio.\n\nIt is a receivable transfer, not money received:\n\n- restaurant revenue/tax is recognized once;\n- guest receivable is debited;\n- the folio balance increases;\n- cash, M-Pesa, and card totals do not increase;\n- the POS order completes and its receipt records `ROOM_CHARGE`.\n\nThis prevents double revenue and keeps cash-up truthful.",
+      "summary": "Folios is the financial control surface for a room reservation and stay. One reservation, one stay, and one folio use the same stable ID.",
+      "example": "",
+      "steps": [
+        "### Open a folio before arrival"
+      ],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [
+        "34-rooms-engine",
+        "35-front-desk",
+        "36-housekeeping"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
+      "body": "Section: Rooms\nRoles: Admin, Manager\nPermission: folio.view, folio.manage, payment.record\nScreen: Folios\n\n## Overview\n\nFolios is the financial control surface for a room reservation and stay. One reservation, one stay, and one folio use the same stable ID.\n\nThe folio stores two independent amounts:\n\n- `balanceMinor` is the guest receivable.\n- `depositMinor` is unapplied guest deposit liability.\n\nDeposits are not revenue. Applying a deposit reduces both deposit liability and guest receivable. Direct settlement cannot exceed the outstanding receivable.\n\nAccommodation, services, POS room charges, payments, deposit applications, refunds, and reversals create immutable folio history. Checkout requires all booked accommodation periods to be posted and both balances to equal zero.\n\n## Procedure\n\n### Open a folio before arrival\n\n1. Open **Folios**.\n2. Select a reserved booking.\n3. Choose **Open folio**.\n4. Record any advance deposit using **Record deposit**.\n\nA folio can exist before check-in. Check-in reuses the same folio and rejects an incompatible or closed folio.\n\n### Post accommodation\n\nChoose **Post due accommodation** to catch up accommodation periods whose billing boundary has been reached.\n\nChoose **Post booked stay** when settling the full originally booked stay before checkout. Each original reservation period has a deterministic immutable key, so repeating the action cannot bill the same period twice.\n\nAccommodation uses the rate/tax snapshot captured by the reservation.\n\n### Post hotel services\n\n1. Configure active hotel service masters with a code, KES price, and tax basis points.\n2. Select a checked-in folio.\n3. Choose **Hotel service**.\n4. Select the service and quantity.\n5. Confirm.\n\nThe folio entry snapshots the service master and posts guest receivable, service revenue, and inclusive tax atomically.\n\n### Record a deposit\n\nChoose **Record deposit** and select CASH, MPESA, or CARD.\n\nCash requires an open till. External methods require a reference and explicit manual confirmation. ServOS never infers provider confirmation.\n\nA deposit debits the received tender and credits `GUEST_DEPOSITS`. It does not credit sales or accommodation revenue.\n\n### Apply a deposit\n\nWhen the guest has both an outstanding receivable and unapplied deposit, choose **Apply deposit**.\n\nServOS applies no more than the smaller of the receivable and deposit liability. The journal debits guest deposits and credits guest receivable.\n\n### Settle the receivable\n\nChoose **Settle balance**.\n\nDirect settlement cannot overpay. Excess funds must be recorded separately as a deposit. Cash tender/change is explicit. External references are normalized and protected against duplicate use.\n\n### Refund unapplied deposit\n\nChoose **Refund deposit** and record the payout method, amount, reason, and external payout reference when applicable.\n\nThe payout reduces guest deposit liability and records separate refund evidence. Historical receipt/payment records are never edited to simulate a refund.\n\n### Reverse an unpaid charge\n\nA Manager/Admin with `folio.reverse` can reverse a folio charge that is still represented in the outstanding receivable.\n\nReversal links to the source entry, requires a reason, and posts the opposite receivable/revenue/tax journal. Paid charges require a separate refund workflow rather than silent mutation.\n\nIn Web, open **Guest Accounts → Reverse an unpaid folio charge**, select the open guest folio and unreversed charge, and enter the correction reason. This also covers an unpaid POS room charge; the server verifies the folio state, permission, versions, and remaining receivable. If the charge has already been settled, use the applicable refund workflow instead.\n\n### Extend an active stay\n\n1. Select a checked-in folio.\n2. Choose **Extend stay**.\n3. Select a compatible active rate plan and number of rate units.\n4. Record exact payment evidence.\n5. Confirm.\n\nThe extra room interval, extension charge, exact payment, immutable extension record, reservation departure, and audit/outbox commit together. A rejected duplicate payment reference leaves the original departure unchanged.\n\n### Check out\n\nBefore checkout:\n\n1. Post all booked accommodation.\n2. Settle the receivable to zero.\n3. Apply or refund all remaining deposit liability.\n4. Choose **Check out**.\n\nCheckout closes reservation, stay, and folio together, marks the room DIRTY, creates a turnaround block when required, records an immutable stay event, and captures an immutable hotel receipt.\n\n## POS room charge\n\nAt POS, **Charge room** transfers the outstanding restaurant order to a checked-in guest folio.\n\nIt is a receivable transfer, not money received:\n\n- restaurant revenue/tax is recognized once;\n- guest receivable is debited;\n- the folio balance increases;\n- cash, M-Pesa, and card totals do not increase;\n- the POS order completes and its receipt records `ROOM_CHARGE`.\n\nThis prevents double revenue and keeps cash-up truthful.",
       "keywords": []
     },
     {
@@ -767,7 +1334,18 @@
         "maintenance.manage"
       ],
       "screen": "Domain engine / Import Center",
-      "summary": "Patch 08 establishes the native Assets and Maintenance command domain before the Asset Register UI arrives in Patch 09.\n\nAssets use permanent unique tags across active and archived history. Metadata edits cannot silently move an asset. Custody, transfers, inspections, loss, retirement and disposal use dedicated versioned commands and create immutable asset events.\n\nMaintenance follows:\n\n`REPORTED → ASSIGNED → IN_PROGRESS → COMPLETED`\n\nAn open order can also become `CANCELLED`.\n\nMaintenance completion can consume stock parts and recognize external service cost. Parts, stock movements, maintenance expense journals, supplier payables, the work-order transition, audit and outbox evidence commit in one SQLite transaction.",
+      "summary": "Patch 08 establishes the native Assets and Maintenance command domain before the Asset Register UI arrives in Patch 09.",
+      "example": "",
+      "steps": [
+        "### Import asset masters"
+      ],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [
+        "39-asset-register-procurement"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Operations\nRoles: Admin, Manager\nPermission: assets.view, assets.manage, assets.operate, maintenance.view, maintenance.manage\nScreen: Domain engine / Import Center\n\n## Overview\n\nPatch 08 establishes the native Assets and Maintenance command domain before the Asset Register UI arrives in Patch 09.\n\nAssets use permanent unique tags across active and archived history. Metadata edits cannot silently move an asset. Custody, transfers, inspections, loss, retirement and disposal use dedicated versioned commands and create immutable asset events.\n\nMaintenance follows:\n\n`REPORTED → ASSIGNED → IN_PROGRESS → COMPLETED`\n\nAn open order can also become `CANCELLED`.\n\nMaintenance completion can consume stock parts and recognize external service cost. Parts, stock movements, maintenance expense journals, supplier payables, the work-order transition, audit and outbox evidence commit in one SQLite transaction.\n\n## Procedure\n\n### Import asset masters\n\nImport and apply `asset_categories.csv` before `assets.csv`.\n\nAsset category external IDs become durable migration mappings. `assets.csv` resolves its category and its location external ID. A location must resolve unambiguously to either an applied room or an applied stock location.\n\nImports create active assets only. Lost, retired or disposed state must be recorded through explicit lifecycle commands.\n\n### Create or edit an asset\n\nUse `asset.save` with:\n\n- name;\n- permanent asset tag;\n- asset category;\n- room and/or stock location;\n- serial number when known;\n- acquisition date and cost;\n- optional supplier/warranty/notes.\n\nAfter creation, changing room/location through `asset.save` is rejected. Use `asset.transfer` so location history remains explicit.\n\nIf a future procurement commissioning record supplies `acquisitionSourceId`, acquisition supplier/cost cannot be silently rewritten.\n\n### Custody and lifecycle\n\n`asset.assign` requires an active employee and an unassigned active asset.\n\n`asset.return` clears the current custodian.\n\n`asset.transfer` changes the physical room/stock location without rewriting unrelated asset metadata.\n\n`asset.inspect` records `GOOD`, `FAIR`, `POOR`, or `BROKEN` and can schedule the next inspection date.\n\n`asset.lose`, `asset.retire`, and `asset.dispose` are explicit terminal lifecycle actions. Retirement/disposal requires the asset to be returned first. Open maintenance must be resolved before terminal lifecycle actions.\n\nArchive is allowed only after retirement/disposal and after maintenance is resolved. Asset tags remain reserved even after archive.\n\n### Report maintenance\n\nUse `maintenance.report` against an asset, room, or a matching asset+room pair.\n\nPriority must be `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`.\n\nAssign an active employee, then start the work. Completion is rejected until the order reaches `IN_PROGRESS`.\n\n### Complete maintenance with parts\n\nEach part line identifies:\n\n- stock item;\n- current stock-item version;\n- stock location;\n- positive quantity.\n\nServOS rejects insufficient or stale stock.\n\nSuccessful completion posts `MAINTENANCE` stock movements and recognizes:\n\n`DR MAINTENANCE_EXPENSE / CR INVENTORY`\n\nusing the stock item's average unit cost snapshot.\n\nIf any later validation fails, including supplier validation, the transaction rolls back the part issues and work-order change together.\n\n### External maintenance service\n\nA positive `serviceCostMinor` requires an existing supplier and a supplier invoice reference.\n\nCompletion creates a `MATCHED_UNPAID` supplier payable and posts:\n\n`DR MAINTENANCE_EXPENSE / CR ACCOUNTS_PAYABLE`\n\nThe existing Procurement payable workflow remains responsible for actual supplier settlement.\n\n### Link room downtime\n\n`room.block` may carry a `maintenanceOrderId` when that open maintenance order belongs to the same room.\n\nCompleting/cancelling maintenance does not automatically release the room. `room.unblock` still requires an explicit inspection note and rejects release while linked maintenance remains open.\n\nThis preserves the operational distinction between “repair work is finished” and “the room has been inspected and is safe to sell.”\n\n## Patch 09 boundary\n\nPatch 08 intentionally does not add the searchable Asset Register UI.\n\nPatch 09 adds the asset register, tag scanning, custody/location timeline, warranty/inspection views, and procurement-to-asset commissioning. The domain commands and invariant tests established here are the authority those interfaces will call.",
       "keywords": []
     },
@@ -790,8 +1368,19 @@
         "procurement.receive"
       ],
       "screen": "Asset Register / Procurement",
-      "summary": "Patch 09 turns the Patch 08 asset and maintenance command domain into an operational register and connects procurement to fixed-asset commissioning.\n\nPurchase-order lines now carry one explicit treatment:\n\n- `STOCK` increases stock when accepted.\n- `EXPENSE` posts the accepted cost directly to a controlled operating-expense account.\n- `ASSET` posts accepted cost to `ASSET_CLEARING` and creates one pending commissioning unit per accepted physical asset.\n\nAn ASSET line never creates stock. Commissioning creates the permanent tagged asset and reclassifies its accepted cost from Asset Clearing to Fixed Assets.\n\nThe Asset Register provides tag/scanner lookup, custody, location, condition, warranty, inspections, maintenance history, pending procurement commissioning and asset category setup.",
-      "body": "Section: Operations\nRoles: Admin, Manager\nPermission: assets.view, assets.manage, assets.operate, maintenance.view, maintenance.manage, procurement.view, procurement.manage, procurement.receive\nScreen: Asset Register / Procurement\n\n## Overview\n\nPatch 09 turns the Patch 08 asset and maintenance command domain into an operational register and connects procurement to fixed-asset commissioning.\n\nPurchase-order lines now carry one explicit treatment:\n\n- `STOCK` increases stock when accepted.\n- `EXPENSE` posts the accepted cost directly to a controlled operating-expense account.\n- `ASSET` posts accepted cost to `ASSET_CLEARING` and creates one pending commissioning unit per accepted physical asset.\n\nAn ASSET line never creates stock. Commissioning creates the permanent tagged asset and reclassifies its accepted cost from Asset Clearing to Fixed Assets.\n\nThe Asset Register provides tag/scanner lookup, custody, location, condition, warranty, inspections, maintenance history, pending procurement commissioning and asset category setup.\n\n## Procedure\n\n### Use the Asset Register\n\nOpen **Asset Register** and search by tag, name, serial, category or location.\n\nA keyboard-wedge scanner can scan the permanent asset tag. A unique match opens the asset. Unknown or duplicate tags do not mutate any record.\n\nThe detail panel shows:\n\n- permanent tag and status;\n- category;\n- physical location;\n- custodian;\n- serial;\n- purchase cost;\n- acquisition source;\n- warranty;\n- last/next inspection;\n- immutable lifecycle history;\n- maintenance history.\n\n### Create a manual asset\n\nChoose **Manual asset** for an asset that did not originate from the procurement commissioning flow.\n\nEnter a permanent tag, category, physical location and known acquisition metadata. After creation, physical moves use `asset.transfer`; editing metadata cannot silently relocate the asset.\n\n### Custody and transfers\n\nChoose **Assign** to issue an active asset to an active employee.\n\nChoose **Return** before assigning a different custodian or before retirement/disposal where required.\n\nChoose **Transfer** to move the asset to a room or stock/service location. The transfer is a dedicated command and appears in immutable asset history.\n\n### Inspections\n\nChoose **Inspect** and record `GOOD`, `FAIR`, `POOR` or `BROKEN`.\n\nA next-inspection date can be scheduled. The Register highlights overdue inspection dates.\n\n### Maintenance workbench\n\nMaintenance can be reported against an asset, room, or matching asset+room.\n\nThe workbench supports assign, start, complete and cancel.\n\nCompletion can issue multiple stock parts. Each part carries the current stock-item version, location and quantity. External service cost can also create a supplier payable.\n\nRoom work can create a maintenance-linked availability block. Completion does not release the room automatically; the existing inspected `room.unblock` workflow still controls return to sale.\n\n### Create a classified purchase order\n\nIn Procurement choose **Classified PO**.\n\nFor each line select:\n\n`STOCK`, `EXPENSE`, or `ASSET`.\n\nFor STOCK choose a stock master. For EXPENSE choose the controlled expense category and description. For ASSET choose the asset category and asset/model name. ASSET quantities must be whole units.\n\nThe existing stock-only PO action remains backward compatible and is stored as STOCK treatment.\n\n### Receive a mixed purchase order\n\nA single GRN may accept STOCK, EXPENSE and ASSET lines.\n\nAccepted STOCK:\n- updates stock and weighted average cost;\n- creates inventory receipt/movement evidence;\n- debits Inventory.\n\nAccepted EXPENSE:\n- does not touch stock;\n- debits the controlled expense account.\n\nAccepted ASSET:\n- does not touch stock;\n- debits Asset Clearing;\n- creates one `PENDING_COMMISSION` acquisition unit per accepted physical asset.\n\nAll accepted treatments credit one Accounts Payable liability and belong to the same supplier payable / invoice match.\n\n### Match the supplier invoice\n\nInvoice matching now follows stable purchase-line IDs rather than assuming every GRN line has a stock item.\n\nQuantity, unit cost and total must still match the accepted GRN and approved PO exactly.\n\n### Commission a procured asset\n\nOpen **Asset Register → Commissioning**.\n\nFor each pending unit:\n\n1. assign its permanent tag;\n2. record serial number if known;\n3. choose its physical room or stock/service location;\n4. record warranty information if known;\n5. confirm commissioning.\n\nServOS then:\n\n`DR FIXED_ASSETS / CR ASSET_CLEARING`\n\nfor the exact accepted unit cost, creates the active asset, links it to the PO/GRN acquisition evidence, and marks the acquisition unit `COMMISSIONED`.\n\nNo stock movement is created.\n\nMulti-quantity ASSET lines therefore require a separate unique tag for every accepted physical unit.\n\n## Accounting boundary\n\nThe procurement treatments are intentionally exclusive:\n\n- STOCK cannot also become an asset acquisition.\n- ASSET cannot also create inventory stock.\n- EXPENSE cannot quietly capitalize itself.\n\nChanging an asset's acquisition value after procurement commissioning is rejected by the native asset domain. Corrections must be handled through the procurement/accounting evidence chain rather than editing the asset master.",
+      "summary": "Patch 09 turns the Patch 08 asset and maintenance command domain into an operational register and connects procurement to fixed-asset commissioning.",
+      "example": "",
+      "steps": [
+        "### Use the Asset Register"
+      ],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [
+        "38-assets-maintenance-domain"
+      ],
+      "guideId": "",
+      "estimatedMinutes": 1,
+      "body": "Section: Operations\nRoles: Admin, Manager\nPermission: assets.view, assets.manage, assets.operate, maintenance.view, maintenance.manage, procurement.view, procurement.manage, procurement.receive\nScreen: Asset Register / Procurement\n\n## Overview\n\nPatch 09 turns the Patch 08 asset and maintenance command domain into an operational register and connects procurement to fixed-asset commissioning.\n\nPurchase-order lines now carry one explicit treatment:\n\n- `STOCK` increases stock when accepted.\n- `EXPENSE` posts the accepted cost directly to a controlled operating-expense account.\n- `ASSET` posts accepted cost to `ASSET_CLEARING` and creates one pending commissioning unit per accepted physical asset.\n\nAn ASSET line never creates stock. Commissioning creates the permanent tagged asset and reclassifies its accepted cost from Asset Clearing to Fixed Assets.\n\nThe Asset Register provides tag/scanner lookup, custody, location, condition, warranty, inspections, maintenance history, pending procurement commissioning and asset category setup.\n\n## Procedure\n\n### Use the Asset Register\n\nOpen **Asset Register** and search by tag, name, serial, category or location.\n\nA keyboard-wedge scanner can scan the permanent asset tag. A unique match opens the asset. Unknown or duplicate tags do not mutate any record.\n\nThe detail panel shows:\n\n- permanent tag and status;\n- category;\n- physical location;\n- custodian;\n- serial;\n- purchase cost;\n- acquisition source;\n- warranty;\n- last/next inspection;\n- immutable lifecycle history;\n- maintenance history.\n\n### Create a manual asset\n\nChoose **Manual asset** for an asset that did not originate from the procurement commissioning flow.\n\nEnter a permanent tag, category, physical location and known acquisition metadata. After creation, physical moves use `asset.transfer`; editing metadata cannot silently relocate the asset.\n\n### Custody and transfers\n\nChoose **Assign** to issue an active asset to an active employee.\n\nChoose **Return** before assigning a different custodian or before retirement/disposal where required.\n\nChoose **Transfer** to move the asset to a room or stock/service location. The transfer is a dedicated command and appears in immutable asset history.\n\n### Inspections\n\nChoose **Inspect** and record `GOOD`, `FAIR`, `POOR` or `BROKEN`.\n\nA next-inspection date can be scheduled. The Register highlights overdue inspection dates.\n\n### Maintenance workbench\n\nMaintenance can be reported against an asset, room, or matching asset+room.\n\nThe workbench supports assign, start, complete and cancel.\n\nCompletion can issue multiple stock parts. Each part carries the current stock-item version, location and quantity. External service cost can also create a supplier payable.\n\nRoom work can create a maintenance-linked availability block. Completion does not release the room automatically; the existing inspected `room.unblock` workflow still controls return to sale.\n\n### Create a classified purchase order\n\nIn Procurement choose **Classified PO**.\n\nFor each line select:\n\n`STOCK`, `EXPENSE`, or `ASSET`.\n\nFor STOCK choose a stock master. For EXPENSE choose the controlled expense category and description. For ASSET choose the asset category and asset/model name. ASSET quantities must be whole units.\n\nFor STOCK items with saved purchase packages, select the supplier package and enter whole packages ordered and the price per package. The package size is shown in canonical stock units. Items without a saved package retain the legacy base-unit quantity and price workflow. Package scans during receiving add one package to the PO line; the inventory count scanner adds the package's full base-unit quantity.\n\nThe existing stock-only PO action remains backward compatible and is stored as STOCK treatment.\n\n### Receive a mixed purchase order\n\nA single GRN may accept STOCK, EXPENSE and ASSET lines.\n\nAccepted STOCK:\n- updates stock and weighted average cost;\n- creates inventory receipt/movement evidence;\n- debits Inventory.\n\nAccepted EXPENSE:\n- does not touch stock;\n- debits the controlled expense account.\n\nAccepted ASSET:\n- does not touch stock;\n- debits Asset Clearing;\n- creates one `PENDING_COMMISSION` acquisition unit per accepted physical asset.\n\nAll accepted treatments credit one Accounts Payable liability and belong to the same supplier payable / invoice match.\n\n### Match the supplier invoice\n\nInvoice matching now follows stable purchase-line IDs rather than assuming every GRN line has a stock item.\n\nQuantity, unit cost and total must still match the accepted GRN and approved PO exactly.\n\nFor a package-based stock line, the approved PO and invoice quantities are package counts. The GRN stores both accepted package count and its converted canonical stock quantity; inventory cost is averaged per canonical base unit. A package scan must match the package selected on the PO line.\n\n### Commission a procured asset\n\nOpen **Asset Register → Commissioning**.\n\nFor each pending unit:\n\n1. assign its permanent tag;\n2. record serial number if known;\n3. choose its physical room or stock/service location;\n4. record warranty information if known;\n5. confirm commissioning.\n\nServOS then:\n\n`DR FIXED_ASSETS / CR ASSET_CLEARING`\n\nfor the exact accepted unit cost, creates the active asset, links it to the PO/GRN acquisition evidence, and marks the acquisition unit `COMMISSIONED`.\n\nNo stock movement is created.\n\nMulti-quantity ASSET lines therefore require a separate unique tag for every accepted physical unit.\n\n## Accounting boundary\n\nThe procurement treatments are intentionally exclusive:\n\n- STOCK cannot also become an asset acquisition.\n- ASSET cannot also create inventory stock.\n- EXPENSE cannot quietly capitalize itself.\n\nChanging an asset's acquisition value after procurement commissioning is rejected by the native asset domain. Corrections must be handled through the procurement/accounting evidence chain rather than editing the asset master.",
       "keywords": []
     },
     {
@@ -807,7 +1396,18 @@
         "backup.restore"
       ],
       "screen": "Business Admin → Physical terminal acceptance",
-      "summary": "Patch 11 is the final installed-terminal rehearsal. It does not certify a theoretical build or a browser preview. Evidence belongs to the specific native terminal, database schema and local installation.\n\nThe acceptance panel records local immutable evidence in `terminal_acceptance_evidence`. These rows are not business records, are not added to the transactional outbox, and cannot be edited or deleted.\n\nFinal acceptance requires:\n\n- SQLite schema v11 and `PRAGMA quick_check = ok`;\n- `LIVE` installation stage;\n- terminal identity present;\n- cloud synchronization configured;\n- zero pending outbox operations;\n- no open till;\n- no queued or delivery-uncertain printer jobs;\n- current-schema backup/restore rehearsal;\n- native process restart recovery;\n- offline local-database rehearsal;\n- reconnect/cloud synchronization evidence;\n- physical printer/scanner/drawer evidence when those devices were declared during Intake.",
+      "summary": "Patch 11 is the final installed-terminal rehearsal. It does not certify a theoretical build or a browser preview. Evidence belongs to the specific native terminal, database schema and local installation.",
+      "example": "",
+      "steps": [
+        "Complete the acceptance checks below on the actual installed native terminal.",
+        "Work through the terminal doctor, backup/restore rehearsal, declared hardware checks, restart recovery, offline rehearsal, reconnect/cloud recovery, then Admin-only final acceptance.",
+        "A check is complete only when ServOS records the corresponding immutable evidence and the current blocker list is clear."
+      ],
+      "systemHandles": [],
+      "commonMistakes": [],
+      "relatedTasks": [],
+      "guideId": "",
+      "estimatedMinutes": 1,
       "body": "Section: Business Admin\nRoles: Admin for final acceptance; Manager/Admin can perform most checks\nPermission: system.configure, backup.create, backup.restore\nScreen: Business Admin → Physical terminal acceptance\n\n## Overview\n\nPatch 11 is the final installed-terminal rehearsal. It does not certify a theoretical build or a browser preview. Evidence belongs to the specific native terminal, database schema and local installation.\n\nThe acceptance panel records local immutable evidence in `terminal_acceptance_evidence`. These rows are not business records, are not added to the transactional outbox, and cannot be edited or deleted.\n\nFinal acceptance requires:\n\n- SQLite schema v11 and `PRAGMA quick_check = ok`;\n- `LIVE` installation stage;\n- terminal identity present;\n- cloud synchronization configured;\n- zero pending outbox operations;\n- no open till;\n- no queued or delivery-uncertain printer jobs;\n- current-schema backup/restore rehearsal;\n- native process restart recovery;\n- offline local-database rehearsal;\n- reconnect/cloud synchronization evidence;\n- physical printer/scanner/drawer evidence when those devices were declared during Intake.\n\n## Before starting\n\nClose active service and settle/close the till. Do not perform final acceptance during live customer trading.\n\nIf hardware was declared incorrectly during Intake, correct the deployment plan rather than recording false evidence.\n\n## Procedure\n\nComplete the acceptance checks below on the actual installed native terminal. Work through the terminal doctor, backup/restore rehearsal, declared hardware checks, restart recovery, offline rehearsal, reconnect/cloud recovery, then Admin-only final acceptance. A check is complete only when ServOS records the corresponding immutable evidence and the current blocker list is clear.\n\n## Terminal doctor\n\nOn the Windows terminal, run:\n\n```powershell\npowershell -ExecutionPolicy Bypass -File .\\scripts\\servos-terminal-doctor.ps1\n```\n\nOptionally persist the read-only report:\n\n```powershell\npowershell -ExecutionPolicy Bypass -File .\\scripts\\servos-terminal-doctor.ps1 -OutputPath .\\terminal-doctor.json\n```\n\nThe doctor does not change Windows settings. It reports OS/architecture, RAM, free system-drive space, timezone/UTC offset, print-spooler state, installed printers, active network adapters and the active power scheme.\n\nThe baseline checks are:\n\n- 64-bit OS;\n- at least 4 GB RAM;\n- at least 5 GB free system-drive space;\n- UTC+03:00 local offset for Nairobi/Kenya;\n- Windows Print Spooler running.\n\nA stronger production terminal can exceed these minimums.\n\n## Backup and restore rehearsal\n\nChoose **Run backup rehearsal**.\n\nServOS:\n\n1. creates a real SQLite online backup;\n2. copies that backup to a temporary rehearsal-restore file;\n3. opens the rehearsal copy read-only;\n4. runs `PRAGMA quick_check`;\n5. compares schema version;\n6. compares terminal identity;\n7. compares records, commands, audit and outbox row counts;\n8. opens the temporary restore as a writable ServOS database;\n9. commits one temporary customer command twice with the same command ID and verifies exact idempotent replay;\n10. reruns SQLite quick-check on the writable restored copy;\n11. removes the temporary rehearsal copy;\n12. keeps the real backup;\n13. records immutable acceptance evidence only when every comparison succeeds.\n\nThe live business database is never replaced by the rehearsal copy.\n\n## Receipt printer\n\nChoose **Send test slip**.\n\nTransport success alone is not physical proof. LAN TCP and the Windows spooler cannot tell ServOS whether paper actually emerged.\n\nInspect the printer. Only choose **Paper observed** when the ServOS XP-80T test slip physically exists.\n\nA `DELIVERY_UNCERTAIN` transport can still pass this check if the operator can physically see the printed slip. A queued job cannot.\n\nFinal acceptance also requires zero unresolved printer jobs.\n\n## Barcode scanner\n\nChoose **Arm scanner test**, then scan a test barcode/tag with the configured keyboard-wedge scanner.\n\nThe normal scanner hook must identify the wedge scan. Acceptance stores only:\n\n- keyboard-wedge capture type;\n- captured character count;\n- `rawValueStored = false`.\n\nThe scanned content itself is not retained.\n\n## Cash drawer\n\nServOS currently has no direct native cash-drawer adapter.\n\nIf Intake declares a cash drawer, physically test the drawer and normal cashier workflow manually. The acceptance panel makes this limitation explicit and records a manual observation only after operator confirmation.\n\nDo not interpret this evidence as ServOS-generated drawer pulse control.\n\n## Native restart recovery\n\nChoose **Begin restart test**.\n\nServOS stores the current process nonce locally.\n\nThen:\n\n1. close the native ServOS application completely;\n2. relaunch ServOS;\n3. sign in again;\n4. return to Business Admin;\n5. choose **Confirm restart recovery**.\n\nConfirmation is rejected inside the original process. It requires a different startup nonce, which proves that a new native process opened the existing database. Sessions are already cleared at native startup, so sign-in is also exercised.\n\n## Offline rehearsal\n\nDisconnect the terminal's network connection.\n\nDo not merely close a browser tab or turn off cloud synchronization. The native webview must report `navigator.onLine = false`.\n\nWhen **Run offline probe** becomes available, use it.\n\nServOS then verifies SQLite quick-check, reads the current local record set and commits a local acceptance-evidence row while networking is unavailable. This verifies that local database access does not depend on cloud reachability.\n\nReconnect networking afterward.\n\n## Reconnect and cloud recovery\n\nAfter reconnecting, choose **Sync and verify recovery**.\n\nThe panel:\n\n1. runs normal ServOS synchronization;\n2. requires configured cloud synchronization;\n3. requires a successful `last_sync` within 15 minutes;\n4. requires zero unacknowledged outbox rows;\n5. records `CLOUD_RESYNC` evidence.\n\nCloud recovery evidence must be newer than the offline rehearsal evidence.\n\n## Final acceptance\n\nFinal acceptance is Admin-only.\n\nThe button remains disabled until all current blockers are gone.\n\nFinal evidence snapshots:\n\n- schema version;\n- terminal identity;\n- SQLite quick-check result;\n- required acceptance evidence list;\n- zero pending outbox state.\n\nThe final evidence is point-in-time deployment acceptance. Later application/schema upgrades should run the acceptance procedure again.\n\n## Failure rules\n\nDo not work around a failed acceptance item by editing SQLite, deleting evidence, changing tests or marking unavailable hardware as passed.\n\nFix the underlying condition and rerun the relevant check.\n\nTypical blockers include:\n\n- cloud not configured;\n- pending outbox;\n- open till;\n- unresolved printer job;\n- restart challenge not completed;\n- backup rehearsal from an older schema;\n- missing physical hardware evidence.\n\n## Power interruption and printer ambiguity\n\nA forced operating-system power cut is not automated by ServOS because deliberately corrupting or interrupting a production machine is unsafe.\n\nThe acceptance suite instead verifies native-process restart recovery plus SQLite integrity. Existing printer startup logic already changes a job left in `SENDING` to `DELIVERY_UNCERTAIN`, requiring the operator to check paper before retrying. This avoids duplicate receipts after interruption.\n\nFor site commissioning, an installer may additionally perform a controlled UPS/power-loss rehearsal on a disposable/pre-production database image, never on the only production copy.",
       "keywords": []
     }

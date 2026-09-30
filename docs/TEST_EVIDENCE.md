@@ -406,11 +406,31 @@ Web Finance now previews expected drawer cash, counted cash and variance, accept
 
 ### DEV final sprint P15 receipt defaults source slice — 2026-09-30
 
-Web receiving now initializes each PO line to its outstanding approved quantity and uses integer-only package counts. Rejected quantities remain separate, require an explanation, and do not decrement received quantity; server-side over-receipt approval remains authoritative. No tests, build, lint, or runtime checks were run; procurement acceptance remains deferred.
+Web receiving now initializes each PO line to its outstanding approved quantity and uses integer-only package counts. Rejected quantities remain separate, require an explanation, and do not decrement received quantity. Invalid values, rejection above delivery, or missing rejection reasons block the entire receipt draft visibly rather than silently omitting lines; server-side over-receipt approval remains authoritative. No tests, build, lint, or runtime checks were run; procurement acceptance remains deferred.
 
 ### DEV final sprint P16 import/admin guidance source slice — 2026-09-30
 
 Administration now derives advisory field-match suggestions from the selected CSV/TSV first row for supported templates. No map is posted; existing server staging and dry-run authority is unchanged. Staff role options display scope guidance. No tests, build, lint, or runtime checks were run; administration acceptance remains deferred.
+
+### DEV final sprint P17 structured Help source slice — 2026-09-30
+
+The help-index generator was run to refresh 40 generated guide records with structured sections and Web Help now presents task cards, `Show me` navigation and expandable reference content. This was a code-generation step only, not a test pass. Contextual anchors and full acceptance remain open.
+
+### DEV final sprint P18 parity-ledger source slice — 2026-09-30
+
+Added a TypeScript-driven generator for a 79-entry cross-client Markdown/JSON ledger, connected it to build/docs workflows, and added documentation completeness checks. `npm run parity:build` executed successfully as generation only; lint, tests, full build and acceptance were not run.
+
+### DEV final sprint P19 folio reversal and parity correction — 2026-09-30
+
+Source inspection confirmed Web folio service posting/settlement and POS room charges were already present although manifest entries called them missing/partial. The manifest now reflects those call sites. Guest Accounts adds a queued reason-required reversal form for unpaid folio charges; server validation remains authoritative. No runtime verification was run.
+
+### DEV final sprint P20 shared-control adoption — 2026-09-30
+
+The new Guest Accounts reversal workflow now uses the common form-field, busy-button, and blocker-card primitives. Source-only change; no lint, tests, build, browser or accessibility verification was run.
+
+### DEV final sprint P21 PWA source inventory — 2026-09-30
+
+Read-only inspection confirmed PWA manifest/icon assets, the Web shell plugin, update-safe activation, and dedicated PWA asset/service-worker browser tests already exist. This is source inspection only; the PWA tests and installed/standalone acceptance were not run.
 
 ### Hosted incident evidence correction — 2026-09-30
 
