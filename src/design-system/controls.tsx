@@ -22,7 +22,7 @@ export function Dialog({ title, onClose, children, footer, labelledBy }: { title
   }, []);
   return <div className="fixed inset-0 z-[180] grid place-items-center bg-black/70 p-3 sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
     <section ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={headingId} className="flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-white shadow-2xl">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 p-4 sm:px-5"><h2 id={headingId} className="text-lg font-bold">{title}</h2><button type="button" className={ds.button} onClick={onClose} aria-label={`Close ${title}`}>Close</button></header>
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 p-4 sm:px-5"><h2 id={headingId} className="text-lg font-bold">{title}</h2><button type="button" className={ds.button} onClick={onClose} aria-label="Close dialog">Close</button></header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
       {footer && <footer className="sticky bottom-0 flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-800 bg-slate-900 p-3 sm:px-5">{footer}</footer>}
     </section>
