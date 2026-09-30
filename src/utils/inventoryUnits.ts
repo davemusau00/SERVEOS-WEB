@@ -27,6 +27,7 @@ export function purchasePackageQuantity(packageCount: number, contentsPerPackage
   finiteNonNegative(packageCount, 'Package count');
   finiteNonNegative(contentsPerPackage, 'Package size');
   const contents = canonicalizeMeasurement(contentsPerPackage, contentUnit, mode);
+  if (contents.quantity <= 0) throw new Error('Package size must be greater than zero.');
   const quantity = packageCount * contents.quantity;
   if (!Number.isFinite(quantity) || quantity > 1_000_000_000_000) throw new Error('Package total is outside the supported range.');
   return { quantity: Number(quantity.toFixed(6)), unit: contents.unit, mode: contents.mode };
@@ -48,6 +49,7 @@ export function stockVariance(expected: number, counted: number) {
 export function calculateRecipeCost(ingredients: Array<{ quantity: number; averageCostMinor: number }>) {
   return ingredients.reduce((total, ingredient) => {
     finiteNonNegative(ingredient.quantity, 'Ingredient quantity');
+    if (ingredient.quantity <= 0) throw new Error('Ingredient quantity must be greater than zero.');
     if (!Number.isSafeInteger(ingredient.averageCostMinor) || ingredient.averageCostMinor < 0) throw new Error('Ingredient cost must be a non-negative amount in minor currency units.');
     const next = total + ingredient.quantity * ingredient.averageCostMinor;
     if (!Number.isFinite(next) || next > Number.MAX_SAFE_INTEGER) throw new Error('Calculated recipe cost is outside the supported range.');
