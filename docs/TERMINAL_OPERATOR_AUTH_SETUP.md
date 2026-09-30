@@ -48,6 +48,13 @@ This guide configures individual business accounts on an installed ServOS termin
 
 If a v2 identity/snapshot RPC returns an error, stop v2 use and leave the control disabled. Confirm which reviewed expansion migrations are actually applied to the target project and that the configured URL/key point to that project; do not try to fix a hosted 404 by embedding a service-role key or by manually modifying production grants.
 
+## Deployment and RPC recovery
+
+- If an authenticated `rpc/servos_v2_guidance_progress` request returns 404, first verify the Web app's configured Supabase project URL, then verify that reviewed expansion migration `017_web_lifecycle_guidance.sql` was applied to that same project. It defines the public RPC wrapper and grants execution to `authenticated`; the browser must not receive direct table access as a workaround. If the migration is absent, schedule it through the reviewed staging-to-hosted migration process, then retry with a real operator session. Do not use a service-role key in the client.
+- If the browser reports a dynamically imported module failure, `NS_ERROR_CORRUPTED_CONTENT`, or a missing `/assets/*.js` chunk after a release, reload once to fetch the current HTML and asset graph. If the issue persists, verify that the active Vercel deployment contains every asset referenced by its own `index.html` and that the domain points wholly at that deployment. Redeploy the complete build artifact; do not upload only selected chunks or redirect missing JavaScript assets to `index.html`.
+- A Vercel page that has remained open across a release may still hold the previous JavaScript runtime even when a fresh tab works. Record the failing asset URL, current entry asset URL, deployment ID, and timestamp before clearing site data or changing caches. Treat recovery as unverified until both a fresh session and an already-open tab recover without missing chunks.
+- These recovery steps diagnose deployment state; they do not establish that a production deploy or hosted migration has been performed. Record source, staging, hosted, and browser evidence separately.
+
 ## Offline operation and v2 boundary
 
 If the business server is unavailable, leave both online credential fields blank and use the local PIN option. This opens the existing SQLite/legacy terminal session only. Pending legacy synchronization remains on its established device-credential path; no v2 command is authorized or queued as an offline grant. Reconnect and use the established sync/reconciliation screens when service returns.
