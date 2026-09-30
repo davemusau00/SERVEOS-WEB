@@ -980,7 +980,7 @@ Original section numbers are retained here so none of the earlier forensic work 
 | 30 | Browser prompts/confirms | PARTIAL PROGRESS; production flows still need complete inventory | WP-19, WP-24; scoped zero-violation gate |
 | 31 | Time handling differs | PARTIAL PROGRESS; shared TS departure derivation now uses property-local calendar arithmetic, but Rust and cloud reservation paths still require timezone convergence | WP-11–12; cross-language time fixtures |
 | 32 | Rate editor exposes basis points | OPEN; `addRate` still uses internal unit label | WP-22; percentage input/conversion |
-| 33 | Quick Product hardcodes tax class | OPEN; `A_STANDARD` remains | WP-07, WP-22; configured default/review |
+| 33 | Quick Product hardcodes tax class | PARTIAL PROGRESS; Web Catalog/Quick Add and all interactive Native catalog product dialogs require explicit `A_16`, `B_0` or `C_EXEMPT`; setup/import defaults and configured default policy remain | WP-07, WP-22; configured default/review |
 | 34 | Native POS mojibake | OPEN; current source matches remain | WP-26; reviewed UTF-8 normalization |
 | 35 | PWA icons empty | OPEN; current manifest confirms | WP-25; asset and install acceptance |
 | 36 | `.bak` source committed | OPEN; files remain in tree | WP-26; removal/reference check |
