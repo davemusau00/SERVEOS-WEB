@@ -65,16 +65,42 @@ The latest checked GitHub Actions state remains red:
 | TypeScript | PASS |
 | Vite production build | PASS |
 | Cloud protocol | PASS |
-| `npm test` | FAIL |
-| Native-domain tests | FAIL |
-| UI audit | BLOCKED |
-| Docs check | BLOCKED |
-| Browser Playwright | BLOCKED |
+| `npm test` | PASS (107 source tests after P0 repair) |
+| Native-domain tests | BLOCKED locally: Windows GNU toolchain lacks `dlltool.exe`; CI Ubuntu runner is the authoritative gate |
+| UI audit | PASS (3,431 controls/handlers/routes) |
+| Docs check | PASS (40 guides, 15 core docs) |
+| Browser Playwright | PARTIAL: transactional POS + web-storage suites green after repairs; final full 22-test matrix awaiting one clean run |
 | Web v2 production activation | OFF |
 | Terminal v2 shared-authority adapter | INCOMPLETE |
 | Dual-runtime cutover | NOT READY |
 
-The documentation-only Product/Inventory commit did not change these failing gates.
+### P0 status after this repair
+
+`tests/web-hospitality-source.test.mjs` now asserts the workspace registry,
+`visibleWorkspaces`, `workspaceGroups`, permission-aware routing and hash-route
+authorization instead of the retired hardcoded tab array. The native room-stay
+missing-rate test deliberately clears the persisted policy selectors on a
+normally configured live database so production validation is not weakened.
+Browser contract assertions were moved to the current Web v2 labels (Service
+workspace, Purchasing, Master Data, Business master records, Bar / Kitchen
+Pass) and `Synchronize` clicks now use the unique header control. The offline
+service-worker test waits for `controllerchange` (and reloads when first-load
+control is unavailable).
+
+Remaining blockers before a green CI claim:
+
+1. **Browser:** run the full 22-test desktop/mobile matrix once from a clean
+   terminal and record the result (targeted transactional POS and storage
+   suites already pass).
+2. **Native domain:** the local Windows GNU toolchain cannot build `getrandom`
+   because `dlltool.exe` is missing; install binutils/mingw or run the
+   native-domain job on the CI Ubuntu runner. No Rust assertion has failed.
+3. The default `npm run test:cloud` path (bootstrap/migrations/protocol)
+   passes; `--expansion` suites were not re-run this session and remain
+   part of the required green pipeline evidence.
+4. Rooms now require a configured room-stay policy before reservations and
+   before Go Live; operator guidance is captured in
+   `docs/ONBOARDING_AND_SETUP.md` and the Rooms engine user guide.
 
 ---
 
