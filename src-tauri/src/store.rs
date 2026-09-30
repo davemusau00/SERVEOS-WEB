@@ -3129,7 +3129,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                 put(&tx,"inventoryReceipts",&receipt_id,json!({"id":receipt_id,"stockItemId":stock_id,"locationId":location,"quantity":qty,"unitCost":unit_cost,"supplierId":p.get("supplierId"),"deliveryNote":p.get("deliveryNote"),"invoiceReference":p.get("invoiceReference"),"reference":reference,"receivedAt":now(),"receivedBy":user.staff_id}),&mut changes)?;
             } else if cmd.operation=="inventory.adjust" {
                 let counted=quantity(p,"countedQty")?;
-                stock_delta(&tx,user,stock_id,location,counted-current,"COUNT_ADJUSTMENT",&cmd.id,text(p,"reason")?,&mut changes)?;
+                stock_delta(&tx,user,stock_id,location,counted-current,if cmd.operation=="inventory.adjust"{"ADMIN_CORRECTION"}else{"COUNT_ADJUSTMENT"},&cmd.id,text(p,"reason")?,&mut changes)?;
             } else {
                 let qty=quantity(p,"quantity")?; if qty==0.0{return Err("Quantity must be positive".into());}
                 if cmd.operation=="inventory.transfer" {
