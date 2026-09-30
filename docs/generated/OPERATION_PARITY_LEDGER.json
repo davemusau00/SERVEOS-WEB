@@ -731,6 +731,7 @@
       "native": "implemented",
       "backend": "implemented",
       "web": "implemented",
+      "notes": "Prepared BATCH portions are snapshot as finished-stock demand; selected modifiers retain additional ingredient adjustments and their stock-version dependencies in the staged command.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
