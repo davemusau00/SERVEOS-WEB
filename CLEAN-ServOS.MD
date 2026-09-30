@@ -91,7 +91,7 @@ No production Supabase database, installed terminal database, packaged printer o
 | UI audit generation | Pass | Scanner completed; no findings threshold is enforced |
 | Documentation check | Pass | Current documentation check completed |
 | Browser acceptance | **22 passed, 0 failed** | Locator fix landed; existing desktop/mobile suite green |
-| Native domain | **61 passed, 10 failed** | Compilation completed; ten room-related tests failed |
+| Native domain | Historical CI #28: **61 passed, 10 failed**; current local MSVC run: **72 passed, 0 failed** | The historical room-fixture failures are resolved in the current checkout; hosted rerun and packaged-shell acceptance remain open |
 | Cloud protocol | Pass | Base migration/protocol path only; expansion requires `--expansion` |
 | Desktop/Tauri shell | Not scheduled | No release evidence from CI #28 |
 
@@ -194,7 +194,7 @@ Contract changes are dependencies for all domain patches. Write tests while impl
 6. Preserve the already-landed `Staff & devices` locator fix. Scope to visible navigation if newly added viewport projects introduce duplicate controls. Preserve assertions for both staff profiles and trusted devices; current run #28 passes all 22 browser tests.
 7. Use a deterministic test clock where time is policy-relevant. Avoid tomorrow-at-current-hour fixtures for a fixed-checkout rule.
 
-**Acceptance:** All 71 existing Native tests pass with original financial/room protections intact; keep the now-green browser transactional scenario passing in both current projects. New negative tests preserve rate/type rejection, duplicate-code rejection and orchestration rollback. Record actual final counts rather than assuming the suite remains the same size.
+**Acceptance:** All existing Native tests pass with original financial/room protections intact; the current checkout records 72/72 local MSVC tests. Keep the now-green browser transactional scenario passing in both current projects. New negative tests preserve rate/type rejection, duplicate-code rejection and orchestration rollback. Record actual final counts rather than assuming the suite remains the same size.
 
 **Do not:** Remove `--locked`, delete failing tests, loosen room validation, increase timeouts or remove staff assertions to obtain green CI.
 
@@ -287,7 +287,7 @@ Parity output must show `Terminal UI`, `Native handler`, `Web UI`, `cloud handle
 
 ### WP-05 — Align roles, grants and role-appropriate workspaces
 
-**Priority:** P0. **Status:** IN_PROGRESS; Web workspace visibility now separates POS capability from generic record access and Administration from business viewing alone. Native/cloud role matrices, direct-command denial and session-refresh acceptance remain required. **Dependencies:** WP-04.
+**Priority:** P0. **Status:** IN_PROGRESS; Web workspace visibility now separates POS capability from generic record access and Administration from business viewing alone, and Native now uses the canonical `till.cashMovement` permission spelling while accepting the documented eight-role set with unknown-role fail-closed validation. Native/cloud role matrices, custom grants, direct-command denial and session-refresh acceptance remain required. **Dependencies:** WP-04.
 
 **Existing files:** Rust `permissions()`, staff create/change-role branches in `src-tauri/src/store.rs`; `supabase/expansion/016_staff_devices_approvals.sql` (`role_permissions`, profiles and role triggers); `src/runtime/web/session.ts`; `src/runtime/web/workspaceRegistry.ts`; Native shell/workspace gating.
 
@@ -961,7 +961,7 @@ Original section numbers are retained here so none of the earlier forensic work 
 | 11 | Missing cloud `room.condition` | PARTIAL PROGRESS; expansion 025 now provides Native-equivalent maintenance-state and active-reservation safety, while broader room lifecycle parity remains open | WP-11; Native/cloud state fixtures |
 | 12 | CI omits cloud expansion | FIXED in workflow source; named `cloud-protocol-v2` job runs `npm run test:cloud:v2` and uploads failure evidence | WP-02; hosted run remains required |
 | 13 | Expansion coverage misses late operations | OPEN; runner test list omits direct late-operation suites | WP-02, WP-29; behaviour coverage report |
-| 14 | CI failing | UPDATED at #28: 61/71 Native, 22/22 browser; locator fixed, Native remains open | WP-01; Native suite green and browser success retained |
+| 14 | CI failing | UPDATED: CI #28 recorded 61/71 Native and 22/22 browser; current local MSVC rerun is 72/72 Native, while hosted CI remains unrefreshed | WP-01; hosted Native/browser rerun and release evidence |
 | 15 | UI inventory is not acceptance gate | PARTIAL PROGRESS; `audit:ui:gate` now executes a separate zero-browser-prompt gate and seeded disabled-opacity rejection, while selected workflow evidence/operation checks remain open | WP-24; real selected-rule gate |
 | 16 | Disabled-opacity rule self-cancels | FIXED in the shared rule helper; a seeded opacity-only control is rejected by the gate and visible-state styling is not treated as the same finding | WP-24; positive/negative rule fixtures |
 | 17 | Missing terminal viewports | OPEN; desktop + 390 × 844 only | WP-03, WP-19; 1024 × 600 and AIO evidence |
@@ -1320,11 +1320,11 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 
 | Package | Status | Implementation files/commit | Behaviour evidence | Remaining blocker |
 | --- | --- | --- | --- | --- |
-| WP-01 | OPEN | Browser locator fixed at `703693d`; Native open | #28 browser 22/22; Native 61/71 | Native fixture/policy failures |
+| WP-01 | VERIFIED locally | 2026-09-30 | `npm run test:native`: MSVC 72/72; browser locator retained; Native negative safeguards remain covered | Hosted CI rerun, packaged shell and physical acceptance remain |
 | WP-02 | IMPLEMENTED_UNVERIFIED LOCALLY | 2026-09-30 | Named frontend, cloud-base, cloud-v2, Native, desktop and browser production jobs have source coverage and failure-artifact steps; 129 Node tests, lint and docs checks pass | Hosted CI and packaged-shell acceptance remain |
 | WP-03 | OPEN | — | Production flags/viewport workflows | — |
 | WP-04 | OPEN | — | Registry/aliases/parity fixtures | — |
-| WP-05 | OPEN | — | Role × permission + navigation | — |
+| WP-05 | IN_PROGRESS | 2026-09-30 | Native canonical till permission and eight-role validation; Web workspace visibility source checks retained | Native 72/72, contracts 89/8/78, permission source 4/4, lint | Full Native/cloud role matrix, custom grants, direct-command denial and session refresh |
 | WP-06 | OPEN | — | Reviewed identity correlation | — |
 | WP-07 | OPEN | — | Partial/nested settings preservation | — |
 | WP-08 | IN_PROGRESS | Typed drafts, failed-online retention, supported Activity reopening, response-loss browser proof, and browser count-session reload/reopen recovery | Shared-device/logout durability | — |
@@ -1338,7 +1338,7 @@ Store this in `docs/COMPLETION_LEDGER.md` or a linked small structured manifest.
 | WP-16 | OPEN | — | Verified artifact + restore | — |
 | WP-17 | OPEN | — | Safe typed CSV/string serialization | — |
 | WP-18 | OPEN | — | Purge/session/revocation policy | — |
-| WP-19 | PARTIAL PROGRESS | 2026-09-30 | Native `ActionDialog` forwards the shared footer and prevents wrapper dismissal while busy; legacy prompt/confirm consumers and close-failure recovery use typed dialogs; shared `SearchCombobox` has option/listbox/keyboard states; shared `Drawer` now traps/restores focus for contextual help and remote manager details; staged Web modal wrappers and the main workflow editor use shared `Dialog`; generic editor and staff role selectors use `SearchCombobox`; focused source tests, 142-test suite, lint and docs checks pass | Remaining standalone selector migration, custom-overlay migration, focus/inertness and target-viewport acceptance remain |
+| WP-19 | PARTIAL PROGRESS | 2026-09-30 | Native `ActionDialog` forwards the shared footer and prevents wrapper dismissal while busy; native manager approval now uses its busy boundary; legacy prompt/confirm consumers and close-failure recovery use typed dialogs; shared `SearchCombobox` has option/listbox/keyboard states; shared `Drawer` now traps/restores focus for contextual help and remote manager details; staged Web modal wrappers and the main workflow editor use shared `Dialog`; generic editor and staff role selectors use `SearchCombobox`; focused source tests, 143-test suite, lint and docs checks pass | Remaining standalone selector migration, custom-overlay/footer migration, focus/inertness and target-viewport acceptance remain |
 | WP-20 | OPEN | — | Approval request/consumption scope | — |
 | WP-21 | OPEN | — | Invitation acceptance/identity | — |
 | WP-22 | OPEN | — | Exact fiscal/unit conversion | — |

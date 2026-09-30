@@ -9,6 +9,8 @@ fn native_roles_fail_closed_for_unknown_and_do_not_inherit_server_access() {
     }
     assert!(!permissions("Chef").contains(&"pos.sell"));
     assert!(!permissions("Housekeeper").contains(&"till.open"));
+    assert!(permissions("Admin").contains(&"till.cashMovement"));
+    assert!(!permissions("Admin").contains(&"till.cash_movement"));
     assert!(permissions("not-a-role").is_empty());
 }
 

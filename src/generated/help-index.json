@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T02:56:56.008Z",
+  "generatedAt": "2026-09-30T13:56:35.097Z",
   "source": "docs/user-guide",
   "count": 40,
   "articles": [
@@ -300,11 +300,11 @@
         "Manager"
       ],
       "permissions": [
-        "till.cash_movement"
+        "till.cashMovement"
       ],
       "screen": "close",
       "summary": "Paid-in and paid-out movements change expected drawer cash with audit and journal evidence.",
-      "body": "Section: Cash Drawer\nRoles: Admin, Manager\nPermission: till.cash_movement\nScreen: close\nKeywords: cash drawer movements, cash drawer, ServOS\n\n## Overview\n\nPaid-in and paid-out movements change expected drawer cash with audit and journal evidence.\n\n## Procedure\n\nUse Shift & Day Close, choose Paid In or Paid Out, enter amount and reason, and obtain manager approval if your role requires it. Use Paid Out for cash drops/expenses and Paid In for float top-ups.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
+      "body": "Section: Cash Drawer\nRoles: Admin, Manager\nPermission: till.cashMovement\nScreen: close\nKeywords: cash drawer movements, cash drawer, ServOS\n\n## Overview\n\nPaid-in and paid-out movements change expected drawer cash with audit and journal evidence.\n\n## Procedure\n\nUse Shift & Day Close, choose Paid In or Paid Out, enter amount and reason, and obtain manager approval if your role requires it. Use Paid Out for cash drops/expenses and Paid In for float top-ups.\n\n## What ServOS records\n\nActions that change the business are committed through the native backend. When applicable, business records, audit evidence and synchronization outbox entries commit together.\n\n## Common mistakes and correction\n\nDo not treat a button, toast or browser preview as proof that a business transaction was committed. Correct mistakes through the documented reversal, void, refund, count or manager-approved workflow rather than deleting historical transactions.",
       "keywords": [
         "cash drawer movements",
         "cash drawer",

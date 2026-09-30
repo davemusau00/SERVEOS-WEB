@@ -159,7 +159,7 @@ pub const ALL_PERMISSIONS: &[&str] = &[
     "staff.view","staff.create","staff.update","staff.deactivate","staff.reset_pin","staff.change_role",
     "pos.sell","pos.open_tab","pos.manage_table","order.fire","order.transfer","order.merge","order.void","order.discount","order.comp","order.refund",
     "payment.record","payment.split","payment.reverse",
-    "till.open","till.close","till.cash_movement","till.override_variance",
+    "till.open","till.close","till.cashMovement","till.override_variance",
     "mpesa.record","mpesa.reconcile",
     "credit.view","credit.manage","credit.charge","credit.settle","credit.reconcile","credit.write_off","credit.override_limit",
     "catalog.view","catalog.manage","pricing.manage",
@@ -187,6 +187,8 @@ pub fn permissions(role: &str) -> Vec<&'static str> {
         _ => Vec::new(),
     }
 }
+
+pub const STAFF_ROLES: &[&str] = &["Admin","Manager","Cashier","Server","Chef","Housekeeper","Accountant","Custom"];
 
 pub fn installation_stage(db: &Connection) -> Result<String> {
     if let Some(stage) = meta(db, "installation_stage")? { return Ok(stage); }
@@ -3121,7 +3123,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
         }
         "staff.create" => {
             if !permissions(&user.role).contains(&"staff.create") { return Err("Staff administration permission required".into()); }
-            let role=text(p,"role")?; if !["Admin","Manager","Server"].contains(&role){return Err("Invalid role".into());}
+            let role=text(p,"role")?; if !STAFF_ROLES.contains(&role){return Err("Invalid role".into());}
             if role=="Admin" && user.role!="Admin" {return Err("Only an Admin can create another Admin".into());}
             let staff_id=id(); let name=text(p,"name")?; let hash=hash_pin(text(p,"pin")?)?;
             tx.execute("INSERT INTO staff(id,name,role,pin_hash) VALUES(?,?,?,?)",params![staff_id,name,role,hash]).map_err(error)?;
@@ -3144,7 +3146,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
         }
         "staff.changeRole" => {
             if user.role!="Admin" { return Err("Owner permission required".into()); }
-            let staff_id=text(p,"staffId")?; let role=text(p,"role")?; if !["Admin","Manager","Server"].contains(&role){return Err("Invalid role".into());}
+            let staff_id=text(p,"staffId")?; let role=text(p,"role")?; if !STAFF_ROLES.contains(&role){return Err("Invalid role".into());}
             let current:String=tx.query_row("SELECT role FROM staff WHERE id=? AND active=1",[staff_id],|r|r.get(0)).map_err(|_|"Active staff member not found")?;
             if current=="Admin" && role!="Admin" { let admins:i64=tx.query_row("SELECT count(*) FROM staff WHERE active=1 AND role='Admin'",[],|r|r.get(0)).map_err(error)?; if admins<=1{return Err("The final active Admin cannot be demoted".into());} }
             tx.execute("UPDATE staff SET role=? WHERE id=?",params![role,staff_id]).map_err(error)?; tx.execute("DELETE FROM sessions WHERE staff_id=?",[staff_id]).map_err(error)?;
@@ -3580,7 +3582,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             receipt["statementReference"]=json!(statement_reference); receipt["reviewNotes"]=json!(p.get("notes").and_then(Value::as_str).unwrap_or("")); receipt["reviewedBy"]=json!(user.staff_id); receipt["reviewedAt"]=json!(now()); receipt["reconciliationStatus"]=json!(if accepted{"RECONCILED_WITH_DISCREPANCY"}else{"RECONCILED"}); put(&tx,"mpesaReceipts",receipt_id,receipt,&mut changes)?;
         }
         "till.cashMovement" => {
-            let till_id=text(p,"tillId")?; authorize(&tx,user,"till.cash_movement",p,Some(till_id))?; let (_,mut till)=get(&tx,"tillSessions",till_id)?; if till["status"]!="OPEN"{return Err("Till is not open".into());}
+            let till_id=text(p,"tillId")?; authorize(&tx,user,"till.cashMovement",p,Some(till_id))?; let (_,mut till)=get(&tx,"tillSessions",till_id)?; if till["status"]!="OPEN"{return Err("Till is not open".into());}
             let kind=text(p,"type")?; if !["IN","OUT"].contains(&kind){return Err("Cash movement type must be IN or OUT".into());} let amount=money(p,"amount")?; if amount<=0{return Err("Cash movement must be positive".into());} let reason=text(p,"reason")?;
             let expected=money(&till,"expectedCashInDrawer")?; if kind=="OUT"&&amount>expected{return Err("Paid out amount exceeds expected cash in drawer".into());}
             if kind=="IN"{till["cashPaidIn"]=json!((money(&till,"cashPaidIn")?+amount) as f64/100.0);till["expectedCashInDrawer"]=json!((expected+amount) as f64/100.0);}else{till["cashPaidOut"]=json!((money(&till,"cashPaidOut")?+amount) as f64/100.0);till["expectedCashInDrawer"]=json!((expected-amount) as f64/100.0);}

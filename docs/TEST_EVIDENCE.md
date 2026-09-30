@@ -16,7 +16,7 @@ WP-25 now has a PWA asset foundation: `public/manifest.webmanifest` references 1
 
 The room-stay Settings blocker is now actionable in both Web and Native: nightly rate options are constrained to the selected room type, incompatible saved defaults are cleared, and both clients reject a mismatched rate before submitting `roomStay.settings`. `node --test tests/room-settings-source.test.mjs` passes; full dialog focus/footer and target-viewport acceptance remain open.
 
-The shared Native `ActionDialog` now forwards the design-system footer and accepts a `busy` guard that blocks wrapper dismissal while a command is in flight. Legacy catalog deletion, outlet renaming, staff deletion and inventory deletion now use typed in-app dialogs rather than browser `confirm`/`prompt`. Native close-request flush failures now remain recoverable in an in-app dialog with Keep working and Retry save and close actions. `SearchCombobox` now has an accessible option/listbox contract with stable IDs, keyboard navigation, loading/error/empty states and inline creation support. The shared `Drawer` now traps focus, handles Escape and restores focus on close; contextual help and remote manager selected-record details now use it. Staged Web catalog/inventory, procurement, refunds, POS and financial-controls modal wrappers now delegate to the shared `Dialog`. The main Web workflow editor now places actions in the shared fixed footer and associates them with its scrollable form via an explicit form ID; its generic entity selectors and staff role controls now use `SearchCombobox` IDs and labels. `node --test tests/action-dialog-source.test.mjs tests/operator-ux-source.test.mjs` passes. Remaining custom overlays and viewport/focus acceptance remain open.
+The shared Native `ActionDialog` now forwards the design-system footer and accepts a `busy` guard that blocks wrapper dismissal while a command is in flight. Legacy catalog deletion, outlet renaming, staff deletion and inventory deletion now use typed in-app dialogs rather than browser `confirm`/`prompt`. Native close-request flush failures now remain recoverable in an in-app dialog with Keep working and Retry save and close actions. Native manager approval now uses the shared `ActionDialog` busy boundary. `SearchCombobox` now has an accessible option/listbox contract with stable IDs, keyboard navigation, loading/error/empty states and inline creation support. The shared `Drawer` now traps focus, handles Escape and restores focus on close; contextual help and remote manager selected-record details now use it. Staged Web catalog/inventory, procurement, refunds, POS and financial-controls modal wrappers now delegate to the shared `Dialog`. The main Web workflow editor now places actions in the shared fixed footer and associates them with its scrollable form via an explicit form ID; its generic entity selectors and staff role controls now use `SearchCombobox` IDs and labels. `node --test tests/action-dialog-source.test.mjs tests/operator-ux-source.test.mjs` passes. Remaining custom overlays and viewport/focus acceptance remain open.
 
 WP-26 cleanup removed four committed production `.bak` files and the duplicate root reconciliation migration after its SHA-256 matched `supabase/migrations/202609270001_reconciliation_manifest.sql`. `.gitignore` now covers backup suffixes, the staging runbook references the canonical migration, and the reviewed Native POS source no longer contains the targeted mojibake markers. Full Node tests passed 127/127, TypeScript lint passed, documentation checks passed, and `git diff --check` passed. Physical UI capture and broader repository encoding review remain open.
 
@@ -42,7 +42,7 @@ This completes the local P0 gate only. Hosted CI state, Tauri package installati
 
 ### P1 audit heuristic follow-up - 2026-09-30
 
-`scripts/audit-ui.mjs` now walks source files in stable order, records a source digest, omits clock-based `generatedAt`, and stores compact semantic summaries in Git while emitting full inventory/audit payloads under `artifacts/ui-audit/` for CI upload. The disabled-opacity rule is shared with the gate and a seeded opacity-only control is verified to exit nonzero; visible-state styling is treated separately. Repeated audit runs produced identical hashes. The latest `npm run audit:ui:gate` reports 3,538 interactions and 379 review candidates and passes the browser-prompt zero rule. The focused source suite passes 19/19. These are static candidates only; no workflow has been manually reviewed or accepted. Selected workflow/operation acceptance remains open. This is P1 progress, not acceptance.
+`scripts/audit-ui.mjs` now walks source files in stable order, records a source digest, omits clock-based `generatedAt`, and stores compact semantic summaries in Git while emitting full inventory/audit payloads under `artifacts/ui-audit/` for CI upload. The disabled-opacity rule is shared with the gate and a seeded opacity-only control is verified to exit nonzero; visible-state styling is treated separately. Repeated audit runs produced identical hashes. The latest `npm run audit:ui:gate` reports 3,538 interactions and 379 review candidates and passes the browser-prompt zero rule. The focused source suite passes 20/20. These are static candidates only; no workflow has been manually reviewed or accepted. Selected workflow/operation acceptance remains open. This is P1 progress, not acceptance.
 
 ### P2 property-time hospitality slice - 2026-09-30
 
@@ -278,6 +278,14 @@ SQLite migration 011 adds a dedicated scanner-draft table scoped to signed-in st
 
 ### 0.2.0 release-candidate gate — PENDING EXECUTION
 
+### CLEAN-ServOS WP-01 Native rerun — 2026-09-30
+
+The current checkout was rerun with the Windows MSVC Native acceptance runner after the historical CI #28 room-fixture failures were recorded. The existing room safeguards and negative cases remain enabled; no tests were deleted or loosened.
+
+- `npm run test:native` — passed: **72 tests, 72 passed, 0 failed**.
+- The run emitted three existing Rust compiler warnings for unused assignments/parameters; they did not affect the result.
+- Hosted CI, packaged Tauri shell, physical terminal, printer and scanner acceptance remain separate and unverified.
+
 Baseline: `c946ee1493067e6bcca2bccd8ebfcf40ad9920c4` or a reviewed descendant.
 
 This patch adds source-contract tests, desktop/mobile Simple Operations browser acceptance, an existing-terminal upgrade runbook, a target-device acceptance worksheet and `scripts/verify-release-0.2.ps1`.
@@ -295,3 +303,14 @@ Do not mark this section passed until command output has been reviewed. Physical
 ### Final customer-credit release gate — PENDING EXECUTION
 
 Run the complete 0.2.0 verifier after applying the final customer-credit patch. The expected installed schema is 13. Required new evidence includes native customer credit charge/settlement/reconciliation tests, source contract tests, the full browser suite, Windows native/Tauri suites and staged PostgreSQL regression tests. Packaging and physical acceptance remain separate.
+
+### CLEAN-ServOS WP-05 Native permission and role alignment — 2026-09-30
+
+Native now uses the canonical `till.cashMovement` permission spelling in its explicit permission profile and till handler. The deprecated underscore spelling is covered by a negative Native assertion. Staff create and role-change validation accepts the documented `Admin`, `Manager`, `Cashier`, `Server`, `Chef`, `Housekeeper`, `Accountant`, and `Custom` roles, while unknown roles remain fail-closed.
+
+- `npm run test:native` — passed: 72 tests, 72 passed, 0 failed.
+- `npm run contracts:check` — passed: 89 permissions, 8 roles, 78 operations, 3 generated artifacts.
+- `node --test tests/web-v2-permission-contract-source.test.mjs` — passed: 4 tests.
+- `npm run lint` and `git diff --check` — passed.
+
+This closes the identified Native spelling defect, not the full cross-runtime role/grant matrix or hosted/session-refresh acceptance.

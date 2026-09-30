@@ -170,3 +170,15 @@ test('RemoteManager selected-record panel uses the shared Drawer boundary',()=>{
   assert.match(source, /<Drawer title=\{recordName\(selected\)\}/);
   assert.doesNotMatch(source, /<section className="absolute inset-y-0 right-0/);
 });
+
+test('Native manager approval uses the shared ActionDialog and busy dismissal guard',()=>{
+  const source = readFileSync('src/native/ManagerApprovalDialog.tsx','utf8');
+  assert.match(source, /import \{ ActionDialog \}/);
+  assert.match(source, /<ActionDialog title="Manager approval"/);
+  assert.match(source, /busy=\{busy\}/);
+  assert.match(source, /footer=\{<><button type="button"/);
+  assert.match(source, /onClick=\{approve\}/);
+  assert.doesNotMatch(source, /mt-5 flex justify-end gap-2/);
+  assert.match(source, /if\(!busy\)onClose\(\)/);
+  assert.doesNotMatch(source, /fixed inset-0 z-\[200\].*role="dialog"/s);
+});

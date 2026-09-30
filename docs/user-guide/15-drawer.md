@@ -2,7 +2,7 @@
 
 Section: Cash Drawer
 Roles: Admin, Manager
-Permission: till.cash_movement
+Permission: till.cashMovement
 Screen: close
 Keywords: cash drawer movements, cash drawer, ServOS
 
