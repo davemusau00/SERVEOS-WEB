@@ -35,16 +35,17 @@ export function stayCheckoutBlocker({
 }
 
 export function roomMoveBlocker({
-  stayId, currentRoomId, destinationRoomId, startsAt, endsAt, maintenanceState,
+  stayId, currentRoomId, destinationRoomId, startsAt, endsAt, guestCount, capacity, maintenanceState,
   housekeepingState, reservations, blocks,
 }: {
-  stayId: string; currentRoomId: string; destinationRoomId: string; startsAt: string; endsAt: string;
+  stayId: string; currentRoomId: string; destinationRoomId: string; startsAt: string; endsAt: string; guestCount: number; capacity: number;
   maintenanceState: string; housekeepingState: string;
   reservations: Array<{ id: string; roomId: string; startsAt: string; endsAt: string; blockedUntil?: string; status: string }>;
   blocks: Array<{ roomId: string; startsAt: string; endsAt: string; status: string }>;
 }): string | null {
   if (!destinationRoomId) return 'Choose a destination room.';
   if (destinationRoomId === currentRoomId) return 'Choose a different room from the guest’s current room.';
+  if (!Number.isFinite(guestCount) || guestCount < 1 || guestCount > capacity) return 'This room does not have enough guest capacity.';
   if (maintenanceState === 'OUT_OF_ORDER') return 'This room is out of service. Choose another room.';
   if (housekeepingState !== 'CLEAN') return 'This room must be inspected and clean before a guest can move in.';
   const start = Date.parse(startsAt), end = Date.parse(endsAt);

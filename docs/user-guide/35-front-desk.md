@@ -11,9 +11,9 @@ Front Desk is the operational view over the native Rooms engine. It combines tod
 
 The screen uses the timezone configured on the property (currently `Africa/Nairobi` for this installation). In the staged Web workspace, the session returns only the timezone and room-stay policy times needed by operational screens; it does not expose the full property record. Reservation availability still comes from the authorized business records and backend rules, including turnaround buffers and room blocks.
 
-Check-in creates the stay and, when one does not already exist, a zero-value folio shell using the reservation ID as the stable ID. Room moves preserve the reservation rate snapshot, dirty the old room, and create a turnaround block.
+Check-in creates the stay and, when one does not already exist, a zero-value folio shell using the reservation ID as the stable ID. Room moves preserve the reservation rate snapshot, dirty the old room, and create a turnaround block. The Web Front Desk previews destination capacity, cleanliness/service state, overlapping reservations, and active room blocks; the business server rechecks these facts when it accepts the queued move.
 
-Paid extensions and checkout remain disabled until Patch 07 Folios because they require accommodation posting, deposits, payment evidence, and zero-balance conservation.
+Checkout is available only after booked accommodation is posted, the folio balance is settled, and any deposit is applied or refunded. The Front Desk readiness panel explains the next action when one of these conditions is not met. The server remains authoritative and may reject a submission if the folio or stay changed after the screen loaded.
 
 ## Procedure
 
@@ -42,11 +42,11 @@ Turnaround time is included in reservation occupancy for availability even when 
 ### Move an in-house guest
 
 1. Choose **Move** on a checked-in stay.
-2. Select a clean, available room with enough guest capacity.
+2. Select a room; ServOS previews capacity, room condition, bookings, and active blocks.
 3. Record the reason.
 4. Confirm the move.
 
-ServOS checks versions for the stay, reservation, current room, and destination room. It updates reservation and stay together, marks the old room dirty, preserves the existing rate snapshot, and adds a turnaround block for the old room.
+ServOS checks versions for the stay, reservation, current room, and destination room. It updates reservation and stay together, marks the old room dirty, preserves the existing rate snapshot, and adds a turnaround block for the old room. If a destination blocker appears, resolve it and refresh before retrying. A queued command is not complete until accepted by the business server.
 
 ### Handle conflicts
 
