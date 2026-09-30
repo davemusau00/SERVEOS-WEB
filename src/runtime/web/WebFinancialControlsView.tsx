@@ -2,6 +2,7 @@ import React,{useMemo,useState} from 'react';
 import {AlertTriangle,CheckCircle2,CreditCard,FileCheck2,Receipt,ShieldCheck,WalletCards} from 'lucide-react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import {businessDateTimeInput,businessDateTimeToUtc} from '../../utils/businessTime';
+import {Dialog} from '../../design-system/controls';
 
 type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
 const field='w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400';
@@ -58,4 +59,4 @@ export function WebFinancialControlsView({records,session,disabled,command}:{rec
 function Metric({label,value,tone='text-white'}:{label:string;value:string;tone?:string}){return <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 font-bold ${tone}`}>{value}</div></div>}
 function Empty({text}:{text:string}){return <p className="rounded-xl border border-dashed border-slate-700 p-5 text-center text-sm text-slate-500">{text}</p>}
 function ExceptionCard({title,detail,action}:{title:string;detail:string;action:React.ReactNode}){return <article className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-800/50 bg-amber-950/20 p-3"><div><b>{title}</b><p className="text-xs text-slate-400">{detail}</p></div>{action}</article>}
-function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode}){return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-4"><section role="dialog" aria-modal="true" aria-label={title} className="mx-auto my-8 max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-5"><div className="mb-4 flex items-center justify-between"><h3 className="font-bold">{title}</h3><button className={button} onClick={onClose}>Close</button></div>{children}</section></div>}
+function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode}){return <Dialog title={title} onClose={onClose}>{children}</Dialog>}
