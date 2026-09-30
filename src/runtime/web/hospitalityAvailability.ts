@@ -6,6 +6,34 @@ export type HospitalityInterval = {
   status?: string;
 };
 
+export function stayCheckoutBlocker({
+  stayStatus,
+  reservationStatus,
+  folioStatus,
+  balanceMinor,
+  depositMinor,
+  units,
+  accommodationPeriods,
+}: {
+  stayStatus?: string;
+  reservationStatus?: string;
+  folioStatus?: string;
+  balanceMinor?: number;
+  depositMinor?: number;
+  units?: number;
+  accommodationPeriods: number[];
+}) {
+  if (!folioStatus) return 'The guest folio is not available. Refresh Guest Accounts before attempting checkout.';
+  if (stayStatus !== 'CHECKED_IN' || reservationStatus !== 'CHECKED_IN' || folioStatus !== 'OPEN') return 'This stay or folio is not open for checkout. Refresh the workspace or ask a manager to review the stay.';
+  const requiredUnits = Number(units);
+  if (!Number.isInteger(requiredUnits) || requiredUnits < 1 || requiredUnits > 366) return 'Booked accommodation periods are unavailable. Open Guest Accounts and review the reservation before checkout.';
+  const posted = new Set(accommodationPeriods);
+  if (Array.from({length:requiredUnits},(_,period)=>period).some(period=>!posted.has(period))) return 'Post all booked accommodation periods in Guest Accounts before checkout.';
+  if (Number(balanceMinor||0) !== 0) return 'Settle the remaining guest-account balance in Guest Accounts before checkout.';
+  if (Number(depositMinor||0) !== 0) return 'Apply or refund the remaining deposit in Guest Accounts before checkout.';
+  return null;
+}
+
 /** Advisory only: the room command rechecks all intervals authoritatively. */
 export function roomReservationBlocker({
   roomId,

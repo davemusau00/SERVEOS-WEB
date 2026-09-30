@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { addBusinessDays, businessDateTimeAfterBusinessDays, businessDateTimeInput, businessDateTimeToUtc, businessDate, businessDateStartUtc, formatBusinessDateTime } from '../src/utils/businessTime.ts';
-import { roomReservationBlocker } from '../src/runtime/web/hospitalityAvailability.ts';
+import { roomReservationBlocker, stayCheckoutBlocker } from '../src/runtime/web/hospitalityAvailability.ts';
 
 test('business time conversion round-trips property wall time independently of host timezone', () => {
   const instant = businessDateTimeToUtc('2026-09-30T10:15', 'Africa/Nairobi');
@@ -71,6 +71,19 @@ test('Web Housekeeping uses queued, permission-gated room block and maintenance 
   assert.match(web, /allowed\(session,'rooms\.manage'\)/);
   assert.match(web, /allowed\(session,'maintenance\.manage'\)/);
   assert.match(manifest, /operation: 'maintenance\.report'.*web: 'implemented'/);
+});
+
+test('checkout preview explains accommodation, balance, deposit, and stay-state blockers', () => {
+  const ready={stayStatus:'CHECKED_IN',reservationStatus:'CHECKED_IN',folioStatus:'OPEN',balanceMinor:0,depositMinor:0,units:2,accommodationPeriods:[0,1]};
+  assert.equal(stayCheckoutBlocker(ready),null);
+  assert.match(stayCheckoutBlocker({...ready,accommodationPeriods:[0]}),/Post all booked accommodation periods/);
+  assert.match(stayCheckoutBlocker({...ready,balanceMinor:1250}),/Settle the remaining guest-account balance/);
+  assert.match(stayCheckoutBlocker({...ready,depositMinor:100}),/Apply or refund the remaining deposit/);
+  assert.match(stayCheckoutBlocker({...ready,folioStatus:'CLOSED'}),/not open for checkout/);
+  const web = readFileSync('src/runtime/web/WebHospitalityViews.tsx', 'utf8');
+  assert.match(web, /const checkoutBlocker=\(record:BusinessRecord\)=>\{[\s\S]*?stayCheckoutBlocker/);
+  assert.match(web, /Queue title="Checkout readiness"/);
+  assert.match(web, /if\(blocker\)\{setNotice\(blocker\);return\}/);
 });
 
 test('staged Web session exposes only whitelisted hospitality property policy fields', () => {
