@@ -140,6 +140,7 @@ async fn runtime_login(
             let _=client.post(format!("{url}/auth/v1/logout")).header("apikey",&key).bearer_auth(&access).send().await;
             return Err("This Auth account is not bound to the selected local staff ID. Ask an Admin to bind the correct staff record.".into());
         }
+        { let db=state.db.lock().map_err(|e|e.to_string())?; store::seed_native_v2_state(&db,&identity)?; }
         let entry=keyring::Entry::new("ServOS",&format!("{}:{}",terminal,local.staff_id)).map_err(|_|"OS secure credential storage is unavailable".to_string())?;
         entry.set_password(&refresh).map_err(|_|"Could not securely store the operator session".to_string())?;
         *state.operator_auth.lock().map_err(|e|e.to_string())?=Some(OperatorAuth{staff_id:local.staff_id.clone(),access_token:access,expires_at:chrono::Utc::now().timestamp()+expires_in,identity});
@@ -186,6 +187,7 @@ async fn refresh_operator_auth_inner(state:&Runtime,force_refresh:bool)->store::
         *state.operator_auth.lock().map_err(|e|e.to_string())?=None;
         return Err("Server operator or terminal authorization changed; sign in again".into());
     }
+    { let db=state.db.lock().map_err(|e|e.to_string())?; store::seed_native_v2_state(&db,&identity)?; }
     if let Some(auth)=state.operator_auth.lock().map_err(|e|e.to_string())?.as_mut().filter(|auth|auth.staff_id==active.staff_id){auth.identity=identity;}
     Ok(true)
 }
@@ -199,6 +201,56 @@ async fn runtime_refresh_operator_auth(state:State<'_,Runtime>,force_refresh:boo
     let result=refresh_operator_auth_inner(&state,force_refresh).await;
     if let Ok(mut busy)=state.auth_refreshing.lock(){*busy=false;}
     result
+}
+#[tauri::command]
+async fn runtime_v2_install_snapshot(state:State<'_,Runtime>)->store::Result<Value>{
+    if !refresh_operator_auth_inner(&state,true).await? { return Err("Sign in online to initialize the v2 replica".into()); }
+    let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
+    let (url,key,terminal,already_installed)={
+        let db=state.db.lock().map_err(|e|e.to_string())?;
+        let terminal=store::meta(&db,"terminal_id")?.ok_or("Terminal is not paired")?;
+        let installed:Option<i64>=db.query_row("SELECT snapshot_complete FROM native_v2_state WHERE device_id=?",[&terminal],|r|r.get(0)).optional().map_err(|e|e.to_string())?;
+        (store::meta(&db,"cloud_url")?.ok_or("Cloud URL is not configured")?,store::meta(&db,"cloud_key")?.ok_or("Cloud publishable key is missing")?,terminal,installed==Some(1))
+    };
+    if already_installed { return Err("V2 baseline already exists; use feed reconciliation".into()); }
+    let session=rpc(&url,&key,Some(&active.access_token),"servos_v2_session",json!({})).await?;
+    if session["enabled"]!=true { return Err("Staged v2 authority is disabled; no snapshot was installed".into()); }
+    let business_id=store::text(&session,"businessId")?.to_string();
+    let actor_id=store::text(&session,"actorId")?;
+    if active.identity["businessId"].as_str()!=Some(business_id.as_str())||active.identity["actorId"].as_str()!=Some(actor_id){
+        return Err("Authenticated v2 identity changed; sign in again before snapshot".into());
+    }
+    let policy=store::text(&session,"policyVersion")?.to_string();
+    let mut cursor:Option<i64>=None;
+    let mut after_collection=String::new();
+    let mut after_id=String::new();
+    let mut records:Vec<Value>=Vec::new();
+    for page_number in 0..200 {
+        let page=rpc(&url,&key,Some(&active.access_token),"servos_v2_snapshot",json!({
+            "after_collection":after_collection,"after_id":after_id,"expected_cursor":cursor,
+            "expected_policy":policy,"page_size":500
+        })).await?;
+        let page_cursor=page["cursor"].as_i64().filter(|value|*value>=0).ok_or("Snapshot cursor missing")?;
+        if cursor.is_some_and(|previous|previous!=page_cursor)||page["policyVersion"].as_str()!=Some(policy.as_str()){
+            return Err("Server snapshot changed during pagination; no baseline installed".into());
+        }
+        cursor=Some(page_cursor);
+        let batch=page["records"].as_array().ok_or("Snapshot records missing")?;
+        if records.len()+batch.len()>100_000 { return Err("V2 snapshot exceeds the 100,000 record safety limit".into()); }
+        records.extend(batch.iter().cloned());
+        if page["hasMore"]==true {
+            let next_collection=store::text(&page,"afterCollection")?.to_string();
+            let next_id=store::text(&page,"afterId")?.to_string();
+            if next_collection==after_collection&&next_id==after_id { return Err("V2 snapshot pagination made no progress".into()); }
+            after_collection=next_collection;after_id=next_id;
+        } else {
+            let snapshot_cursor=cursor.ok_or("Snapshot cursor missing")?;
+            let mut db=state.db.lock().map_err(|e|e.to_string())?;
+            store::install_native_v2_snapshot(&mut db,&terminal,&business_id,snapshot_cursor,&policy,&records)?;
+            return Ok(json!({"installed":true,"records":records.len(),"cursor":snapshot_cursor,"policyVersion":policy,"pageCount":page_number+1}));
+        }
+    }
+    Err("V2 snapshot exceeded the 200-page safety limit; no baseline installed".into())
 }
 #[tauri::command]
 fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
@@ -1123,6 +1175,7 @@ pub fn run() {
             runtime_login,
             runtime_login_offline,
             runtime_refresh_operator_auth,
+            runtime_v2_install_snapshot,
             runtime_lock,
             runtime_snapshot,
             runtime_guidance_progress,

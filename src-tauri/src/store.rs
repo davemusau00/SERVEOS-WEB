@@ -91,7 +91,7 @@ pub fn open(path: &std::path::Path) -> Result<Connection> {
     let version: i64 = db
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .map_err(error)?;
-    if version > 13 {
+    if version > 14 {
         return Err("Database requires a newer ServOS version".into());
     }
     if version < 1 {
@@ -135,6 +135,10 @@ pub fn open(path: &std::path::Path) -> Result<Connection> {
     if version < 13 {
         db.execute_batch(include_str!("../migrations/013_customer_credit.sql")).map_err(error)?;
     }
+    let version:i64=db.query_row("PRAGMA user_version",[],|r|r.get(0)).map_err(error)?;
+    if version<14 {
+        db.execute_batch(include_str!("../migrations/014_native_v2_outbox.sql")).map_err(error)?;
+    }
     Ok(db)
 }
 pub fn meta(db: &Connection, key: &str) -> Result<Option<String>> {
@@ -150,6 +154,97 @@ pub fn set_meta(db: &Connection, key: &str, value: &str) -> Result<()> {
         params![key, value],
     )
     .map_err(error)?;
+    Ok(())
+}
+
+/// Seed staged v2 sequence/feed state from the authenticated server identity.
+/// Never move a locally observed cursor backwards; this function does not
+/// authorize or enqueue business commands.
+pub fn seed_native_v2_state(db: &Connection, identity: &Value) -> Result<()> {
+    let device_id = text(identity, "deviceId")?;
+    let business_id = text(identity, "businessId")?;
+    let server_sequence = identity["lastSequence"].as_i64().unwrap_or(0).max(0);
+    let server_cursor = identity["cursor"].as_i64().unwrap_or(0).max(0);
+    let updated_at = now();
+    let existing: Option<String> = db.query_row(
+        "SELECT business_id FROM native_v2_state WHERE device_id=?",
+        [device_id],
+        |row| row.get(0),
+    ).optional().map_err(error)?;
+    if existing.as_deref().is_some_and(|value| value != business_id) {
+        return Err("Paired terminal is already associated with a different business".into());
+    }
+    db.execute(
+        "INSERT INTO native_v2_state(device_id,business_id,last_sequence,feed_cursor,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(device_id) DO UPDATE SET last_sequence=MAX(native_v2_state.last_sequence,excluded.last_sequence),feed_cursor=MAX(native_v2_state.feed_cursor,excluded.feed_cursor),updated_at=excluded.updated_at",
+        params![device_id,business_id,server_sequence,server_cursor,updated_at],
+    ).map_err(error)?;
+    Ok(())
+}
+
+/// Atomically apply one ordered server-feed page into the isolated v2 replica.
+/// This never mutates legacy `records` and never advances past a missing slot.
+pub fn apply_native_v2_page(db: &mut Connection, device_id: &str, page: &Value) -> Result<()> {
+    let cursor = page.get("cursor").and_then(Value::as_i64)
+        .filter(|value| *value >= 0).ok_or("Invalid v2 change-feed cursor")?;
+    let changes = page.get("changes").and_then(Value::as_array)
+        .ok_or("Invalid v2 change-feed page")?;
+    let tx = db.transaction().map_err(error)?;
+    let (business_id, mut applied_cursor, complete): (String, i64, i64) = tx.query_row(
+        "SELECT business_id,feed_cursor,snapshot_complete FROM native_v2_state WHERE device_id=?",
+        [device_id], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
+    ).map_err(error)?;
+    if complete != 1 { return Err("Install a complete v2 baseline before applying feed changes".into()); }
+    if cursor < applied_cursor { return Err("V2 change-feed cursor moved backwards".into()); }
+    if cursor == applied_cursor && changes.is_empty() { return Ok(()); }
+    for change in changes {
+        let sequence=change.get("sequence").and_then(Value::as_i64).filter(|n|*n>0).ok_or("Invalid v2 feed sequence")?;
+        if sequence <= applied_cursor { continue; }
+        if sequence != applied_cursor + 1 { return Err("V2 change-feed sequence gap; page retained for retry".into()); }
+        let rows=change.get("records").and_then(Value::as_array).ok_or("Invalid v2 feed records")?;
+        for row in rows {
+            let collection=text(row,"collection")?;
+            let record_id=text(row,"id")?;
+            let version=row.get("version").and_then(Value::as_i64).filter(|v|*v>0).ok_or("Invalid v2 record version")?;
+            let data=row.get("data").filter(|v|v.is_object()).ok_or("Invalid v2 record data")?;
+            let archived=row.get("archived").and_then(Value::as_bool).ok_or("Invalid v2 archive state")?;
+            tx.execute("INSERT INTO native_v2_records(collection,record_id,version,data,archived,feed_sequence) VALUES(?,?,?,?,?,?) ON CONFLICT(collection,record_id) DO UPDATE SET version=excluded.version,data=excluded.data,archived=excluded.archived,feed_sequence=excluded.feed_sequence",
+                params![collection,record_id,version,data.to_string(),archived as i64,sequence]).map_err(error)?;
+        }
+        applied_cursor=sequence;
+    }
+    if applied_cursor != cursor { return Err("V2 feed cursor does not match complete page".into()); }
+    tx.execute("UPDATE native_v2_state SET feed_cursor=?,updated_at=? WHERE device_id=? AND business_id=?",
+        params![cursor,now(),device_id,business_id]).map_err(error)?;
+    tx.commit().map_err(error)?;
+    Ok(())
+}
+
+/// Install a stable authorized server snapshot as the isolated v2 baseline.
+/// Replacing an already-installed baseline is intentionally rejected.
+pub fn install_native_v2_snapshot(db: &mut Connection, device_id: &str, business_id: &str, cursor: i64, policy: &str, records: &[Value]) -> Result<()> {
+    if cursor < 0 || policy.trim().is_empty() || records.len() > 100_000 {
+        return Err("Invalid or oversized v2 baseline snapshot".into());
+    }
+    let tx = db.transaction().map_err(error)?;
+    let (stored_business,previous_cursor,complete):(String,i64,i64)=tx.query_row(
+        "SELECT business_id,feed_cursor,snapshot_complete FROM native_v2_state WHERE device_id=?",
+        [device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
+    ).map_err(error)?;
+    if stored_business != business_id { return Err("V2 snapshot business does not match paired terminal".into()); }
+    if complete != 0 { return Err("V2 baseline is already installed; use feed reconciliation".into()); }
+    if cursor < previous_cursor { return Err("V2 snapshot cursor moved behind the authenticated identity cursor".into()); }
+    for record in records {
+        let collection=text(record,"collection")?;
+        let record_id=text(record,"id")?;
+        let version=record.get("version").and_then(Value::as_i64).filter(|value|*value>0).ok_or("Invalid v2 snapshot record version")?;
+        let data=record.get("data").filter(|value|value.is_object()).ok_or("Invalid v2 snapshot record data")?;
+        let archived=record.get("archived").and_then(Value::as_bool).ok_or("Invalid v2 snapshot archive state")?;
+        tx.execute("INSERT INTO native_v2_records(collection,record_id,version,data,archived,feed_sequence) VALUES(?,?,?,?,?,?)",
+            params![collection,record_id,version,data.to_string(),archived as i64,cursor]).map_err(error)?;
+    }
+    tx.execute("UPDATE native_v2_state SET feed_cursor=?,snapshot_complete=1,snapshot_policy=?,updated_at=? WHERE device_id=?",
+        params![cursor,policy,now(),device_id]).map_err(error)?;
+    tx.commit().map_err(error)?;
     Ok(())
 }
 

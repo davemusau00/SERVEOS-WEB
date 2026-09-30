@@ -10,6 +10,7 @@ This guide configures individual business accounts on an installed ServOS termin
 - Confirm each operator already has a local ServOS staff record with a stable, unique Staff ID. The v2 `staff_profiles.staff_id` must match that ID exactly.
 - During first enrollment, the initial local Administrator's stable ID is `auth:<Auth UUID>`, matching the staged owner-profile backfill. For every other operator, bind the Auth user to the exact stable Staff ID from the terminal's staff record; do not guess or use an email/name as the ID.
 - Confirm the business membership and operator permissions are active. Permissions are resolved from the authenticated server session and role profile, not from a terminal role selector.
+- The native source now contains SQLite schema 14 for separate v2 device sequence/feed state, an empty command outbox, and an isolated shadow-record replica. The feed-page applier does not update legacy operational records. This is dormant protocol storage, not a v2 writer; the migration has not been applied to a packaged terminal by this guide.
 
 ## Invite and bind operators
 

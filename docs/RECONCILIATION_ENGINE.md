@@ -41,6 +41,10 @@ The report also emits exact control totals for record counts by collection and a
 
 This is evidence only. Patch 02A does not perform v2 cutover.
 
+## Native v2 feed-replica groundwork
+
+SQLite schema 14 adds `native_v2_state`, `native_v2_outbox`, and `native_v2_records` as separate storage from the legacy records/outbox. Authenticated identity seeds the device's server sequence and control cursor monotonically. The source-level page applier validates ordered sequence continuity and atomically stores feed changes and the cursor in `native_v2_records`; it does not update the operational legacy replica. There is not yet a native pull caller, complete snapshot/baseline import, v2 command adapter, or cutover procedure using this shadow table. Its existence is not reconciliation acceptance and must not be used to enable v2.
+
 ## Development verification
 
 Run:

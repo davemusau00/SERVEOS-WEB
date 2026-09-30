@@ -11,7 +11,7 @@ begin
  select * into staff from servos_v2.staff_profiles s where s.auth_user_id=who and s.active;
  if not found then raise exception 'PERMISSION_DENIED: active Auth-bound staff profile required' using errcode='42501';end if;
  select permissions into grants from servos_v2.members where user_id=who and active;
- return jsonb_build_object('actorId',who,'staffId',staff.staff_id,'name',staff.name,'role',staff.role,'permissions',grants,'deviceId',device.id,'businessId',(select business_id from servos_v2.control where singleton),'enabled',(select enabled from servos_v2.control where singleton));
+ return jsonb_build_object('actorId',who,'staffId',staff.staff_id,'name',staff.name,'role',staff.role,'permissions',grants,'deviceId',device.id,'lastSequence',device.last_sequence,'businessId',(select business_id from servos_v2.control where singleton),'enabled',(select enabled from servos_v2.control where singleton),'cursor',(select cursor from servos_v2.control where singleton));
 end$$;
 revoke all on function public.servos_v2_terminal_identity(uuid) from public,anon;
 grant execute on function public.servos_v2_terminal_identity(uuid) to authenticated;

@@ -4,6 +4,8 @@ import test from 'node:test';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const runtime = read('../src-tauri/src/lib.rs');
+const nativeStore = read('../src-tauri/src/store.rs');
+const nativeV2Migration = read('../src-tauri/migrations/014_native_v2_outbox.sql');
 const provider = read('../src/runtime/RuntimeProvider.tsx');
 const unlock = read('../src/native/UnlockView.tsx');
 const identityMigration = read('../supabase/expansion/028_terminal_operator_identity.sql');
@@ -39,4 +41,19 @@ test('one terminal can be reused by active operators without transferring regist
   assert.match(identityMigration, /on conflict\(id\) do nothing/);
   assert.match(identityMigration, /not existing\.active or existing\.kind<>\$3/);
   assert.match(identityMigration, /owner_id=original_owner/);
+});
+
+test('authenticated identity seeds monotonic staged protocol state without dispatching v2 commands', () => {
+  assert.match(nativeStore, /pub fn seed_native_v2_state/);
+  assert.match(nativeStore, /pub fn apply_native_v2_page/);
+  assert.match(nativeStore, /V2 change-feed sequence gap/);
+  assert.match(nativeStore, /native_v2_records\(collection,record_id,version,data,archived,feed_sequence\)/);
+  assert.match(nativeStore, /MAX\(native_v2_state\.last_sequence,excluded\.last_sequence\)/);
+  assert.match(nativeStore, /MAX\(native_v2_state\.feed_cursor,excluded\.feed_cursor\)/);
+  assert.match(nativeStore, /different business/);
+  assert.match(nativeV2Migration, /CREATE TABLE IF NOT EXISTS native_v2_outbox/);
+  assert.match(nativeV2Migration, /CREATE TABLE IF NOT EXISTS native_v2_records/);
+  assert.match(nativeV2Migration, /WHERE state='PENDING'/);
+  assert.match(runtime, /seed_native_v2_state\(&db,&identity\)/);
+  assert.match(nativeV2Migration, /PRAGMA user_version=14/);
 });

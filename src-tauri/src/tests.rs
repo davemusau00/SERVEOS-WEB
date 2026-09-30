@@ -115,7 +115,7 @@ fn inventory_scanner_draft_is_persistent_staff_scoped_and_outside_business_outbo
 }
 
 #[test]
-fn schema_ten_upgrades_to_thirteen_for_scanner_drafts_and_credit() {
+fn schema_ten_upgrades_to_fourteen_for_scanner_drafts_credit_and_v2_state() {
     let dir=tempfile::tempdir().unwrap();
     let path=dir.path().join("upgrade.sqlite");
     let db=open(&path).unwrap();
@@ -123,7 +123,7 @@ fn schema_ten_upgrades_to_thirteen_for_scanner_drafts_and_credit() {
     drop(db);
     let upgraded=open(&path).unwrap();
     let version:i64=upgraded.query_row("PRAGMA user_version",[],|row|row.get(0)).unwrap();
-    assert_eq!(version,13);
+    assert_eq!(version,14);
     assert!(upgraded.query_row("SELECT name FROM sqlite_master WHERE type='table' AND name='inventory_count_drafts'",[],|row|row.get::<_,String>(0)).is_ok());
 }
 
@@ -1118,7 +1118,7 @@ fn classified_asset_quantity_requires_whole_units_and_commissioning_is_live_only
 fn terminal_acceptance_evidence_is_local_immutable_and_latest_schema() {
     let (_dir,db,s)=setup();
     let schema:i64=db.query_row("PRAGMA user_version",[],|r|r.get(0)).unwrap();
-    assert_eq!(schema,13);
+    assert_eq!(schema,14);
     let before:(i64,i64,i64)=db.query_row(
         "SELECT (SELECT COUNT(*) FROM records),(SELECT COUNT(*) FROM outbox),(SELECT COUNT(*) FROM commands)",
         [],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))
