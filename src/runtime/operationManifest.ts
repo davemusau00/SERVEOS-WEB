@@ -7,6 +7,8 @@
  * web surface is completed so missing remote actions are visible in review.
  */
 export type OperationSurface = 'implemented' | 'partial' | 'missing' | 'blocked';
+export type OfflineEligibility = 'eligible' | 'online-only' | 'draft-only' | 'blocked' | 'unknown';
+export type ReviewStatus = 'accepted' | 'implemented' | 'needs-simplification' | 'blocked-by-domain' | 'unreviewed';
 
 export interface OperationDefinition {
   operation: string;
@@ -16,10 +18,18 @@ export interface OperationDefinition {
   native: OperationSurface;
   backend: OperationSurface;
   web: OperationSurface;
+  offlineEligibility: OfflineEligibility;
+  approval: 'required' | 'conditional' | 'none' | 'unknown';
+  versioning: 'required' | 'not-required' | 'unknown';
+  auditEffect: 'required' | 'none' | 'unknown';
+  stockEffect: 'required' | 'none' | 'unknown';
+  financialEffect: 'required' | 'none' | 'unknown';
+  acceptanceTest: string;
+  operatorUxStatus: ReviewStatus;
   notes?: string;
 }
 
-export const WEB_OPERATION_MANIFEST: readonly OperationDefinition[] = [
+const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'approval' | 'versioning' | 'auditEffect' | 'stockEffect' | 'financialEffect' | 'acceptanceTest' | 'operatorUxStatus'>[] = [
   { operation: 'order.create', domain: 'POS', permission: 'pos.open_tab', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'order.addItem', domain: 'POS', permission: 'pos.sell', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'order.fire', domain: 'POS', permission: 'order.fire', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'implemented' },
@@ -59,5 +69,18 @@ export const WEB_OPERATION_MANIFEST: readonly OperationDefinition[] = [
   { operation: 'runtime.print_receipt', domain: 'Administration', permission: 'pos.sell', collection: 'receiptDocuments', native: 'implemented', backend: 'blocked', web: 'blocked', notes: 'Browser uses OS/PDF printing; direct terminal printer access is native/agent-only.' },
   { operation: 'runtime.backup', domain: 'Administration', permission: 'backup.create', collection: 'metadata', native: 'implemented', backend: 'blocked', web: 'blocked', notes: 'SQLite backup is local terminal authority.' },
 ];
+
+/** Unknown is intentional until a workflow has evidence in the parity and operator audit. */
+export const WEB_OPERATION_MANIFEST: readonly OperationDefinition[] = operationDefinitions.map(item => ({
+  ...item,
+  offlineEligibility: item.web === 'blocked' ? 'blocked' : 'unknown',
+  approval: item.notes?.toLowerCase().includes('approval') ? 'conditional' : 'unknown',
+  versioning: 'unknown',
+  auditEffect: 'unknown',
+  stockEffect: 'unknown',
+  financialEffect: 'unknown',
+  acceptanceTest: `Add or maintain acceptance coverage for ${item.operation} across permission, persistence, conflict, and recovery behavior.`,
+  operatorUxStatus: item.web === 'implemented' ? 'unreviewed' : 'blocked-by-domain',
+}));
 
 export const operationByName = (operation: string) => WEB_OPERATION_MANIFEST.find(item => item.operation === operation);
