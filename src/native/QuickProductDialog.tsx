@@ -35,15 +35,15 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
   const [physical, setPhysical] = useState(!variantOnly);
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
-  const [packageType, setPackageType] = useState('Bottle');
-  const [containerQuantity, setContainerQuantity] = useState(750);
+  const [packageType, setPackageType] = useState(variantOnly?'Bottle':'Can');
+  const [containerQuantity, setContainerQuantity] = useState(variantOnly?750:330);
   const [containerUnit, setContainerUnit] = useState('ml');
   const [tracked, setTracked] = useState(false);
   const [createStock, setCreateStock] = useState(false);
   const [stockName, setStockName] = useState('');
   const [stockCode, setStockCode] = useState('');
   const [purchasePackageName, setPurchasePackageName] = useState('Case');
-  const [unitsPerPackage, setUnitsPerPackage] = useState(1);
+  const [unitsPerPackage, setUnitsPerPackage] = useState(variantOnly?1:24);
   const [purchasePackageCost, setPurchasePackageCost] = useState(0);
   const [stockLocationId, setStockLocationId] = useState(String(outlets[0]?.defaultStockLocationId || locations[0]?.id || ''));
   const [openingContainers, setOpeningContainers] = useState(0);
@@ -102,10 +102,10 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
     else if(next==='COUNT_INGREDIENT'){setCreateStock(true);setPurchasePackageName('Pack');setUnitsPerPackage(12)}
     else if(next==='DRINK'){setPurchasePackageName('Case');setUnitsPerPackage(24)}
     else if(next==='SPIRIT'||next==='WINE'){setPurchasePackageName('Case');setUnitsPerPackage(12)}
-    if(next==='DRINK'){setContainerQuantity(330);setContainerUnit('ml');setWholeContainerQuantity(1)}
-    else if(next==='SPIRIT'||next==='WINE'){setContainerQuantity(750);setContainerUnit('ml');setWholeContainerQuantity(750)}
-    else if(next==='KEG'){setContainerQuantity(50000);setContainerUnit('ml');setWholeContainerQuantity(50000)}
-    else if(next==='RETAIL'){setContainerQuantity(1);setContainerUnit('piece');setWholeContainerQuantity(1)}
+    if(next==='DRINK'){setPackageType('Can');setContainerQuantity(330);setContainerUnit('ml');setWholeContainerQuantity(1)}
+    else if(next==='SPIRIT'||next==='WINE'){setPackageType('Bottle');setContainerQuantity(750);setContainerUnit('ml');setWholeContainerQuantity(750)}
+    else if(next==='KEG'){setPackageType('Keg');setContainerQuantity(50000);setContainerUnit('ml');setWholeContainerQuantity(50000)}
+    else if(next==='RETAIL'){setPackageType('Piece');setContainerQuantity(1);setContainerUnit('piece');setWholeContainerQuantity(1)}
   };
   const chooseFamily = (id: string) => {
     setFamilyId(id);
