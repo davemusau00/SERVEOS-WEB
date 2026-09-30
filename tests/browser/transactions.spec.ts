@@ -93,7 +93,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
    await expect(page.locator('main').getByRole('heading',{name:'Payments & refunds',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.locator('main')).not.toBeEmpty();
-  await expect(page.locator('main').getByRole('heading',{name:'Master Data',exact:true})).toBeVisible();
+  await expect(page.locator('main').getByRole('heading',{name:'Business master records',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'KDS',exact:true}).click();
   await expect(page.locator('main')).not.toBeEmpty();
   await expect(page.locator('main').getByRole('region',{name:'Kitchen and bar pass'}).getByRole('heading',{name:'Bar / Kitchen Pass',exact:true})).toBeVisible();
