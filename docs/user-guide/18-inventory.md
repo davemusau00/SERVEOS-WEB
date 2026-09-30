@@ -20,6 +20,10 @@ Use **Add item** to open the staged Smart Item Wizard. Select the closest item t
 
 The terminal and Web Catalog both expose a Smart Item workflow. Web actions use queued business commands; recipe-only dishes/mixed drinks save as sellable products without creating an unrelated stock master. Web package/recipe and full item-type parity remain in progress and unverified. A saved opening quantity is a committed opening movement; it is not a supplier receipt.
 
+## Prepare a recipe batch
+
+Create a BATCH sellable item in Terminal or Web Smart Item setup. Enter ingredient amounts for one full batch and its portion yield; ServOS converts them to per-portion recipe quantities and creates a linked, zero-on-hand finished-portions stock master atomically. Keep that output separate from raw ingredient stock. In Inventory, choose **Prepare a recipe batch**, select the saved recipe, location, whole batch count and a reason, then review the derived yield and ingredient quantities before submitting. ServOS calculates each requirement from saved per-portion quantity × batch yield × batch count; it blocks shortages and records ingredient deductions plus finished portions as stock movements with cost valuation. POS sales of a BATCH item draw from prepared portion stock, so recipe inputs are not deducted again at sale. Web batch setup/preparation is online-only and remains behind the staged v2 gate. These source workflows are unverified; all acceptance remains pending.
+
 For a weight ingredient, enter the physical amount in one supplier package (for example, `5 kg` per bag). ServOS converts it to `5,000 g`, derives cost per gram, and uses grams for new stock and recipe deductions. Native and Web recipe editors let you enter a compatible kitchen unit such as `0.2 kg` or `200 g`; ServOS converts it to the selected stock item's stored unit before previewing cost and saving. Cross-runtime item-type parity and final acceptance remain pending.
 
 ## Stock control dashboard

@@ -86,6 +86,15 @@ export function resolveOperationDependencies(operation: string, collection: stri
       if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
     }
     if (productData?.inventoryType === 'BATCH') add('stockItems', productData.stockItemId);
+    const selectedModifierIds = new Set(Array.isArray(payload.modifierIds) ? payload.modifierIds.filter((value): value is string => typeof value === 'string') : []);
+    const modifiers = Array.isArray(productData?.modifiers) ? productData.modifiers : [];
+    for (const modifier of modifiers) {
+      if (!modifier || typeof modifier !== 'object') continue;
+      const entry = modifier as Record<string, unknown>;
+      if (!selectedModifierIds.has(String(entry.id || ''))) continue;
+      const adjustments = Array.isArray(entry.ingredientAdjustments) ? entry.ingredientAdjustments : [];
+      for (const adjustment of adjustments) if (adjustment && typeof adjustment === 'object') add('stockItems', (adjustment as Record<string, unknown>).stockItemId);
+    }
   }
   const order = collection === 'orders' ? byKey.get(key('orders', id)) : undefined;
   if (operation === 'payment.refund' || operation === 'payment.reverse') {

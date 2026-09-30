@@ -235,7 +235,7 @@
       "native": "implemented",
       "backend": "implemented",
       "web": "partial",
-      "notes": "Terminal and Web Smart Item flows submit one atomic sellable-product/stock or stock-only ingredient command with optional opening movement. Web persists generated record IDs for drafts/retries and initializes sealed/open stock for Spirit/Wine bottle packages with serving and optional whole-container portions. Recipe-only menu products use validated product.save instead, avoiding a misleading linked stock balance. Full item-type, portion, and native/Web parity remain open.",
+      "notes": "Terminal and Web Smart Item flows submit one atomic sellable-product/stock or stock-only ingredient command with optional opening movement. Web persists generated record IDs for drafts/retries and initializes sealed/open stock for Spirit/Wine bottle packages with serving and optional whole-container portions. Web BATCH setup uses the same command to link a zero-on-hand portion stock master; recipe-only dishes/mixed drinks use product.save. Full item-type, portion, and native/Web parity remain open.",
       "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
@@ -986,6 +986,24 @@
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for inventory.countLocation across permission, persistence, conflict, and recovery behavior.",
       "operatorUxStatus": "blocked-by-domain"
+    },
+    {
+      "operation": "inventory.produceBatch",
+      "domain": "Inventory",
+      "permission": "inventory.adjust",
+      "collection": "stockItems",
+      "native": "implemented",
+      "backend": "implemented",
+      "web": "implemented",
+      "notes": "Online-only shared command consumes saved full-batch ingredients and increases the recipe-linked portion stock atomically with immutable movements and cost valuation. Batch authoring parity, acceptance, and production enablement remain open.",
+      "offlineEligibility": "unknown",
+      "approval": "unknown",
+      "versioning": "unknown",
+      "auditEffect": "unknown",
+      "stockEffect": "unknown",
+      "financialEffect": "unknown",
+      "acceptanceTest": "Add or maintain acceptance coverage for inventory.produceBatch across permission, persistence, conflict, and recovery behavior.",
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "inventory.transfer",

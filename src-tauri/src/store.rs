@@ -3406,8 +3406,11 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             if !next_average.is_finite()||next_average<0.0 { return Err("Finished-stock cost calculation is invalid".into()); }
             let mut updated_output=get(&tx,"stockItems",output_stock_id)?.1;
             updated_output["averageUnitCost"]=json!(next_average);
+            updated_output["currentStock"][location_id]=json!(existing_output+portion_output);
             put(&tx,"stockItems",output_stock_id,updated_output,&mut changes)?;
-            stock_delta_with_cost(&tx,&user,output_stock_id,location_id,portion_output,"BATCH_PREPARATION_OUTPUT",&cmd.id,&movement_reason,Some(output_unit_cost),&mut changes)?;
+            let location_name=get(&tx,"stockLocations",location_id)?.1["name"].as_str().unwrap_or("Location").to_string();
+            let movement_id=new_id();
+            put(&tx,"stockMovements",&movement_id,json!({"id":movement_id,"organizationId":user.organization_id,"propertyId":user.property_id,"stockItemId":output_stock_id,"stockItemName":output_stock["name"],"locationId":location_id,"locationName":location_name,"quantityDelta":portion_output,"baseUnit":output_stock["baseUnit"],"movementType":"BATCH_PREPARATION_OUTPUT","sourceId":cmd.id,"reasonCode":movement_reason,"occurredAt":now_iso(),"actorUserId":user.staff_id,"actorName":user.name,"unitCostSnapshot":output_unit_cost,"totalCostValuation":(output_unit_cost*portion_output*100.0).round()/100.0}),&mut changes)?;
         }
         "inventory.openingBalance" | "inventory.receive" | "inventory.adjust" | "inventory.waste" | "inventory.transfer" => {
             let permission=match cmd.operation.as_str(){"inventory.receive"=>"inventory.receive","inventory.transfer"=>"inventory.transfer","inventory.waste"=>"inventory.waste","inventory.adjust"=>"inventory.adjust",_=>"inventory.adjust"};
