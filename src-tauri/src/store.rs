@@ -286,6 +286,10 @@ pub fn mark_native_v2_attempt(db:&Connection,command_id:&str)->Result<()>{
     Ok(())
 }
 
+fn native_v2_find_record<'a>(records:&'a [Value],collection:&str,record_id:&str)->Option<&'a Value>{
+    records.iter().find(|record|record["collection"]==collection&&record["id"]==record_id&&record["archived"]==false)
+}
+
 pub fn acknowledge_native_v2_command(db:&mut Connection,result:&Value)->Result<Value>{
     let command_id=text(result,"commandId")?;
     let status=text(result,"status")?;
@@ -318,12 +322,11 @@ pub fn native_v2_snapshot(db:&Connection,token:&str,device_id:&str)->Result<Valu
         let mut room_targets=Vec::new();
         for folio in records.iter().filter(|record|record["collection"]=="folios"&&record["archived"]==false&&record["data"]["status"]=="OPEN"){
             let Some(folio_id)=folio["id"].as_str() else{continue};
-            let find=|collection:&str,id:&str|records.iter().find(|record|record["collection"]==collection&&record["id"]==id&&record["archived"]==false);
-            let Some(reservation)=find("roomReservations",folio_id) else{continue};
-            let Some(stay)=find("stays",folio_id) else{continue};
+            let Some(reservation)=native_v2_find_record(&records,"roomReservations",folio_id) else{continue};
+            let Some(stay)=native_v2_find_record(&records,"stays",folio_id) else{continue};
             if reservation["data"]["status"]!="CHECKED_IN"||stay["data"]["status"]!="CHECKED_IN"{continue;}
-            let room=reservation["data"]["roomId"].as_str().and_then(|id|find("rooms",id));
-            let customer=reservation["data"]["customerId"].as_str().and_then(|id|find("customers",id));
+            let room=reservation["data"]["roomId"].as_str().and_then(|id|native_v2_find_record(&records,"rooms",id));
+            let customer=reservation["data"]["customerId"].as_str().and_then(|id|native_v2_find_record(&records,"customers",id));
             room_targets.push(json!({"collection":"roomChargeTargets","id":folio_id,"version":folio["version"],"data":{"id":folio_id,"folioId":folio_id,"folioVersion":folio["version"],"roomId":reservation["data"]["roomId"],"roomNumber":room.map(|value|value["data"]["number"].clone()).unwrap_or(Value::Null),"guestName":customer.map(|value|value["data"]["name"].clone()).unwrap_or(Value::Null),"balanceMinor":folio["data"]["balanceMinor"]},"archived":false}));
         }
         records.extend(room_targets);
