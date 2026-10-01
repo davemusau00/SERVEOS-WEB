@@ -24,22 +24,31 @@ export function canonicalNameFor(expansionFile) {
   return `20261001${match[1].padStart(3, '0')}_${match[2]}.sql`;
 }
 
+/** The terminal-replica migrations that exist before the staged v2 chain. */
+export function baseMigrations() {
+  return assertPresent(BASE_MIGRATIONS);
+}
+
+/**
+ * The staged v2 chain as canonical timestamped files, in reviewed order.
+ *
+ * These are applied after the legacy `protocol.sql` acceptance file, because migration 001 fences
+ * the legacy writer and `protocol.sql` exercises that writer before the cutover.
+ */
+export function v2Migrations() {
+  return assertPresent(expansionChain().map(canonicalNameFor));
+}
+
+function assertPresent(list) {
+  const available = new Set(readdirSync(MIGRATION_DIR).filter(file => file.endsWith('.sql')).sort());
+  const missing = list.filter(file => !available.has(file)).map(file => `${MIGRATION_DIR}/${file}`);
+  if (missing.length) throw new Error(`Missing canonical migrations:\n  ${missing.join('\n  ')}`);
+  return list;
+}
+
 /** Every migration this installation applies, in order. */
 export function canonicalMigrations() {
-  const available = new Set(readdirSync(MIGRATION_DIR).filter(file => file.endsWith('.sql')).sort());
-  const missing = [];
-  const ordered = [];
-  for (const file of BASE_MIGRATIONS) {
-    if (!available.has(file)) missing.push(`${MIGRATION_DIR}/${file}`);
-    ordered.push(file);
-  }
-  for (const file of expansionChain()) {
-    const canonical = canonicalNameFor(file);
-    if (!available.has(canonical)) missing.push(`${MIGRATION_DIR}/${canonical}`);
-    ordered.push(canonical);
-  }
-  if (missing.length) throw new Error(`Missing canonical migrations:\n  ${missing.join('\n  ')}`);
-  return ordered;
+  return [...baseMigrations(), ...v2Migrations()];
 }
 
 /** Historic expansion filenames, read from the reviewed source chain. */

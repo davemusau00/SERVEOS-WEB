@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { canonicalMigrations, migrationPath } from './canonical-migrations.mjs';
 
 if (process.env.GITHUB_REF !== 'refs/heads/main' || !process.env.GITHUB_SHA) {
   throw new Error('Release-candidate evidence can only be created by the gated main-branch workflow.');
@@ -17,10 +18,9 @@ if (ciEvidence.requiredChecksPassed !== true || ciEvidence.requiredArtifactsPres
   throw new Error('Required engine checks or same-commit evidence artifacts are incomplete; candidate creation is blocked.');
 }
 
-const roots = ['supabase/migrations', 'supabase/expansion'];
-const files = roots.flatMap(root => fs.existsSync(root)
-  ? fs.readdirSync(root).filter(name => name.endsWith('.sql')).sort().map(name => path.join(root, name))
-  : []);
+// The canonical migration set is a single directory; hashing both roots would double-count the
+// staged v2 chain now that it also lives under supabase/migrations.
+const files = canonicalMigrations().map(migrationPath);
 const hash = crypto.createHash('sha256');
 for (const file of files) hash.update(`\n-- ${file}\n${fs.readFileSync(file)}`);
 const candidate = {

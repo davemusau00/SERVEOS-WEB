@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { canonicalMigrations, migrationPath } from './canonical-migrations.mjs';
 
-const roots = ['supabase/migrations', 'supabase/expansion'];
-const files = roots.flatMap(root => fs.existsSync(root)
-  ? fs.readdirSync(root).filter(name => name.endsWith('.sql')).sort().map(name => path.join(root, name))
-  : []);
+// Hash the canonical migration set only; supabase/expansion is the historic review source and
+// would double-count the staged v2 chain now that it also lives under supabase/migrations.
+const files = canonicalMigrations().map(migrationPath);
 const hash = crypto.createHash('sha256');
 for (const file of files) hash.update(`\n-- ${file}\n${fs.readFileSync(file)}`);
 const evidence = {

@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { testRoomConcurrency } from '../tests/supabase/concurrency.mjs';
-import { BASE_MIGRATIONS, canonicalMigrations, expansionChain, canonicalNameFor, migrationPath } from './canonical-migrations.mjs';
+import { baseMigrations, v2Migrations, canonicalMigrations, expansionChain, canonicalNameFor, migrationPath } from './canonical-migrations.mjs';
 
 const container = `servos-policy-test-${randomUUID()}`;
 const run = (args, input) => {
@@ -38,16 +38,18 @@ try {
     );
   }
   // One canonical migration set, applied exactly once, in the reviewed order.
-  // Base mode stops after the terminal-replica migrations; --expansion adds the staged v2 chain.
+  // Base mode stops after the terminal-replica migrations. --expansion additionally applies the
+  // staged v2 chain, which must run after protocol.sql because migration 001 fences the legacy writer
+  // that protocol.sql exercises.
   const expansion = process.argv.includes('--expansion');
-  const migrations = expansion ? canonicalMigrations() : BASE_MIGRATIONS;
   const files = [
     'tests/supabase/bootstrap.sql',
-    ...migrations.map(migrationPath),
+    ...baseMigrations().map(migrationPath),
     'tests/supabase/protocol.sql',
   ];
   if (expansion) {
     files.push(
+      ...v2Migrations().map(migrationPath),
       'tests/supabase/expansion.sql',
       'tests/supabase/allocations.sql',
       'tests/supabase/assets.sql',

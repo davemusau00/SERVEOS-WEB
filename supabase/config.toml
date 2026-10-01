@@ -1,0 +1,55 @@
+# ServOS canonical Supabase project configuration.
+#
+# There is exactly ONE migration path: `supabase/migrations/`. The reviewed staged v2 chain
+# (formerly `supabase/expansion/NNN_*.sql`) now lives there as timestamped
+# 202610010NN_*.sql files in the same order, so the Supabase CLI, staging and CI all agree.
+#
+# `supabase/expansion/` is retained only as the historic review source; it is never applied by a
+# deployment and is not required by production. See scripts/canonical-migrations.mjs.
+
+project_id = "servos"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.pooler]
+enabled = false
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = false
+port = 54323
+
+[auth]
+enabled = true
+site_url = ""
+# Additional redirect URLs are set per environment; never committed with production values.
+additional_redirect_urls = []
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[auth.jwt]
+# Short-lived operator sessions. Staff identity is bound explicitly, never by email.
+expiry = 3600
+
+# ServOS creates its own schema-qualified objects (servos_v2, servos_private) inside the
+# default public schema. No managed storage buckets are used by the terminal product.
+[storage]
+enabled = false
