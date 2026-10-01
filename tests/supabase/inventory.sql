@@ -101,6 +101,32 @@ select pg_temp.inv_command('stockItem.archive','stockItems','gin','{"id":"gin"}'
 select pg_temp.inv_command('stockItem.reactivate','stockItems','gin','{"id":"gin"}');
 select pg_temp.inv_command('product.reactivate','products','gin-sell','{"id":"gin-sell"}');
 
+-- The final dispatcher repair must retain the batch handler added in 035.
+select pg_temp.inv_command('stockItem.save','stockItems','batch-flour','{"id":"batch-flour","data":{"name":"Batch flour","code":"BATCH-FLOUR","baseUnit":"g","scanUnitQuantity":1,"reorderLevel":0,"averageUnitCostMinor":25}}');
+select pg_temp.inv_command('inventory.count','stockItems','batch-flour','{"id":"batch-flour","stockItemId":"batch-flour","locationId":"main","countedQty":100,"reason":"Batch route opening stock"}');
+select pg_temp.inv_command('stockItem.save','stockItems','batch-portions','{"id":"batch-portions","data":{"name":"Prepared batch portions","code":"BATCH-PORTIONS","baseUnit":"portion","scanUnitQuantity":1,"reorderLevel":0,"averageUnitCostMinor":0}}');
+select pg_temp.inv_command('product.save','products','batch-pot','{"id":"batch-pot","data":{"id":"batch-pot","name":"Batch acceptance pot","code":"BATCH-POT","priceMinor":400,"category":"FOOD","routeTo":"KITCHEN","inventoryType":"BATCH","stockItemId":"batch-portions","recipeYield":4,"recipeIngredients":[{"stockItemId":"batch-flour","quantity":5,"tracked":true}]}}');
+select pg_temp.inv_command('inventory.produceBatch','stockItems','batch-portions','{"id":"batch-pot","recipeProductId":"batch-pot","outputStockItemId":"batch-portions","locationId":"main","batchCount":1,"reason":"Batch yield acceptance"}');
+do $$declare ingredient_stock jsonb;output_stock jsonb;begin
+ ingredient_stock:=servos_v2.read_record('stockItems','batch-flour');
+ output_stock:=servos_v2.read_record('stockItems','batch-portions');
+ if (ingredient_stock->'currentStock'->>'main')::numeric<>80 or (output_stock->'currentStock'->>'main')::numeric<>4 or (output_stock->>'averageUnitCostMinor')::numeric<>125 then
+  raise exception 'batch preparation did not conserve ingredient and output stock: %, %',ingredient_stock,output_stock;
+ end if;
+ if (select count(*) from servos_v2.records where collection='stockMovements' and data->>'reason'='Batch yield acceptance')<>2 then
+  raise exception 'batch preparation movements were not recorded exactly once';
+ end if;
+end$$;
+select pg_temp.inv_command('inventory.produceBatch','stockItems','batch-portions','{"id":"batch-pot","recipeProductId":"batch-pot","outputStockItemId":"batch-portions","locationId":"main","batchCount":10,"reason":"Insufficient batch ingredients"}','10000000-0000-4000-8000-000000000031','REJECTED','VALIDATION_FAILED');
+do $$declare ingredient_stock jsonb;output_stock jsonb;begin
+ ingredient_stock:=servos_v2.read_record('stockItems','batch-flour');
+ output_stock:=servos_v2.read_record('stockItems','batch-portions');
+ if (ingredient_stock->'currentStock'->>'main')::numeric<>80 or (output_stock->'currentStock'->>'main')::numeric<>4
+   or exists(select 1 from servos_v2.records where collection='stockMovements' and data->>'reason'='Insufficient batch ingredients') then
+  raise exception 'insufficient batch ingredients changed stock or movements';
+ end if;
+end$$;
+
 -- Immutable history.
 do $$begin
  begin update servos_v2.records set data='{}' where collection='stockMovements';raise exception 'stock movement history mutable';

@@ -16,17 +16,32 @@ begin
  c:=jsonb_build_object('id','20000000-0000-0000-0000-000000000040','schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',2,'operation','admin.import.dryRun','payload',jsonb_build_object('batchId',batch_id),'expectedVersions','[]'::jsonb);
  r:=public.servos_v2_execute(c);if r->>'status'<>'SYNCHRONIZED' then raise exception 'import dry-run rejected: %',r;end if;
  if (select data->>'status' from servos_v2.records where collection='importBatches' and id=batch_id)<>'DRY_RUN_READY' then raise exception 'valid import did not reach DRY_RUN_READY';end if;
+  if not exists(
+   select 1 from servos_v2.records
+   where collection='importBatches' and id=batch_id
+    and data->'previewRows'->0->>'status'='READY'
+    and data->'previewRows'->0->>'reason' like '%name Tea%'
+    and data->'previewRows'->0->>'reason' like '%code IMP001%'
+    and data->'previewRows'->0->>'reason' like '%barcode 00001234%'
+    and data->'previewRows'->0->>'reason' like '%price minor units 1250%'
+  ) then raise exception 'dry-run row preview omitted validated product values';end if;
  c:=jsonb_build_object('id','20000000-0000-0000-0000-000000000041','schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',3,'operation','admin.import.apply','payload',jsonb_build_object('batchId',batch_id),'expectedVersions','[]'::jsonb);
  r:=public.servos_v2_execute(c);if r->>'status'<>'SYNCHRONIZED' then raise exception 'import apply rejected: %',r;end if;
  if (select data->>'status' from servos_v2.records where collection='importBatches' and id=batch_id)<>'APPLIED' then raise exception 'batch was not applied';end if;
  if (select data->>'barcode' from servos_v2.records where collection='products' and id='legacy-0001')<>'00001234' then raise exception 'barcode leading zeroes were not preserved';end if;
  if (select data->>'priceMinor' from servos_v2.records where collection='products' and id='legacy-0001')<>'1250' then raise exception 'price was not converted to minor units';end if;
  replay:=public.servos_v2_execute(c);if replay is distinct from r then raise exception 'apply replay returned a different result';end if;
- c:=jsonb_build_object('id','20000000-0000-0000-0000-000000000042','schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',4,'operation','admin.import.stage','payload',jsonb_build_object('id','import-fixture-invalid','fileName','invalid.csv','templateKey','products','csvText',E'name,code,price\nTea,IMP002,1e3'),'expectedVersions','[]'::jsonb);
+  c:=jsonb_build_object('id','20000000-0000-0000-0000-000000000042','schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',4,'operation','admin.import.stage','payload',jsonb_build_object('id','import-fixture-invalid','fileName','invalid.csv','templateKey','products','csvText',E'external_id,name,code,price\ninvalid-0001,Tea,IMP002,1e3'),'expectedVersions','[]'::jsonb);
  r:=public.servos_v2_execute(c);if r->>'status'<>'SYNCHRONIZED' then raise exception 'invalid-source stage rejected early: %',r;end if;
  c:=jsonb_build_object('id','20000000-0000-0000-0000-000000000043','schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',5,'operation','admin.import.dryRun','payload',jsonb_build_object('batchId','import-fixture-invalid'),'expectedVersions','[]'::jsonb);
  r:=public.servos_v2_execute(c);if r->>'status'<>'SYNCHRONIZED' then raise exception 'invalid import dry-run rejected: %',r;end if;
  if (select data->>'status' from servos_v2.records where collection='importBatches' and id='import-fixture-invalid')<>'DRY_RUN_BLOCKED' then raise exception 'scientific notation was not rejected';end if;
+  if not exists(
+   select 1 from servos_v2.records
+   where collection='importBatches' and id='import-fixture-invalid'
+    and data->'previewRows'->0->>'status'='REJECTED'
+    and data->'previewRows'->0->>'reason' like '%scientific notation is not accepted%'
+  ) then raise exception 'scientific notation row was not rejected with its actionable reason';end if;
  if (select data->>'status' from servos_v2.records where collection='importBatches' and id=batch_id)<>'APPLIED' then raise exception 'invalid batch altered prior successful batch';end if;
 end$$;
 do $$

@@ -182,7 +182,7 @@ create or replace function servos_v2.apply_admin_operations(command jsonb)
 returns jsonb language plpgsql set search_path='' as $$
 declare
  op text:=command->>'operation';p jsonb:=command->'payload';who uuid:=auth.uid();key text;batch jsonb;raw_rows jsonb;headers jsonb;cells jsonb;row_data jsonb;preview jsonb:='[]'::jsonb;line jsonb;changes jsonb:='[]'::jsonb;domain_command jsonb;
- row_no integer;row_total integer;target_id text;template text;source_hash text;plan_hash text;message text;valid_count integer:=0;seen_ids text[]:='{}';seen_codes text[]:='{}';seen_tags text[]:='{}';seen_auth_users text[]:='{}';candidate text;source_csv text;row_results jsonb:='[]'::jsonb;
+ row_no integer;row_total integer;target_id text;template text;source_hash text;plan_hash text;message text;preview_summary text;valid_count integer:=0;seen_ids text[]:='{}';seen_codes text[]:='{}';seen_tags text[]:='{}';seen_auth_users text[]:='{}';candidate text;source_csv text;row_results jsonb:='[]'::jsonb;
 begin
  if op='admin.import.stage' then
   perform servos_v2.require_permission('data.import.stage');
@@ -273,7 +273,23 @@ begin
     line:=jsonb_build_object('rowNumber',row_no,'targetId',target_id,'status','REJECTED','data',coalesce(row_data,'{}'::jsonb),'reason',message);
    end;
    preview:=preview||jsonb_build_array(line);
-   row_results:=row_results||jsonb_build_array(jsonb_build_object('rowNumber',row_no,'status',line->>'status','reason',concat_ws(' | ',case when line->>'status'='REJECTED' then 'Rejected: '||(line->>'reason') end,'Preview: '||concat_ws(', ',nullif('name '||(line->'data'->>'name'),'name '),nullif('code '||(line->'data'->>'code'),'code '),nullif('barcode '||(line->'data'->>'barcode'),'barcode '),case when line->'data' ? 'priceMinor' then 'price minor units '||(line->'data'->>'priceMinor') end,nullif('base unit '||(line->'data'->>'baseUnit'),'base unit '),case when line->'data' ? 'type' then 'Type '||(line->'data'->>'type') end,case when line->'data' ? 'maxGuests' then 'Maximum guests '||(line->'data'->>'maxGuests') end,case when line->'data' ? 'number' then 'Room '||(line->'data'->>'number') end,case when line->'data' ? 'roomTypeId' then 'Room type '||(line->'data'->>'roomTypeId') end,case when line->'data' ? 'taxBasisPoints' then 'Tax basis points '||(line->'data'->>'taxBasisPoints') end)))));
+   preview_summary:=concat_ws(', ',
+    nullif('name '||(line->'data'->>'name'),'name '),
+    nullif('code '||(line->'data'->>'code'),'code '),
+    nullif('barcode '||(line->'data'->>'barcode'),'barcode '),
+    case when line->'data' ? 'priceMinor' then 'price minor units '||(line->'data'->>'priceMinor') end,
+    nullif('base unit '||(line->'data'->>'baseUnit'),'base unit '),
+    case when line->'data' ? 'type' then 'Type '||(line->'data'->>'type') end,
+    case when line->'data' ? 'maxGuests' then 'Maximum guests '||(line->'data'->>'maxGuests') end,
+    case when line->'data' ? 'number' then 'Room '||(line->'data'->>'number') end,
+    case when line->'data' ? 'roomTypeId' then 'Room type '||(line->'data'->>'roomTypeId') end,
+    case when line->'data' ? 'taxBasisPoints' then 'Tax basis points '||(line->'data'->>'taxBasisPoints') end
+   );
+   row_results:=row_results||jsonb_build_array(jsonb_build_object(
+    'rowNumber',row_no,
+    'status',line->>'status',
+    'reason',concat_ws(' | ',case when line->>'status'='REJECTED' then 'Rejected: '||(line->>'reason') end,'Preview: '||preview_summary)
+   ));
   end loop;
   plan_hash:=md5(preview::text);
   update servos_v2.import_sources set preview_rows=preview where batch_id=key;

@@ -28,8 +28,12 @@ test('floorplan migrations preserve the complete canonical dispatch chain', () =
   assert.match(floorplanSql, /return servos_v2\.dispatch_before_floorplan\(command\)/);
   assert.match(dispatchRepairSql, /alter function servos_v2\.dispatch\(jsonb\) rename to dispatch_before_floorplan_repair;/);
   assert.match(dispatchRepairSql, /operation'='floorplan\.save'.*apply_floorplan/s);
+  assert.match(dispatchRepairSql, /operation'='inventory\.produceBatch'.*apply_inventory_batch_preparation/s);
   assert.match(dispatchRepairSql, /return servos_v2\.dispatch_before_batch_preparation\(command\)/);
-  for (const source of [floorplanSql, dispatchRepairSql]) assert.match(source, /revoke all on function servos_v2\.dispatch\(jsonb\)/);
+  for (const source of [floorplanSql, dispatchRepairSql]) {
+    assert.match(source, /revoke all on function servos_v2\.dispatch\(jsonb\)/);
+    assert.match(source, /signed offline grants required/);
+  }
 });
 
 test('Web controlled import dry-run rolls back domain validation and apply is hash-bound', () => {
@@ -77,6 +81,10 @@ test('Web controlled import dry-run rolls back domain validation and apply is ha
   assert.match(importFixture, /applied import was incorrectly cancelled/);
   assert.match(importFixture, /template='staff'/);
   assert.match(importFixture, /existing Auth-bound staff command/);
+  assert.match(importFixture, /dry-run row preview omitted validated product values/);
+  assert.match(importFixture, /scientific notation row was not rejected with its actionable reason/);
+  assert.match(importFixture, /external_id,name,code,price\\ninvalid-0001,Tea,IMP002,1e3/);
+  for (const source of [forwardSql, roomSql]) assert.match(source, /preview_summary:=concat_ws/);
 });
 
 test('Web import UI exposes server review and explicit apply while recording partial parity', () => {

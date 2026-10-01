@@ -12,6 +12,8 @@ const manifest=read('../src/runtime/operationManifest.ts');
 const prepareMigration=read('../supabase/expansion/035_inventory_batch_preparation.sql');
 const posMigration=read('../supabase/expansion/036_batch_pos_stock_consumption.sql');
 const modifierMigration=read('../supabase/expansion/037_batch_modifier_inventory.sql');
+const dispatchRepair=read('../supabase/expansion/042_floorplan_dispatch_repair.sql');
+const inventoryAcceptance=read('../tests/supabase/inventory.sql');
 const contracts=JSON.parse(readFileSync(new URL('../contracts/operations.json',import.meta.url),'utf8'));
 
 test('native store validation errors collect using the shared String result type',()=>{
@@ -33,6 +35,10 @@ test('batch preparation atomically consumes full recipe yields and records outpu
   assert.match(prepareMigration,/BATCH_PREPARATION_OUTPUT/);
   assert.match(prepareMigration,/product->>'stockItemId' is distinct from output_key/);
   assert.match(prepareMigration,/offlineFinalized[\s\S]*signed offline grants required/);
+  assert.match(dispatchRepair,/operation'='inventory\.produceBatch'.*apply_inventory_batch_preparation/s);
+  assert.match(inventoryAcceptance,/inventory\.produceBatch/);
+  assert.match(inventoryAcceptance,/batch preparation did not conserve ingredient and output stock/);
+  assert.match(inventoryAcceptance,/insufficient batch ingredients changed stock or movements/);
 });
 
 test('batch portion sales consume prepared stock instead of consuming recipe inputs twice',()=>{
