@@ -104,6 +104,7 @@ export function WebProcurementView({
   const [commandNotice,setCommandNotice]=useState('');
 
   const openSupplier=(existing?:BusinessRecord)=>{
+    setCommandNotice('');
     const d=data(existing)||{};
     setSupplierEdit(existing||null);
     setSupplierForm({
@@ -158,6 +159,7 @@ export function WebProcurementView({
   };
 
   const beginReceive=(order:BusinessRecord)=>{
+    setCommandNotice('');
     const items=(data(order)?.items||[]) as Array<Record<string,any>>;
     const defaults:Record<string,ReceiptDraft>={};
     for(const line of items){
@@ -220,6 +222,7 @@ export function WebProcurementView({
   };
 
   const beginMatch=(payable:BusinessRecord)=>{
+    setCommandNotice('');
     setMatching(payable);
     setInvoiceReviewed(false);
     setInvoiceNumber(String(data(payable)?.supplierInvoiceNumber||''));
@@ -243,6 +246,7 @@ export function WebProcurementView({
   };
 
   const beginPay=(payable:BusinessRecord)=>{
+    setCommandNotice('');
     setPaying(payable);setPayAmount(Number(data(payable)?.amountDueMinor||0)/100);
     setPayMethod('BANK');setPayReference('');setPayReason('');setPayConfirmed(false);
   };
@@ -257,6 +261,7 @@ export function WebProcurementView({
   };
 
   const beginCommission=(acquisition:BusinessRecord)=>{
+    setCommandNotice('');
     const d=data(acquisition)!;setCommissioning(acquisition);
     setCommissionForm({name:String(d.assetName||''),tag:'',serialNumber:'',roomId:'',locationId:locations[0]?.id||'',notes:''});
   };
@@ -277,9 +282,9 @@ export function WebProcurementView({
   return <section className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 className="flex items-center gap-2 text-xl font-bold"><Truck className="h-5 w-5 text-amber-300"/>Purchasing</h2><p className="mt-1 max-w-3xl text-sm text-slate-400">Create an order, check what arrived, and record supplier payments only after the money has actually been sent.</p></div>
-      <div className="flex gap-2">{canManage&&<><button disabled={disabled} className={button} onClick={()=>openSupplier()}>New supplier</button><button disabled={disabled||!suppliers.length} className={primary} onClick={()=>{setPoSupplier(suppliers[0]?.id||'');setPoLines([]);setStockId(stockItems[0]?.id||'');setPurchasePackageId(String(data(stockItems[0])?.purchasePackages?.[0]?.id||''));setAssetCategoryId(categories[0]?.id||'');setPoOpen(true)}}><Plus className="mr-1 inline h-4 w-4"/>New PO</button></>}</div>
+      <div className="flex gap-2">{canManage&&<><button disabled={disabled} className={button} onClick={()=>openSupplier()}>New supplier</button><button disabled={disabled||!suppliers.length} className={primary} onClick={()=>{setCommandNotice('');setPoSupplier(suppliers[0]?.id||'');setPoLines([]);setStockId(stockItems[0]?.id||'');setPurchasePackageId(String(data(stockItems[0])?.purchasePackages?.[0]?.id||''));setAssetCategoryId(categories[0]?.id||'');setPoOpen(true)}}><Plus className="mr-1 inline h-4 w-4"/>New PO</button></>}</div>
     </div>
-    {commandNotice&&<p role="status" className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm">{commandNotice}</p>}
+    {commandNotice&&supplierEdit===undefined&&!poOpen&&!receiving&&!matching&&!paying&&!commissioning&&<p role="status" className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm">{commandNotice}</p>}
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric icon={<ClipboardCheck className="h-4 w-4"/>} label="Open purchase orders" value={String(orders.filter(o=>['APPROVED','PARTIALLY_RECEIVED'].includes(String(data(o)?.status))).length)}/>
@@ -309,6 +314,7 @@ export function WebProcurementView({
     {section==='ACQUISITIONS'&&<div className="grid gap-3 md:grid-cols-2">{acquisitions.map(acq=>{const d=data(acq)!;return <article key={acq.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><b>{String(d.assetName)}</b><div className="text-sm">{String(d.assetCategoryName)} · {money(d.unitCostMinor)}</div><div className="text-xs text-slate-500">{String(d.poNumber)} / {String(d.grnNumber)} · unit {String(d.unitOrdinal)}</div>{canAssets&&<button disabled={disabled} className={primary+' mt-3'} onClick={()=>beginCommission(acq)}>Commission asset</button>}</article>})}{!acquisitions.length&&<Empty>No capital assets waiting for commissioning.</Empty>}</div>}
 
     {supplierEdit!==undefined&&<Modal title={supplierEdit?'Edit supplier':'New supplier'} onClose={()=>setSupplierEdit(undefined)}><div className="grid gap-3 sm:grid-cols-2">
+      {commandNotice&&<p role="status" className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm sm:col-span-2">{commandNotice}</p>}
       <Input label="Name" value={supplierForm.name} set={value=>setSupplierForm({...supplierForm,name:value})}/>
       <Input label="Code" value={supplierForm.code} set={value=>setSupplierForm({...supplierForm,code:value.toUpperCase()})}/>
       <Input label="Phone" value={supplierForm.phone} set={value=>setSupplierForm({...supplierForm,phone:value})}/>
@@ -321,6 +327,7 @@ export function WebProcurementView({
     </div></Modal>}
 
     {poOpen&&<Modal title="New purchase order" onClose={()=>setPoOpen(false)}><div className="space-y-4">
+      {commandNotice&&<p role="status" className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm">{commandNotice}</p>}
       <label className="block text-sm">Supplier<select className={field} value={poSupplier} onChange={e=>setPoSupplier(e.target.value)}>{suppliers.map(s=><option key={s.id} value={s.id}>{String(data(s)?.name)}</option>)}</select></label>
       <div className="rounded-xl border border-slate-800 p-3">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -350,6 +357,7 @@ export function WebProcurementView({
     </div></Modal>}
 
     {matching&&<Modal title="Match supplier invoice" onClose={()=>setMatching(null)}><div className="space-y-3">
+      {commandNotice&&<p role="status" className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm">{commandNotice}</p>}
       <Input label="Invoice number" value={invoiceNumber} set={setInvoiceNumber}/>
       <label className="block text-sm">Invoice date<input type="date" className={field} value={invoiceDate} onChange={e=>setInvoiceDate(e.target.value)}/></label>
       <label className="block text-sm">Due date<input type="date" className={field} value={invoiceDue} onChange={e=>setInvoiceDue(e.target.value)}/></label>
@@ -359,6 +367,7 @@ export function WebProcurementView({
     </div></Modal>}
 
     {paying&&<Modal title="Record supplier payment" onClose={()=>setPaying(null)}><div className="space-y-3">
+      {commandNotice&&<p role="status" className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm">{commandNotice}</p>}
       <label className="block text-sm">Amount (KES)<input type="number" min="0.01" step="0.01" className={field} value={payAmount} onChange={e=>setPayAmount(Number(e.target.value))}/></label>
       <label className="block text-sm">Method<select className={field} value={payMethod} onChange={e=>setPayMethod(e.target.value as any)}><option>BANK</option><option>MPESA</option><option>CASH</option></select></label>
       <Input label="Payment reference" value={payReference} set={setPayReference}/>
@@ -368,6 +377,7 @@ export function WebProcurementView({
     </div></Modal>}
 
     {commissioning&&<Modal title="Commission capital asset" onClose={()=>setCommissioning(null)}><div className="space-y-3">
+      {commandNotice&&<p role="status" className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm">{commandNotice}</p>}
       <Input label="Asset name" value={commissionForm.name} set={value=>setCommissionForm({...commissionForm,name:value})}/>
       <Input label="Permanent asset tag" value={commissionForm.tag} set={value=>setCommissionForm({...commissionForm,tag:value})}/>
       <Input label="Serial number" value={commissionForm.serialNumber} set={value=>setCommissionForm({...commissionForm,serialNumber:value})}/>

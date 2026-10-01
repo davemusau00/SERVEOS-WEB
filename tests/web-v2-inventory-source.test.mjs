@@ -110,10 +110,15 @@ test('inventory, Smart Item, and procurement retain workflows until commands are
   assert.match(inventory,/Promise<CommandOutcome>/);
   assert.match(inventory,/if\(!outcome\|\|!isCommandConfirmed\(outcome\)\)/);
   assert.match(inventory,/if\(!isCommandConfirmed\(outcome\)\)return/);
-  assert.match(inventory,/if\(isCommandConfirmed\(outcome\)\)\{setBatchOpen\(false\);return true\}/);
+  assert.match(inventory,/if\(isCommandConfirmed\(outcome\)\)setBatchOpen\(false\);return outcome/);
+  assert.match(inventory,/commandNotice&&!modal&&!batchOpen/);
+  assert.match(inventory,/modal&&<Modal[\s\S]*commandNotice&&<p role="status"/);
   assert.match(smartItem,/Promise<CommandOutcome>/);
   assert.match(smartItem,/if\(!isCommandConfirmed\(result\)\)/);
   assert.match(procurement,/Promise<CommandOutcome>/);
   for(const marker of ['setPoOpen(false);setPoLines([])','setReceiving(null)','setMatching(null)','setPaying(null)','setCommissioning(null)'])assert.ok(procurement.includes(marker),marker);
   for(const marker of ['if(isCommandConfirmed(outcome)){setPoOpen(false);setPoLines([])}','if(isCommandConfirmed(outcome)){setCommandNotice(outcomeMessage(outcome,\'Goods receipt\'));setReceiving(null)}','if(isCommandConfirmed(outcome))setMatching(null)','if(isCommandConfirmed(outcome))setPaying(null)','if(isCommandConfirmed(outcome))setCommissioning(null)'])assert.ok(procurement.includes(marker),marker);
+  assert.match(procurement,/commandNotice&&supplierEdit===undefined/);
+  assert.match(procurement,/supplierEdit!==undefined&&<Modal[\s\S]*commandNotice&&<p role="status"/);
+  assert.match(procurement,/matching&&<Modal[\s\S]*commandNotice&&<p role="status"/);
 });
