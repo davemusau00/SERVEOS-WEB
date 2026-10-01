@@ -34,6 +34,7 @@ test('0.2.0 Simple Operations flows stay task-first and commit only on confirmat
     state.__TAURI_INTERNALS__={invoke:async(command:string,args?:any)=>{
       if(command==='runtime_status')return {enrolled:true,installationStage:'LIVE',staff:[{id:'staff-1',name:'Mary',role:'Admin'}]};
       if(command==='runtime_login')return {token:'session-rc',staffId:'staff-1',name:'Mary',role:'Admin'};
+      if(command==='runtime_login_offline')return {token:'session-rc',staffId:'staff-1',name:'Mary',role:'Admin'};
       if(command==='runtime_snapshot')return snapshot;
       if(command==='runtime_guidance_progress')return [];
       if(command==='runtime_guidance_save_progress')return args?.progress||{};
@@ -60,7 +61,7 @@ test('0.2.0 Simple Operations flows stay task-first and commit only on confirmat
 
   await page.goto('/');
   await page.getByLabel('PIN').fill('123456');
-  await page.getByRole('button',{name:'Unlock'}).click();
+  await page.getByRole('button',{name:'Continue with local PIN'}).click();
 
   await expect(page.getByRole('region',{name:'Staff welcome'})).toBeVisible();
   await expect(page.getByText('Welcome, Mary')).toBeVisible();

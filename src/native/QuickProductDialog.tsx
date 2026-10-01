@@ -123,9 +123,14 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
     if (!family) return;
     const source = family.rows[0];
     const displayName = String(source.productFamilyName || source.name);
+    const sourceKind = String(source.inventoryType || '');
+    const nextKind = (sourceKind in SMART_ITEM_PRESETS ? sourceKind : source.routeTo === 'KITCHEN' ? 'FOOD' : 'DRINK') as SmartItemType;
     setPhysical(true); setFamilyName(displayName); setName(displayName);
     setCategory(source.category || 'Drinks'); setRouteTo(source.routeTo || 'BAR');
-    setPackageType(source.packageType || 'Bottle'); setKind(source.routeTo === 'KITCHEN' ? 'FOOD' : 'DRINK');
+    setPackageType(source.packageType || 'Bottle'); setKind(nextKind);
+    setContainerQuantity(Number(source.containerQuantity) || 750); setContainerUnit(String(source.containerUnit || 'ml'));
+    setWholeContainerQuantity(nextKind === 'SPIRIT' || nextKind === 'WINE' || nextKind === 'KEG' ? Number(source.containerQuantity) || 750 : 1);
+    setPurchasePackageName(source.packageType || SMART_ITEM_PRESETS[nextKind].purchaseUnit);
     if (!codeEdited) { const slug = displayName.normalize('NFKD').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toUpperCase().slice(0, 20); setCode(slug ? `${slug}-${crypto.randomUUID().slice(0, 4).toUpperCase()}` : ''); }
   };
   const addServing = () => {
@@ -152,7 +157,7 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
     const stockOnly = kind==='WEIGHT_INGREDIENT'||kind==='COUNT_INGREDIENT';
     const productName = physical ? `${familyName.trim() || name.trim()} ${variantLabel}` : name.trim();
     const portions = physical ? [
-      { id: crypto.randomUUID(), name: `Whole ${packageType.toLowerCase()}`, volume: Number(wholeContainerQuantity), price: Number(price) },
+      { id: crypto.randomUUID(), name: `Whole ${packageType.toLowerCase()}`, volume: Number(wholeContainerQuantity), price: Number(price), wholeContainerSale: true },
       ...servings.map(serving => ({ id: serving.id, name: serving.name, volume: Number(serving.quantity), price: Number(serving.price) })),
     ] : [];
     const product = stockOnly ? undefined : {

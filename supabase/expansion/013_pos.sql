@@ -23,11 +23,11 @@ end$$;
 
 create function servos_v2.pos_build_item(command jsonb,product_key text,input jsonb,item_key text)
 returns jsonb language plpgsql set search_path='' as $$
-declare product jsonb;policy jsonb;portion jsonb;modifier jsonb;adjustment jsonb;ingredient jsonb;
+declare product jsonb;policy jsonb;portion jsonb;modifier jsonb;adjustment jsonb;ingredient jsonb;stock_data jsonb;
  selected_modifiers jsonb:='[]';ingredients jsonb:='[]';selected_ids jsonb:=coalesce(input->'modifierIds','[]'::jsonb);
  qty numeric;unit_minor bigint;base_minor bigint;modifier_minor bigint:=0;line_minor bigint;
  vat_bps integer;levy_bps integer;net bigint;vat bigint;levy bigint;denominator integer;
- volume numeric;inventory_type text;whole_container boolean:=false;
+volume numeric;inventory_type text;whole_container boolean:=false;stock_key text;stock_size numeric:=0;
 begin
  perform servos_v2.assert_version(command,'products',product_key);
  product:=servos_v2.read_record('products',product_key);
@@ -58,7 +58,11 @@ begin
  if jsonb_array_length(ingredients)=0 and nullif(product->>'stockItemId','') is not null then
   volume:=coalesce((portion->>'volume')::numeric,(product->>'portionVolume')::numeric,1);
   inventory_type:=upper(coalesce(product->>'inventoryType',product->>'category',''));
-  whole_container:=inventory_type in ('SPIRIT','SPIRITS','WINE') and portion->>'id'='whole-container';
+  stock_key:=product->>'stockItemId';
+  select r.data into stock_data from servos_v2.records r where r.collection='stockItems' and r.id=stock_key and not r.archived;
+  stock_size:=case when stock_data->>'baseUnit'='ml' then coalesce((stock_data->>'sealedContainerSize')::numeric,0) else 0 end;
+  whole_container:=inventory_type in ('SPIRIT','SPIRITS','WINE') and stock_size>0
+   and (coalesce((portion->>'wholeContainerSale')::boolean,false) or abs(volume-stock_size)<0.000001);
   ingredients:=jsonb_build_array(jsonb_build_object('stockItemId',product->>'stockItemId','quantity',volume,'tracked',true,'wholeContainerSale',whole_container));
  end if;
 
@@ -192,6 +196,7 @@ begin
   for item in select value from jsonb_array_elements(coalesce(p->'portions','[]'::jsonb)) loop
    perform servos_v2.required_text(item,'id');perform servos_v2.required_text(item,'name');perform servos_v2.minor(item,'priceMinor');
    if item ? 'volume' then perform servos_v2.quantity_value(item,'volume',false);end if;
+   if item ? 'wholeContainerSale' and jsonb_typeof(item->'wholeContainerSale') is distinct from 'boolean' then raise exception 'VALIDATION_FAILED: whole-container sale marker';end if;
   end loop;
   for item in select value from jsonb_array_elements(coalesce(p->'recipeIngredients','[]'::jsonb)) loop
    stock_key:=servos_v2.required_text(item,'stockItemId');perform servos_v2.read_record('stockItems',stock_key);perform servos_v2.quantity_value(item,'quantity',false);

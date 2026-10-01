@@ -6,8 +6,11 @@ values ('00000000-0000-4000-8000-000000000001',true,array['*'])
 on conflict(user_id) do update set active=true,permissions=array['*'];
 update servos_v2.control set enabled=true;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
-set local role authenticated;
 select public.servos_v2_register_device('10000000-0000-0000-0000-000000000039','Controlled import fixture','WEB');
+-- The assertions below read protected internal tables. Keep JWT claims set so
+-- command authorization still runs as this operator, but execute the fixture
+-- body as the disposable database owner instead of weakening production RLS.
+reset role;
 do $$
 declare c jsonb;r jsonb; replay jsonb; batch_id text:='import-fixture-products';
 begin
@@ -47,7 +50,7 @@ end$$;
 do $$
 declare c jsonb;r jsonb;seq bigint:=6;batch_id text;command_id uuid;template text;csv text;expected_collection text;record_id text;
 begin
- foreach template in array ['stockLocations','roomTypes'] loop
+ foreach template in array array['stockLocations','roomTypes'] loop
   batch_id:='import-fixture-'||template;
   if template='stockLocations' then csv:=E'external_id,name,code,type\nloc-001,Main Store,MAIN,STORE';expected_collection:='stockLocations';record_id:='loc-001';
   else csv:=E'external_id,name,code,max_guests\nroomtype-001,Standard,STD,2';expected_collection:='roomTypes';record_id:='roomtype-001';end if;
@@ -70,7 +73,7 @@ end$$;
 do $$
 declare c jsonb;r jsonb;seq bigint:=12;batch_id text;command_id uuid;template text;csv text;expected_collection text;record_id text;
 begin
- foreach template in array ['ratePlans','rooms'] loop
+ foreach template in array array['ratePlans','rooms'] loop
   batch_id:='import-fixture-'||template;
   if template='ratePlans' then
    csv:=E'external_id,name,room_type_external_id,nightly_rate,currency,tax_basis_points\nrate-001,Standard Night,roomtype-001,8000.00,KES,1600';expected_collection:='ratePlans';record_id:='rate-001';
@@ -94,9 +97,9 @@ begin
  end loop;
 end$$;
 do $$
-declare c jsonb;r jsonb;seq bigint:=20;batch_id text;command_id uuid;template text;csv text;expected_collection text;record_id text;
+declare c jsonb;r jsonb;seq bigint:=18;batch_id text;command_id uuid;template text;csv text;expected_collection text;record_id text;
 begin
- foreach template in array ['assetCategories','assets'] loop
+ foreach template in array array['assetCategories','assets'] loop
   batch_id:='import-fixture-'||template;
   if template='assetCategories' then
    csv:=E'external_id,name,code,notes\nassetcat-001,Equipment,EQ,Imported category';expected_collection:='assetCategories';record_id:='assetcat-001';
@@ -120,7 +123,7 @@ begin
  if not exists(select 1 from servos_v2.records where collection='assetEvents' and data->>'assetId'='asset-001' and data->>'operation'='asset.save') then raise exception 'asset import did not leave immutable domain audit event';end if;
 end$$;
 do $$
-declare c jsonb;r jsonb;seq bigint:=28;command_id uuid;batch_id text:='import-fixture-staff';
+declare c jsonb;r jsonb;seq bigint:=24;command_id uuid;batch_id text:='import-fixture-staff';
 begin
  command_id:=('20000000-0000-0000-0000-'||lpad((50+seq)::text,12,'0'))::uuid;
  c:=jsonb_build_object('id',command_id,'schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',seq,'operation','admin.import.stage','payload',jsonb_build_object('id',batch_id,'fileName','staff.csv','templateKey','staff','csvText',E'external_id,auth_user_id,name,role,outlet_ids,service_areas\nstaff-import-2,00000000-0000-4000-8000-000000000002,Second operator,Server,main,floor;bar'),'expectedVersions','[]'::jsonb);
@@ -135,7 +138,7 @@ begin
  if not exists(select 1 from servos_v2.staff_profiles where staff_id='staff-import-2' and auth_user_id='00000000-0000-4000-8000-000000000002' and role='Server' and outlet_ids=array['main'] and service_areas=array['bar','floor']) then raise exception 'staff import did not use the existing Auth-bound staff command';end if;
 end$$;
 do $$
-declare c jsonb;r jsonb;seq bigint:=32;command_id uuid;target_batch_id text:='import-fixture-cancelled';
+declare c jsonb;r jsonb;seq bigint:=27;command_id uuid;target_batch_id text:='import-fixture-cancelled';
 begin
  command_id:=('20000000-0000-0000-0000-'||lpad((50+seq)::text,12,'0'))::uuid;
  c:=jsonb_build_object('id',command_id,'schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',seq,'operation','admin.import.stage','payload',jsonb_build_object('id',target_batch_id,'fileName','cancelled.csv','templateKey','products','csvText',E'external_id,name,code,price\ncancelled-product,Unused,CAN001,10.00'),'expectedVersions','[]'::jsonb);

@@ -41,19 +41,25 @@ end$$;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);
 set local role authenticated;
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000061','Retry terminal pair','DESKTOP');
+reset role;
 do $$begin
  if (select owner_id from servos_v2.devices where id='10000000-0000-4000-8000-000000000061')<>'00000000-0000-4000-8000-000000000001' then raise exception 'Idempotent re-pair changed registration owner';end if;
 end$$;
+set local role authenticated;
 do $$declare identity jsonb;begin
  identity:=public.servos_v2_terminal_identity('10000000-0000-4000-8000-000000000061');
  if identity->>'staffId'<>'server-2' or identity->>'actorId'<>'00000000-0000-4000-8000-000000000002' then raise exception 'Terminal did not resolve the signed-in operator identity: %',identity;end if;
 end$$;
 do $$declare r jsonb;c jsonb;begin
- c:=jsonb_build_object('id',gen_random_uuid(),'schemaVersion',2,'deviceId','10000000-0000-4000-8000-000000000061','actorId',auth.uid(),'clientSequence',1,'operation','record.save','expectedVersions',jsonb_build_array(jsonb_build_object('collection','customers','id','shared-device-denied','version',0)),'payload',jsonb_build_object('collection','customers','id','shared-device-denied','data',jsonb_build_object('name','Permission must still apply')));
+ c:=jsonb_build_object('id',gen_random_uuid(),'schemaVersion',2,'deviceId','10000000-0000-4000-8000-000000000061','actorId',auth.uid(),'clientSequence',2,'operation','record.save','expectedVersions',jsonb_build_array(jsonb_build_object('collection','customers','id','shared-device-denied','version',0)),'payload',jsonb_build_object('collection','customers','id','shared-device-denied','data',jsonb_build_object('name','Permission must still apply')));
  r:=public.servos_v2_execute(c);
  if r->>'status'<>'REJECTED' or r->'error'->>'code'<>'PERMISSION_DENIED' then raise exception 'Shared terminal must authenticate the operator, then enforce their operation permission: %',r;end if;
+end$$;
+reset role;
+do $$begin
  if (select owner_id from servos_v2.devices where id='10000000-0000-4000-8000-000000000061')<>'00000000-0000-4000-8000-000000000001' then raise exception 'Shared command changed the terminal registration owner';end if;
 end$$;
+set local role authenticated;
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000062','Server tablet','WEB');
 reset role;
 do $$declare r jsonb;begin

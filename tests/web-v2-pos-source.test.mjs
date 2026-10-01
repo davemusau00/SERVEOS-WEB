@@ -15,6 +15,8 @@ test('11D staged POS domain never self-activates v2 and owns the expected order 
   assert.match(sql,/VOID_RETURN/);
   assert.match(sql,/taxPolicySnapshot/);
   assert.match(sql,/productVersion/);
+  assert.match(sql,/portion->>'wholeContainerSale'/);
+  assert.match(sql,/stock_data->>'baseUnit'='ml'[\s\S]*sealedContainerSize/);
   assert.doesNotMatch(sql,/\|\|\s*[A-Za-z_]+\s*->>/,'JSON extraction concatenation must be parenthesized');
 });
 
@@ -40,6 +42,7 @@ test('disposable PostgreSQL harness runs transactional POS payment acceptance',(
   assert.match(harness,/tests\/supabase\/pos\.sql/);
   const acceptance=readFileSync('tests/supabase/pos.sql','utf8');
   for(const invariant of ['Second device table race did not conflict','POS response-loss replay changed result','Void return did not restore stock','Sale stock movement missing','Split did not complete the settled order','Stale second-device payment did not conflict','Receipt snapshot changed after catalog rename'])assert.ok(acceptance.includes(invariant),invariant);
+  assert.ok(acceptance.includes('Explicit whole-container sale did not consume one sealed bottle'));
 });
 
 

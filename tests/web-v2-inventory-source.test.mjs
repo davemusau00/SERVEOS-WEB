@@ -63,7 +63,8 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(cloudAcceptance,/left partial stock or movement rows/);
   assert.match(cloudAcceptance,/Smart Item permission was not enforced/);
   assert.match(cloudAcceptance,/Recipe product lost its validated ingredients/);
-  assert.match(cloudAcceptance,/Stale recipe stock baseline was accepted/);
+  assert.match(cloudAcceptance,/result->>'status'<>'CONFLICT'.*VERSION_CONFLICT/);
+  assert.match(cloudAcceptance,/Stale recipe stock baseline did not conflict as expected/);
   assert.match(cloudAcceptance,/Recipe without inventory\.view was not denied/);
   assert.match(cloudAcceptance,/Opening stock did not initialize sealed bottles/);
   assert.match(inventoryAcceptance,/Sealed transfer destination bottle state mismatch/);

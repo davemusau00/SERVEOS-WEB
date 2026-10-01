@@ -25,6 +25,7 @@ test('customer account workspace and POS credit action are wired on desktop and 
     state.__TAURI_INTERNALS__={invoke:async(command:string,args?:any)=>{
       if(command==='runtime_status')return {enrolled:true,installationStage:'LIVE',staff:[{id:'staff-1',name:'Mary',role:'Admin'}]};
       if(command==='runtime_login')return {token:'session-credit',staffId:'staff-1',name:'Mary',role:'Admin'};
+      if(command==='runtime_login_offline')return {token:'session-credit',staffId:'staff-1',name:'Mary',role:'Admin'};
       if(command==='runtime_snapshot')return snapshot;
       if(command==='runtime_guidance_progress')return [];
       if(command==='runtime_guidance_save_progress')return args?.progress||{};
@@ -37,7 +38,7 @@ test('customer account workspace and POS credit action are wired on desktop and 
 
   await page.goto('/#/credit');
   await page.getByLabel('PIN').fill('123456');
-  await page.getByRole('button',{name:'Unlock'}).click();
+  await page.getByRole('button',{name:'Continue with local PIN'}).click();
   const welcome=page.getByRole('region',{name:'Staff welcome'});
   if(await welcome.isVisible().catch(()=>false))await page.getByRole('button',{name:'Dismiss welcome'}).click();
 

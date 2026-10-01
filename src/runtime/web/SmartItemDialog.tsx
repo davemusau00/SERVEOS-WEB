@@ -127,7 +127,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
       portionVolume: isSealedContainer && calculation ? calculation.pkg.baseQuantity / unitsPerPackage : calculation?.sale || 1,
       portions: isSealedContainer && calculation ? [
         { id: 'serving', name: itemType === 'WINE' ? 'Glass' : 'Pour', volume: calculation.sale, priceMinor: Math.round(Number(price) * 100) },
-        ...(wholeContainerPrice > 0 ? [{ id: 'whole-container', name: 'Whole bottle', volume: calculation.pkg.baseQuantity / unitsPerPackage, priceMinor: Math.round(wholeContainerPrice * 100) }] : []),
+        ...(wholeContainerPrice > 0 ? [{ id: 'whole-container', name: 'Whole bottle', volume: calculation.pkg.baseQuantity / unitsPerPackage, priceMinor: Math.round(wholeContainerPrice * 100), wholeContainerSale: true }] : []),
       ] : [{ id: 'each', name: mode === 'VOLUME' ? 'Each serving' : 'Each', volume: calculation?.sale || 1, priceMinor: Math.round(Number(price) * 100) }],
       recipeIngredients: [] as RecipeLine[],
       modifiers: [],

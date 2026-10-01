@@ -104,7 +104,7 @@ create or replace function servos_v2.apply_admin_operations(command jsonb)
 returns jsonb language plpgsql set search_path='' as $$
 declare
  op text:=command->>'operation';p jsonb:=command->'payload';who uuid:=auth.uid();key text;batch jsonb;raw_rows jsonb;headers jsonb;cells jsonb;row_data jsonb;preview jsonb:='[]'::jsonb;line jsonb;changes jsonb:='[]'::jsonb;domain_command jsonb;
- row_no integer;row_total integer;target_id text;template text;source_hash text;plan_hash text;message text;preview_summary text;valid_count integer:=0;seen_ids text[]:='{}';seen_codes text[]:='{}';candidate text;source_csv text;row_results jsonb:='[]'::jsonb;
+ row_no integer;row_total integer;target_id text;template text;v_source_hash text;plan_hash text;message text;preview_summary text;valid_count integer:=0;seen_ids text[]:='{}';seen_codes text[]:='{}';candidate text;source_csv text;row_results jsonb:='[]'::jsonb;
 begin
  if op='admin.import.stage' then
   perform servos_v2.require_permission('data.import.stage');
@@ -112,17 +112,17 @@ begin
   if template not in ('products','stockItems','customers','suppliers','stockLocations','roomTypes') then raise exception 'VALIDATION_FAILED: unsupported import template';end if;
   raw_rows:=servos_v2.parse_import_csv(p->>'csvText');headers:=raw_rows->0;row_total:=jsonb_array_length(raw_rows)-1;
   if length(coalesce(p->>'fileName','')) not between 1 and 255 then raise exception 'VALIDATION_FAILED: import file name';end if;
-  key:=coalesce(nullif(p->>'id',''),'import-'||(command->>'id'));source_hash:=md5(p->>'csvText');
+  key:=coalesce(nullif(p->>'id',''),'import-'||(command->>'id'));v_source_hash:=md5(p->>'csvText');
   source_csv:=p->>'csvText';
-  insert into servos_v2.import_sources(batch_id,source_hash,csv_text,staged_by) values(key,source_hash,source_csv,who) on conflict(batch_id) do nothing;
-  if not exists(select 1 from servos_v2.import_sources s where s.batch_id=key and s.source_hash=source_hash and s.csv_text=source_csv) then raise exception 'IMPORT_SOURCE_CONFLICT: batch ID already belongs to different content';end if;
-  return servos_v2.put_record('importBatches',key,jsonb_build_object('id',key,'fileName',p->>'fileName','templateKey',template,'status','STAGED','rowCount',row_total,'sourceHash',source_hash,'stagedBy',who,'stagedAt',now(),'validation','SERVER_DRY_RUN_REQUIRED','importKind','MASTER_DATA_ONLY'));
+  insert into servos_v2.import_sources(batch_id,source_hash,csv_text,staged_by) values(key,v_source_hash,source_csv,who) on conflict(batch_id) do nothing;
+  if not exists(select 1 from servos_v2.import_sources s where s.batch_id=key and s.source_hash=v_source_hash and s.csv_text=source_csv) then raise exception 'IMPORT_SOURCE_CONFLICT: batch ID already belongs to different content';end if;
+  return servos_v2.put_record('importBatches',key,jsonb_build_object('id',key,'fileName',p->>'fileName','templateKey',template,'status','STAGED','rowCount',row_total,'sourceHash',v_source_hash,'stagedBy',who,'stagedAt',now(),'validation','SERVER_DRY_RUN_REQUIRED','importKind','MASTER_DATA_ONLY'));
  elsif op='admin.import.dryRun' then
   perform servos_v2.require_permission('data.import.stage');key:=servos_v2.required_text(p,'batchId');batch:=servos_v2.read_record('importBatches',key);
   if batch->>'status' not in ('STAGED','DRY_RUN_BLOCKED','DRY_RUN_READY') then raise exception 'INVALID_STATE: import batch cannot be dry-run from its current state';end if;
   template:=batch->>'templateKey';
-  select s.csv_text,s.source_hash into source_csv,source_hash from servos_v2.import_sources s where s.batch_id=key for update;
-  if source_csv is null or source_hash<>batch->>'sourceHash' or md5(source_csv)<>source_hash then raise exception 'IMPORT_SOURCE_CHANGED: staged CSV missing or hash mismatch';end if;
+  select s.csv_text,s.source_hash into source_csv,v_source_hash from servos_v2.import_sources s where s.batch_id=key for update;
+  if source_csv is null or v_source_hash<>batch->>'sourceHash' or md5(source_csv)<>v_source_hash then raise exception 'IMPORT_SOURCE_CHANGED: staged CSV missing or hash mismatch';end if;
   if template='products' then perform servos_v2.require_any_permission(array['catalog.manage']);
   elsif template='stockItems' then perform servos_v2.require_any_permission(array['catalog.manage','inventory.adjust']);
   elsif template='suppliers' then perform servos_v2.require_any_permission(array['procurement.manage']);
@@ -187,8 +187,8 @@ begin
  elsif op='admin.import.apply' then
   perform servos_v2.require_permission('data.import.execute');key:=servos_v2.required_text(p,'batchId');batch:=servos_v2.read_record('importBatches',key);
   if batch->>'status'<>'DRY_RUN_READY' then raise exception 'INVALID_STATE: only a fully valid server dry-run can be applied';end if;
-  select s.csv_text,s.source_hash,s.preview_rows into source_csv,source_hash,preview from servos_v2.import_sources s where s.batch_id=key for update;
-  if source_csv is null or preview is null or source_hash<>batch->>'sourceHash' or md5(source_csv)<>source_hash or md5(preview::text)<>batch->>'planHash' then raise exception 'IMPORT_PLAN_CHANGED: source missing or plan changed; create a new dry run';end if;
+  select s.csv_text,s.source_hash,s.preview_rows into source_csv,v_source_hash,preview from servos_v2.import_sources s where s.batch_id=key for update;
+  if source_csv is null or preview is null or v_source_hash<>batch->>'sourceHash' or md5(source_csv)<>v_source_hash or md5(preview::text)<>batch->>'planHash' then raise exception 'IMPORT_PLAN_CHANGED: source missing or plan changed; create a new dry run';end if;
   template:=batch->>'templateKey';
   for row_no in 0..jsonb_array_length(preview)-1 loop
    line:=preview->row_no;target_id:=line->>'targetId';row_data:=line->'data';

@@ -114,6 +114,20 @@ select pg_temp.pos_command('order.create','orders','tab-1','{"id":"tab-1","outle
 select pg_temp.pos_command('order.addItem','orders','tab-1','{"orderId":"tab-1","productId":"gin-shot","itemId":"tab-line","quantity":1,"portionId":"double","modifierIds":[]}');
 select pg_temp.pos_command('order.fire','orders','tab-1','{"orderId":"tab-1"}');
 
+-- Whole-container behavior is explicit and requires an actual sealed/open ml stock master.
+select pg_temp.pos_command('stockItem.save','stockItems','sealed-gin','{"id":"sealed-gin","data":{"name":"Sealed Gin","code":"SEALED-GIN","baseUnit":"ml","scanUnitQuantity":750,"sealedContainerSize":750,"reorderLevel":0,"averageUnitCostMinor":60000}}');
+select pg_temp.pos_command('inventory.adjust','stockItems','sealed-gin','{"id":"sealed-gin","stockItemId":"sealed-gin","locationId":"bar-stock","countedQty":1500,"sealedContainers":2,"openQuantity":0,"reason":"Whole-container acceptance stock"}');
+select pg_temp.pos_command('product.save','products','sealed-gin-product','{"id":"sealed-gin-product","data":{"name":"Sealed Gin Bottle","code":"SEALED-GIN-PRODUCT","priceMinor":120000,"category":"SPIRITS","inventoryType":"SPIRIT","routeTo":"BAR","stockItemId":"sealed-gin","portionVolume":750}}');
+select pg_temp.pos_command('product.salesConfig','products','sealed-gin-product','{"productId":"sealed-gin-product","portions":[{"id":"single","name":"Single","priceMinor":12000,"volume":45},{"id":"whole-container","name":"Whole bottle","priceMinor":120000,"volume":750,"wholeContainerSale":true}],"modifiers":[],"recipeIngredients":[]}');
+select pg_temp.pos_command('order.create','orders','whole-bottle-order','{"id":"whole-bottle-order","outletId":"bar","name":"Whole bottle acceptance"}');
+select pg_temp.pos_command('order.addItem','orders','whole-bottle-order','{"orderId":"whole-bottle-order","productId":"sealed-gin-product","itemId":"whole-bottle-line","quantity":1,"portionId":"whole-container","modifierIds":[]}');
+select pg_temp.pos_command('order.fire','orders','whole-bottle-order','{"orderId":"whole-bottle-order"}');
+do $$declare stock jsonb;begin
+ stock:=servos_v2.read_record('stockItems','sealed-gin');
+ if (stock->'currentStock'->>'bar-stock')::numeric<>750 or (stock->'sealedOpenStock'->'bar-stock'->>'sealedContainers')::numeric<>1 or (stock->'sealedOpenStock'->'bar-stock'->>'openQuantity')::numeric<>0 then raise exception 'Explicit whole-container sale did not consume one sealed bottle';end if;
+end$$;
+select pg_temp.pos_command('order.void','orders','whole-bottle-order','{"orderId":"whole-bottle-order","reason":"Acceptance cleanup","disposition":"RETURN_SEALED"}');
+
 -- Online POS settlement: manual evidence, atomic split, receipt and journal.
 select servos_v2.put_record('organization','business','{"name":"Test Business","branding":{"appEmblemDataUrl":null},"receipt":{"logoDataUrl":"data:image/jpeg;base64,AA==","thermalLogo":{"width":8,"height":1,"base64":"AA=="}}}');
 select servos_v2.put_record('property','property','{"name":"Test Property","address":"Test Street","phone":"0700000000","currency":"KES","timezone":"Africa/Nairobi","receiptFooter":"Thank you"}');

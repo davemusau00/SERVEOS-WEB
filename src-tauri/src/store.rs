@@ -861,7 +861,30 @@ fn build_order_item(tx: &Connection, product_id: &str, payload: &Value, item_id:
         let stock=product["stockItemId"].as_str().filter(|value|!value.trim().is_empty()).ok_or("Batch recipe has no linked finished-portions stock item")?;
         let volume=selected_portion.as_ref().and_then(|v|v["volume"].as_f64()).or_else(||product["portionVolume"].as_f64()).unwrap_or(1.0);
         ingredients.push(json!({"stockItemId":stock,"quantity":volume,"tracked":true}));
-    } else if ingredients.is_empty(){if let Some(stock)=product["stockItemId"].as_str(){let volume=selected_portion.as_ref().and_then(|v|v["volume"].as_f64()).or_else(||product["portionVolume"].as_f64()).unwrap_or(1.0);let container=product["portionVolume"].as_f64().unwrap_or(0.0);let measured_spirit=["SPIRIT","SPIRITS","WINE"].contains(&inventory_type.as_str());let whole_container_sale=measured_spirit&&selected_portion.as_ref().and_then(|value|value["id"].as_str())==Some("whole-container");ingredients.push(json!({"stockItemId":stock,"quantity":volume,"tracked":true,"wholeContainerSale":whole_container_sale,"containerSize":if measured_spirit{json!(container)}else{Value::Null}}));}}
+    } else if ingredients.is_empty() {
+        if let Some(stock_id) = product["stockItemId"].as_str() {
+            let volume = selected_portion.as_ref().and_then(|value| value["volume"].as_f64())
+                .or_else(|| product["portionVolume"].as_f64()).unwrap_or(1.0);
+            let measured_spirit = ["SPIRIT", "SPIRITS", "WINE"].contains(&inventory_type.as_str());
+            let tracked_container_size = if measured_spirit {
+                let (_, stock) = get(tx, "stockItems", stock_id)?;
+                if stock["baseUnit"].as_str() == Some("ml") {
+                    stock["sealedContainerSize"].as_f64().filter(|size| size.is_finite() && *size > 0.0)
+                } else { None }
+            } else { None };
+            let whole_container_sale = tracked_container_size.is_some_and(|size|
+                selected_portion.as_ref().is_some_and(|value| value["wholeContainerSale"] == true)
+                    || (volume - size).abs() < 0.000001
+            );
+            ingredients.push(json!({
+                "stockItemId": stock_id,
+                "quantity": volume,
+                "tracked": true,
+                "wholeContainerSale": whole_container_sale,
+                "containerSize": tracked_container_size
+            }));
+        }
+    }
     for modifier in &modifiers { for adjustment in modifier["ingredientAdjustments"].as_array().cloned().unwrap_or_default(){
         let stock=text(&adjustment,"stockItemId")?; let delta=adjustment["quantityDelta"].as_f64().ok_or("Invalid modifier ingredient quantity")?;
         if let Some(existing)=ingredients.iter_mut().find(|v|v["stockItemId"].as_str()==Some(stock)){existing["quantity"]=json!(existing["quantity"].as_f64().unwrap_or(0.0)+delta);}else if delta>0.0{ingredients.push(json!({"stockItemId":stock,"quantity":delta,"tracked":true}));}

@@ -131,9 +131,8 @@ test.describe('transactional browser with PostgreSQL',()=>{
  test('Front Desk explains checkout blockers and prevents known-incomplete checkout submissions',async({page})=>{
   await signIn(page,'checkout@example.test');
   await page.getByRole('button',{name:'Front Desk',exact:true}).click();
-  const readiness=page.getByRole('region',{name:'Checkout readiness'});
-  await expect(readiness.getByText('Post all booked accommodation periods in Guest Accounts before checkout.')).toBeVisible();
-  await expect(readiness.getByText(/Ready for checkout\. Accommodation is posted/)).toBeVisible();
+  await expect(page.getByText('Post all booked accommodation periods in Guest Accounts before checkout.')).toBeVisible();
+  await expect(page.getByText(/Ready for checkout\. Accommodation is posted/)).toBeVisible();
   const blocked=page.locator('article').filter({has:page.getByText('Blocked Checkout Guest',{exact:true})});
   await blocked.getByRole('button',{name:'Check out',exact:true}).click();
   await expect(page.getByRole('status')).toContainText('Post all booked accommodation periods');
@@ -192,7 +191,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await signIn(page,'first@example.test');await signIn(other,'second@example.test');
   await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Business master records',exact:true})).toBeVisible();await page.getByRole('button',{name:'Add room type',exact:true}).click();
   let dialog=page.getByRole('dialog');await dialog.getByLabel('Room type',{exact:true}).fill('Double');await dialog.getByLabel('Maximum guests').fill('2');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('retained for retry');await page.getByLabel('Synchronize').click();loseResponse=false;
+  await expect(page.getByRole('alert')).toContainText('saved for outcome checking');await page.getByLabel('Synchronize').click();loseResponse=false;
   await expect(page.getByText('Double',{exact:true})).toBeVisible();
   expect(sql("select count(*) from servos_v2.commands where request->'payload'->>'collection'='roomTypes';").trim()).toBe('1');
   await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();await page.getByRole('button',{name:'Add room',exact:true}).click();dialog=page.getByRole('dialog');
@@ -232,7 +231,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await dialogAfterReload.getByLabel('Scan barcode / SKU').fill('UNKNOWN-000');
   await dialogAfterReload.getByRole('button',{name:'Apply typed barcode',exact:true}).click();
   await expect(dialogAfterReload.getByRole('button',{name:/Review and confirm/})).toBeDisabled();
-  await dialogAfterReload.getByRole('button',{name:'Remove UNKNOWN-000',exact:true}).click();
+  await dialogAfterReload.getByRole('button',{name:'Remove',exact:true}).click();
   await expect(dialogAfterReload.getByRole('button',{name:/Review and confirm/})).toBeEnabled();
   await dialogAfterReload.getByRole('button',{name:'Review and confirm',exact:true}).click();
   await expect(dialogAfterReload).toBeVisible();
@@ -247,6 +246,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
   expect(sql("select count(*) from servos_v2.records where collection='stockMovements' and data->>'movementType'='COUNT_ADJUSTMENT';").trim()).toBe('1');
  });
  test('web POS opens a till, settles cash online and retains the immutable receipt',async({page})=>{
+  await page.addInitScript(()=>{(window as Window & {__receiptPrintCalls?:number}).__receiptPrintCalls=0;window.print=()=>{const target=window as Window & {__receiptPrintCalls?:number};target.__receiptPrintCalls=(target.__receiptPrintCalls||0)+1}});
   await signIn(page,'pos@example.test');
   await page.getByRole('button',{name:'POS',exact:true}).click();
   await page.getByLabel('Opening float in KES').fill('100');
@@ -259,6 +259,15 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='tillSessions' and data->>'status'='OPEN';").trim()).toBe('1');
   await page.getByLabel('Synchronize').click();
   await expect(page.getByText('No open till')).toHaveCount(0);
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('button',{name:'Business settings',exact:true}).click();
+  const receiptBranding=page.locator('section').filter({has:page.getByRole('heading',{name:'Receipt logo · customer copy',exact:true})});
+  await receiptBranding.getByRole('button',{name:'Use supplied default',exact:true}).click();
+  await expect(receiptBranding.getByRole('img',{name:'Receipt logo preview'})).toHaveJSProperty('naturalWidth',expect.any(Number));
+  await expect.poll(async()=>await receiptBranding.getByRole('img',{name:'Receipt logo preview'}).evaluate((img:HTMLImageElement)=>img.naturalWidth)).toBeGreaterThan(0);
+  await page.getByRole('button',{name:'Save business branding and receipt logo',exact:true}).click();
+  await expect.poll(()=>sql("select case when data->'receipt'->>'logoDataUrl' like 'data:image/jpeg;base64,%' and length(data->'receipt'->'thermalLogo'->>'base64')>0 then 'SAVED' else 'MISSING' end from servos_v2.records where collection='organization' and id='business';").trim()).toBe('SAVED');
+  await page.getByRole('button',{name:'POS',exact:true}).click();
   await page.getByRole('button',{name:'Quick tab',exact:true}).click();
   await page.getByRole('button',{name:/Test Soda/}).click();
   await page.getByRole('button',{name:/Take payment/}).click();
@@ -271,6 +280,24 @@ test.describe('transactional browser with PostgreSQL',()=>{
   expect(sql("select count(*) from servos_v2.records where collection='payments' and data->>'method'='CASH' and data->>'amountMinor'='1250';").trim()).toBe('1');
   expect(sql("select count(*) from servos_v2.records where collection='receiptDocuments' and data->>'paidMinor'='1250' and data->>'balanceMinor'='0';").trim()).toBe('1');
   expect(sql("select count(*) from servos_v2.records where collection='journalEntries' and data->>'sourceType'='PAYMENT' and data->>'totalDebitMinor'=data->>'totalCreditMinor';").trim()).toBe('1');
+  expect(sql("select case when data->'brandingSnapshot'->>'receiptLogoDataUrl' like 'data:image/jpeg;base64,%' and jsonb_array_length(data->'brandingSnapshot'->'footerLines')=4 then 'SNAPSHOTTED' else 'MISSING' end from servos_v2.records where collection='receiptDocuments';").trim()).toBe('SNAPSHOTTED');
+  await page.getByRole('button',{name:'Print selected receipt',exact:true}).click();
+  const printRoot=page.locator('#servos-receipt-print');
+  await expect(printRoot.locator('.native-receipt-copy')).toHaveCount(2);
+  await page.emulateMedia({media:'print'});
+  await expect(printRoot.getByRole('img',{name:'Business receipt logo'})).toHaveCount(1);
+  const customerCopy=printRoot.locator('.native-receipt-copy').nth(0);
+  const businessCopy=printRoot.locator('.native-receipt-copy').nth(1);
+  for(const line of ['Built By KINGSFORGE','info@kingsforge.co.ke','info@davemusau.co.ke','0746157440']){
+   await expect(customerCopy.getByText(line,{exact:true})).toBeVisible();
+   await expect(businessCopy.getByText(line,{exact:true})).toBeVisible();
+  }
+  await expect(customerCopy.getByRole('img',{name:'Business receipt logo'})).toBeVisible();
+  await expect(businessCopy.getByRole('img',{name:'Business receipt logo'})).toHaveCount(0);
+  await expect(customerCopy.getByText('CUSTOMER COPY',{exact:true})).toBeVisible();
+  await expect(businessCopy.getByText('BUSINESS RECORD COPY - RETAIN FOR RECONCILIATION',{exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>((window as Window & {__receiptPrintCalls?:number}).__receiptPrintCalls||0))).toBe(1);
+  await page.emulateMedia({media:'screen'});
   await page.getByRole('button',{name:'Refund',exact:true}).click();
   const refundDialog=page.getByRole('dialog');
   await refundDialog.getByLabel('Refund amount in KES').fill('2.50');
@@ -278,6 +305,8 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await refundDialog.getByRole('button',{name:'Record refund'}).click();
   await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='refunds' and data->>'amountMinor'='250';").trim()).toBe('1');
   await page.getByRole('button',{name:'Finance',exact:true}).click();
+  await page.getByLabel('Counted cash in KES').fill('110');
+  await expect(page.getByText('KES 0.00')).toBeVisible();
   await page.getByRole('button',{name:'Close till',exact:true}).click();
   await expect.poll(()=>sql("select data->>'status' from servos_v2.records where collection='tillSessions' and data->>'status'='CLOSED';").trim()).toBe('CLOSED');
   await page.getByRole('button',{name:'Generate close-day snapshot',exact:true}).click();
