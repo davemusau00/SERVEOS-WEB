@@ -165,6 +165,61 @@ function readQrGrid(size: number, pixels: Uint8ClampedArray): { content: Uint8Ar
   return { content, modules, quiet: Math.max(TILL_QR_MIN_QUIET_MODULES, Math.min(8, Math.floor(marginModules))) };
 }
 
+/**
+ * Prepare an uploaded business M-Pesa Till QR for receipt output.
+ *
+ * This deliberately does NOT reuse the photographic logo path: QR modules need hard edges, a square
+ * source, a retained quiet zone and no dithering. The QR is never cropped to satisfy printer width.
+ */
+export async function prepareMpesaTillQr(blob: Blob, meta: { label?: string; tillNumber?: string } = {}): Promise<PreparedTillQr> {
+  if (!blob.size || blob.size > 4 * 1024 * 1024 || !/^image\/(png|jpeg|webp)$/.test(blob.type)) {
+    throw new Error('Choose a square PNG, JPEG, or WebP Till QR smaller than 4 MB.');
+  }
+  let bitmap: ImageBitmap;
+  try { bitmap = await createImageBitmap(blob); }
+  catch { throw new Error('This Till QR could not be decoded. Upload a valid square image file.'); }
+  try {
+    if (bitmap.width < 32 || bitmap.height < 32) throw new Error('That Till QR is too small to read. Upload a larger square image.');
+    if (bitmap.width !== bitmap.height) throw new Error('The Till QR must be a square image. Crop or replace it before saving.');
+    if (bitmap.width > MAX_TILL_QR_SOURCE_PX) throw new Error(`The Till QR must be ${MAX_TILL_QR_SOURCE_PX} × ${MAX_TILL_QR_SOURCE_PX} pixels or smaller.`);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) throw new Error('Till QR preparation is unavailable in this browser.');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0);
+    const { content, modules, quiet } = readQrGrid(bitmap.width, context.getImageData(0, 0, canvas.width, canvas.height).data);
+    const modulePixels = Math.floor(Math.min(TILL_QR_TARGET_DOTS, MAX_TILL_QR_DOTS) / (modules + quiet * 2));
+    if (modulePixels < 2) throw new Error('That Till QR has too many modules to print reliably. Use a simpler, lower-density Till QR.');
+    const thermalRaster = packQrRaster(content, modules, quiet, modulePixels);
+    // Raster preview: nearest-neighbour by construction, so module edges stay crisp on paper and screen.
+    const output = document.createElement('canvas');
+    output.width = thermalRaster.width;
+    output.height = thermalRaster.height;
+    const outputContext = output.getContext('2d');
+    if (!outputContext) throw new Error('Till QR preview is unavailable in this browser.');
+    const image = outputContext.createImageData(output.width, output.height);
+    for (let y = 0; y < output.height; y++) {
+      const my = Math.floor(y / modulePixels) - quiet;
+      for (let x = 0; x < output.width; x++) {
+        const mx = Math.floor(x / modulePixels) - quiet;
+        const on = my >= 0 && my < modules && mx >= 0 && mx < modules && content[my * modules + mx] === 1;
+        const at = (y * output.width + x) * 4;
+        const value = on ? 0 : 255;
+        image.data[at] = value; image.data[at + 1] = value; image.data[at + 2] = value; image.data[at + 3] = 255;
+      }
+    }
+    outputContext.putImageData(image, 0, 0);
+    const dataUrl = output.toDataURL('image/png');
+    if (dataUrl.length > MAX_BRANDING_DATA_URL_LENGTH) throw new Error('The prepared Till QR is too large to save safely.');
+    return { dataUrl, label: meta.label?.trim() || undefined, tillNumber: meta.tillNumber?.trim() || undefined, thermalRaster };
+  } finally {
+    bitmap.close();
+  }
+}
+
 export async function loadDefaultBrandingImage(url: string): Promise<PreparedBrandingImage> {
   const response = await fetch(url);
   if (!response.ok) throw new Error('The supplied default logo could not be loaded.');

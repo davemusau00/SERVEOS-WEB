@@ -23,6 +23,7 @@ export interface Property {
   receiptLogoDataUrl?: string;
   receiptThermalLogo?: { width:number; height:number; base64:string };
   receiptBrandingVersion?: number;
+  receiptMpesaTillQr?: { enabled:boolean; label?:string; tillNumber?:string; dataUrl:string; thermalRaster?:{ width:number; height:number; base64:string } | null };
   etimsCuNumber: string;
   etimsCuSerialNumber?: string;
 }

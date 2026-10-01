@@ -3,7 +3,7 @@ import {useRuntime} from '../runtime/RuntimeProvider';
 import {ActionDialog} from './ActionDialog';
 import {buttonClass,fieldClass,primaryButtonClass,recordOf,recordsOf} from './records';
 import { ReceiptBrandingEditor } from '../receipts/ReceiptBrandingEditor';
-import type { PreparedBrandingImage } from '../receipts/branding';
+import type { PreparedBrandingImage, PreparedTillQr } from '../receipts/branding';
 
 type Field={key:string;label:string;type?:'number'|'checkbox'|'select';options?:string[]};
 const sections:{id:string;label:string;collection:string;fields:Field[]}[]=[
