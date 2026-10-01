@@ -16,14 +16,14 @@ export function ReceiptBrandingEditor({ appEmblem, receiptLogo, tillQr, onAppEmb
   const process = async (kind: 'app' | 'receipt' | 'qr', file?: File) => {
     setBusy(kind); setError('');
     try {
-      if (kind === 'qr') { onTillQrChange(file ? await prepareMpesaTillQr(file, { label: tillQr?.label, tillNumber: tillQr?.tillNumber }) : null); return; }
+      if (kind === 'qr') { const prepared = file ? await prepareMpesaTillQr(file, { label: tillQr?.label, tillNumber: tillQr?.tillNumber }) : null; if (prepared) { prepared.enabled = tillQr?.enabled ?? true; setQrEnabled(prepared.enabled); } onTillQrChange(prepared); return; }
       const prepared = file ? await prepareBrandingImage(file) : await loadDefaultBrandingImage(kind === 'app' ? DEFAULT_APP_EMBLEM : DEFAULT_RECEIPT_LOGO);
       if (kind === 'app') onAppEmblemChange(prepared.dataUrl);
       else onReceiptLogoChange(prepared);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Logo could not be prepared.'); }
     finally { setBusy(null); }
   };
-  const imageInput = (kind: 'app' | 'receipt', label: string) => <label className="inline-flex cursor-pointer items-center rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold has-[:disabled]:opacity-40">
+  const imageInput = (kind: 'app' | 'receipt' | 'qr', label: string) => <label className="inline-flex cursor-pointer items-center rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold has-[:disabled]:opacity-40">
     {busy === kind ? 'Preparing…' : `Replace ${label}`}
     <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled || busy !== null} onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void process(kind, file); }} />
   </label>;

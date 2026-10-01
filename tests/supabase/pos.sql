@@ -129,7 +129,7 @@ end$$;
 select pg_temp.pos_command('order.void','orders','whole-bottle-order','{"orderId":"whole-bottle-order","reason":"Acceptance cleanup","disposition":"RETURN_SEALED"}');
 
 -- Online POS settlement: manual evidence, atomic split, receipt and journal.
-select servos_v2.put_record('organization','business','{"name":"Test Business","branding":{"appEmblemDataUrl":null},"receipt":{"logoDataUrl":"data:image/jpeg;base64,AA==","thermalLogo":{"width":8,"height":1,"base64":"AA=="}}}');
+select servos_v2.put_record('organization','business','{"name":"Test Business","branding":{"appEmblemDataUrl":null},"receipt":{"logoDataUrl":"data:image/jpeg;base64,AA==","thermalLogo":{"width":8,"height":1,"base64":"AA=="},"mpesaTillQr":{"enabled":true,"label":"Country Side Till","dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":8,"base64":"AAAAAAAAAAA="}}}}');
 select servos_v2.put_record('property','property','{"name":"Test Property","address":"Test Street","phone":"0700000000","currency":"KES","timezone":"Africa/Nairobi","receiptFooter":"Thank you"}');
 select servos_v2.put_record('paymentAccounts','cash',jsonb_build_object('name','Cash till','method','CASH','accountCode','CASH'));
 select servos_v2.put_record('paymentAccounts','mpesa',jsonb_build_object('name','Manual M-Pesa','method','MPESA','number','0700000000','accountCode','MPESA_CLEARING'));
