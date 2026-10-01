@@ -32,7 +32,18 @@ test('web hospitality uses queued authoritative stay, folio, and housekeeping co
   for(const operation of ['stay.checkIn','stay.checkOut','stay.move','folio.deposit','folio.pay','folio.postAccommodation','folio.applyDeposit','folio.postService','room.housekeeping','room.condition','room.unblock'])assert.ok(view.includes(operation),operation);
   assert.match(view,/Checkout conservation/);
   assert.match(view,/Room readiness is separate from occupancy/);
+  assert.match(view,/const run=async\(operation:string,collection:string,id:string,payload:Record<string,unknown>\):Promise<CommandOutcome>/);
+  assert.doesNotMatch(view,/return isCommandConfirmed\(outcome\)/);
   assert.doesNotMatch(view,/business_records|supabase\.from/);
+});
+
+test('guest-account payment inputs clear only after explicit command confirmation',()=>{
+  const view=read('src/runtime/web/WebHospitalityViews.tsx');
+  assert.match(view,/const pay=async\(operation:'folio\.deposit'\|'folio\.pay'\)/);
+  assert.match(view,/if\(isCommandConfirmed\(result\)\)setAmount\(''\)/);
+  assert.doesNotMatch(view,/\.then\(\(\)=>setAmount\(''\)\)/);
+  assert.match(view,/role=\{blockingOutcome\?'alert':'status'\}/);
+  assert.match(view,/busyRef\.current/);
 });
 
 test('hosted hospitality backend preserves conservation and permission contracts',()=>{
