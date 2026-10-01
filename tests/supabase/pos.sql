@@ -200,7 +200,7 @@ select pg_temp.failing_put('business','organization','business','{"name":"Test B
 select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwM="}}}','VALIDATION_FAILED');
 select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwM="}}}}','VALIDATION_FAILED');
 do $$begin
-  if servos_v2.read_record('organization','business')->'receipt'->'mpesaTillQr'->>'label'<>'Replacement Till' then
+  if servos_v2.read_record('organization','business')->'receipt'->'mpesaTillQr'->>'label'<>'Country Side Till' then
     raise exception 'A rejected Till QR write changed the stored settings';
   end if;
 end$$;

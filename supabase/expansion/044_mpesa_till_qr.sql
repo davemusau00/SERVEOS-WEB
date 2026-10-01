@@ -23,6 +23,11 @@ begin
     if qr ? 'tillNumber' and jsonb_typeof(qr->'tillNumber')<>'null' and length(qr->>'tillNumber')>32 then
       raise exception 'VALIDATION_FAILED: M-Pesa Till number cannot exceed 32 characters';
     end if;
+    if qr->>'enabled'='true' and coalesce(qr->'thermalRaster','null'::jsonb)='null'::jsonb then
+      -- An enabled QR that Web can display must also carry a printable thermal raster, otherwise the
+      -- XP-80T path would silently omit it while the customer copy showed one.
+      raise exception 'VALIDATION_FAILED: an enabled M-Pesa Till QR requires a thermal raster';
+    end if;
     if qr ? 'thermalRaster' and jsonb_typeof(qr->'thermalRaster')<>'null' then
       raster:=qr->'thermalRaster';
       if jsonb_typeof(raster)<>'object' then raise exception 'VALIDATION_FAILED: M-Pesa Till QR thermal raster';end if;
