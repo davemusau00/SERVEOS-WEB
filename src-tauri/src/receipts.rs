@@ -10,7 +10,7 @@ pub fn capture(tx: &Transaction, user: &Session, order_id: &str, command_id: &st
     let outlet = order["outletId"].as_str().and_then(|key|get(tx,"outlets",key).ok()).map(|(_,v)|v).unwrap_or(json!({}));
     let payment_ids: Vec<String> = changes.iter().filter(|c|c["collection"]=="payments").filter_map(|c|c["id"].as_str().map(str::to_owned)).collect();
     let payments: Vec<Value> = list(tx,"payments")?.into_iter().map(|r|r["data"].clone()).filter(|p|p["orderId"]==order_id).map(|p|{
-        let method=p["tenderType"].as_str().unwrap_or("").to_ascii_uppercase().replace('-',"").replace(' ',"");
+        let method=p["tenderType"].as_str().unwrap_or("").to_ascii_uppercase().replace('-',"").replace('_',"").replace(' ',"");
         json!({"id":p["id"],"tenderType":p["tenderType"],"amountMinor":p["amountMinor"],"reference":if method.contains("MPESA"){p["referenceNumber"].clone()}else{Value::Null},
           "cashTenderedMinor":p["cashTenderedMinor"],"changeMinor":p["changeMinor"],"occurredAt":p["occurredAt"],
           "currentPayment":p["id"].as_str().is_some_and(|id|payment_ids.iter().any(|key|key==id))})
@@ -99,7 +99,7 @@ pub fn lines(doc:&Value,business_copy:bool,columns:usize,reprint:bool)->Vec<Stri
     for payment in doc["payments"].as_array().into_iter().flatten(){
         let method=payment["tenderType"].as_str().unwrap_or("Payment");let currency=doc["currency"].as_str().unwrap_or("KES");
         lines.push(pair(method,&amount(&payment["amountMinor"],currency),width));
-        let normalized_method=method.to_ascii_uppercase().replace('-',"").replace(' ',"");
+        let normalized_method=method.to_ascii_uppercase().replace('-',"").replace('_',"").replace(' ',"");
         if let Some(reference)=payment["reference"].as_str().filter(|v|!v.is_empty()&&normalized_method.contains("MPESA")){lines.push(format!("M-Pesa ref: {}",clean(reference)));}
         for(label,key)in[("Cash tendered","cashTenderedMinor"),("Change","changeMinor")]{if payment[key].is_i64(){lines.push(pair(label,&amount(&payment[key],currency),width));}}
     }

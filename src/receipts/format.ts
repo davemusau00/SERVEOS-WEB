@@ -16,7 +16,7 @@ export function receiptText(document:ReceiptDocument,businessCopy=false,reprint=
   if(document.taxMinor)lines.push(`VAT included: ${receiptMoney(document.taxMinor,document.currency)}`);
   if(document.levyMinor)lines.push(`Levy included: ${receiptMoney(document.levyMinor,document.currency)}`);
   lines.push(`TOTAL: ${receiptMoney(document.totalMinor,document.currency)}`);
-  for(const payment of document.payments){lines.push(`${payment.tenderType}: ${receiptMoney(payment.amountMinor,document.currency)}`);if(payment.reference&&/M[- ]?PESA/i.test(payment.tenderType))lines.push(`M-Pesa ref: ${payment.reference}`);if(payment.cashTenderedMinor!=null)lines.push(`Cash tendered: ${receiptMoney(payment.cashTenderedMinor,document.currency)}`);if(payment.changeMinor!=null)lines.push(`Change: ${receiptMoney(payment.changeMinor,document.currency)}`)}
+  for(const payment of document.payments){lines.push(`${payment.tenderType}: ${receiptMoney(payment.amountMinor,document.currency)}`);if(payment.reference&&/M[\s_-]?PESA/i.test(payment.tenderType))lines.push(`M-Pesa ref: ${payment.reference}`);if(payment.cashTenderedMinor!=null)lines.push(`Cash tendered: ${receiptMoney(payment.cashTenderedMinor,document.currency)}`);if(payment.changeMinor!=null)lines.push(`Change: ${receiptMoney(payment.changeMinor,document.currency)}`)}
   lines.push(`Paid: ${receiptMoney(document.paidMinor,document.currency)}`,`Balance: ${receiptMoney(document.balanceMinor,document.currency)}`);
   if(businessCopy)lines.push('Business record copy');
   if(document.message)lines.push(document.message);

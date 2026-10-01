@@ -17,4 +17,6 @@ New payments capture their receipt from saved transaction data. Both 80mm copies
 4. In Business Admin, open Business identity, Tax and receipt message, Payment methods, or Till and printer. Save changes; stale settings require reopening the editor.
 5. Test the saved direct printer configuration and check actual paper output. The system dialog and spooler acknowledgement are not proof of physical printing.
 
+For the Admin image upload/default/remove workflow and staged-Web authority boundary, see [Receipt branding setup](../RECEIPT_BRANDING_SETUP.md). The customer copy places the configured logo after the fixed four-line footer; the business copy omits both the customer name and customer-facing logo.
+
 Existing transactions and receipt documents retain their original identity/tax/payment snapshots. Business thank-you text is configurable; the attribution footer is fixed. KES, Africa/Nairobi and tax-inclusive pricing remain the supported installed policy.

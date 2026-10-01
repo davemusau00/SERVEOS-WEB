@@ -84,7 +84,7 @@ execute function servos_v2.guard_business_branding();
 create function servos_v2.capture_receipt_branding()
 returns trigger language plpgsql set search_path='' as $$
 declare identity_data jsonb; receipt_settings jsonb; order_data jsonb; customer_data jsonb;
-        branding_version bigint; customer_name text; receipt_no text;
+        branding_version bigint; customer_name text; receipt_no text; payment_snapshot jsonb;
 begin
   if new.collection<>'receiptDocuments' then return new;end if;
   select data into identity_data from servos_v2.records where collection='organization' and id='business';
@@ -95,10 +95,17 @@ begin
   customer_name:=coalesce(nullif(trim(new.data->>'customerName'),''),nullif(trim(order_data->>'customerName'),''),nullif(trim(customer_data->>'name'),''));
   receipt_no:=new.data->>'number';
   if receipt_no like 'V2-%' then receipt_no:='R-'||right(receipt_no,8);end if;
+  select coalesce(jsonb_agg(
+    case when replace(replace(replace(upper(coalesce(payment->>'tenderType',payment->>'method','')),'-',''),'_',''),' ','') like '%MPESA%'
+      then payment else payment-'reference' end
+    order by ordinality
+  ),'[]'::jsonb) into payment_snapshot
+  from jsonb_array_elements(coalesce(new.data->'payments','[]'::jsonb)) with ordinality as receipt_payments(payment,ordinality);
   new.data:=new.data||jsonb_build_object(
     'schemaVersion',2,
     'number',receipt_no,
     'customerName',customer_name,
+    'payments',payment_snapshot,
     'brandingSnapshot',jsonb_build_object(
       'version',branding_version,
       'footerLines',jsonb_build_array('Built By KINGSFORGE','info@kingsforge.co.ke','info@davemusau.co.ke','0746157440'),

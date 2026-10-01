@@ -81,7 +81,7 @@ Reviewed sources:
 
 ### Receipt ordering decision for this sprint
 
-The principles file says both “footer last after logo” and “logo last on customer side.” Use this explicit interpretation: the logo is the final business-brand element; the fixed developer attribution follows as the last textual block, then blank feed space. Record this interpretation in RECEIPT_SPEC and show the proof to the owner during paper acceptance. Do not silently drop either element.
+The principles file has described both “footer last after logo” and “logo last on customer side.” The resolved order for this release is: fixed four-line attribution footer, customer logo, then blank feed space before the cut. The logo is the final customer-facing business-brand element. Apply this order consistently to preview, downloads, OS print, and ESC/POS; the business copy has no logo. Confirm the printed result with the owner during paper acceptance.
 
 Customer receipt sequence:
 
@@ -91,8 +91,8 @@ Customer receipt sequence:
 4. Subtotal, discounts, actual tax/levy where applicable, prominent TOTAL.
 5. Tender amounts, real manual M-Pesa reference where applicable, cash tendered/change, paid and balance.
 6. Configurable business thank-you.
-7. Centred receipt business logo.
-8. Centred fixed attribution exactly as below.
+7. Centred fixed attribution exactly as below.
+8. Centred receipt business logo.
 9. Blank feed buffer before cut.
 
 ```text
@@ -1043,7 +1043,7 @@ P22 original boundary finding: the terminal had only local PIN sessions while `s
 
 P25 migration-reconciliation source slice: the existing read-only SQLite↔legacy-cloud comparison now emits side-by-side control totals for record counts by collection, active/archive counts, stock quantity per item/location, movement-derived quantity per item/location, and selected order/procurement/payment/refund/M-Pesa/credit/folio/deposit/receipt minor-unit values. Each replica independently checks stock quantities against immutable movement history. Any total mismatch or internal stock conservation failure blocks readiness in addition to record-level differences. The native evidence panel exposes totals without business payloads. This extends the existing legacy replica reconciler; it is not a v2 import rehearsal, does not cover a real migrated target, and is unverified until the final test pass.
 
-FS-02/FS-06 follow-up (2026-10-01; source-only): fixed `WebAdministrationView.tsx` `previewRows` arrow syntax and corrected the whole-location count fixture to assert two per-item `COUNT_ADJUSTMENT` movements (`gin=-2`, `gin-ml=-205`) for its two nonzero variances. Regenerated `src-tauri/Cargo.lock` and `native-tests/Cargo.lock` for the direct base64 decoder dependency; `--locked` compilation has not been checked. Receipt v2 now stores the footer/logo/raster/version with the payment-time document; Admin settings can replace, restore the supplied defaults, or remove the app emblem/receipt logo; native ESC/POS prints the monochrome customer logo after the footer and applies profile width/feed limits with an explicit text-only fallback; Web receipt history prints only the selected saved document; native and staged order numbers are human-readable. New expansion 043 validates bounded branding and captures immutable receipt snapshots. Receipt specs, principles, setup guide and acceptance fixtures are updated. Nothing in this slice has been verified by execution. FS-02 and FS-06 remain incomplete; v2 is default-off, and physical, packaged, hosted/live and cutover evidence remain separate gates.
+FS-02/FS-06 follow-up (2026-10-01; source-only): fixed `WebAdministrationView.tsx` `previewRows` arrow syntax and corrected the whole-location count fixture to assert two per-item `COUNT_ADJUSTMENT` movements (`gin=-2`, `gin-ml=-205`) for its two nonzero variances. Regenerated `src-tauri/Cargo.lock` and `native-tests/Cargo.lock` for the direct base64 decoder dependency; `--locked` compilation has not been checked. Receipt v2 stores the footer/logo/raster/version with the payment-time document; Admin settings can replace, restore supplied defaults, or remove the app emblem/receipt logo; native ESC/POS prints the monochrome customer logo after the footer and applies profile width/feed limits with an explicit text-only fallback. Web history prints only the selected saved document and downloads both copies; the business copy omits the customer name, and staged receipt snapshots discard non-M-Pesa authorization references. Native and staged order numbers are human-readable. Expansion 043 validates bounded branding and captures immutable snapshots. A source-contract test and SQL card-reference fixture were added but not run. Receipt specs, principles, setup guide, hashed brand asset manifest and acceptance fixtures are updated. Nothing in this slice has been verified by execution. FS-02 and FS-06 remain incomplete; v2 is default-off, and physical, packaged, hosted/live and cutover evidence remain separate gates.
 
 P1 remains in progress. Shared operator controls, keyboard-aware dialogs, property-time conversion, extended operation-parity metadata, prompt removal, and the generated audit are present. The audit flags custom overlays, form busy-state gaps, potentially unexplained disabled actions, directly surfaced exception text, and excessive required fields. The latest gate inventories 3,578 interactions and 389 static review findings (36 overlays, 246 disabled-action explanations, 12 visibility, 1 required-fields, 10 form-busy, 84 raw-error). These are review candidates, not confirmed defects. Interactions/workflows remain `UNREVIEWED`; shared primitives are not yet adopted across all features. No operator UX acceptance is claimed.
 

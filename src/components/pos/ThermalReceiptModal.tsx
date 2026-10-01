@@ -40,7 +40,7 @@ export const ThermalReceiptModal = ({ isOpen, onClose, order, paymentDetails, is
     ...lines,
     `Total: ${money(order.grandTotal)}`,
     paymentDetails ? `Tender: ${paymentDetails.tenderType}` : `Paid: ${money(paid)}`,
-    paymentDetails?.receiptRef && paymentDetails.tenderType.toUpperCase().includes('MPESA') ? `M-Pesa ref: ${paymentDetails.receiptRef}` : '',
+    paymentDetails?.receiptRef && paymentDetails.tenderType.toUpperCase().replace(/[\s_-]/g,'').includes('MPESA') ? `M-Pesa ref: ${paymentDetails.receiptRef}` : '',
     paymentDetails?.changeDue ? `Change: ${money(paymentDetails.changeDue)}` : '',
     'Thank you.',
     ...RECEIPT_FOOTER,
@@ -98,7 +98,7 @@ const ReceiptCopy = ({ className, business, outlet, label, orderNumber, cashier,
   {cashier && <p>Cashier: {cashier}</p>}
   <table className="w-full"><thead><tr><th className="text-left">Item</th><th>Qty</th><th className="text-right">Amount</th></tr></thead><tbody>{items.map(item=><tr key={item.id}><td className="py-1">{item.productName}</td><td className="text-center">{item.quantity}</td><td className="text-right">{money(item.totalPrice)}</td></tr>)}</tbody></table>
   <p className="border-t pt-2 font-bold">Total: {money(total)}</p>
-  {paymentDetails && <><p>Recorded tender: {paymentDetails.tenderType}</p>{paymentDetails.receiptRef&&paymentDetails.tenderType.toUpperCase().replace(/[\s-]/g,'').includes('MPESA')&&<p>M-Pesa ref: {paymentDetails.receiptRef}</p>}{!internal&&paymentDetails.roomNumber&&<p>Room: {paymentDetails.roomNumber}</p>}{paymentDetails.changeDue? <p>Change: {money(paymentDetails.changeDue)}</p>:null}{paymentDetails.tenderType.toUpperCase().replace(/[\s-]/g,'').includes('MPESA')&&<p>Manually confirmed; reconciliation is recorded separately.</p>}</>}
+  {paymentDetails && <><p>Recorded tender: {paymentDetails.tenderType}</p>{paymentDetails.receiptRef&&paymentDetails.tenderType.toUpperCase().replace(/[\s_-]/g,'').includes('MPESA')&&<p>M-Pesa ref: {paymentDetails.receiptRef}</p>}{!internal&&paymentDetails.roomNumber&&<p>Room: {paymentDetails.roomNumber}</p>}{paymentDetails.changeDue? <p>Change: {money(paymentDetails.changeDue)}</p>:null}{paymentDetails.tenderType.toUpperCase().replace(/[\s_-]/g,'').includes('MPESA')&&<p>Manually confirmed; reconciliation is recorded separately.</p>}</>}
   {!paymentDetails&&<p>Paid: {money(paid)}</p>}
   <p className="text-center">Thank you.</p>
   <footer className="mt-3 text-center text-[9px]">{RECEIPT_FOOTER.map(line=><div key={line}>{line}</div>)}{logoDataUrl&&<img className="mx-auto mt-3 max-h-20 max-w-[48mm] object-contain" src={logoDataUrl} alt="Business receipt logo"/>}</footer>

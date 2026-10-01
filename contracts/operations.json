@@ -2,21 +2,21 @@
   "contractVersion": 2,
   "status": "transitional-id-registry",
   "operations": [
-    "business.identity", "setup.completeStep", "setup.goLive", "record.save", "record.archive",
-    "roomType.save", "ratePlan.save", "floorplan.save", "table.ready", "customerCredit.charge",
-    "inventory.openingBalance", "inventory.receive", "catalog.createWithOpeningStock", "mpesa.discrepancy", "mpesa.discrepancy.resolve",
+    "business.identity", "business.settings.save", "setup.completeStep", "setup.goLive", "admin.import.stage", "admin.import.dryRun", "admin.import.apply", "admin.import.cancel", "record.save", "record.archive",
+    "roomType.save", "ratePlan.save", "floorplan.save", "table.ready", "customerCredit.charge", "credit.charge",
+    "inventory.openingBalance", "inventory.adjust", "inventory.receive", "catalog.createWithOpeningStock", "mpesa.discrepancy", "mpesa.discrepancy.resolve",
     "till.open", "till.cashMovement", "staff.changeRole", "staff.deactivate", "staff.resetPin",
     "product.save", "stockItem.save", "stockLocation.save", "supplier.save", "supplier.archive",
-    "asset.save", "asset.commission", "assetCategory.save", "maintenance.report", "room.save",
+    "asset.save", "asset.commission", "assetCategory.save", "maintenance.report", "maintenance.assign", "maintenance.start", "maintenance.complete", "maintenance.cancel", "room.save",
     "room.block", "room.unblock", "room.housekeeping", "stay.extend", "folio.open", "folio.applyDeposit",
     "folio.postAccommodation", "folio.refundDeposit", "folio.reverse", "hotelService.save",
     "order.create", "order.addItem", "order.fire", "order.kds", "order.repeatRound", "order.transfer",
-    "order.merge", "order.discount", "order.compItem", "order.void", "payment.record", "payment.split",
+    "order.merge", "order.discount", "order.comp", "order.compItem", "order.void", "payment.record", "payment.split",
     "payment.refund", "payment.reverse", "mpesa.reconcile", "inventory.countLocation", "inventory.transfer",
     "inventory.waste", "inventory.produceBatch", "purchaseOrder.receive", "purchaseOrder.create", "supplierPayable.matchInvoice",
     "supplierPayable.pay", "roomReservation.create", "roomStay.settings", "stay.checkIn", "stay.move",
     "stay.checkOut", "room.condition", "folio.postService", "folio.pay", "pos.roomCharge", "till.close",
-    "closeDay.generate", "staff.create", "device.revoke", "asset.maintenance", "runtime.print_receipt", "runtime.backup"
+    "closeDay.generate", "staff.create", "device.revoke", "runtime.print_receipt", "runtime.backup"
   ],
   "payloadSchemas": "UNSPECIFIED_PENDING_WP04_FIXTURES"
 }

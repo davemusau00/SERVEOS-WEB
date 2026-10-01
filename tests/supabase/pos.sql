@@ -129,16 +129,17 @@ do $$begin
  if (servos_v2.read_record('tillSessions','shift-1')->>'expectedCashMinor')::bigint<>1000 then raise exception 'Failed split changed drawer cash';end if;
 end$$;
 
-select pg_temp.pos_command('payment.split','orders','tab-1','{"orderId":"tab-1","payments":[{"amountMinor":20000,"accountId":"cash","cashTenderedMinor":22000},{"amountMinor":35000,"accountId":"mpesa","reference":"AABBCC11","receivedAmountMinor":35000,"receivedAt":"2026-09-27T12:00:00Z","manuallyConfirmed":true}]}');
+select pg_temp.pos_command('payment.split','orders','tab-1','{"orderId":"tab-1","payments":[{"amountMinor":20000,"accountId":"cash","cashTenderedMinor":22000},{"amountMinor":25000,"accountId":"mpesa","reference":"AABBCC11","receivedAmountMinor":25000,"receivedAt":"2026-09-27T12:00:00Z","manuallyConfirmed":true},{"amountMinor":10000,"accountId":"card","reference":"AUTH-OK-77","manuallyConfirmed":true}]}');
 do $$declare o jsonb;s jsonb;receipt jsonb;begin
  o:=servos_v2.read_record('orders','tab-1');s:=servos_v2.read_record('stockItems','gin');
  select data into receipt from servos_v2.records where collection='receiptDocuments' and data->>'orderId'='tab-1';
  if o->>'state'<>'COMPLETED' or (o->>'amountPaidMinor')::bigint<>55000 then raise exception 'Split did not complete the settled order';end if;
  if (s->'currentStock'->>'bar-stock')::numeric<>9.9 then raise exception 'Payment consumed stock a second time';end if;
- if jsonb_array_length(receipt->'paymentIds')<>2 or receipt->>'balanceMinor'<>'0' then raise exception 'Receipt snapshot omitted split settlement';end if;
+ if jsonb_array_length(receipt->'paymentIds')<>3 or receipt->>'balanceMinor'<>'0' then raise exception 'Receipt snapshot omitted split settlement';end if;
  if receipt->>'schemaVersion'<>'2' or receipt->>'number' not like 'R-%' or receipt->>'orderNumber' not like 'ORD-%' or receipt->'brandingSnapshot'->>'version'<>'1' or receipt->'brandingSnapshot'->>'receiptLogoDataUrl'<>'data:image/jpeg;base64,AA==' then raise exception 'Receipt did not retain its friendly number and branding snapshot';end if;
  if not exists(select 1 from jsonb_array_elements(receipt->'payments') p where p->>'reference'='AABBCC11' and p->>'method'='MPESA') then raise exception 'Receipt omitted the customer-facing M-Pesa reference';end if;
- if (select count(*) from servos_v2.records where collection='payments' and data->>'orderId'='tab-1')<>2 then raise exception 'Split did not persist two tender records';end if;
+ if exists(select 1 from jsonb_array_elements(receipt->'payments') p where p->>'method'='CARD' and p ? 'reference') then raise exception 'Receipt retained an external card authorization reference';end if;
+ if (select count(*) from servos_v2.records where collection='payments' and data->>'orderId'='tab-1')<>3 then raise exception 'Split did not persist three tender records';end if;
  if exists(select 1 from servos_v2.records where collection='journalEntries' and data->>'sourceType'='PAYMENT' and data->>'totalDebitMinor'<>data->>'totalCreditMinor') then raise exception 'POS payment journal is unbalanced';end if;
  if (servos_v2.read_record('tillSessions','shift-1')->>'expectedCashMinor')::bigint<>21000 then raise exception 'Cash drawer total is wrong';end if;
  if (select data->>'changeMinor' from servos_v2.records where collection='payments' and data->>'orderId'='tab-1' and data->>'method'='CASH')<>'2000' then raise exception 'Cash change snapshot is wrong';end if;
@@ -228,7 +229,7 @@ select pg_temp.pos_command('closeDay.generate','closeDayReports','close-day-shif
 do $$declare report jsonb;begin
  select data into report from servos_v2.records where collection='closeDayReports' and id='close-day-shift-1';
  if report->'sales'->>'grossMinor'<>'200000' or report->'sales'->>'refundsMinor'<>'30000' then raise exception 'Close-day sales or refund totals are wrong: %',report;end if;
- if report->'tenders'->>'mpesaMinor'<>'35000' or report->'tenders'->>'cardMinor'<>'30000' or report->'tenders'->>'cashMinor'<>'135000' then raise exception 'Close-day tender totals are wrong: %',report;end if;
+ if report->'tenders'->>'mpesaMinor'<>'25000' or report->'tenders'->>'cardMinor'<>'40000' or report->'tenders'->>'cashMinor'<>'135000' then raise exception 'Close-day tender totals are wrong: %',report;end if;
  if report->'cash'->>'varianceMinor'<>'0' or report->'orders'->>'openCount'<>'0' then raise exception 'Close-day drawer/open-tab snapshot is wrong';end if;
  if report->'reconciliation'->>'providerInitiated'<>'false' then raise exception 'Close-day report invented provider settlement';end if;
  begin update servos_v2.records set data=data||jsonb_build_object('sales','{}') where collection='closeDayReports';raise exception 'Close-day report was mutable';exception when others then if sqlerrm<>'Immutable business history' then raise;end if;end;

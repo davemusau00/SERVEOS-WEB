@@ -4,7 +4,7 @@
 
 Use 80mm paper with a 74mm content area. Print the customer copy first and the business record copy second. Center the business name/contact, service area, copy label, and the fixed footer. The customer copy may include the customer name and the manually recorded M-Pesa reference. Show the human-readable system receipt number and order number; never print database UUIDs, device IDs, command IDs, Auth IDs, or arbitrary provider references. The business copy may add cashier/table/tab context, but must not expose internal identifiers.
 
-Each copy includes item description, portion/modifiers, quantity, unit price, aligned amount, subtotal, discount, included tax/levy when present, TOTAL, tender, M-Pesa reference only, cash/change, paid, and balance. Format every amount to exactly two decimal places with the property currency (`KES 0.00`). Preserve saved tax arithmetic and do not add ETR/eTIMS claims. The configurable thank-you message is separate from the fixed footer.
+Each copy includes item description, portion/modifiers, quantity, unit price, aligned amount, subtotal, discount, included tax/levy when present, TOTAL, tender, M-Pesa reference only, cash/change, paid, and balance. Do not show the customer name on the business record copy or retain arbitrary card/provider references in the customer receipt snapshot. Format every amount to exactly two decimal places with the property currency (`KES 0.00`). Preserve saved tax arithmetic and do not add ETR/eTIMS claims. The configurable thank-you message is separate from the fixed footer.
 
 Fixed footer, in this exact order, on both copies:
 

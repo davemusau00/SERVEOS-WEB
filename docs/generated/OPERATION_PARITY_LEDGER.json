@@ -21,6 +21,24 @@
       "operatorUxStatus": "blocked-by-domain"
     },
     {
+      "operation": "business.settings.save",
+      "domain": "Administration",
+      "permission": "business.configure",
+      "collection": "organization",
+      "native": "partial",
+      "backend": "implemented",
+      "web": "implemented",
+      "notes": "Web Admin updates versioned branding/receipt settings through an online BusinessCommandV2; native branding is saved to the property record. Receipt documents snapshot the logo at payment commit.",
+      "offlineEligibility": "unknown",
+      "approval": "unknown",
+      "versioning": "unknown",
+      "auditEffect": "unknown",
+      "stockEffect": "unknown",
+      "financialEffect": "unknown",
+      "acceptanceTest": "Add or maintain acceptance coverage for business.settings.save across permission, persistence, conflict, and recovery behavior.",
+      "operatorUxStatus": "unreviewed"
+    },
+    {
       "operation": "setup.completeStep",
       "domain": "Administration",
       "permission": "system.configure",
@@ -1530,16 +1548,16 @@
       "collection": "receiptDocuments",
       "native": "implemented",
       "backend": "blocked",
-      "web": "blocked",
-      "notes": "Browser uses OS/PDF printing; direct terminal printer access is native/agent-only.",
-      "offlineEligibility": "blocked",
+      "web": "implemented",
+      "notes": "Web prints the selected immutable receipt through the shared document portal; terminal raw ESC/POS is native-only. Printer transport acceptance is not physical output proof.",
+      "offlineEligibility": "unknown",
       "approval": "unknown",
       "versioning": "unknown",
       "auditEffect": "unknown",
       "stockEffect": "unknown",
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for runtime.print_receipt across permission, persistence, conflict, and recovery behavior.",
-      "operatorUxStatus": "blocked-by-domain"
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "runtime.backup",

@@ -174,7 +174,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
     }
     setBusy(true);
     try {
-      let result: unknown;
+      let result: CommandOutcome;
       if (setupKind === 'RECIPE') {
         const productId = crypto.randomUUID();
         result = await command('product.save', 'products', productId, {

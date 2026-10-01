@@ -2,6 +2,8 @@
 
 This guide configures the business emblem and receipt logo without changing the receipt template. It applies to an Admin on the installed terminal and to the staged Web workspace. Web v2 remains default-off and online-only until its authority/cutover gates are accepted.
 
+The checked-in source artwork, generic ServOS install icons, hashes, and generated-use boundaries are tracked in [Brand asset manifest](BRAND_ASSET_MANIFEST.md).
+
 ## Set the business images
 
 1. Sign in as an operator with **business.configure** (Admin in the terminal role model).
