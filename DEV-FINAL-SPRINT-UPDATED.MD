@@ -1,763 +1,920 @@
-I went beyond the status labels and inspected the **actual CI artifacts from ServOS CI #120** at current head **`9362a2b95ebe66dadb0fc8c30552b1da83ed7bc4`**.
+# ServOS DEV FINAL SPRINT UPDATED — REVISION 4
 
-The good news is that the remaining release problems are much more concentrated than the red CI badge suggests. Production browser testing already has **44 passing tests**, preview has **28 passing tests**, frontend is green, native-domain is green, and the base cloud protocol is green. The failures cluster around a handful of contracts.
-
-I would treat the following as the **final stabilization and deployment closure plan**.
-
-# ServOS Remaining Gap Remediation Plan
-
-## 1. P0: Repair Cloud v2 immediately
-
-This is currently the cleanest blocker.
-
-The important finding from the actual CI log is that **migration `044_mpesa_till_qr.sql` itself passes**. All migrations from 001 through 044 complete successfully.
-
-Cloud v2 fails later in:
-
-```text
-tests/supabase/pos.sql
-```
-
-with:
-
-```text
-ERROR: syntax error at or near "from"
-```
-
-The culprit is the new QR replacement fixture:
-
-```sql
-select servos_v2.put_record(
-  'organization',
-  'business',
-  jsonb_set(
-    data,
-    '{receipt,mpesaTillQr}',
-    jsonb_build_object(...)
-  )
-from servos_v2.records ...
-```
-
-There are effectively unmatched function parentheses around the `put_record()` call.
-
-There are **three similar statements** that should be corrected together:
-
-| Fixture | Current problem | Fix |
-|---|---|---|
-| Replace QR | malformed `put_record(... FROM ...)` | use `read_record()` or correctly close call |
-| Remove QR | same structural problem | rewrite using `read_record()` |
-| Disable QR | same structural problem | rewrite using `read_record()` |
-
-I recommend eliminating the `FROM records` pattern entirely:
-
-```sql
-select servos_v2.put_record(
-  'organization',
-  'business',
-  jsonb_set(
-    servos_v2.read_record('organization', 'business'),
-    '{receipt,mpesaTillQr}',
-    jsonb_build_object(
-      'enabled', true,
-      'label', 'Replacement Till',
-      'dataUrl', 'data:image/png;base64,BB==',
-      'thermalRaster', jsonb_build_object(
-        'width', 8,
-        'height', 8,
-        'base64', 'AwMDAwMDAwM='
-      )
-    )
-  )
-);
-```
-
-There is a **second QR fixture defect waiting behind the syntax error**.
-
-For an 8 × 8 monochrome raster:
-
-```text
-rowBytes = ceil(8 / 8) = 1
-bytes    = 1 × 8 = 8
-base64   = 12 characters
-```
-
-The current fixture uses:
-
-```text
-AwMDAwMDAwMDA=
-```
-
-which is not the right encoded length.
-
-Eight bytes of `0x03` encode correctly as:
-
-```text
-AwMDAwMDAwM=
-```
-
-Do **not** weaken migration 044's validation. Fix the fixture.
-
-### Harden 044 while we're here
-
-The QR guard currently validates `thermalRaster` if one exists, but an enabled QR should really require one for direct thermal printing.
-
-For:
-
-```json
-{
-  "enabled": true
-}
-```
-
-require:
-
-```text
-dataUrl present
-thermalRaster present
-width == height
-width <= 320
-valid packed byte count
-valid base64
-```
-
-Otherwise Web could display a QR while the XP-80T path silently has no printable raster.
-
-Also add explicit fixture cases for:
-
-```text
-enabled + valid raster          -> accepted
-enabled + missing raster        -> rejected
-non-square raster               -> rejected
-oversized raster                -> rejected
-incorrect encoded byte length   -> rejected
-disabled but retained QR        -> accepted, omitted from new receipt
-removed QR                      -> omitted from new receipt
-replacement QR                  -> only new receipts change
-historic receipt                -> original QR preserved
-```
-
-**P0 exit condition:** `npm run test:cloud:v2` is green through expansion 044 and the complete POS fixture.
+**Prepared:** 1 October 2026, Africa/Nairobi  
+**Repository:** `davemusau00/SERVEOS-WEB`  
+**Live head reviewed:** `d71f8e7d0459a86e2af685780c68ee766c52efd4`  
+**Primary objective:** DEPLOY A FRESH PRODUCTION TERMINAL AS SOON AS SAFELY POSSIBLE  
+**Release strategy:** Native terminal first. Keep shared Web/PostgreSQL v2 business writes disabled until their separate cutover gate is accepted.
 
 ---
 
-# 2. P0: Repair the Tauri desktop compile boundary
+## 1. Release objective
 
-The actual desktop log now contains **one primary Rust compile error**, not a giant native failure.
+ServOS is now in final stabilization, not broad feature construction.
 
-Current code:
+The immediate target is a dependable first production terminal with:
 
-```rust
-let pending=store::next_native_v2_pending(
-    &state.db.lock().map_err(|e|e.to_string())?,
-    &terminal
-)?
-.ok_or("Durable v2 command queue entry disappeared")?;
-```
+- Tauri/SQLite operational authority
+- XP-80T 80mm printing
+- physical barcode scanner support
+- real business identity/settings
+- M-Pesa manual reconciliation
+- uploaded M-Pesa Till QR on customer receipts
+- individual Admin/operator identities
+- controlled fresh data commissioning
+- automated, repeatable Supabase migrations
+- proven backup/restore
+- a completed shift rehearsal
 
-Rust is receiving:
+The full Web/shared-v2 product remains a parallel release stream. Web-only polish must not delay the first terminal unless the defect affects shared business data, permissions, receipts, stock, money, migrations, or Native behavior.
+
+---
+
+# 2. Current live repository state
+
+At the reviewed head, ServOS CI run **#123** was still executing.
+
+Observed during this revision:
+
+| Job | State |
+|---|---|
+| Frontend | PASS |
+| Native domain | PASS |
+| Cloud protocol base | PASS |
+| Cloud protocol v2 | FAIL |
+| Desktop shell | RUNNING at review time |
+| Browser preview | RUNNING at review time |
+| Browser production | RUNNING at review time |
+| Vercel | PASS |
+
+### Current Cloud v2 failure
+
+All checked-in base migrations and expansion migrations through:
+
+`044_mpesa_till_qr.sql`
+
+successfully apply in the disposable PostgreSQL test environment.
+
+The present Cloud v2 failure occurs later in:
+
+`tests/supabase/pos.sql`
+
+The newly added `failing_put(...)` QR-guard test data contains malformed JSON. The JSON input ends before the outer business object is closed.
+
+This is now a **fixture defect**, not a migration application failure.
+
+### Immediate fix
+
+Correct all new `failing_put` JSON literals for:
+
+- non-square QR raster
+- oversized QR raster
+- wrong packed/base64 length
+- enabled QR missing `dataUrl`
+- QR configuration missing explicit `enabled`
+
+Keep migration 044 strict.
+
+An enabled receipt QR must have both:
+
+- a valid normalized PNG `dataUrl`
+- a valid printable square `thermalRaster`
+
+Do not weaken the QR database guard merely to make CI green.
+
+---
+
+# 3. TERMINAL-ASAP RELEASE PROFILE
+
+The first production release should use this authority model:
 
 ```text
-&MutexGuard<Connection>
+SERVOS TERMINAL PRODUCTION
+--------------------------
+Native Tauri app
+SQLite local operational writer
+XP-80T receipt printer
+USB/HID barcode scanner
+Supabase production project migrated from Git
+Supabase Auth for named staff identities
+shared servos_v2 business writes: OFF initially
+transactional Web v2: OFF initially
 ```
 
-where the function expects:
+This gives us the fastest safe deployment path.
+
+The hosted database and Auth system are prepared correctly now, but the terminal does not depend on unfinished Web/shared-writer acceptance to begin operating.
+
+`servos_v2.control.enabled` must remain false until the separate shared-v2 cutover is accepted.
+
+---
+
+# 4. P0 — TERMINAL RELEASE BLOCKERS
+
+## T0-01 — Cloud v2 fixture repair
+
+Fix the malformed QR JSON fixtures.
+
+Add both positive and negative QR guard cases:
 
 ```text
-&Connection
+valid enabled QR                    PASS
+enabled QR without raster           REJECT
+non-square raster                   REJECT
+raster > 320 dots                   REJECT
+wrong packed/base64 length          REJECT
+missing dataUrl                     REJECT
+missing enabled flag                REJECT
+disabled configured QR              PASS, omitted from new receipt
+removed QR                          PASS, omitted from new receipt
+replaced QR                         affects new receipts only
+historic receipt                    keeps original QR snapshot
 ```
 
-More importantly, holding an anonymous lock temporary through a complex expression is ugly around an async synchronization boundary.
+**Exit gate:**
 
-Replace it with an explicit short lock scope:
+`npm run test:cloud:v2`
 
-```rust
-let pending = {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    store::next_native_v2_pending(&*db, &terminal)?
-}
-.ok_or("Durable v2 command queue entry disappeared")?;
-```
+must pass completely.
 
-I would make the same pattern mandatory throughout the v2 adapter:
+---
 
-```rust
-{
-    let db = state.db.lock()?;
-    read(...)
-}
+## T0-02 — Desktop shell must be green
 
-{
-    let mut db = state.db.lock()?;
-    mutate(...)
-}
-```
+Native-domain passing is not enough. The actual Tauri application boundary must compile and test.
 
-Do not hold the SQLite mutex while awaiting network RPC calls.
+The previously identified `next_native_v2_pending` call should use a short explicit SQLite lock scope and pass the underlying `Connection`, not the `MutexGuard`.
 
-That gives you three benefits:
+Do not hold the SQLite mutex across awaited network work.
+
+Required same-SHA verification:
 
 ```text
-compile correctness
-less lock contention
-lower deadlock/reentrancy risk
-```
-
-After fixing it, run the complete desktop sequence, not just `cargo check`:
-
-```bash
 npm run check:desktop
 npm run test:desktop
 npm run test:native
 ```
 
-Then build the actual Tauri package from the exact accepted commit.
-
-**P0 exit condition:** Desktop shell and Native Domain both pass on the same SHA.
+**Exit gate:** Desktop shell and Native domain are both green on the exact candidate SHA.
 
 ---
 
-# 3. P0: Fix the OUTCOME_UNKNOWN modal recovery UX
+## T0-03 — Create a dedicated Terminal Release Candidate gate
 
-This is one of the most useful discoveries in the browser artifact.
+The current general `release-candidate` gate protects the complete dual-runtime product, which is correct for the full release.
 
-The failing test creates a Room Type while deliberately simulating **response loss**.
+Add a separate:
 
-ServOS correctly does this:
+`terminal-release-candidate`
 
-```text
-command sent
-↓
-response lost
-↓
-OUTCOME_UNKNOWN
-↓
-do NOT clear form
-↓
-do NOT allow accidental second submission
-```
+artifact/job.
 
-Excellent.
+It must require:
 
-But the modal remains open, while the test tries to press the global:
+- frontend PASS
+- native-domain PASS
+- desktop-shell PASS
+- cloud-protocol-base PASS
+- cloud-protocol-v2 PASS if the production project receives the full current migration chain
+- contracts/docs checks PASS
+- exact Git SHA recorded
+- migration-set hash recorded
+- package artifact built from the same SHA
 
-```text
-Synchronize
-```
+Browser failures that are purely Web navigation/presentation issues do not block the terminal candidate.
 
-button behind it.
-
-Playwright reports:
-
-```text
-modal overlay intercepts pointer events
-```
-
-That is not merely a bad test. It exposes a genuine operator-flow problem.
-
-The system tells the operator:
-
-> saved for outcome checking
-
-but then places the recovery control behind a modal that intentionally traps focus.
-
-### Correct UX
-
-When a modal enters:
-
-```text
-PENDING
-OUTCOME_UNKNOWN
-```
-
-transform the modal footer into a recovery state:
-
-```text
-────────────────────────────────
-We don't yet know whether this
-change reached the server.
-
-[ Check status ] [ Open Activity ]
-
-Do not submit this operation again.
-────────────────────────────────
-```
-
-`Check status` should:
-
-```text
-reuse exact command ID
-     ↓
-synchronize
-     ↓
-inspect command state
-     ↓
-CONFIRMED -> close dialog + refresh
-REJECTED  -> keep dialog + restore editing
-CONFLICT  -> keep dialog + show changed fields
-UNKNOWN   -> keep recovery state
-```
-
-Do not make the background Synchronize button clickable through the modal. That would undermine focus trapping and modal semantics.
-
-This recovery component should be reusable for:
-
-```text
-room creation
-asset creation
-payments
-refunds
-stock counts
-purchase receipt
-maintenance
-reservations
-staff changes
-settings changes
-```
-
-Call it something like:
-
-```tsx
-<CommandRecoveryState />
-```
-
-and feed it:
-
-```ts
-commandId
-outcome
-onCheckStatus
-onOpenActivity
-onEditReplacement
-```
-
-This should become part of the shared dialog contract.
-
-**P0 exit condition:** response-loss tests pass without force-clicks or bypassing the modal.
+A browser failure that exposes a shared domain, permission, migration, financial, inventory or receipt defect **does** block the terminal.
 
 ---
 
-# 4. P0: Repair receipt-settings navigation
+# 5. P0 — AUTOMATED SUPABASE MIGRATIONS
 
-The receipt browser tests currently fail waiting for:
+## 5.1 Current structural blocker
+
+The repository currently separates database SQL into:
 
 ```text
-Business settings
+supabase/migrations/
+supabase/expansion/
 ```
 
-after entering:
+The ServOS disposable test runner manually reads both directories.
+
+The normal Supabase CLI deployment path does not know that `supabase/expansion/` is a second migration directory.
+
+Therefore:
+
+`supabase db push`
+
+cannot currently be trusted to deploy the complete ServOS schema automatically.
+
+This must be fixed before production database commissioning.
+
+---
+
+## 5.2 Canonical migration structure
+
+Create/restore:
+
+`supabase/config.toml`
+
+Then consolidate the reviewed expansion chain into the official migration history.
+
+Target structure:
 
 ```text
-Settings
+supabase/
+  config.toml
+  migrations/
+    202609240001_terminal_replica.sql
+    202609240002_remote_requests.sql
+    202609240003_request_validation.sql
+    202609270001_reconciliation_manifest.sql
+
+    202610010001_protocol.sql
+    202610010002_allocations.sql
+    ...
+    202610010043_receipt_branding_snapshots.sql
+    202610010044_mpesa_till_qr.sql
 ```
 
-The current source puts the receipt branding controls inside the **Administration view's SETTINGS subsection**.
+The exact timestamps may differ.
 
-That mismatch should not merely be patched in the test. The product navigation itself can be simplified.
+Rules:
 
-The owner/operator mental model is:
+1. Preserve expansion execution order exactly.
+2. Keep each migration independently tracked.
+3. Do not merge the complete chain into an opaque giant migration merely for convenience.
+4. Once production uses a migration timestamp, do not rewrite that applied migration.
+5. Future fixes are forward migrations.
+
+---
+
+## 5.3 Update the disposable test runner
+
+After consolidation:
+
+`scripts/test-supabase.mjs`
+
+must stop manually loading `supabase/expansion`.
+
+The v2 test should create the disposable database from the same canonical migration directory used by production.
+
+That eliminates the dangerous situation where:
+
+- CI tests one migration path
+- production `db push` deploys another
+
+The migration path must be identical.
+
+---
+
+# 6. SUPABASE CI/CD PIPELINE
+
+## 6.1 Required GitHub secrets
+
+Create protected repository/environment secrets:
 
 ```text
-Settings
-    Business
-    Branding & receipts
-    Payments
-    Printer
-    Rooms
-    Tax
+SUPABASE_ACCESS_TOKEN
+
+STAGING_PROJECT_ID
+STAGING_DB_PASSWORD
+
+PRODUCTION_PROJECT_ID
+PRODUCTION_DB_PASSWORD
 ```
 
-not:
+Never expose these in:
+
+- `.env.local`
+- Vite client variables
+- the Tauri frontend
+- source control
+- receipts
+- logs/artifacts
+
+The terminal/client only needs:
 
 ```text
-Administration
-    Business settings
-        Receipt settings
+VITE_SUPABASE_URL
+VITE_SUPABASE_PUBLISHABLE_KEY
 ```
 
-For the Web client, create a canonical:
+Never embed a service-role key.
 
-## Settings → Branding & receipts
+---
 
-containing:
+## 6.2 Pull-request migration verification
+
+When `supabase/migrations/**` changes:
+
+1. checkout repository
+2. install Supabase CLI
+3. initialize/start local Supabase
+4. reset database from zero
+5. apply every canonical migration
+6. run Cloud base tests
+7. run Cloud v2 tests
+8. run database/domain fixtures
+9. verify no generated migration drift
+10. fail the PR if any step fails
+
+The migration test must prove a clean database can reach the current schema without Dashboard intervention.
+
+---
+
+## 6.3 Staging deployment
+
+On the accepted integration/main branch:
 
 ```text
-App emblem
+supabase link --project-ref <STAGING_PROJECT_ID>
+supabase db push --dry-run
+supabase db push
+supabase migration list
+```
+
+Then run staging-safe smoke checks.
+
+Staging must prove:
+
+- migration history matches Git
+- Auth/session RPCs exist
+- read permissions work
+- v2 control is in the intended state
+- receipt branding/QR schema exists
+- staff/device binding RPCs exist
+
+---
+
+## 6.4 Production deployment
+
+Use a protected GitHub `production` environment or manual deployment workflow.
+
+Production deployment sequence:
+
+```text
+1. checkout exact accepted terminal SHA
+2. install Supabase CLI
+3. link PRODUCTION_PROJECT_ID
+4. supabase migration list
+5. supabase db push --dry-run
+6. review pending versions
+7. supabase db push
+8. supabase migration list
+9. run production-safe schema/RPC smoke checks
+10. write deployment evidence
+```
+
+Store in release evidence:
+
+- Git SHA
+- project reference
+- highest migration
+- migration list/hash
+- actor
+- deployment time
+- `servos_v2.control.enabled` state
+- smoke result
+
+---
+
+# 7. FASTEST SAFE HOSTED PATH — NEW PRODUCTION PROJECT
+
+Because this is a fresh live terminal and previous records are trial data, the recommended fast path is a **new clean production Supabase project**.
+
+Do not import trial transactions into the production books.
+
+For a new project:
+
+- no `db pull` is required
+- apply the committed migrations from zero
+- create real production Auth users
+- import reviewed master data separately
+- enter explicit opening balances/state
+
+If an existing trial Supabase project must be retained, do not push blindly.
+
+First reconcile:
+
+```text
+supabase migration list
+supabase db pull
+local reset/rehearsal
+migration repair only when justified
+```
+
+The existing hosted migration history must be understood before deployment.
+
+---
+
+# 8. ADMIN SETUP — FRESH PRODUCTION TERMINAL
+
+The first Admin is the commissioning identity.
+
+It is not a shared cashier account.
+
+## 8.1 Create the real Admin Auth user
+
+1. Invite/create the real owner or designated system Administrator in production Supabase Auth.
+2. Admin accepts the invitation.
+3. Admin creates their own password.
+4. Record the Auth UUID.
+5. During fresh initial owner enrollment, use the existing ServOS convention:
+
+```text
+Staff ID = auth:<Auth UUID>
+```
+
+for the initial owner/Admin identity.
+
+6. Verify active business membership.
+7. Verify Administrator permissions.
+
+Never use:
+
+- email as Staff ID
+- display name as Staff ID
+- terminal ID as Staff ID
+
+---
+
+## 8.2 Fresh Intake
+
+Use only real production details:
+
+```text
+Trading name
+Legal name
+Registration details
+Address
+Phone/email
+Property/outlet
+Currency: KES
+Timezone: Africa/Nairobi
+Tax configuration
+Receipt thank-you
+Payment methods
+M-Pesa account/Till
+Official M-Pesa Till QR
 Receipt logo
-M-Pesa Till QR
-QR enabled
-Till label
-Till number
-Receipt preview
-Save branding
+Room policy where applicable
 ```
 
-Then:
+Do not copy trial state simply because it already exists somewhere.
+
+---
+
+## 8.3 Pair the terminal once
+
+1. Complete local owner enrollment.
+2. Confirm the terminal has a stable terminal/device ID.
+3. Sign in online as the authorized Admin.
+4. Register/commission the `DESKTOP` device.
+5. Confirm hosted device ID equals the enrolled terminal ID.
+6. Sign out after commissioning.
+7. Subsequent operators reuse the same paired terminal.
+
+Do not register a new device for every operator.
+
+Do not grant `devices.register` to ordinary cashiers just to make setup easier.
+
+---
+
+## 8.4 Admin hardware configuration
+
+Configure:
 
 ```text
-Settings → Payments
-```
-
-contains:
-
-```text
-Cash
-M-Pesa
-Card
-Primary M-Pesa account
-```
-
-and:
-
-```text
-Settings → Printer
-```
-
-contains:
-
-```text
-80mm width
-columns
-logo width
-feed lines
+XP-80T printer mode
+Windows queue OR LAN host/port
+receipt columns
+thermal logo max width
+feed lines before cut
 auto cut
-LAN printer settings
+receipt logo
+M-Pesa Till QR
+barcode scanner
 ```
 
-Administration can contain a link:
-
-> Open business settings
-
-but should not own another independent implementation.
-
-Create one reusable Web component:
-
-```tsx
-<BusinessBrandingSettings />
-```
-
-with a single persistence contract.
-
-Browser tests should navigate by stable semantic heading:
-
-```text
-Branding & receipts
-```
-
-rather than by a brittle nested button name.
-
-**P0 exit condition:** branding/QR workflow passes every Web viewport.
+Print a non-sale test slip before live transaction tests.
 
 ---
 
-# 5. P0: Fix the “Add another size” product-family workflow
+# 9. OPERATOR SETUP — ONE PERSON, ONE IDENTITY
 
-Preview testing fails because it looks for:
+Every staff member gets their own identity.
 
-```text
-Product family name
-```
+## 9.1 Create/confirm local staff record
 
-after pressing:
+Each operator needs:
 
 ```text
-Add another size
+stable Staff ID
+display name
+role
+outlet/service-area scope
+local PIN if legacy/offline operation requires it
 ```
 
-But this is conceptually backwards.
-
-Once an operator is already inside:
-
-```text
-Jameson 350ml
-```
-
-and presses:
-
-```text
-Add another size
-```
-
-they should **not have to name or choose Jameson again**.
-
-The variant wizard should automatically inherit:
-
-```text
-productFamilyId
-productFamilyName
-brand/category defaults
-route defaults
-tax class defaults where valid
-```
-
-The screen should say:
-
-```text
-ADDING ANOTHER SIZE
-
-Product family
-Jameson
-
-Choose size
-[ 750 ml ] [ 1 L ] [ Custom ]
-```
-
-Make the family field read-only for this workflow.
-
-If the operator deliberately wants a different family, that should be:
-
-```text
-Create another product
-```
-
-not hidden inside “Add another size”.
-
-Then update preview acceptance to assert:
-
-```text
-variant 1 family ID == variant 2 family ID
-variant 2 did not create a second family
-variant 2 uses separate stock master
-size-specific barcode remains unique
-size-specific purchase packaging remains unique
-```
-
-This eliminates an unnecessary cognitive trap and makes the test follow the intended workflow rather than forcing the UI back toward an inferior one.
+The local PIN is not the online server identity.
 
 ---
 
-# 6. P1: Close the operation-contract splits
+## 9.2 Invite the operator
 
-This is now more important than adding new features.
+In:
 
-The parity ledger exposes several places where Terminal, Web and PostgreSQL technically support the same business idea through **different operation identities**.
+`ServOS Administration → Auth`
 
-### Customer credit
+use:
 
-Current split:
+`Invite staff member`
 
-| Runtime | Operation |
-|---|---|
-| Native | `customerCredit.charge` |
-| PostgreSQL | `credit.charge` |
-| Web | `credit.charge` |
+Send the invitation to that person's own account.
 
-Pick one canonical operation:
+The operator:
+
+- accepts invitation
+- creates their own password
+- keeps it private
+- uses normal Auth recovery if forgotten
+
+Admins must not collect staff passwords.
+
+---
+
+## 9.3 Bind the Auth UUID
+
+Bind:
 
 ```text
-credit.charge
+Auth UUID
+   ↓
+existing stable local Staff ID
 ```
 
-Then make Native use it.
+The mapping must be one-to-one.
 
-For one compatibility cycle, the native dispatcher may accept:
+Use `Generate ID for new staff` only when genuinely creating a new staff record.
+
+If the operator already exists locally, use the exact existing Staff ID.
+
+---
+
+## 9.4 Permission acceptance
+
+Before handover prove:
+
+```text
+Admin can perform an Admin-only configuration action
+Cashier/Server can sell and settle an allowed transaction
+Cashier/Server is denied an Admin-only action
+Storekeeper sees only intended stock workflows
+Reception sees intended hospitality workflows
+inactive/unbound Auth user is denied
+operator switch removes the old active session
+terminal device ID remains unchanged across operators
+```
+
+---
+
+# 10. ONLINE VS OFFLINE OPERATOR IDENTITY
+
+This distinction must be explained to staff.
+
+## Online Auth
+
+```text
+staff record selected
++
+operator's own email/password
++
+server-resolved permissions
+```
+
+No local PIN is required to establish the hosted identity.
+
+## Legacy/offline terminal access
+
+While shared-v2 authority remains disabled:
+
+```text
+local Staff ID
++
+local PIN
++
+SQLite authority
+```
+
+This does not create shared PostgreSQL authority.
+
+Do not teach staff that "PIN and cloud password are the same thing." They are separate security boundaries.
+
+---
+
+# 11. FRESH BUSINESS DATA COMMISSIONING
+
+## 11.1 Import master data only
+
+Controlled import may be used for:
+
+```text
+products/menu
+stock item definitions
+stock locations
+room types
+nightly rates
+rooms
+guests/customers
+suppliers
+asset categories
+assets
+staff profiles where appropriate
+```
+
+CSV requirements:
+
+```text
+UTF-8
+proper quoted-field handling
+leading-zero barcodes preserved as text
+scientific notation rejected where unsafe
+duplicate barcode rejection
+duplicate room rejection
+dry-run
+row-level rejection reason
+batch/source hash
+idempotent apply
+cancel/purge source
+immutable import summary
+```
+
+---
+
+## 11.2 Opening state is separate
+
+Do not manufacture fake historical transactions.
+
+Commission explicit opening state for:
+
+```text
+stock by location
+sealed bottles/open liquid
+opening till float
+supported opening receivables/payables if required
+```
+
+Create an Opening Balance Reconciliation report before Go Live.
+
+---
+
+# 12. XP-80T RECEIPT + M-PESA QR ACCEPTANCE
+
+On the actual printer test:
+
+```text
+cash receipt
+M-Pesa receipt
+split tender
+customer copy
+business record copy
+long receipt
+long item names
+receipt logo
+M-Pesa Till QR
+footer
+feed margin
+cutter
+reprint after printer restart
+historic reprint
+```
+
+Final customer receipt sequence remains:
+
+```text
+business header
+transaction content
+totals
+payment details
+thank-you
+optional M-Pesa Till QR
+fixed KINGSFORGE footer
+optional customer receipt logo
+blank feed
+cut
+```
+
+QR rules:
+
+```text
+customer copy only
+optional
+centered
+approximately 30–36 mm
+at least 4 QR modules of quiet zone
+no dithering
+no interpolation
+no cropping
+```
+
+Scan the printed QR successfully several consecutive times on an ordinary phone.
+
+Record:
+
+- printer queue/profile
+- feed lines
+- accepted QR size
+- sample receipt IDs
+- paper photos
+
+---
+
+# 13. PHYSICAL BARCODE SCANNER ACCEPTANCE
+
+Validate the actual scanner:
+
+```text
+rapid HID scan
+Enter suffix
+unit barcode
+package barcode
+dish/menu quick-scan barcode
+duplicate scans
+unknown barcode
+stock count
+goods receipt
+disconnect/reconnect
+```
+
+A scan must never accidentally populate:
+
+```text
+cash amount
+M-Pesa reference
+guest name
+room number
+reason field
+```
+
+---
+
+# 14. FULL SHIFT REHEARSAL
+
+Before live trading:
+
+```text
+Admin sign-in/configuration
+operator sign-in
+open till
+cash sale
+M-Pesa sale
+split sale
+reprint
+void/refund where role allows
+stock movement
+room/folio workflow if used
+cash-up
+till close
+backup
+restart
+reconcile
+```
+
+No unexplained cash, stock or receipt differences may remain.
+
+---
+
+# 15. BACKUP / RESTORE RELEASE GATE
+
+Before Go Live:
+
+1. create a real terminal backup
+2. hash/copy it
+3. restore it into an isolated test/replacement state
+4. launch ServOS
+5. verify:
+
+```text
+business settings
+staff
+products
+stock
+receipts
+branding
+Till QR
+printer profile
+```
+
+6. document the restore procedure
+
+A backup file that has never been restored is not accepted recovery evidence.
+
+---
+
+# 16. REMAINING GAPS THAT SHOULD NOT DELAY THE FIRST TERMINAL
+
+Provided shared-v2/Web transactional authority remains disabled, these may continue after terminal launch:
+
+```text
+Web OUTCOME_UNKNOWN modal recovery
+Web Settings → Branding & receipts navigation cleanup
+Web Add Another Size family inheritance polish
+stay.extend Web parity
+stay.checkIn Web parity
+stay.move Web parity
+stay.checkOut Web parity
+remaining Web procurement parity
+repeat-round Web parity
+manager approval UX for discount/comp/void
+credit.charge / customerCredit.charge canonicalization
+order.comp / order.compItem parity
+PWA installation/update acceptance
+lower-risk Web operator UX review
+shared-v2 writer cutover
+signed offline shared-v2 grants
+remote manager enhancements
+```
+
+Reclassify any item as a terminal blocker if it exposes a shared:
+
+- migration
+- financial
+- stock
+- permission
+- receipt
+- Auth
+- Native domain
+
+defect.
+
+---
+
+# 17. POST-TERMINAL HIGH-PRIORITY GAP CLOSURE
+
+## 17.1 OUTCOME_UNKNOWN recovery
+
+A modal containing an uncertain command must expose recovery inside the modal:
+
+```text
+Check status
+Open Activity
+Do not submit again
+```
+
+Do not require the operator to click a synchronization control hidden behind the modal.
+
+---
+
+## 17.2 Canonical operation identities
+
+Resolve runtime splits such as:
 
 ```text
 customerCredit.charge
-```
-
-as an alias and normalize it to:
-
-```text
 credit.charge
 ```
 
-before audit/storage.
+to one canonical operation.
 
-Do not permanently support both.
-
-### Comps
-
-Current split:
+Define separately:
 
 ```text
-order.comp
-order.compItem
+order.comp       whole-order comp
+order.compItem   item/quantity comp
+order.void       void/cancel semantics
+payment.refund   refund after settlement
 ```
 
-Define them precisely:
-
-```text
-order.comp
-whole-order comp
-
-order.compItem
-specific item/quantity comp
-```
-
-Both should exist in:
-
-```text
-Native
-PostgreSQL
-Web
-operation manifest
-permission matrix
-audit
-acceptance
-```
-
-Both should require:
-
-```text
-reason
-actor
-manager approval when policy requires
-before/after amount
-affected item IDs
-stock disposition
-```
-
-A comp must never quietly behave like a void.
-
-### Lifecycle operations
-
-The ledger says:
-
-```text
-setup.completeStep -> Web missing
-setup.goLive       -> Web missing
-```
-
-but Web already exposes lifecycle through RPC actions.
-
-That is a contract ambiguity.
-
-Choose one architecture:
-
-```text
-Web RPC
-   ↓
-canonical setup command
-   ↓
-same lifecycle handler
-```
-
-or remove the command-family claim from the manifest.
-
-Do not count the same concept once as an RPC and again as a missing command.
-
-### Room types
-
-`roomType.save` is reported Web-missing even though Web provides room-type setup through generic record flows.
-
-Change Web to send:
-
-```text
-roomType.save
-```
-
-instead of generic:
-
-```text
-record.save
-```
-
-for Room Types.
-
-That gives server-side domain validation an exact operation identity.
+Each must have explicit financial, stock, approval and audit effects.
 
 ---
 
-# 7. P1: Finish POS exception workflows
+## 17.3 Procurement completion
 
-Basic selling/payment is already mature. The remaining POS work is the dangerous edge layer.
-
-| Workflow | Current | Required closure |
-|---|---|---|
-| Repeat round | Web partial | restore original portions/modifiers, stock availability check |
-| Discount | Web partial | manager approval UX |
-| Whole order comp | cross-runtime mismatch | canonical operation |
-| Item comp | backend/Web missing | implement exact stock/financial semantics |
-| Void | Web partial | disposition + approval + audit |
-| Refund | strong | regression acceptance |
-| Split payment | strong | regression acceptance |
-| Room charge | strong | regression acceptance |
-
-For every exception workflow, capture:
+Finish:
 
 ```text
-who
-when
-reason
-manager approval
-original amount
-new amount
-stock effect
-journal effect
-command ID
+supplier
+purchase order
+approval
+partial receipt
+rejection
+over-receipt approval
+inventory conversion
+invoice match
+payable
+payment
 ```
 
-Most importantly:
-
-```text
-VOID != COMP != REFUND
-```
-
-The UI must make those different verbs visibly different.
+with replay/conflict acceptance.
 
 ---
 
-# 8. P1: Finish procurement rather than widening procurement
+## 17.4 Hospitality parity
 
-`purchaseOrder.create` and `purchaseOrder.receive` remain partial across all three runtime layers.
-
-Finish the existing process before adding more finance features.
-
-Canonical workflow:
-
-```text
-Supplier
-   ↓
-Purchase Order
-   ↓
-Approved quantity
-   ↓
-Goods Receipt
-   ↓
-Accepted / rejected quantity
-   ↓
-Inventory conversion
-   ↓
-Supplier invoice match
-   ↓
-Payable
-   ↓
-Payment
-```
-
-The package conversion must stay explicit:
-
-```text
-1 case
-× 24 bottles
-× 750 ml
-= 18,000 ml canonical inventory
-```
-
-Acceptance must include:
-
-```text
-partial delivery
-second partial delivery
-rejected goods
-missing rejection reason
-over-receipt
-manager-approved over-receipt
-wrong package
-price mismatch
-duplicate GRN replay
-response loss
-invoice mismatch
-already-paid invoice
-```
-
-Do not let received quantity silently default to ordered quantity without showing the operator what will post.
-
----
-
-# 9. P1: Close hospitality workflow parity
-
-The ledger still marks these Web flows partial:
+Close remaining Web acceptance for:
 
 ```text
 stay.extend
@@ -766,456 +923,33 @@ stay.move
 stay.checkOut
 ```
 
-The domain should become a single explicit stay state machine:
-
-```text
-RESERVED
-   ↓
-READY
-   ↓
-CHECKED_IN
-   ↓
-CHECKED_OUT
-
-plus:
-
-BLOCKED
-CANCELLED
-NO_SHOW
-```
-
-Every transition should have a blocker contract.
-
-For check-in:
-
-```text
-arrival time reached
-room ready
-room not blocked
-room capacity valid
-reservation still active
-required deposit state known
-```
-
-For room move:
-
-```text
-destination room available
-same interval valid
-capacity valid
-condition valid
-no active block
-source stay version current
-```
-
-For checkout:
-
-```text
-accommodation posted
-folio balanced/settlement policy satisfied
-deposit accounted for
-room released
-housekeeping state created
-```
-
-The operator should see these before pressing the action, not discover them as raw server exceptions.
+with explicit pre-action blockers.
 
 ---
 
-# 10. P1: Finish controlled import for fresh installation
+## 17.5 Durable manager approvals
 
-Because this deployment is now explicitly a **fresh terminal installation**, don't build migration logic around the old trial installation.
+Do not persist reusable PINs/tokens in drafts.
 
-Use a controlled onboarding import.
-
-Separate:
+Prefer a server-created approval record/reference bounded to:
 
 ```text
-MASTER DATA
-Products
-Stock masters
-Locations
-Rooms
-Room types
-Rates
-Guests
-Suppliers
-Assets
-Staff profiles
-
-OPENING STATE
-Stock balances
-Outstanding guest balances if any
-Outstanding supplier balances if any
-Opening cash float
+actor
+operation
+target
+amount
+expiry
 ```
 
-Never import opening balances as ordinary historical transactions.
-
-The current import architecture is promising but still partial.
-
-Complete these guarantees:
-
-```text
-UTF-8 CSV
-quoted values
-commas inside fields
-leading-zero barcodes preserved
-scientific notation rejected
-stable external ID optional/required by template
-duplicate barcode rejection
-duplicate room number rejection
-duplicate staff Auth binding rejection
-dry-run
-row-level reason
-batch hash
-source hash
-idempotent apply
-replay safety
-cancel/purge raw CSV
-immutable import summary
-```
-
-Then generate an **Opening Balance Reconciliation Report** immediately after commissioning.
+and reference that approval from replay-safe commands.
 
 ---
 
-# 11. P1: Make receipt QR genuinely release-grade
+# 18. WEB/TERMINAL SHARED-V2 CUTOVER — LATER RELEASE
 
-The new source implementation is solid, but hardware acceptance is still king.
+Do not allow legacy/local and shared-v2 writers to mutate the same live business simultaneously.
 
-The final customer receipt should remain:
-
-```text
-BUSINESS HEADER
-
-transaction details
-
-totals
-
-payment details
-
-thank-you
-
-
-[ M-PESA TILL QR ]
-
-
-Built By KINGSFORGE
-info@kingsforge.co.ke
-info@davemusau.co.ke
-0746157440
-
-[ BUSINESS LOGO ]
-
-
-blank feed
-cut
-```
-
-The QR must remain:
-
-```text
-customer copy only
-optional
-centered
-approximately 30-36 mm
-4+ module internal quiet zone
-no interpolation
-no dithering
-no cropping
-```
-
-Add approximately:
-
-```text
-3 mm visual outer clearance
-```
-
-around it in browser printing.
-
-Direct ESC/POS should use blank raster/line separation.
-
-Then test the actual XP-80T repeatedly:
-
-```text
-QR only
-QR + footer
-QR + footer + logo
-long receipt
-very long item names
-cash receipt
-M-Pesa receipt
-split receipt
-reprint
-printer restart
-five consecutive QR scans
-```
-
-The **cutter buffer comes after logo/footer**, not around the QR itself.
-
----
-
-# 12. P1: Complete barcode-scanner acceptance
-
-The scanner path needs physical HID acceptance, not only typed barcode simulation.
-
-Validate:
-
-```text
-rapid key wedge
-Enter suffix
-scanner while POS search has focus
-scanner while another field has focus
-duplicate scans
-unknown barcode
-package barcode
-unit barcode
-dish shortcut barcode
-stock-count scanning
-receiving scanning
-scanner disconnect/reconnect
-```
-
-The scanner should never accidentally type a barcode into:
-
-```text
-cash amount
-guest name
-room number
-reason field
-M-Pesa reference
-```
-
-while a scan session is active.
-
-Create an explicit scanner-session state.
-
----
-
-# 13. P1: Resolve durable approval-token storage
-
-One security/architecture item remains important.
-
-The current recovery design correctly retains queued commands for replay, but **durably storing one-time authorization material in IndexedDB is undesirable**.
-
-Better model:
-
-```text
-manager approves
-      ↓
-server creates approval record
-      ↓
-command references approvalId
-      ↓
-approval is bounded to:
- actor
- operation
- target
- amount
- expiration
-      ↓
-replay safely references same approval
-```
-
-Do not persist reusable manager PINs or raw temporary approval secrets in workflow drafts.
-
-Redaction should cover:
-
-```text
-payload
-draft fields
-technical detail
-Activity
-logs
-export
-error messages
-```
-
----
-
-# 14. P1: Fix parity-ledger semantics
-
-Some “blocked” items are not true parity failures.
-
-For example:
-
-```text
-runtime.print_receipt
-runtime.backup
-```
-
-are inherently terminal/runtime capabilities.
-
-The backend should not “implement printing”.
-
-Instead extend parity status beyond:
-
-```text
-implemented
-partial
-missing
-blocked
-```
-
-to include:
-
-```text
-local-only
-server-only
-not-applicable
-```
-
-Then:
-
-```text
-runtime.print_receipt:
-Native      IMPLEMENTED
-Web         IMPLEMENTED through client print contract
-Backend     NOT_APPLICABLE
-
-runtime.backup:
-Native      IMPLEMENTED
-Web         NOT_APPLICABLE or REQUEST_ONLY
-Backend     NOT_APPLICABLE
-```
-
-This stops intentional architecture from polluting the product-completion percentage.
-
----
-
-# 15. P2: Operator UX acceptance
-
-The parity ledger currently has a huge amount of:
-
-```text
-operator UX = UNREVIEWED
-```
-
-This is probably the largest remaining maturity gap by count.
-
-Do not manually test all 90 operations with the same weight.
-
-Use three risk classes:
-
-| Tier | Operations | Required proof |
-|---|---|---|
-| A | money, stock, stays, tills | full failure/recovery acceptance |
-| B | master-data mutations | happy, validation, permission, conflict |
-| C | read/local utilities | basic usability and accessibility |
-
-For every Tier A command, test:
-
-```text
-happy path
-validation failure
-permission denial
-double-click
-network loss before send
-network loss after server commit
-retry
-stale version conflict
-refresh
-logout/login
-second device
-audit evidence
-```
-
-This will convert the operation manifest from a documentation artifact into a genuine release ledger.
-
----
-
-# 16. P2: Fresh-terminal commissioning wizard
-
-The fresh install should not boot into a giant ERP and say “good luck”.
-
-Create a commissioning flow:
-
-```text
-1  Business identity
-2  Property/outlet
-3  Tax & currency
-4  Payment accounts
-5  M-Pesa + Till QR
-6  Printer
-7  Receipt branding
-8  Scanner
-9  Staff
-10 Rooms/rates
-11 Import catalogue
-12 Opening stock
-13 Backup destination
-14 Test transaction
-15 Readiness review
-16 Go Live
-```
-
-Every step has:
-
-```text
-Not started
-Needs review
-Passed
-```
-
-Go Live remains disabled until mandatory steps pass.
-
-This is particularly important for Country Side Resort because a fresh installation means trial data should never sneak into the live ledger.
-
----
-
-# 17. P2: Backup and disaster recovery must become proof, not a button
-
-Test:
-
-```text
-backup
-hash
-copy
-restore
-launch
-login
-inventory totals
-orders
-receipts
-staff
-settings
-branding
-QR
-printer profile
-```
-
-Then test a simulated dead terminal:
-
-```text
-new machine
-fresh ServOS install
-restore backup
-re-pair hardware
-resume operation
-```
-
-A backup that has never been restored is a hopeful zip file, not a recovery system.
-
----
-
-# 18. P2: Web/Terminal writer cutover
-
-This remains the biggest architectural production gate for full dual-runtime ServOS.
-
-At cutover there must be exactly one write authority.
-
-Never allow:
-
-```text
-legacy terminal writes
-+
-shared PostgreSQL v2 writes
-```
-
-simultaneously for the same live business.
-
-Use explicit business mode:
+Use an explicit operating mode:
 
 ```text
 LEGACY_LOCAL
@@ -1223,126 +957,128 @@ STAGING_V2
 SHARED_V2
 ```
 
-Switching to `SHARED_V2` should require:
+Switching to `SHARED_V2` requires:
 
 ```text
 schema accepted
-reconciliation accepted
+all migration versions reconciled
 operator identities bound
 terminal paired
 all pending commands resolved
-snapshot version current
+snapshot current
 backup created
-cutover token recorded
+cutover evidence recorded
+full required operation parity accepted
 ```
 
-Once switched:
-
-```text
-legacy write entry points fail closed
-```
-
-Reads may remain cached locally.
+Once shared-v2 is enabled, incompatible legacy write paths must fail closed.
 
 ---
 
-# 19. P2: Target-hardware performance gate
+# 19. TERMINAL-ASAP EXECUTION ORDER
 
-The final build needs to be tested on the actual POS hardware, not only developer machines and GitHub runners.
-
-For the target Celeron/J3455-class terminal, record:
-
-| Measurement | Target behavior |
-|---|---|
-| Boot to login | predictable, no blank state |
-| Login | no UI lockup |
-| Barcode to matched item | effectively immediate |
-| Add item | immediate UI feedback |
-| Pay | one clear progress state |
-| Receipt | starts without frozen interface |
-| Inventory count | usable with large catalogue |
-| Startup memory | stable |
-| Full-shift memory | no continuous climb |
-| SQLite DB growth | predictable |
-| Repeated reprint | no queue corruption |
-
-The exact numeric thresholds can be established from the physical machine, then turned into regression targets.
-
----
-
-# 20. Release documentation itself needs correction
-
-`docs/CURRENT_RELEASE_STATE.md` is already stale relative to CI #120.
-
-It still contains source-era language such as:
-
-```text
-no verification command has run
-```
-
-while the current GitHub run has already executed large portions of the stack.
-
-That document should stop being manually maintained as the authoritative status.
-
-Generate the top portion from same-SHA CI evidence:
-
-```text
-SHA
-timestamp
-frontend result
-native result
-desktop result
-cloud base
-cloud v2
-preview
-production browser
-migration max
-artifact IDs
-candidate status
-```
-
-Then retain human-written notes below it.
-
-This avoids the repo telling three different stories at once.
+1. Correct malformed QR `failing_put` JSON.
+2. Re-run Cloud v2 to green.
+3. Get Desktop shell to green.
+4. Consolidate `supabase/expansion` into canonical `supabase/migrations`.
+5. Add `supabase/config.toml`.
+6. Update database tests to execute the canonical migrations exactly once.
+7. Add GitHub Supabase PR/staging/production workflows.
+8. Create clean production Supabase project.
+9. Push migrations from exact accepted SHA.
+10. Verify production migration list.
+11. Provision real Admin Auth identity.
+12. Build Windows installer from exact terminal candidate SHA.
+13. Fresh-install on target terminal.
+14. Complete production Intake.
+15. Pair terminal once as Admin.
+16. Configure printer/logo/Till QR/scanner.
+17. Create real staff records.
+18. Invite and bind individual operator Auth identities.
+19. Import reviewed master data.
+20. Reconcile opening stock/till state.
+21. Perform physical printer/QR/scanner acceptance.
+22. Run full shift rehearsal.
+23. Run backup/restore rehearsal.
+24. Sign off Go Live.
+25. Keep shared-v2 writes disabled.
+26. Continue Web/shared-v2 closure as the next release stream.
 
 ---
 
-# Recommended execution order
+# 20. GO / NO-GO CHECKLIST
 
-1. **Fix `tests/supabase/pos.sql` syntax and valid QR raster fixture.**
-2. **Fix Tauri `MutexGuard<Connection>` compile defect.**
-3. **Implement modal-level OUTCOME_UNKNOWN recovery.**
-4. **Make Web Settings → Branding & receipts the canonical QR/logo route.**
-5. **Fix Add Another Size to inherit the product family automatically.**
-6. **Run Cloud v2 + Desktop + focused browser tests.**
-7. **Run full CI. Do not proceed until every required job is green on one SHA.**
-8. **Unify credit and comp operation contracts.**
-9. **Close POS, hospitality, procurement, stock-count and import parity gaps.**
-10. **Complete operator UX acceptance for Tier A operations.**
-11. **Build the frozen installer.**
-12. **Perform fresh terminal commissioning.**
-13. **Run XP-80T + QR + scanner acceptance.**
-14. **Run a full business shift simulation.**
-15. **Run outage/restart/response-loss scenarios.**
-16. **Backup, wipe, reinstall and restore.**
-17. **Reconcile stock, cash, receipts, M-Pesa and rooms.**
-18. **Freeze and release the accepted SHA.**
+The first terminal may go live only when:
 
-## Where that would leave ServOS
+- [ ] release SHA is recorded
+- [ ] frontend is green
+- [ ] native-domain is green
+- [ ] desktop-shell is green
+- [ ] cloud-base is green
+- [ ] full migration chain is green in disposable acceptance
+- [ ] canonical migrations live in `supabase/migrations`
+- [ ] production `db push --dry-run` is reviewed
+- [ ] production migration push succeeds
+- [ ] production migration list matches repository
+- [ ] shared-v2 writer is deliberately OFF unless separately approved
+- [ ] real Admin Auth user is configured
+- [ ] terminal paired exactly once
+- [ ] every operator has an individual identity
+- [ ] stable Staff ID bindings are correct
+- [ ] ordinary operator permission denial is tested
+- [ ] real business settings are configured
+- [ ] official M-Pesa Till QR is uploaded
+- [ ] XP-80T customer/business receipts are accepted
+- [ ] printed QR scans reliably
+- [ ] physical barcode scanner is accepted
+- [ ] opening state is reconciled
+- [ ] full shift rehearsal is accepted
+- [ ] backup restore is demonstrated
+- [ ] trial data is absent from production books
+- [ ] Go Live is signed off
 
-The remaining source work is no longer “build another 20% of the ERP.”
+---
 
-My current decomposition looks closer to:
+# 21. MIGRATION SOURCE-OF-TRUTH RULE
+
+Official deployment reference:
+
+https://supabase.com/docs/guides/deployment/database-migrations
+
+Environment / CI reference:
+
+https://supabase.com/docs/guides/deployment/managing-environments
+
+From this revision onward:
+
+> If a production schema change is not represented in the committed canonical Supabase migration history, it is not an approved ServOS production schema change.
+
+Do not use the remote Dashboard SQL editor to bypass the migration pipeline for release work.
+
+---
+
+# 22. CURRENT DELIVERY JUDGMENT
+
+ServOS remains approximately:
 
 ```text
-~91% feature/source implementation
-       │
-       ├── ~3% contract and integration closure
-       ├── ~2% UX/recovery closure
-       ├── ~1% remaining parity/domain work
-       └── ~3% physical + operational acceptance
+~91% source/feature complete
+~80% production-proven
 ```
 
-The biggest lesson from CI #120 is that the red badge looks scarier than the actual defect surface. **Cloud v2 is currently dying on a malformed new test statement. Desktop has one clear Rust type/locking error. Browser failures collapse into roughly three flow problems.**
+The remaining terminal launch work is now a narrow deployment/stabilization path rather than another feature-development cycle.
 
-Once those four P0 areas are cleared, I would expect the repo to cross from **“90% built” into genuine release-candidate territory**, at which point the work should shift almost entirely from coding to proving ServOS on the actual terminal, printer, scanner, network and business workflow.
+The fastest responsible route is:
+
+```text
+Cloud fixture green
+→ Desktop green
+→ canonical Supabase migrations
+→ clean production Supabase
+→ Admin/operator commissioning
+→ fresh terminal install
+→ XP-80T + QR + scanner
+→ shift rehearsal
+→ restore rehearsal
+→ Go Live
+```
