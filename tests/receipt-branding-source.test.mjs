@@ -114,6 +114,10 @@ test('Terminal and staged Web persist the same Till QR meaning and snapshot it i
   assert.match(receipts, /"mpesaTillQr":till_qr/);
   assert.match(migration, /guard_business_till_qr/);
   assert.match(migration, /capture_receipt_branding/);
+  // An enabled QR must carry a printable raster, otherwise Web shows a QR the XP-80T cannot print.
+  assert.match(migration, /an enabled M-Pesa Till QR requires a thermal raster/);
+  // jsonb_typeof of an absent key is 'null', so the enabled flag must be tested directly.
+  assert.match(migration, /coalesce\(jsonb_typeof\(qr->'enabled'\),'missing'\)<>'boolean'/);
   // The QR is never presented as payment confirmation.
   assert.ok(!/provider-confirmed|provider confirmed/i.test(editor.replace(/never proof that M-Pesa funds were received/gi, '')));
 });
