@@ -194,11 +194,11 @@ end$$;
 
 -- Till QR settings validation: an enabled QR must carry a printable square raster, and the
 -- migration 044 guard is authoritative. A rejected write must not change the stored settings.
-select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":16,"base64":"AwMDAwMDAwM="}}}','VALIDATION_FAILED');
-select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":400,"height":400,"base64":"AwMDAwMDAwM="}}}','VALIDATION_FAILED');
-select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwMDA="}}}','VALIDATION_FAILED');
-select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwM="}}}','VALIDATION_FAILED');
-select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwM="}}}}','VALIDATION_FAILED');
+select pg_temp.failing_put('non-square QR raster','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":16,"base64":"AwMDAwMDAwM="}}}}');
+select pg_temp.failing_put('oversized QR raster','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":400,"height":400,"base64":"AwMDAwMDAwM="}}}}');
+select pg_temp.failing_put('wrong QR raster byte length','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwMDA="}}}}');
+select pg_temp.failing_put('enabled QR without a raster','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA=="}}}');
+select pg_temp.failing_put('QR without an explicit enabled flag','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwM="}}}}');
 do $$begin
   if servos_v2.read_record('organization','business')->'receipt'->'mpesaTillQr'->>'label'<>'Country Side Till' then
     raise exception 'A rejected Till QR write changed the stored settings';

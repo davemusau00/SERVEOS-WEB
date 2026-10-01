@@ -16,7 +16,8 @@ begin
   qr:=receipt->'mpesaTillQr';
   if qr is not null and jsonb_typeof(qr)<>'null' then
     if jsonb_typeof(qr)<>'object' then raise exception 'VALIDATION_FAILED: M-Pesa Till QR must be an object';end if;
-    if jsonb_typeof(qr->'enabled')<>'boolean' then raise exception 'VALIDATION_FAILED: M-Pesa Till QR requires an explicit enabled flag';end if;
+    -- jsonb_typeof of an absent key yields 'null', so test the boolean directly.
+    if coalesce(jsonb_typeof(qr->'enabled'),'missing')<>'boolean' then raise exception 'VALIDATION_FAILED: M-Pesa Till QR requires an explicit enabled flag';end if;
     if qr ? 'label' and jsonb_typeof(qr->'label')<>'null' and length(qr->>'label')>60 then
       raise exception 'VALIDATION_FAILED: M-Pesa Till QR label cannot exceed 60 characters';
     end if;
