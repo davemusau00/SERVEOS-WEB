@@ -20,6 +20,8 @@ export function receiptText(document:ReceiptDocument,businessCopy=false,reprint=
   lines.push(`Paid: ${receiptMoney(document.paidMinor,document.currency)}`,`Balance: ${receiptMoney(document.balanceMinor,document.currency)}`);
   if(businessCopy)lines.push('Business record copy');
   if(document.message)lines.push(document.message);
+  // Plain text cannot carry image data; mark the position only. Never emit QR base64.
+  if(!businessCopy&&document.brandingSnapshot?.mpesaTillQr?.enabled)lines.push(document.brandingSnapshot.mpesaTillQr.label?`M-Pesa Till QR (${document.brandingSnapshot.mpesaTillQr.label}) - included on customer print`:'M-Pesa Till QR: included on customer print');
   lines.push(...(document.brandingSnapshot?.footerLines||(document.schemaVersion===1?LEGACY_RECEIPT_FOOTER:RECEIPT_FOOTER)));
   if(!businessCopy&&document.brandingSnapshot?.receiptLogoDataUrl)lines.push('[Business receipt logo follows]');
   return lines.filter((line):line is string=>Boolean(line)).join('\n');
