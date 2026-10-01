@@ -99,11 +99,15 @@ test('browser command boundary preserves distinct confirmation, draft, pending, 
   const contracts=readFileSync('src/types/transactions.ts','utf8');
   const app=readFileSync('src/runtime/web/WebBusinessApp.tsx','utf8');
   const hospitality=readFileSync('src/runtime/web/WebHospitalityViews.tsx','utf8');
+  const operatorErrors=readFileSync('src/runtime/web/operatorError.ts','utf8');
   const refunds=readFileSync('src/runtime/web/WebRefundsView.tsx','utf8');
   const pos=readFileSync('src/runtime/web/WebPosView.tsx','utf8');
   for(const kind of ['CONFIRMED','DRAFT_SAVED','PENDING','OUTCOME_UNKNOWN','REJECTED','CONFLICT','BLOCKED'])assert.match(contracts,new RegExp(`kind:\\s*['"]${kind}['"]`),kind);
   assert.match(contracts,/isCommandConfirmed\s*=\s*\(outcome:CommandOutcome\)=>outcome\.kind==='CONFIRMED'/);
   assert.match(app,/Promise<CommandOutcome>/);
+  assert.match(app,/operatorError\(error\)/);
+  assert.match(operatorErrors,/SQLSTATE|PGRST\\d\{3\}/);
+  assert.match(operatorErrors,/could not safely confirm this action/);
   assert.doesNotMatch(app,/submitForModule/);
   assert.match(app,/current\?\.state==='OUTCOME_UNKNOWN'[\s\S]*kind:'OUTCOME_UNKNOWN'/);
   assert.match(app,/current\?\.state==='CONFLICT'[\s\S]*kind:'CONFLICT'/);
