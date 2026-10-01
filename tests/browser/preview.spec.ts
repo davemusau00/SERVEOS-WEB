@@ -120,6 +120,8 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   await expect(page.getByRole('button', {name:'Add another size'})).toBeVisible();
   await page.getByRole('button', {name:'Add another size'}).click();
   const addVariant=page.getByRole('dialog', {name:'Add another size'});
+  await addVariant.getByLabel('Product family name').fill('Jameson');
+  await addVariant.getByRole('button', {name:'Continue'}).click();
   await addVariant.getByRole('combobox',{name:/Product family/}).selectOption({index:1});
   await addVariant.getByRole('button', {name:'Continue'}).click();
   await addVariant.getByRole('button', {name:'750ml'}).click();
@@ -143,6 +145,8 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   expect(variants[0].portions.map((portion:any)=>portion.name)).toEqual(['Whole bottle','Single']);
   await page.getByRole('button', {name:'Add another size'}).click();
   const atomicVariant=page.getByRole('dialog', {name:'Add another size'});
+  await atomicVariant.getByLabel('Product family name').fill('Jameson');
+  await atomicVariant.getByRole('button', {name:'Continue'}).click();
   await atomicVariant.getByRole('combobox',{name:/Product family/}).selectOption({index:1});
   await atomicVariant.getByRole('button', {name:'Continue'}).click();
   await atomicVariant.getByRole('button', {name:'1L'}).click();
