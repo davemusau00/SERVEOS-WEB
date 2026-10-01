@@ -957,11 +957,17 @@ fn execute_printer_job(state: &Runtime, job_id: &str) -> store::Result<Value> {
             let business = payload["businessLines"].as_array().map(|lines| lines.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>()).unwrap_or_default();
             let thermal_logo=payload.get("thermalLogo");
             let logo_fallback=if thermal_logo.map_or(true,Value::is_null)||!printer::logo_supported(thermal_logo,&profile){Some("Thermal logo is unavailable or exceeds this printer profile; this job uses the text-only receipt.")}else{None};
-            let bytes = printer::encode_receipt(&customer, &business, thermal_logo, &profile);
+            // The QR is snapshotted with the receipt. A missing or out-of-profile QR is reported
+            // explicitly and never blocks the receipt, the payment or a later reprint.
+            let qr=match payload.get("mpesaTillQr"){Some(value) if !value.is_null()&&value["enabled"].as_bool()==Some(true)=>Some(value),_=>None};
+            let qr_fallback=if qr.is_some()&&!printer::qr_supported(qr,&profile){Some("M-Pesa Till QR exceeds this printer profile or is unusable; this customer copy printed without it.")}else{None};
+            let warnings=[logo_fallback,qr_fallback];
+            let note=||format!("{}",warnings.iter().flatten().map(|warning|format!(" {warning}")).collect::<String>());
+            let bytes = printer::encode_receipt(&customer, &business, thermal_logo, qr, &profile);
             match printer::send(&profile, &bytes) {
-                Ok(message) => ("SENT",format!("{}{}",message,logo_fallback.map(|warning|format!(" {warning}")).unwrap_or_default())),
-                Err(printer::SendFailure::Queued(message)) => ("QUEUED",format!("{}{}",message,logo_fallback.map(|warning|format!(" {warning}")).unwrap_or_default())),
-                Err(printer::SendFailure::Uncertain(message)) => ("DELIVERY_UNCERTAIN",format!("{}{}",message,logo_fallback.map(|warning|format!(" {warning}")).unwrap_or_default())),
+                Ok(message) => ("SENT",format!("{}{}",message,note())),
+                Err(printer::SendFailure::Queued(message)) => ("QUEUED",format!("{}{}",message,note())),
+                Err(printer::SendFailure::Uncertain(message)) => ("DELIVERY_UNCERTAIN",format!("{}{}",message,note())),
             }
         }
         Err(message) => ("QUEUED", message),
@@ -972,8 +978,8 @@ fn execute_printer_job(state: &Runtime, job_id: &str) -> store::Result<Value> {
     Ok(json!({"jobId":job_id,"orderId":order_id,"state":result.0,"message":result.1}))
 }
 
-fn queue_printer_job(state: &Runtime, job_id: String, order_id: String, policy: Value, customer_lines: Vec<String>, business_lines: Vec<String>, thermal_logo: Value) -> store::Result<Value> {
-    let payload = json!({"customerLines":customer_lines,"businessLines":business_lines,"thermalLogo":thermal_logo});
+fn queue_printer_job(state: &Runtime, job_id: String, order_id: String, policy: Value, customer_lines: Vec<String>, business_lines: Vec<String>, thermal_logo: Value, mpesa_till_qr: Value) -> store::Result<Value> {
+    let payload = json!({"customerLines":customer_lines,"businessLines":business_lines,"thermalLogo":thermal_logo,"mpesaTillQr":mpesa_till_qr});
     {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let existing: Option<(String,String)> = db.query_row("SELECT state,message FROM receipt_print_jobs WHERE id=?", [&job_id], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(|e| e.to_string())?;
@@ -1000,7 +1006,7 @@ fn runtime_print_receipt(state: State<Runtime>, token: String, job_id: String, o
     }
     let customer_lines=store::receipts::lines(&document,false,profile.columns,reprint);
     let business_lines=store::receipts::lines(&document,true,profile.columns,reprint);
-    queue_printer_job(&state, job_id, order_id, policy, customer_lines, business_lines, document["brandingSnapshot"]["thermalLogo"].clone())
+    queue_printer_job(&state, job_id, order_id, policy, customer_lines, business_lines, document["brandingSnapshot"]["thermalLogo"].clone(), document["brandingSnapshot"]["mpesaTillQr"].clone())
 }
 
 #[tauri::command]
@@ -1038,7 +1044,7 @@ fn runtime_printer_test(state: State<Runtime>, token: String) -> store::Result<V
         return Err("Select XP-80T LAN or Windows USB queue mode before sending a test slip".into());
     }
     let stamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    queue_printer_job(&state, uuid::Uuid::new_v4().to_string(), "PRINTER_TEST".into(), policy, vec!["SERVOS XP-80T PRINTER TEST".into(),format!("Sent at {stamp}"),"Paper output must be checked at the printer.".into()], vec![])
+    queue_printer_job(&state, uuid::Uuid::new_v4().to_string(), "PRINTER_TEST".into(), policy, vec!["SERVOS XP-80T PRINTER TEST".into(),format!("Sent at {stamp}"),"Paper output must be checked at the printer.".into()], vec![], Value::Null, Value::Null)
 }
 
 #[tauri::command]

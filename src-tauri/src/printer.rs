@@ -12,6 +12,7 @@ pub struct PrinterProfile {
     pub queue: String,
     pub columns: usize,
     pub max_logo_width_dots: usize,
+    pub max_qr_width_dots: usize,
     pub feed_lines_before_cut: usize,
     pub auto_cut: bool,
 }
@@ -48,6 +49,13 @@ impl PrinterProfile {
         if !(64..=576).contains(&max_logo_width_dots) {
             return Err("Receipt logo width must be between 64 and 576 printer dots".into());
         }
+        let max_qr_width_dots = match policy.get("receiptMaxQrWidthDots") {
+            Some(value) => value.as_u64().ok_or("Receipt Till QR width must be a whole number")? as usize,
+            None => 320,
+        };
+        if !(64..=320).contains(&max_qr_width_dots) {
+            return Err("Receipt Till QR width must be between 64 and 320 printer dots".into());
+        }
         let feed_lines_before_cut = match policy.get("receiptFeedLines") {
             Some(value) => value.as_u64().ok_or("Receipt feed margin must be a whole number")? as usize,
             None => 5,
@@ -68,6 +76,7 @@ impl PrinterProfile {
                 .to_string(),
             columns: columns as usize,
             max_logo_width_dots,
+            max_qr_width_dots,
             feed_lines_before_cut,
             auto_cut: policy["receiptAutoCut"].as_bool().unwrap_or(true),
         };
@@ -109,18 +118,27 @@ impl PrinterProfile {
     }
 }
 
-pub fn encode_receipt(customer: &[String], business: &[String], logo: Option<&Value>, profile: &PrinterProfile) -> Vec<u8> {
+pub fn encode_receipt(customer: &[String], business: &[String], logo: Option<&Value>, qr: Option<&Value>, profile: &PrinterProfile) -> Vec<u8> {
     let mut bytes = vec![0x1b, b'@'];
-    append_copy(&mut bytes, customer, profile, logo);
-    append_copy(&mut bytes, business, profile, None);
+    // Customer copy: text, then the Till QR, then the fixed footer already inside `lines`, then the logo.
+    append_copy(&mut bytes, customer, profile, logo, qr);
+    // Business record copy never carries the customer-facing QR or logo.
+    append_copy(&mut bytes, business, profile, None, None);
     bytes
 }
 
-fn append_copy(bytes: &mut Vec<u8>, lines: &[String], profile: &PrinterProfile, logo: Option<&Value>) {
+fn append_copy(bytes: &mut Vec<u8>, lines: &[String], profile: &PrinterProfile, logo: Option<&Value>, qr: Option<&Value>) {
     if lines.is_empty() { return; }
     bytes.extend_from_slice(&[0x1b, b'a', 0]);
-    for line in lines {
-        let footer = ["Built By KINGSFORGE", "info@kingsforge.co.ke", "info@davemusau.co.ke", "0746157440", "Built By Davemusau.co.ke"].contains(&line.trim());
+    let footer_texts = ["Built By KINGSFORGE", "info@kingsforge.co.ke", "info@davemusau.co.ke", "0746157440", "Built By Davemusau.co.ke"];
+    // The QR sits at the bottom of the transactional receipt, immediately before the fixed footer,
+    // so it is emitted just before the first footer line rather than after the whole text block.
+    let footer_start = lines.iter().position(|line| footer_texts.contains(&line.trim()));
+    for (index, line) in lines.iter().enumerate() {
+        if Some(index) == footer_start {
+            if let Some(qr) = qr { append_qr(bytes, qr, profile); }
+        }
+        let footer = footer_texts.contains(&line.trim());
         let bold = line.trim_start().starts_with("TOTAL") || line.trim()=="CUSTOMER COPY" || line.trim()=="BUSINESS RECORD COPY";
         bytes.extend_from_slice(&[0x1b, b'M', if footer {1} else {0}, 0x1b, b'E', if bold {1} else {0}]);
         let printable: String = line
@@ -157,6 +175,44 @@ fn append_logo(bytes:&mut Vec<u8>,logo:&Value,profile:&PrinterProfile){
         (height&0xff) as u8,((height>>8)&0xff) as u8]);
     bytes.extend_from_slice(&raster);
     bytes.extend_from_slice(&[0x1b,b'a',0,b'\n']);
+}
+
+/// Decode a snapshot QR raster only when it is square and inside the configured printer dot width.
+/// Nothing derived from user image data ever becomes a raw printer control byte.
+fn decode_qr(qr:&Value,profile:&PrinterProfile)->Option<(usize,usize,Vec<u8>)>{
+    let raster=qr["thermalRaster"].as_object()?;
+    let width=raster["width"].as_u64()? as usize;
+    let height=raster["height"].as_u64()? as usize;
+    let encoded=raster["base64"].as_str()?;
+    if width==0||width>profile.max_qr_width_dots||height!=width||encoded.len()>24_000{return None;}
+    let decoded=STANDARD.decode(encoded).ok()?;
+    if decoded.len()!=((width+7)/8)*height{return None;}
+    Some((width,height,decoded))
+}
+
+/// Center a bounded square QR raster and surround it with explicit blank rows so it never touches the
+/// totals above or the fixed footer below. The cutter feed is never reused as the QR's bottom margin.
+fn append_qr(bytes:&mut Vec<u8>,qr:&Value,profile:&PrinterProfile){
+    let Some((width,height,raster))=decode_qr(qr,profile) else{return};
+    let text_dots=profile.columns.clamp(24,64)*8;
+    let pad=text_dots.saturating_sub(width)/2;
+    let row_bytes=(width+7)/8;
+    // ESC/POS GS v 0 is normal-density byte mode: xL/xH and yL/yH bound the raster.
+    // Blank rows before and after keep the QR clear of the totals and the footer.
+    bytes.extend(std::iter::repeat_n(b'\n',2));
+    // Center by moving to an absolute horizontal position, then restore the left margin afterwards.
+    bytes.extend_from_slice(&[0x1b,b'a',1,0x1d,b'!',(pad/8) as u8]);
+    bytes.extend_from_slice(&[0x1d,b'v',0,0,
+        (row_bytes&0xff) as u8,((row_bytes>>8)&0xff) as u8,
+        (height&0xff) as u8,((height>>8)&0xff) as u8]);
+    bytes.extend_from_slice(&raster);
+    bytes.extend_from_slice(&[0x1d,b'!',0,0x1b,b'a',0]);
+    bytes.extend(std::iter::repeat_n(b'\n',2));
+    bytes.push(b'\n');
+}
+
+pub fn qr_supported(qr:Option<&Value>,profile:&PrinterProfile)->bool{
+    match qr{Some(value)=>decode_qr(value,profile).is_some(),None=>false}
 }
 
 pub fn logo_supported(logo:Option<&Value>,profile:&PrinterProfile)->bool{
@@ -275,13 +331,25 @@ mod tests {
     use std::thread;
 
     fn lan_profile() -> PrinterProfile {
-        PrinterProfile { mode: "XP80T_LAN_ESC_POS".into(), host: "192.168.1.50".into(), port: 9100, queue: String::new(), columns: 48, max_logo_width_dots:576, feed_lines_before_cut:5, auto_cut: true }
+        PrinterProfile { mode: "XP80T_LAN_ESC_POS".into(), host: "192.168.1.50".into(), port: 9100, queue: String::new(), columns: 48, max_logo_width_dots:576, max_qr_width_dots:320, feed_lines_before_cut:5, auto_cut: true }
+    }
+
+    /// A square 16-dot raster (2 bytes per row) with an all-zero body, plus a matching PNG data URL.
+    fn qr() -> Value {
+        let raster = STANDARD.encode(vec![0u8; (16 + 7) / 8 * 16]);
+        serde_json::json!({"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":16,"height":16,"base64":raster}})
+    }
+
+    /// Byte offsets of the first footer line and the first cut command.
+    fn footer_and_cut(bytes: &[u8]) -> (usize, usize) {
+        let at = |needle: &[u8]| bytes.windows(needle.len()).position(|part| part == needle).unwrap_or(usize::MAX);
+        (at(b"Built By KINGSFORGE"), at(&[0x1d, b'V', 0]))
     }
 
     #[test]
     fn receipt_contains_two_individually_cut_copies() {
         let profile = lan_profile();
-        let bytes = encode_receipt(&["CUSTOMER COPY".into()], &["BUSINESS RECORD COPY".into()], None, &profile);
+        let bytes = encode_receipt(&["CUSTOMER COPY".into()], &["BUSINESS RECORD COPY".into()], None, None, &profile);
         assert!(bytes.windows(b"CUSTOMER COPY".len()).any(|part| part == b"CUSTOMER COPY"));
         assert!(bytes.windows(b"BUSINESS RECORD COPY".len()).any(|part| part == b"BUSINESS RECORD COPY"));
         assert_eq!(bytes.windows(3).filter(|part| *part == &[0x1d, b'V', 0]).count(), 2);
@@ -292,7 +360,7 @@ mod tests {
         let mut profile = lan_profile();
         profile.columns = 24;
         profile.auto_cut = false;
-        let bytes = encode_receipt(&["KES 1,234.00 café with a long item name".into()], &[], None, &profile);
+        let bytes = encode_receipt(&["KES 1,234.00 café with a long item name".into()], &[], None, None, &profile);
         let text = String::from_utf8_lossy(&bytes);
         assert!(text.contains("caf?"));
         assert!(text.contains("\n\n\n"));
@@ -319,8 +387,82 @@ mod tests {
         let mut profile = lan_profile();
         profile.host = address.ip().to_string();
         profile.port = address.port();
-        let expected = encode_receipt(&["TEST".into()], &[], None, &profile);
+        let expected = encode_receipt(&["TEST".into()], &[], None, None, &profile);
         assert!(send_tcp(address, &expected).is_ok());
         assert_eq!(receiver.join().unwrap(), expected);
+    }
+
+    fn customer_lines() -> Vec<String> {
+        vec![
+            "CUSTOMER COPY".into(),
+            "TOTAL: KES 250.00".into(),
+            "Thank you for your business.".into(),
+            "Built By KINGSFORGE".into(),
+            "info@kingsforge.co.ke".into(),
+            "info@davemusau.co.ke".into(),
+            "0746157440".into(),
+        ]
+    }
+
+    /// The QR is the last customer-facing block before the fixed footer, and the footer precedes the cut.
+    #[test]
+    fn till_qr_prints_after_thank_you_and_before_the_fixed_footer() {
+        let profile = lan_profile();
+        let bytes = encode_receipt(&customer_lines(), &["BUSINESS RECORD COPY".into()], None, Some(&qr()), &profile);
+        let text = String::from_utf8_lossy(&bytes);
+        let (footer, cut) = footer_and_cut(&bytes);
+        let raster = bytes.windows(6).position(|part| part == &[0x1d, b'v', 0, 0, 2, 0]).unwrap();
+        assert!(raster < footer, "QR raster must precede the fixed footer");
+        assert!(text.find("Thank you").unwrap() < raster);
+        assert!(footer < cut, "footer must precede the cutter feed");
+    }
+
+    /// The business record copy never carries the customer-facing QR.
+    #[test]
+    fn business_record_copy_omits_the_till_qr() {
+        let profile = lan_profile();
+        let bytes = encode_receipt(&customer_lines(), &customer_lines(), None, Some(&qr()), &profile);
+        // Exactly one raster: the second copy received `None`.
+        assert_eq!(bytes.windows(6).filter(|part| *part == &[0x1d, b'v', 0, 0, 2, 0]).count(), 1);
+    }
+
+    /// No QR configured or configured-but-unsupported leaves a valid, unchanged receipt.
+    #[test]
+    fn missing_or_unsupported_till_qr_leaves_the_receipt_valid() {
+        let profile = lan_profile();
+        let plain = encode_receipt(&customer_lines(), &[], None, None, &profile);
+        assert!(!qr_supported(None, &profile));
+        assert!(plain.windows(b"Built By KINGSFORGE".len()).any(|part| part == b"Built By KINGSFORGE"));
+
+        let oversized = serde_json::json!({"thermalRaster":{"width":600,"height":600,"base64":"AA=="}});
+        assert!(!qr_supported(Some(&oversized), &profile));
+        let non_square = serde_json::json!({"thermalRaster":{"width":16,"height":32,"base64":"AA=="}});
+        assert!(!qr_supported(Some(&non_square), &profile));
+        let bytes = encode_receipt(&customer_lines(), &[], None, Some(&oversized), &profile);
+        assert_eq!(bytes.windows(6).filter(|part| *part == &[0x1d, b'v', 0, 0, 2, 0]).count(), 0);
+    }
+
+    /// The QR raster stays inside the configured printer dot width and honours the accepted feed margin.
+    #[test]
+    fn till_qr_width_stays_inside_the_printer_profile_and_feeds_after_content() {
+        let mut profile = lan_profile();
+        let qr_value = qr();
+        assert!(qr_supported(Some(&qr_value), &profile));
+        let bytes = encode_receipt(&customer_lines(), &[], None, Some(&qr_value), &profile);
+        let (_, cut) = footer_and_cut(&bytes);
+        // Configured feed lines still follow the final customer-facing content before the cut.
+        let trailing = &bytes[cut.saturating_sub(profile.feed_lines_before_cut)..cut];
+        assert!(trailing.iter().all(|byte| *byte == b'\n'));
+    }
+
+    /// The Till QR width bound is validated exactly like the existing logo bound.
+    #[test]
+    fn printer_profile_validates_the_till_qr_width() {
+        let policy = serde_json::json!({"receiptPrinterMode":"MANUAL","receiptMaxQrWidthDots":700});
+        assert!(PrinterProfile::from_policy(&policy).is_err());
+        let policy = serde_json::json!({"receiptPrinterMode":"MANUAL","receiptMaxQrWidthDots":300});
+        assert_eq!(PrinterProfile::from_policy(&policy).unwrap().max_qr_width_dots, 300);
+        let policy = serde_json::json!({"receiptPrinterMode":"MANUAL"});
+        assert_eq!(PrinterProfile::from_policy(&policy).unwrap().max_qr_width_dots, 320);
     }
 }

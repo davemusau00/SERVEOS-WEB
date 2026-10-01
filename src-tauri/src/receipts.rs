@@ -119,6 +119,11 @@ pub fn lines(doc:&Value,business_copy:bool,columns:usize,reprint:bool)->Vec<Stri
     let currency=doc["currency"].as_str().unwrap_or("KES");
     lines.push(pair("Paid",&amount(&doc["paidMinor"],currency),width));lines.push(pair("Balance",&amount(&doc["balanceMinor"],currency),width));
     if let Some(message)=doc["message"].as_str().filter(|v|!v.is_empty()){lines.push(centered(message));}
+    // Plain text cannot carry image data; mark the position only. Never emit QR base64.
+    if !business_copy && doc["brandingSnapshot"]["mpesaTillQr"]["enabled"].as_bool()==Some(true){
+        let label=doc["brandingSnapshot"]["mpesaTillQr"]["label"].as_str().filter(|v|!v.trim().is_empty()).map(clean);
+        lines.push(centered(&match label{Some(label)=>format!("M-Pesa Till QR ({label}) - included on customer print"),None=>"M-Pesa Till QR: included on customer print".to_string()}));
+    }
     let footer_lines=doc["brandingSnapshot"]["footerLines"].as_array().map(|values|values.iter().filter_map(Value::as_str).collect::<Vec<_>>()).unwrap_or_else(||if doc["schemaVersion"].as_i64()==Some(1){LEGACY_FOOTER.to_vec()}else{FOOTER.to_vec()});
     for footer in footer_lines{lines.push(centered(footer));}
     lines.into_iter().flat_map(|line|line.split('\n').map(str::to_owned).collect::<Vec<_>>()).collect()
