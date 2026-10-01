@@ -110,6 +110,7 @@ test('browser command boundary preserves distinct confirmation, draft, pending, 
   assert.match(app,/current\?\.state==='REJECTED'[\s\S]*kind:'REJECTED'/);
   assert.match(app,/predecessor\?\.state==='PENDING_SYNC'\|\|predecessor\?\.state==='OUTCOME_UNKNOWN'[\s\S]*kind:'BLOCKED'/);
   assert.match(app,/retainForReview\(\[message\],command\.id,false\)/);
+  assert.match(app,/find\(item=>item\.state==='OUTCOME_UNKNOWN'\)[\s\S]*kind:'OUTCOME_UNKNOWN',commandId:unresolvedCommand\.id/);
   assert.match(app,/command=\{submitForModule\}/);
   assert.match(app,/WebFrontDeskView[\s\S]*command=\{submit\}/);
   assert.match(app,/WebRefundsView[\s\S]*command=\{submit\}/);

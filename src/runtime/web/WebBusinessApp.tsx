@@ -117,6 +117,8 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
   if(submitInFlight.current)return {kind:'BLOCKED',message:'Another business action is being submitted. Wait for its outcome before continuing.'};
   submitInFlight.current=true;setBusy(true);setError('');setNotice('');let activeCommandId='';
   try{
+    const unresolvedCommand=(await store.current.queue()).find(item=>item.state==='OUTCOME_UNKNOWN');
+    if(unresolvedCommand){const message='A previous action still has an unknown outcome. Synchronize it to check the original command before starting another action.';setError(message);return {kind:'OUTCOME_UNKNOWN',commandId:unresolvedCommand.id,message}}
     if(editor?.supersedes){const predecessor=(await store.current.queue()).find(item=>item.id===editor.supersedes);if(predecessor?.state==='PENDING_SYNC'||predecessor?.state==='OUTCOME_UNKNOWN'){const message='ServOS is still checking the original command. Synchronize it before submitting a replacement.';setError(message);return {kind:'BLOCKED',message}}if(predecessor?.state==='SYNCHRONIZED'){const message='The original command was confirmed. Its replacement was not submitted.';setEditor(null);setError(message);return {kind:'BLOCKED',message}}}
     if(operation==='roomStay.settings'){
       const roomTypeId=String(payload.roomTypeId||'');
