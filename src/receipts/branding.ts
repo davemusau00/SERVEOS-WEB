@@ -120,6 +120,7 @@ function runPitch(values: Uint8Array): number {
 }
 
 export interface PreparedTillQr {
+  enabled: boolean;
   dataUrl: string;
   label?: string;
   tillNumber?: string;
@@ -214,7 +215,7 @@ export async function prepareMpesaTillQr(blob: Blob, meta: { label?: string; til
     outputContext.putImageData(image, 0, 0);
     const dataUrl = output.toDataURL('image/png');
     if (dataUrl.length > MAX_BRANDING_DATA_URL_LENGTH) throw new Error('The prepared Till QR is too large to save safely.');
-    return { dataUrl, label: meta.label?.trim() || undefined, tillNumber: meta.tillNumber?.trim() || undefined, thermalRaster };
+    return { dataUrl, enabled: true, label: meta.label?.trim() || undefined, tillNumber: meta.tillNumber?.trim() || undefined, thermalRaster };
   } finally {
     bitmap.close();
   }
