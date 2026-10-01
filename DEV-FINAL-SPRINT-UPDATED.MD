@@ -312,3 +312,56 @@ FS-14                complete POS/financial-shift acceptance
         ↓
 FS-23 / FS-24        fresh terminal commissioning + go-live rehearsal
 The QR should not delay unrelated domain repair, but physical receipt acceptance cannot close until the QR + logo + footer + cutter stack has been proven together on the actual printer.
+
+I’d put ServOS source/product completion at roughly 90%, but production readiness lower at about 80–84%.
+The distinction matters. The software has most of its organs now. What remains is increasingly about making sure they all share one bloodstream. 🧾⚙️
+Area	Current completion	State
+Native/Terminal domain implementation	~95%	Very high
+PostgreSQL/Supabase v2 backend	~92%	Very high
+Web operational parity	~83%	High, edge gaps remain
+Core business feature implementation	~91%	Most major domains exist
+UX/workflow hardening	~82–86%	Command outcomes improved substantially
+Automated release verification	~85%	Most CI green, desktop still red
+Physical terminal acceptance	~65–70%	Printer/scanner/fresh install/full shift remain
+Full Web + Terminal shared-authority production	~75–80%	Architecture exists, final cutover/rehearsal still outstanding
+Overall repo/product completion	~90%	Finish-line stage
+Actual production readiness	~82%	Not yet release-approved
+
+
+The current parity ledger has 90 tracked operations. Native has 84 fully implemented, 3 partial, 2 missing and 1 blocked. PostgreSQL has 80 implemented, 6 partial, 2 missing and 2 blocked. Web has 66 implemented, 17 partial, 6 missing and 1 blocked. Using partial implementations as roughly half-complete gives approximately 95% Native, 92% backend, and 83% Web source parity.
+That is a significant improvement from the earlier state where routing, Cloud v2 and Native tests were broken.
+Current CI state
+The latest ServOS CI #110 is especially encouraging:
+- ✅ Frontend: lint, production build, Node tests, UI audit and docs check all passed.
+- ✅ Native domain: passed.
+- ✅ Cloud protocol base: passed.
+- ✅ Cloud protocol v2: passed.
+- ✅ Vercel deployment: passed.
+- ❌ Desktop shell: check:desktop failed.
+- ⏳ Browser preview acceptance: still running when I checked.
+- ⏳ Browser production acceptance: still running.
+So one of the biggest earlier red lights has changed: Cloud v2 is now genuinely passing its expansion test job. That is a large maturity jump.
+What is effectively complete
+POS itself is now very mature: tabs, tables, portions, modifiers, firing, transfers, merging, discount/comp architecture, cash, M-Pesa, card, split payment, room charging, customer credit, refunds/reversals, receipt history and till handling are all substantially there.
+Inventory has also crossed from prototype into serious operational software: packaging, canonical quantity conversion, barcode handling, sealed/open spirits, location counts, batch production, recipes, transfers, waste, corrections and purchasing integration are present.
+Hospitality now has real Front Desk, reservations, stays, rooms, housekeeping, guest accounts, folios, rate configuration and maintenance/floorplan work.
+Receipts have moved considerably: friendly receipt numbers, immutable branding snapshots, business/customer copies, receipt logo, thermal raster support, cutter/feed margins, customer names and M-Pesa references are in the current tree.
+The new M-Pesa Till QR requirement we just defined is therefore an incremental FS-06 completion item, not a foundational missing subsystem.
+What keeps me from calling it 95%+
+There are five remaining chunks that contain disproportionate risk:
+1. Desktop shell must become green. Native domain passing is excellent, but the actual Tauri integration/build boundary still has a failing CI job.
+2. Browser acceptance needs to finish green. Frontend compilation passing is different from real workflow acceptance.
+3. FS-06 receipt completion. Add the M-Pesa Till QR, then physically prove QR + logo + footer + feed/cutter behavior on the XP-80T.
+4. Fresh terminal commissioning. Clean Windows install → Intake → real business setup → scanner → printer → opening stock → real staff → first till.
+5. Operational torture test. A full shift, internet outage, restart, printer failure, scanner failure, backup/restore and replacement-terminal recovery all need to survive.
+And for the full dual-runtime vision, there is another gate: Terminal and Web must be deliberately cut over to the common v2 authority without accidentally leaving legacy and v2 writers active together.
+The way I would frame maturity today
+ServOS is no longer 70–80% “still being built.”
+It is now around:
+90% built
+82% production-proven
+one concentrated final stabilization/acceptance sprint away from a defensible first deployment
+
+For the fresh single-business terminal specifically, I would put it slightly higher, around 87–90% deployable, because we do not need to solve every future distributed-Web/offline-grant problem before commissioning that machine.
+For the complete ServOS Terminal + Web distributed product, I would keep the figure around 78–82% production-ready until shared authority, cutover, failover and real multi-client concurrency have been accepted.
+The remaining work is no longer “build the ERP.” It is now close the last protocol differences, kill the red desktop gate, finish receipt QR, then beat the system up on real hardware until it stops surprising us.
