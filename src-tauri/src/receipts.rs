@@ -32,6 +32,19 @@ pub fn capture(tx: &Transaction, user: &Session, order_id: &str, command_id: &st
     let thermal_logo=property["receiptThermalLogo"].clone();
     let receipt_logo=property["receiptLogoDataUrl"].as_str().filter(|value|value.starts_with("data:image/jpeg;base64,")).map(str::to_owned);
     let branding_version=property["receiptBrandingVersion"].as_u64().unwrap_or(0);
+    // The Till QR is a payment convenience, never proof that funds were received. Snapshot it immutably
+    // so a later QR change or removal never rewrites a historical receipt.
+    let till_qr=property["receiptMpesaTillQr"].as_object().filter(|qr|qr["enabled"].as_bool()==Some(true))
+        .and_then(|qr|qr["dataUrl"].as_str().filter(|value|value.starts_with("data:image/png;base64,")).map(|value|json!({
+            "enabled":true,
+            "label":qr.get("label").filter(|v|v.as_str().is_some_and(|s|!s.trim().is_empty())),
+            "tillNumber":qr.get("tillNumber").filter(|v|v.as_str().is_some_and(|s|!s.trim().is_empty())),
+            "dataUrl":value,
+            "thermalRaster":qr["thermalRaster"].as_object().filter(|raster|{
+                let width=raster["width"].as_u64().unwrap_or(0);let height=raster["height"].as_u64().unwrap_or(0);
+                width>0&&width<=320&&height==width&&raster["base64"].as_str().is_some_and(|v|v.len()<=24_000)
+            })
+        })));
     let customer=order["customerId"].as_str().and_then(|key|get(tx,"customers",key).ok()).map(|(_,value)|value).unwrap_or(json!({}));
     let doc=json!({
         "id":receipt_id,"schemaVersion":2,"orderId":order_id,"sourceCommandId":command_id,
@@ -39,7 +52,7 @@ pub fn capture(tx: &Transaction, user: &Session, order_id: &str, command_id: &st
         "business":{"name":business["name"],"address":property["address"],"phone":property["phone"],"email":property["email"]},
         "outlet":outlet["name"],"cashier":user.name,"customerName":order["customerName"].as_str().or_else(||customer["name"].as_str()),"table":order["tableName"],"tab":order["tabName"],
         "currency":property["currency"].as_str().unwrap_or("KES"),"timezone":property["timezone"].as_str().unwrap_or("Africa/Nairobi"),
-        "brandingSnapshot":{"version":branding_version,"footerLines":FOOTER,"receiptLogoDataUrl":receipt_logo,"thermalLogo":thermal_logo},
+        "brandingSnapshot":{"version":branding_version,"footerLines":FOOTER,"receiptLogoDataUrl":receipt_logo,"thermalLogo":thermal_logo,"mpesaTillQr":till_qr},
         "items":items,"subtotalMinor":total+money(&order,"discountTotal")?,"discountMinor":money(&order,"discountTotal")?,
         "netMinor":money(&order,"subtotal")?,"taxMinor":money(&order,"taxTotal")?,"levyMinor":money(&order,"cateringLevyTotal")?,
         "totalMinor":total,"paidMinor":money(&order,"amountPaid")?,"creditedMinor":credited_minor,"balanceMinor":total-money(&order,"amountPaid")?-credited_minor,"payments":payments,

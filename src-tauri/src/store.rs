@@ -2982,8 +2982,27 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                             return Err("Thermal logo must be a bounded monochrome raster no wider than 576 dots".into());
                         }
                     }
+                    // Optional M-Pesa Till payment QR. A payment convenience only; never a payment confirmation.
+                    if !data["receiptMpesaTillQr"].is_null(){
+                        let qr=&data["receiptMpesaTillQr"];
+                        if !qr.is_object(){return Err("M-Pesa Till QR must be a single settings object".into());}
+                        if !qr["enabled"].is_boolean(){return Err("M-Pesa Till QR requires an explicit enabled flag".into());}
+                        if let Some(label)=qr["label"].as_str(){if label.chars().count()>60{return Err("M-Pesa Till QR label cannot exceed 60 characters".into());}}
+                        if let Some(till)=qr["tillNumber"].as_str(){if !till.is_empty()&&till.len()>32{return Err("M-Pesa Till number cannot exceed 32 characters".into());}}
+                        let Some(image)=qr["dataUrl"].as_str() else{return Err("M-Pesa Till QR image is required".into());};
+                        if !image.starts_with("data:image/png;base64,"){return Err("M-Pesa Till QR must be a normalized PNG".into());}
+                        if image.len()>239_976||!valid_base64(image.trim_start_matches("data:image/png;base64,")){return Err("M-Pesa Till QR exceeds the safe storage limit or is malformed".into());}
+                        let raster=qr["thermalRaster"].as_object().ok_or("M-Pesa Till QR thermal raster is required")?;
+                        let width=raster["width"].as_u64().ok_or("M-Pesa Till QR raster width is required")? as usize;
+                        let height=raster["height"].as_u64().ok_or("M-Pesa Till QR raster height is required")? as usize;
+                        let encoded=raster["base64"].as_str().ok_or("M-Pesa Till QR raster is required")?;
+                        let expected=((width+7)/8).checked_mul(height).ok_or("M-Pesa Till QR dimensions are invalid")?;
+                        if width==0||width>320||height!=width||encoded.len()>24_000||!valid_base64(encoded)||encoded.len()!=((expected+2)/3)*4{
+                            return Err("M-Pesa Till QR must be a bounded square monochrome raster no wider than 320 dots".into());
+                        }
+                    }
                     if let Some((_,prior))=&existing {
-                        if data["appEmblemDataUrl"]!=prior["appEmblemDataUrl"]||data["receiptLogoDataUrl"]!=prior["receiptLogoDataUrl"]||data["receiptThermalLogo"]!=prior["receiptThermalLogo"]{
+                        if data["appEmblemDataUrl"]!=prior["appEmblemDataUrl"]||data["receiptLogoDataUrl"]!=prior["receiptLogoDataUrl"]||data["receiptThermalLogo"]!=prior["receiptThermalLogo"]||data["receiptMpesaTillQr"]!=prior["receiptMpesaTillQr"]{
                             let next=prior["receiptBrandingVersion"].as_u64().unwrap_or(0).checked_add(1).ok_or("Receipt branding version exhausted")?;
                             data["receiptBrandingVersion"]=json!(next);
                         }
