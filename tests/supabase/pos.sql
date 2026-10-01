@@ -115,7 +115,7 @@ select pg_temp.pos_command('order.addItem','orders','tab-1','{"orderId":"tab-1",
 select pg_temp.pos_command('order.fire','orders','tab-1','{"orderId":"tab-1"}');
 
 -- Online POS settlement: manual evidence, atomic split, receipt and journal.
-select servos_v2.put_record('organization','business','{"name":"Test Business"}');
+select servos_v2.put_record('organization','business','{"name":"Test Business","branding":{"appEmblemDataUrl":null},"receipt":{"logoDataUrl":"data:image/jpeg;base64,AA==","thermalLogo":{"width":8,"height":1,"base64":"AA=="}}}');
 select servos_v2.put_record('property','property','{"name":"Test Property","address":"Test Street","phone":"0700000000","currency":"KES","timezone":"Africa/Nairobi","receiptFooter":"Thank you"}');
 select servos_v2.put_record('paymentAccounts','cash',jsonb_build_object('name','Cash till','method','CASH','accountCode','CASH'));
 select servos_v2.put_record('paymentAccounts','mpesa',jsonb_build_object('name','Manual M-Pesa','method','MPESA','number','0700000000','accountCode','MPESA_CLEARING'));
@@ -136,6 +136,8 @@ do $$declare o jsonb;s jsonb;receipt jsonb;begin
  if o->>'state'<>'COMPLETED' or (o->>'amountPaidMinor')::bigint<>55000 then raise exception 'Split did not complete the settled order';end if;
  if (s->'currentStock'->>'bar-stock')::numeric<>9.9 then raise exception 'Payment consumed stock a second time';end if;
  if jsonb_array_length(receipt->'paymentIds')<>2 or receipt->>'balanceMinor'<>'0' then raise exception 'Receipt snapshot omitted split settlement';end if;
+ if receipt->>'schemaVersion'<>'2' or receipt->>'number' not like 'R-%' or receipt->>'orderNumber' not like 'ORD-%' or receipt->'brandingSnapshot'->>'version'<>'1' or receipt->'brandingSnapshot'->>'receiptLogoDataUrl'<>'data:image/jpeg;base64,AA==' then raise exception 'Receipt did not retain its friendly number and branding snapshot';end if;
+ if not exists(select 1 from jsonb_array_elements(receipt->'payments') p where p->>'reference'='AABBCC11' and p->>'method'='MPESA') then raise exception 'Receipt omitted the customer-facing M-Pesa reference';end if;
  if (select count(*) from servos_v2.records where collection='payments' and data->>'orderId'='tab-1')<>2 then raise exception 'Split did not persist two tender records';end if;
  if exists(select 1 from servos_v2.records where collection='journalEntries' and data->>'sourceType'='PAYMENT' and data->>'totalDebitMinor'<>data->>'totalCreditMinor') then raise exception 'POS payment journal is unbalanced';end if;
  if (servos_v2.read_record('tillSessions','shift-1')->>'expectedCashMinor')::bigint<>21000 then raise exception 'Cash drawer total is wrong';end if;

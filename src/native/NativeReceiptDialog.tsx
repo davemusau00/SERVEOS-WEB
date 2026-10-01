@@ -5,6 +5,7 @@ import { useRuntime } from '../runtime/RuntimeProvider';
 import type { PrinterJobResult } from '../types/runtime';
 import type { ReceiptResponse } from '../types/receipt';
 import { ReceiptDocumentView, ReceiptPrintRoot, receiptStyles } from '../components/pos/ReceiptDocumentView';
+import { receiptText } from '../receipts/format';
 
 // Legacy presentation props remain accepted during POS migration; persisted data is authoritative.
 export function NativeReceiptDialog({order,onClose,onJobsChanged,receiptId,reprint=false}: {
@@ -21,7 +22,7 @@ export function NativeReceiptDialog({order,onClose,onJobsChanged,receiptId,repri
     void runtime.receipt(order.id,receiptId).then(value=>{if(!cancelled)setReceipt(value)}).catch(error=>{if(!cancelled)setMessage(String(error))});
     return()=>{cancelled=true};
   },[order.id,receiptId,runtime.session?.token,reload]);
-  const copy=async()=>{if(!receipt)return;await navigator.clipboard.writeText(`${reprint?'REPRINT\n':''}${receipt.customerLines.join('\n')}\n\n${reprint?'REPRINT\n':''}${receipt.businessLines.join('\n')}`)};
+  const copy=async()=>{if(!receipt)return;await navigator.clipboard.writeText(`${receiptText(receipt.document,false,reprint)}\n\n${receiptText(receipt.document,true,reprint)}`)};
   const print=async()=>{
     if(!receipt)return;setBusy(true);setMessage('');
     try {const result=await runtime.printReceipt({orderId:order.id,receiptId:receipt.document.id,reprint});setJob(result);

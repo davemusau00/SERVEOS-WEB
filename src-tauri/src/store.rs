@@ -1,4 +1,5 @@
 use argon2::{password_hash::SaltString, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use base64::Engine as _;
 use chrono::{Datelike, Duration, Timelike, Utc};
 use rand_core::OsRng;
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
@@ -59,6 +60,7 @@ fn quantity(v: &Value, key: &str) -> Result<f64> {
     }
     Ok(n)
 }
+fn valid_base64(value:&str)->bool{!value.is_empty()&&value.len()%4==0&&base64::engine::general_purpose::STANDARD.decode(value).is_ok()}
 fn normalize_barcode_value(data: &mut Value) -> Result<Option<String>> {
     match data.get("barcode") {
         None | Some(Value::Null) => Ok(None),
@@ -2941,6 +2943,28 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                 if collection == "property" {
                     if data["currency"].as_str().is_some_and(|v|v!="KES")||data["timezone"].as_str().is_some_and(|v|v!="Africa/Nairobi") {return Err("This installation uses KES and Africa/Nairobi".into());}
                     if data["receiptFooter"].as_str().is_some_and(|v|v.len()>300){return Err("Receipt thank-you message cannot exceed 300 characters".into());}
+                    for key in ["appEmblemDataUrl","receiptLogoDataUrl"] {
+                        if let Some(value)=data[key].as_str(){
+                            let Some(encoded)=value.strip_prefix("data:image/jpeg;base64,") else{return Err("Brand images must be normalized JPEG data".into())};
+                            if encoded.len()>239_976||!valid_base64(encoded){return Err("Brand image exceeds the safe storage limit or is malformed".into());}
+                        }else if !data[key].is_null(){return Err("Brand image must be normalized JPEG data".into());}
+                    }
+                    if !data["receiptThermalLogo"].is_null(){
+                        let raster=&data["receiptThermalLogo"];
+                        let width=raster["width"].as_u64().ok_or("Thermal logo width is required")? as usize;
+                        let height=raster["height"].as_u64().ok_or("Thermal logo height is required")? as usize;
+                        let encoded=raster["base64"].as_str().ok_or("Thermal logo raster is required")?;
+                        let expected=((width+7)/8).checked_mul(height).ok_or("Thermal logo dimensions are invalid")?;
+                        if width==0||width>576||height==0||height>220||encoded.len()>24_000||!valid_base64(encoded)||encoded.len()!=((expected+2)/3)*4{
+                            return Err("Thermal logo must be a bounded monochrome raster no wider than 576 dots".into());
+                        }
+                    }
+                    if let Some((_,prior))=&existing {
+                        if data["appEmblemDataUrl"]!=prior["appEmblemDataUrl"]||data["receiptLogoDataUrl"]!=prior["receiptLogoDataUrl"]||data["receiptThermalLogo"]!=prior["receiptThermalLogo"]{
+                            let next=prior["receiptBrandingVersion"].as_u64().unwrap_or(0).checked_add(1).ok_or("Receipt branding version exhausted")?;
+                            data["receiptBrandingVersion"]=json!(next);
+                        }
+                    }
                 }
                 if collection == "property" && data["taxConfigured"] == true {
                     if quantity(&data, "vatRatePct")? > 100.0
@@ -3644,6 +3668,8 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
         "order.create" => {
             if !permissions(&user.role).contains(&"pos.open_tab") { return Err("POS permission required".into()); }
             let order_id=id();
+            let order_sequence=meta(&tx,"order_sequence")?.and_then(|value|value.parse::<u64>().ok()).unwrap_or(0).checked_add(1).ok_or("Order number sequence exhausted")?;
+            set_meta(&tx,"order_sequence",&order_sequence.to_string())?;
             let outlet_id=text(p,"outletId")?;
             get(&tx,"outlets",outlet_id)?;
             let customer_id=p.get("customerId").and_then(Value::as_str).map(str::trim).filter(|value|!value.is_empty());
@@ -3660,7 +3686,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             let requested_name=p.get("name").and_then(Value::as_str).map(str::trim).filter(|value|!value.is_empty());
             let tab_name=requested_name.or_else(||customer.as_ref().and_then(|value|value["name"].as_str())).unwrap_or("Walk-in");
             put(&tx,"orders",&order_id,json!({
-                "id":order_id,"orderNumber":format!("ORD-{}",&order_id[..8]),"propertyId":"property","outletId":outlet_id,
+                "id":order_id,"orderNumber":format!("ORD-{order_sequence:06}"),"propertyId":"property","outletId":outlet_id,
                 "tableId":table_id,"tableName":table.as_ref().and_then(|(_,v)|v.get("label")),"customerId":customer_id,
                 "customerName":customer.as_ref().and_then(|value|value["name"].as_str()),"tabName":tab_name,
                 "items":[],"currentRoundNo":1,"state":"OPEN","subtotal":0,"discountTotal":0,"taxTotal":0,"cateringLevyTotal":0,

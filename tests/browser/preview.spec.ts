@@ -78,7 +78,7 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
         }
         if (command === 'runtime_printer_jobs') return [];
         if (command === 'runtime_sync') return {};
-        if (command === 'runtime_receipt') return {document:{id:'receipt-1',schemaVersion:1,orderId:'order-1',sourceCommandId:'command-1',deviceId:'device-1',number:'D1-1001',orderNumber:'SO-1001',issuedAt:'2026-09-26T10:00:00Z',currency:'KES',timezone:'Africa/Nairobi',business:{name:'Test Bar',address:'Nairobi',phone:'0700000000'},cashier:'Test Owner',outlet:'Main Bar',items:[{id:'item-1',description:'Test Lager',quantity:1,unitPriceMinor:10000,amountMinor:10000,modifiers:[]}],subtotalMinor:10000,discountMinor:0,netMinor:10000,taxMinor:0,levyMinor:0,totalMinor:10000,paidMinor:10000,balanceMinor:0,payments:[{id:'payment-1',tenderType:'CASH',amountMinor:10000,cashTenderedMinor:10000,changeMinor:0,currentPayment:true}]},customerLines:['CUSTOMER COPY'],businessLines:['BUSINESS RECORD COPY']};
+        if (command === 'runtime_receipt') return {document:{id:'receipt-1',schemaVersion:2,orderId:'order-1',sourceCommandId:'command-1',number:'R-001001',orderNumber:'ORD-000001',issuedAt:'2026-09-26T10:00:00Z',currency:'KES',timezone:'Africa/Nairobi',business:{name:'Test Bar',address:'Nairobi',phone:'0700000000'},cashier:'Test Owner',outlet:'Main Bar',brandingSnapshot:{version:1,footerLines:['Built By KINGSFORGE','info@kingsforge.co.ke','info@davemusau.co.ke','0746157440']},items:[{id:'item-1',description:'Test Lager',quantity:1,unitPriceMinor:10000,amountMinor:10000,modifiers:[]}],subtotalMinor:10000,discountMinor:0,netMinor:10000,taxMinor:0,levyMinor:0,totalMinor:10000,paidMinor:10000,balanceMinor:0,payments:[{id:'payment-1',tenderType:'CASH',amountMinor:10000,cashTenderedMinor:10000,changeMinor:0,currentPayment:true}]},customerLines:['CUSTOMER COPY'],businessLines:['BUSINESS RECORD COPY']};
         if (command === 'runtime_print_receipt') return {jobId:'print-test-1',orderId:'order-1',state:'QUEUED',message:'Printer offline; job retained.'};
         if (command === 'runtime_printer_retry') return {jobId:'print-test-1',orderId:'order-1',state:'SENT',message:'Test spooler accepted receipt.'};
         throw new Error(`Unexpected native command: ${command}`);
@@ -161,7 +161,8 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   await expect(receipt.locator('.native-receipt-copy')).toHaveCount(2);
   await expect(receipt.locator('.native-receipt-copy').nth(0).getByText('CUSTOMER COPY', {exact:true})).toBeVisible();
   await expect(receipt.locator('.native-receipt-copy').nth(1).getByText('BUSINESS RECORD COPY - RETAIN FOR RECONCILIATION', {exact:true})).toBeVisible();
-  await expect(receipt.getByText('Built By Davemusau.co.ke', {exact:true})).toHaveCount(2);
+  await expect(receipt.getByText('Built By KINGSFORGE', {exact:true})).toHaveCount(2);
+  await expect(receipt.getByText('info@kingsforge.co.ke', {exact:true})).toHaveCount(2);
   await expect(receipt.getByText(/eTIMS|ETR/)).toHaveCount(0);
   expect(await receipt.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath('receipt-preview.png')});

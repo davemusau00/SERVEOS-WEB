@@ -1,5 +1,9 @@
 # Test evidence
 
+## 2026-10-01 receipt and blocker follow-up — not run
+
+Source changes repair `WebAdministrationView.tsx` syntax and the whole-location variance movement assertion; add expansion 043 receipt branding snapshots and friendly v2 order numbers; add versioned native/Web logo settings, selected-document Web printing, customer-facing identifiers, four-line footer, thermal raster and configurable feed; and regenerate both Cargo lockfiles for the new direct base64 dependency. Browser and disposable SQL fixtures were updated. Per the implementation request, no lint, TypeScript/build, Node, browser, native, `cargo --locked`, migration/cloud, docs, UI audit, or diff verification has yet been run. No result is claimed. Hardware, packaged, hosted, and live acceptance remain separate gates.
+
 ## DEV final sprint FS-04 shared Web command outcome contract - 2026-10-01 (unverified)
 
 Wired the existing discriminated `CommandOutcome` type into WebBusinessApp and critical POS, Front Desk, guest accounts/folio reversal, housekeeping, refund, Catalog/Smart Item, Inventory, and Procurement views. POS and procurement transaction forms, Smart Item setup, catalog saves, counts, corrections, transfers, waste, barcode assignment, and batch preparation now retain or reset state according to explicit confirmation and show non-confirmed outcomes within the active modal. Other migrated workflows distinguish drafts, pending, unknown, rejection, conflict, and blocked results. The shell preserves IDs for uncertain commands and blocks new submissions while any earlier command outcome is unknown; unmigrated modules receive a confirmed-only adapter. Source-contract assertions were authored but not run. No lint, typecheck, build, browser, native, or cloud verification was performed. Remaining callers, Native parity, and full FS-04 acceptance remain open.

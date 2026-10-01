@@ -31,6 +31,7 @@ export interface OperationDefinition {
 
 const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'approval' | 'versioning' | 'auditEffect' | 'stockEffect' | 'financialEffect' | 'acceptanceTest' | 'operatorUxStatus'>[] = [
   { operation: 'business.identity', domain: 'Administration', permission: 'business.configure', collection: 'property', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Business identity and property timezone configuration.' },
+  { operation: 'business.settings.save', domain: 'Administration', permission: 'business.configure', collection: 'organization', native: 'partial', backend: 'implemented', web: 'implemented', notes: 'Web Admin updates versioned branding/receipt settings through an online BusinessCommandV2; native branding is saved to the property record. Receipt documents snapshot the logo at payment commit.' },
   { operation: 'setup.completeStep', domain: 'Administration', permission: 'system.configure', collection: 'installation', native: 'implemented', backend: 'implemented', web: 'missing' },
   { operation: 'setup.goLive', domain: 'Administration', permission: 'system.configure', collection: 'installation', native: 'implemented', backend: 'implemented', web: 'missing' },
   { operation: 'admin.import.stage', domain: 'Administration', permission: 'data.import.stage', collection: 'importBatches', native: 'implemented', backend: 'partial', web: 'partial', notes: 'Web stages eleven templates: products, stock items, stock locations, room types, nightly rate plans, rooms, customers, suppliers, asset categories, assets, and staff profiles bound only to existing Auth users; no Auth accounts, balances/history, or full migration coverage.' },
@@ -117,7 +118,7 @@ const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'ap
   { operation: 'closeDay.generate', domain: 'Finance', permission: 'reports.view', collection: 'closeDayReports', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'staff.create', domain: 'Staff', permission: 'staff.create', collection: 'employees', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'device.revoke', domain: 'Staff', permission: 'devices.manage', collection: 'deviceEvents', native: 'blocked', backend: 'implemented', web: 'implemented', notes: 'Native v2 desktop adapter is not connected yet.' },
-  { operation: 'runtime.print_receipt', domain: 'Administration', permission: 'pos.sell', collection: 'receiptDocuments', native: 'implemented', backend: 'blocked', web: 'blocked', notes: 'Browser uses OS/PDF printing; direct terminal printer access is native/agent-only.' },
+  { operation: 'runtime.print_receipt', domain: 'Administration', permission: 'pos.sell', collection: 'receiptDocuments', native: 'implemented', backend: 'blocked', web: 'implemented', notes: 'Web prints the selected immutable receipt through the shared document portal; terminal raw ESC/POS is native-only. Printer transport acceptance is not physical output proof.' },
   { operation: 'runtime.backup', domain: 'Administration', permission: 'backup.create', collection: 'metadata', native: 'implemented', backend: 'blocked', web: 'blocked', notes: 'SQLite backup is local terminal authority.' },
 ];
 

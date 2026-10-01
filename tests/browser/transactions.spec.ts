@@ -267,7 +267,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await dialog.getByRole('button',{name:'Record payment'}).click();
   await expect(page.getByText('Receipt history (1)')).toBeVisible();
   await page.getByText('Receipt history (1)').click();
-  await expect(page.getByText('V2-00000001')).toBeVisible();
+  await expect(page.getByText('R-00000001')).toBeVisible();
   expect(sql("select count(*) from servos_v2.records where collection='payments' and data->>'method'='CASH' and data->>'amountMinor'='1250';").trim()).toBe('1');
   expect(sql("select count(*) from servos_v2.records where collection='receiptDocuments' and data->>'paidMinor'='1250' and data->>'balanceMinor'='0';").trim()).toBe('1');
   expect(sql("select count(*) from servos_v2.records where collection='journalEntries' and data->>'sourceType'='PAYMENT' and data->>'totalDebitMinor'=data->>'totalCreditMinor';").trim()).toBe('1');

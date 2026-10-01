@@ -955,11 +955,13 @@ fn execute_printer_job(state: &Runtime, job_id: &str) -> store::Result<Value> {
         Ok(profile) => {
             let customer = payload["customerLines"].as_array().map(|lines| lines.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>()).unwrap_or_default();
             let business = payload["businessLines"].as_array().map(|lines| lines.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>()).unwrap_or_default();
-            let bytes = printer::encode_receipt(&customer, &business, &profile);
+            let thermal_logo=payload.get("thermalLogo");
+            let logo_fallback=if thermal_logo.map_or(true,Value::is_null)||!printer::logo_supported(thermal_logo,&profile){Some("Thermal logo is unavailable or exceeds this printer profile; this job uses the text-only receipt.")}else{None};
+            let bytes = printer::encode_receipt(&customer, &business, thermal_logo, &profile);
             match printer::send(&profile, &bytes) {
-                Ok(message) => ("SENT", message.to_string()),
-                Err(printer::SendFailure::Queued(message)) => ("QUEUED", message),
-                Err(printer::SendFailure::Uncertain(message)) => ("DELIVERY_UNCERTAIN", message),
+                Ok(message) => ("SENT",format!("{}{}",message,logo_fallback.map(|warning|format!(" {warning}")).unwrap_or_default())),
+                Err(printer::SendFailure::Queued(message)) => ("QUEUED",format!("{}{}",message,logo_fallback.map(|warning|format!(" {warning}")).unwrap_or_default())),
+                Err(printer::SendFailure::Uncertain(message)) => ("DELIVERY_UNCERTAIN",format!("{}{}",message,logo_fallback.map(|warning|format!(" {warning}")).unwrap_or_default())),
             }
         }
         Err(message) => ("QUEUED", message),
@@ -970,8 +972,8 @@ fn execute_printer_job(state: &Runtime, job_id: &str) -> store::Result<Value> {
     Ok(json!({"jobId":job_id,"orderId":order_id,"state":result.0,"message":result.1}))
 }
 
-fn queue_printer_job(state: &Runtime, job_id: String, order_id: String, policy: Value, customer_lines: Vec<String>, business_lines: Vec<String>) -> store::Result<Value> {
-    let payload = json!({"customerLines":customer_lines,"businessLines":business_lines});
+fn queue_printer_job(state: &Runtime, job_id: String, order_id: String, policy: Value, customer_lines: Vec<String>, business_lines: Vec<String>, thermal_logo: Value) -> store::Result<Value> {
+    let payload = json!({"customerLines":customer_lines,"businessLines":business_lines,"thermalLogo":thermal_logo});
     {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let existing: Option<(String,String)> = db.query_row("SELECT state,message FROM receipt_print_jobs WHERE id=?", [&job_id], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(|e| e.to_string())?;
@@ -998,7 +1000,7 @@ fn runtime_print_receipt(state: State<Runtime>, token: String, job_id: String, o
     }
     let customer_lines=store::receipts::lines(&document,false,profile.columns,reprint);
     let business_lines=store::receipts::lines(&document,true,profile.columns,reprint);
-    queue_printer_job(&state, job_id, order_id, policy, customer_lines, business_lines)
+    queue_printer_job(&state, job_id, order_id, policy, customer_lines, business_lines, document["brandingSnapshot"]["thermalLogo"].clone())
 }
 
 #[tauri::command]

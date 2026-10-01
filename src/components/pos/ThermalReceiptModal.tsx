@@ -34,15 +34,17 @@ export const ThermalReceiptModal = ({ isOpen, onClose, order, paymentDetails, is
     currentOutlet.name,
     label,
     `Order: ${order.orderNumber}`,
+    ...(!internal&&paymentDetails?.guestName?[`Customer: ${paymentDetails.guestName}`]:[]),
     `Date: ${occurredAt}`,
-    ...(internal ? [`Order ID: ${order.id}`, `Served by: ${currentUser.name}`] : []),
+    ...(internal ? [`Served by: ${currentUser.name}`] : []),
     ...lines,
     `Total: ${money(order.grandTotal)}`,
     paymentDetails ? `Tender: ${paymentDetails.tenderType}` : `Paid: ${money(paid)}`,
-    paymentDetails?.receiptRef ? `Reference: ${paymentDetails.receiptRef}` : '',
+    paymentDetails?.receiptRef && paymentDetails.tenderType.toUpperCase().includes('MPESA') ? `M-Pesa ref: ${paymentDetails.receiptRef}` : '',
     paymentDetails?.changeDue ? `Change: ${money(paymentDetails.changeDue)}` : '',
     'Thank you.',
-    ...RECEIPT_FOOTER
+    ...RECEIPT_FOOTER,
+    ...(!internal&&currentProperty.receiptLogoDataUrl?['[Business receipt logo follows]']:[])
   ].filter(Boolean).join('\n');
   const customerText = copyText(isProForma ? 'PRO-FORMA BILL' : 'CUSTOMER COPY', false);
   const businessText = copyText('BUSINESS RECORD COPY - RETAIN FOR RECONCILIATION', true);
@@ -60,8 +62,8 @@ export const ThermalReceiptModal = ({ isOpen, onClose, order, paymentDetails, is
     <section role="dialog" aria-modal="true" aria-labelledby="receipt-heading" className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-5">
       <header className="flex justify-between"><h2 id="receipt-heading" className="text-xl font-bold">{title}</h2><button onClick={onClose} aria-label="Close receipt">Close</button></header>
       <div className="space-y-4">
-        <ReceiptCopy className="receipt-print-copy" business={currentProperty.name} outlet={currentOutlet.name} label={isProForma ? 'PRO-FORMA BILL' : 'CUSTOMER COPY'} orderNumber={order.orderNumber} occurredAt={occurredAt} items={order.items} total={order.grandTotal} money={money} paymentDetails={paymentDetails} paid={paid} />
-        {!isProForma && <ReceiptCopy className="receipt-print-copy business-copy" business={currentProperty.name} outlet={currentOutlet.name} label="BUSINESS RECORD COPY - RETAIN FOR RECONCILIATION" orderNumber={order.orderNumber} orderId={order.id} cashier={currentUser.name} occurredAt={occurredAt} items={order.items} total={order.grandTotal} money={money} paymentDetails={paymentDetails} paid={paid} />}
+        <ReceiptCopy className="receipt-print-copy" business={currentProperty.name} outlet={currentOutlet.name} label={isProForma ? 'PRO-FORMA BILL' : 'CUSTOMER COPY'} orderNumber={order.orderNumber} occurredAt={occurredAt} items={order.items} total={order.grandTotal} money={money} paymentDetails={paymentDetails} paid={paid} guestName={paymentDetails?.guestName} logoDataUrl={currentProperty.receiptLogoDataUrl} />
+        {!isProForma && <ReceiptCopy className="receipt-print-copy business-copy" business={currentProperty.name} outlet={currentOutlet.name} label="BUSINESS RECORD COPY - RETAIN FOR RECONCILIATION" orderNumber={order.orderNumber} cashier={currentUser.name} occurredAt={occurredAt} items={order.items} total={order.grandTotal} money={money} paymentDetails={paymentDetails} paid={paid} internal />}
       </div>
       <div className="flex flex-wrap gap-3">
         <button className="rounded bg-amber-400 p-2 text-slate-950" onClick={() => { window.print(); setMessage(isNative ? 'Print dialog opened. Choose the installed Xprinter XP-80T queue; customer and business copies are in this print job.' : 'Preview only. In the installed app, choose the Xprinter XP-80T queue; both copies print in one job.'); }}>{isProForma ? 'Print / save PDF' : 'Print both receipt copies'}</button>
@@ -82,22 +84,22 @@ export const ThermalReceiptModal = ({ isOpen, onClose, order, paymentDetails, is
   </div>;
 };
 
-const ReceiptCopy = ({ className, business, outlet, label, orderNumber, orderId, cashier, occurredAt, items, total, money, paymentDetails, paid }: {
-  className: string; business: string; outlet: string; label: string; orderNumber: string; orderId?: string; cashier?: string; occurredAt: string;
-  items: Order['items']; total: number; money: (amount?: number) => string; paymentDetails?: Props['paymentDetails']; paid: number;
+const ReceiptCopy = ({ className, business, outlet, label, orderNumber, cashier, occurredAt, items, total, money, paymentDetails, paid, guestName, logoDataUrl, internal = false }: {
+  className: string; business: string; outlet: string; label: string; orderNumber: string; cashier?: string; occurredAt: string;
+  items: Order['items']; total: number; money: (amount?: number) => string; paymentDetails?: Props['paymentDetails']; paid: number; guestName?: string; logoDataUrl?:string; internal?: boolean;
 }) => <article className={className}>
   <h3 className="text-center font-bold">{business}</h3>
   <p className="text-center">{outlet}</p>
   {!isNative && <p className="text-center font-bold">SAMPLE - UI PREVIEW</p>}
   <p className="text-center font-bold">{label}</p>
   <p>Receipt: {orderNumber}</p>
-  {orderId && <p>Transaction ID: {orderId}</p>}
+  {!internal&&guestName&&<p>Customer: {guestName}</p>}
   <p>{occurredAt}</p>
   {cashier && <p>Cashier: {cashier}</p>}
   <table className="w-full"><thead><tr><th className="text-left">Item</th><th>Qty</th><th className="text-right">Amount</th></tr></thead><tbody>{items.map(item=><tr key={item.id}><td className="py-1">{item.productName}</td><td className="text-center">{item.quantity}</td><td className="text-right">{money(item.totalPrice)}</td></tr>)}</tbody></table>
   <p className="border-t pt-2 font-bold">Total: {money(total)}</p>
-  {paymentDetails && <><p>Recorded tender: {paymentDetails.tenderType}</p>{paymentDetails.receiptRef&&<p>Reference: {paymentDetails.receiptRef}</p>}{paymentDetails.guestName&&<p>Guest: {paymentDetails.guestName}</p>}{paymentDetails.roomNumber&&<p>Room: {paymentDetails.roomNumber}</p>}{paymentDetails.changeDue? <p>Change: {money(paymentDetails.changeDue)}</p>:null}{paymentDetails.tenderType==='MPESA'&&<p>Manually confirmed; reconciliation is recorded separately.</p>}</>}
+  {paymentDetails && <><p>Recorded tender: {paymentDetails.tenderType}</p>{paymentDetails.receiptRef&&paymentDetails.tenderType.toUpperCase().replace(/[\s-]/g,'').includes('MPESA')&&<p>M-Pesa ref: {paymentDetails.receiptRef}</p>}{!internal&&paymentDetails.roomNumber&&<p>Room: {paymentDetails.roomNumber}</p>}{paymentDetails.changeDue? <p>Change: {money(paymentDetails.changeDue)}</p>:null}{paymentDetails.tenderType.toUpperCase().replace(/[\s-]/g,'').includes('MPESA')&&<p>Manually confirmed; reconciliation is recorded separately.</p>}</>}
   {!paymentDetails&&<p>Paid: {money(paid)}</p>}
   <p className="text-center">Thank you.</p>
-  <footer className="mt-3 text-center text-[9px]">{RECEIPT_FOOTER.map(line=><div key={line}>{line}</div>)}</footer>
+  <footer className="mt-3 text-center text-[9px]">{RECEIPT_FOOTER.map(line=><div key={line}>{line}</div>)}{logoDataUrl&&<img className="mx-auto mt-3 max-h-20 max-w-[48mm] object-contain" src={logoDataUrl} alt="Business receipt logo"/>}</footer>
 </article>;

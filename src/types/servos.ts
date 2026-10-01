@@ -19,6 +19,10 @@ export interface Property {
   currency: string;
   timezone: string;
   kraPin: string;
+  appEmblemDataUrl?: string;
+  receiptLogoDataUrl?: string;
+  receiptThermalLogo?: { width:number; height:number; base64:string };
+  receiptBrandingVersion?: number;
   etimsCuNumber: string;
   etimsCuSerialNumber?: string;
 }

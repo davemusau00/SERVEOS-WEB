@@ -1,5 +1,13 @@
 # Current release state
 
+## 2026-10-01 blocker and receipt follow-up — source only
+
+The reported Administration syntax defect is corrected (`previewRows` is an arrow function), and the whole-location inventory SQL fixture now expects one immutable count movement for each nonzero item variance with exact deltas. These fixes have not been compiled or executed.
+
+Desktop lockfiles were regenerated for `src-tauri` and `native-tests` after adding the bounded ESC/POS logo-raster dependency. The `--locked` desktop/native commands have not yet been run, so lock reconciliation is not accepted evidence.
+
+FS-06 source now captures versioned receipt branding/footer at payment commit, exposes Admin-only app-emblem/receipt-logo controls in Native and staged Web settings, normalizes bounded images and monochrome rasters, prints the logo after the customer footer with configurable feed, uses friendly receipt/order numbers, and routes Web history printing through the selected immutable document portal. Forward migration 043 snapshots staged settings and assigns readable v2 order numbers. Receipt source/contracts and SQL fixtures were updated. No verification command has run for these changes; packaged-terminal, real XP-80T, paper readability/alignment/feed/cutter proof, hosted migration and production acceptance remain open. V2 is still default-off and online-only.
+
 ## Current source-only continuation - 2026-10-01
 
 FS-01 remains unverified. Expansion 038 wraps the prior canonical dispatcher; forward 042 now explicitly routes both `floorplan.save` and the batch-preparation operation introduced by 035, then delegates other commands to the preserved pre-batch dispatcher. This fixes a route drop found during source tracing. Expansions 040/041 now build row-preview summaries separately; the import fixture reaches scientific-notation validation with a required stable external ID and checks visible preview values. The inventory fixture now covers batch conservation, replay and shortage rollback. These changes are source-only: no migration, SQL fixture or test suite ran, so the ordered migration chain and FS-01 acceptance remain open. FS-21 still has opening balances/history and full migration reconciliation open; keep shared v2 default-off.

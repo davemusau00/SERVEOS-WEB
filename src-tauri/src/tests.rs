@@ -273,6 +273,11 @@ fn duplicate_payment_is_idempotent_and_survives_restart() {
 fn receipt_is_atomic_immutable_and_keeps_cash_header_and_partial_history() {
     let (dir,mut db,s)=setup();
     run(&mut db,&s,"till.open",json!({"floatAmount":200}));
+    let (property_version,mut property)=get(&db,"property","property").unwrap();
+    property["receiptLogoDataUrl"]=json!("data:image/jpeg;base64,AA==");
+    property["receiptThermalLogo"]=json!({"width":8,"height":1,"base64":"AA=="});
+    let mut branding=cmd("record.save",json!({"collection":"property","id":"property","data":property}));branding.target_version=Some(property_version);
+    execute(&mut db,&s.token,branding).unwrap();
     let oid=order(&mut db,&s);
     let first=cmd("payment.record",json!({"orderId":oid,"method":"CASH","amount":40,"cashTendered":50}));
     execute(&mut db,&s.token,first.clone()).unwrap();
@@ -281,7 +286,12 @@ fn receipt_is_atomic_immutable_and_keeps_cash_header_and_partial_history() {
     assert_eq!(original["balanceMinor"],6000);
     assert_eq!(original["payments"][0]["cashTenderedMinor"],5000);
     assert_eq!(original["payments"][0]["changeMinor"],1000);
+    assert_eq!(original["schemaVersion"],2);assert_eq!(original["number"],"R-000001");assert_eq!(original["brandingSnapshot"]["version"],1);
+    assert_eq!(original["brandingSnapshot"]["receiptLogoDataUrl"],"data:image/jpeg;base64,AA==");assert!(original["deviceId"].is_null());
     assert_eq!(list(&db,"receiptDocuments").unwrap().len(),1);
+    let (property_version,mut property)=get(&db,"property","property").unwrap();
+    property["receiptLogoDataUrl"]=json!("data:image/jpeg;base64,AQ==");property["receiptThermalLogo"]=json!({"width":8,"height":1,"base64":"AQ=="});
+    let mut brand_update=cmd("record.save",json!({"collection":"property","id":"property","data":property}));brand_update.target_version=Some(property_version);execute(&mut db,&s.token,brand_update).unwrap();
     let (version,mut business)=get(&db,"organization","business").unwrap();
     business["name"]=json!("Changed business");
     let mut update=cmd("record.save",json!({"collection":"organization","id":"business","data":business}));update.target_version=Some(version);
@@ -291,6 +301,8 @@ fn receipt_is_atomic_immutable_and_keeps_cash_header_and_partial_history() {
     assert_eq!(latest["balanceMinor"],0);
     assert_eq!(latest["payments"].as_array().unwrap().len(),3);
     assert_eq!(latest["business"]["name"],"Changed business");
+    assert_eq!(latest["brandingSnapshot"]["receiptLogoDataUrl"],"data:image/jpeg;base64,AQ==");
+    assert_eq!(original["brandingSnapshot"]["receiptLogoDataUrl"],"data:image/jpeg;base64,AA==");
     let original_id=original["id"].as_str().unwrap();
     assert_eq!(receipts::load(&db,&s.token,&oid,Some(original_id)).unwrap(),original);
     assert!(db.execute("UPDATE records SET data='{}' WHERE collection='receiptDocuments'",[]).is_err());
@@ -298,7 +310,7 @@ fn receipt_is_atomic_immutable_and_keeps_cash_header_and_partial_history() {
     assert!(receipts::load(&db,&s.token,"other-order",Some(original_id)).is_err());
     let lines=receipts::lines(&latest,false,48,true).join("\n");
     for footer in receipts::FOOTER{assert!(lines.contains(footer));}
-    assert!(lines.contains("REPRINT"));assert!(!lines.contains("eTIMS"));
+    assert!(lines.contains("REPRINT"));assert!(!lines.contains("eTIMS"));assert!(!lines.contains(&oid));assert!(lines.contains("KES 20.00"));
     drop(db);
     let reopened=open(&dir.path().join("test.sqlite")).unwrap();
     assert_eq!(get(&reopened,"receiptDocuments",original_id).unwrap().1,original);

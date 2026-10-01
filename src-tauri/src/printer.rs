@@ -1,4 +1,5 @@
 use serde_json::Value;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::time::Duration;
@@ -10,6 +11,8 @@ pub struct PrinterProfile {
     pub port: u16,
     pub queue: String,
     pub columns: usize,
+    pub max_logo_width_dots: usize,
+    pub feed_lines_before_cut: usize,
     pub auto_cut: bool,
 }
 
@@ -38,6 +41,18 @@ impl PrinterProfile {
         if !(24..=64).contains(&columns) {
             return Err("Receipt width must be between 24 and 64 columns".into());
         }
+        let max_logo_width_dots = match policy.get("receiptMaxLogoWidthDots") {
+            Some(value) => value.as_u64().ok_or("Receipt logo width must be a whole number")? as usize,
+            None => 576,
+        };
+        if !(64..=576).contains(&max_logo_width_dots) {
+            return Err("Receipt logo width must be between 64 and 576 printer dots".into());
+        }
+        let feed_lines_before_cut = match policy.get("receiptFeedLines") {
+            Some(value) => value.as_u64().ok_or("Receipt feed margin must be a whole number")? as usize,
+            None => 5,
+        };
+        if !(2..=12).contains(&feed_lines_before_cut){return Err("Receipt feed margin must be between 2 and 12 lines".into());}
         let profile = Self {
             mode,
             host: policy["receiptPrinterHost"]
@@ -52,6 +67,8 @@ impl PrinterProfile {
                 .trim()
                 .to_string(),
             columns: columns as usize,
+            max_logo_width_dots,
+            feed_lines_before_cut,
             auto_cut: policy["receiptAutoCut"].as_bool().unwrap_or(true),
         };
         match profile.mode.as_str() {
@@ -92,18 +109,18 @@ impl PrinterProfile {
     }
 }
 
-pub fn encode_receipt(customer: &[String], business: &[String], profile: &PrinterProfile) -> Vec<u8> {
+pub fn encode_receipt(customer: &[String], business: &[String], logo: Option<&Value>, profile: &PrinterProfile) -> Vec<u8> {
     let mut bytes = vec![0x1b, b'@'];
-    append_copy(&mut bytes, customer, profile);
-    append_copy(&mut bytes, business, profile);
+    append_copy(&mut bytes, customer, profile, logo);
+    append_copy(&mut bytes, business, profile, None);
     bytes
 }
 
-fn append_copy(bytes: &mut Vec<u8>, lines: &[String], profile: &PrinterProfile) {
+fn append_copy(bytes: &mut Vec<u8>, lines: &[String], profile: &PrinterProfile, logo: Option<&Value>) {
     if lines.is_empty() { return; }
     bytes.extend_from_slice(&[0x1b, b'a', 0]);
     for line in lines {
-        let footer = ["Built By Davemusau.co.ke", "info@davemusau.co.ke", "0746157440"].contains(&line.trim());
+        let footer = ["Built By KINGSFORGE", "info@kingsforge.co.ke", "info@davemusau.co.ke", "0746157440", "Built By Davemusau.co.ke"].contains(&line.trim());
         let bold = line.trim_start().starts_with("TOTAL") || line.trim()=="CUSTOMER COPY" || line.trim()=="BUSINESS RECORD COPY";
         bytes.extend_from_slice(&[0x1b, b'M', if footer {1} else {0}, 0x1b, b'E', if bold {1} else {0}]);
         let printable: String = line
@@ -116,13 +133,40 @@ fn append_copy(bytes: &mut Vec<u8>, lines: &[String], profile: &PrinterProfile) 
         }
     }
     bytes.extend_from_slice(&[0x1b,b'M',0,0x1b,b'E',0]);
+    if let Some(logo)=logo { append_logo(bytes,logo,profile); }
+    // Keep the final logo/footer clear of the cutter; the accepted hardware feed remains a separate gate.
     if profile.auto_cut {
-        bytes.extend_from_slice(b"\n\n\n");
+        bytes.extend(std::iter::repeat_n(b'\n',profile.feed_lines_before_cut));
         // ESC/POS GS V 0 selects a full cut on compatible auto-cutter models.
         bytes.extend_from_slice(&[0x1d, b'V', 0]);
     } else {
-        bytes.extend_from_slice(b"\n\n\n");
+        bytes.extend(std::iter::repeat_n(b'\n',profile.feed_lines_before_cut));
     }
+}
+
+fn append_logo(bytes:&mut Vec<u8>,logo:&Value,profile:&PrinterProfile){
+    let Some(width)=logo["width"].as_u64().map(|value|value as usize) else{return};
+    let Some(height)=logo["height"].as_u64().map(|value|value as usize) else{return};
+    let Some(encoded)=logo["base64"].as_str() else{return};
+    if width==0||width>profile.max_logo_width_dots||height==0||height>220||encoded.len()>24_000{return;}
+    let Ok(raster)=STANDARD.decode(encoded) else{return};
+    let row_bytes=(width+7)/8;
+    if raster.len()!=row_bytes*height{return;}
+    bytes.extend_from_slice(&[0x1b,b'a',1,0x1d,b'v',b'0',0,
+        (row_bytes&0xff) as u8,((row_bytes>>8)&0xff) as u8,
+        (height&0xff) as u8,((height>>8)&0xff) as u8]);
+    bytes.extend_from_slice(&raster);
+    bytes.extend_from_slice(&[0x1b,b'a',0,b'\n']);
+}
+
+pub fn logo_supported(logo:Option<&Value>,profile:&PrinterProfile)->bool{
+    let Some(logo)=logo else{return false};
+    let Some(width)=logo["width"].as_u64().map(|value|value as usize) else{return false};
+    let Some(height)=logo["height"].as_u64().map(|value|value as usize) else{return false};
+    let Some(encoded)=logo["base64"].as_str() else{return false};
+    if width==0||width>profile.max_logo_width_dots||height==0||height>220||encoded.len()>24_000{return false;}
+    let Ok(raster)=STANDARD.decode(encoded) else{return false};
+    raster.len()==((width+7)/8)*height
 }
 
 fn wrap_line(line: &str, columns: usize) -> Vec<String> {
@@ -231,13 +275,13 @@ mod tests {
     use std::thread;
 
     fn lan_profile() -> PrinterProfile {
-        PrinterProfile { mode: "XP80T_LAN_ESC_POS".into(), host: "192.168.1.50".into(), port: 9100, queue: String::new(), columns: 48, auto_cut: true }
+        PrinterProfile { mode: "XP80T_LAN_ESC_POS".into(), host: "192.168.1.50".into(), port: 9100, queue: String::new(), columns: 48, max_logo_width_dots:576, feed_lines_before_cut:5, auto_cut: true }
     }
 
     #[test]
     fn receipt_contains_two_individually_cut_copies() {
         let profile = lan_profile();
-        let bytes = encode_receipt(&["CUSTOMER COPY".into()], &["BUSINESS RECORD COPY".into()], &profile);
+        let bytes = encode_receipt(&["CUSTOMER COPY".into()], &["BUSINESS RECORD COPY".into()], None, &profile);
         assert!(bytes.windows(b"CUSTOMER COPY".len()).any(|part| part == b"CUSTOMER COPY"));
         assert!(bytes.windows(b"BUSINESS RECORD COPY".len()).any(|part| part == b"BUSINESS RECORD COPY"));
         assert_eq!(bytes.windows(3).filter(|part| *part == &[0x1d, b'V', 0]).count(), 2);
@@ -248,7 +292,7 @@ mod tests {
         let mut profile = lan_profile();
         profile.columns = 24;
         profile.auto_cut = false;
-        let bytes = encode_receipt(&["KES 1,234.00 café with a long item name".into()], &[], &profile);
+        let bytes = encode_receipt(&["KES 1,234.00 café with a long item name".into()], &[], None, &profile);
         let text = String::from_utf8_lossy(&bytes);
         assert!(text.contains("caf?"));
         assert!(text.contains("\n\n\n"));
@@ -275,7 +319,7 @@ mod tests {
         let mut profile = lan_profile();
         profile.host = address.ip().to_string();
         profile.port = address.port();
-        let expected = encode_receipt(&["TEST".into()], &[], &profile);
+        let expected = encode_receipt(&["TEST".into()], &[], None, &profile);
         assert!(send_tcp(address, &expected).is_ok());
         assert_eq!(receiver.join().unwrap(), expected);
     }
