@@ -100,6 +100,7 @@ test('browser command boundary preserves distinct confirmation, draft, pending, 
   const app=readFileSync('src/runtime/web/WebBusinessApp.tsx','utf8');
   const hospitality=readFileSync('src/runtime/web/WebHospitalityViews.tsx','utf8');
   const refunds=readFileSync('src/runtime/web/WebRefundsView.tsx','utf8');
+  const pos=readFileSync('src/runtime/web/WebPosView.tsx','utf8');
   for(const kind of ['CONFIRMED','DRAFT_SAVED','PENDING','OUTCOME_UNKNOWN','REJECTED','CONFLICT','BLOCKED'])assert.match(contracts,new RegExp(`kind:\\s*['"]${kind}['"]`),kind);
   assert.match(contracts,/isCommandConfirmed\s*=\s*\(outcome:CommandOutcome\)=>outcome\.kind==='CONFIRMED'/);
   assert.match(app,/Promise<CommandOutcome>/);
@@ -118,4 +119,11 @@ test('browser command boundary preserves distinct confirmation, draft, pending, 
   assert.match(hospitality,/return isCommandConfirmed\(outcome\)/);
   assert.match(refunds,/Promise<CommandOutcome>/);
   assert.match(refunds,/outcome\.kind==='CONFIRMED'[\s\S]*setCurrent\(null\)/);
+  assert.match(app,/WebPosView[\s\S]*command=\{submit\}/);
+  assert.match(pos,/Promise<CommandOutcome>/);
+  for(const marker of ['order.create','payment.record','credit.charge','payment.refund','pos.roomCharge','order.void'])assert.ok(pos.includes(marker),marker);
+  assert.match(pos,/if\(!isCommandConfirmed\(outcome\)\)return/);
+  assert.match(pos,/if\(isCommandConfirmed\(outcome\)\)\{setPaying\(false\);setTenders\(\[\]\)\}/);
+  assert.match(pos,/if\(isCommandConfirmed\(outcome\)\)setRefundTarget\(null\)/);
+  assert.match(pos,/if\(isCommandConfirmed\(outcome\)\)\{setPosDialog\(null\);setPosReason\(''\)\}/);
 });
