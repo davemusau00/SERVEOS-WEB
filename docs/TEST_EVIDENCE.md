@@ -2,7 +2,7 @@
 
 ## DEV final sprint FS-04 shared Web command outcome contract - 2026-10-01 (unverified)
 
-Wired the existing discriminated `CommandOutcome` type for confirmed, draft-saved, pending, unknown, rejected, conflict, and blocked operations into the WebBusinessApp submission boundary. Front Desk, guest accounts/folio reversal, housekeeping, and refund views now consume outcomes explicitly, preserving inputs and showing that drafts/pending/unknown requests are not confirmed. The shell preserves command IDs for uncertain results and blocks replacements while predecessors remain unresolved; unmigrated modules receive a confirmed-only adapter. Source-contract assertions were authored. They have not been run; no lint, typecheck, build, browser, native, or cloud verification was performed. POS, remaining callers, Native parity, and full FS-04 acceptance remain open.
+Wired the existing discriminated `CommandOutcome` type into WebBusinessApp and critical POS, Front Desk, guest accounts/folio reversal, housekeeping, and refund views. POS transaction actions now close dialogs/reset tender or refund fields only on confirmation; the other migrated workflows distinguish drafts, pending, unknown, rejection, conflict, and blocked results. The shell preserves IDs for uncertain commands and blocks replacements while predecessors remain unresolved; unmigrated modules receive a confirmed-only adapter. Source-contract assertions were authored but not run. No lint, typecheck, build, browser, native, or cloud verification was performed. Remaining callers, Native parity, and full FS-04 acceptance remain open.
 
 ## DEV final sprint P4 Web Smart Item recipes - 2026-09-30 (unverified)
 
