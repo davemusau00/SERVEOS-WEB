@@ -169,7 +169,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
   <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-4 shadow-xl shadow-black/10 sm:p-5">
   {ready&&tab==='Home'&&<WebStartHere permissions={session.permissions} onNavigate={next=>setTab(next as WorkspaceTab)} onQuickAdd={quickAdd} onOpenHelp={query=>{const guideIds:Record<string,string>={'Getting around ServOS':'servos.core','Make your first sale':'pos.first-sale','Count stock':'stock.count','Receive a delivery':'stock.receive'};setHelpQuery(guideIds[query||'']||query||'');setTab('Help')}} onStartTour={()=>{setTourGuideId('servos.core');setTourOpen(true)}}/>}
   {ready&&tab==='Help'&&<WebHelpView initialQuery={helpQuery} permissions={session.permissions} progress={guidance} onStartTour={startTour} onRestartGuide={guideId=>void saveGuidance({guideId,guideVersion:1,state:'IN_PROGRESS',currentStepId:null,completedStepIds:[]})}/>}
- {ready&&tab==='POS'&&<WebPosView records={records} session={session} disabled={disabled} command={submitForModule}/>}
+ {ready&&tab==='POS'&&<WebPosView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='KDS'&&<WebKDSView records={records} session={session} disabled={disabled} command={submitForModule}/>}
  {ready&&tab==='Catalog'&&<WebCatalogView records={records} session={session} disabled={disabled} command={submitForModule}/>}
  {ready&&tab==='Inventory'&&<WebInventoryView records={records} session={session} disabled={disabled} command={submitForModule}/>}
