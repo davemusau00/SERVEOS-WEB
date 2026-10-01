@@ -2,6 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
+test('v2 dispatch reads the pending command under a short explicit SQLite lock scope',()=>{
+  const lib=readFileSync('src-tauri/src/lib.rs','utf8');
+  // The dispatch read must not pass a MutexGuard straight into a &Connection parameter.
+  assert.ok(!/next_native_v2_pending\(&state\.db\.lock\(\)/.test(lib),'passing &MutexGuard into next_native_v2_pending does not compile');
+  // Both call sites take the connection, read, and drop the guard in one scoped block.
+  const scoped=lib.match(/\{let db=state\.db\.lock\(\)\.map_err\(\|e\|e\.to_string\(\)\)\?;store::next_native_v2_pending\(&db,&terminal\)\?\}/g)||[];
+  assert.equal(scoped.length,2,'both pending-command reads must use the short lock scope');
+});
+test('no SQLite mutex is held across an awaited network operation',()=>{
+  const lib=readFileSync('src-tauri/src/lib.rs','utf8');
+  const lines=lib.split(/\r?\n/);
+  // Any statement that both takes the db lock and awaits must not exist on one line.
+  for(const line of lines){
+    assert.ok(!(/state\.db\.lock\(\)/.test(line)&&/\.await/.test(line)),`lock held across await: ${line.trim().slice(0,80)}`);
+  }
+  // Multi-line scopes must bind the guard to a named local before the RPC.
+  assert.match(lib,/let pending=\{let db=state\.db\.lock/);
+  assert.match(lib,/let queued=\{let db=state\.db\.lock/);
+});
 test('terminal acceptance evidence is immutable local evidence rather than business records',()=>{
   const migration=readFileSync('src-tauri/migrations/009_terminal_acceptance.sql','utf8');
   assert.match(migration,/terminal_acceptance_evidence/);

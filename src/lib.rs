@@ -467,7 +467,8 @@ async fn runtime_command(
             };
             let command_id=store::text(&envelope,"id")?.to_string();
             // Short explicit lock scope: take the connection, read the pending command, then drop the guard.
-             let pending={let db=state.db.lock().map_err(|e|e.to_string())?;store::next_native_v2_pending(&db,&terminal)?}.ok_or("Durable v2 command queue entry disappeared")?;
+             // The SQLite mutex must never be held across the awaited RPC below.
+             let pending=store::next_native_v2_pending(&state.db.lock().map_err(|e|e.to_string())?,&terminal)?.ok_or("Durable v2 command queue entry disappeared")?;
             if pending.0!=command_id{return Err("V2 command sequence changed before dispatch".into());}
             {let db=state.db.lock().map_err(|e|e.to_string())?;store::mark_native_v2_attempt(&db,&command_id)?;}
             let server_result=rpc(&url,&key,Some(&active.access_token),"servos_v2_execute",json!({"command":pending.2})).await?;
