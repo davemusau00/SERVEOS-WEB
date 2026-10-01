@@ -1,6 +1,51 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { BASE_MIGRATIONS, canonicalMigrations, expansionChain, canonicalNameFor } from '../scripts/canonical-migrations.mjs';
+
+test('the canonical migration set is complete, ordered and free of duplicates', () => {
+  const chain = expansionChain();
+  assert.equal(chain.length, 44, 'the reviewed staged v2 chain must keep all 44 migrations');
+  const canonical = canonicalMigrations();
+  assert.equal(canonical.length, BASE_MIGRATIONS.length + chain.length);
+  assert.equal(new Set(canonical).size, canonical.length, 'no migration may be applied twice');
+  // Base migrations precede the staged v2 chain, which preserves the reviewed order.
+  for (const base of BASE_MIGRATIONS) assert.ok(canonical.indexOf(base) < canonical.indexOf(canonicalNameFor('001_protocol.sql')));
+});
+
+test('every canonical migration exists on disk under supabase/migrations', () => {
+  assert.ok(existsSync('supabase/config.toml'), 'supabase/config.toml is required for CLI deployments');
+  for (const file of canonicalMigrations()) {
+    assert.ok(existsSync(`supabase/migrations/${file}`), `missing canonical migration ${file}`);
+  }
+});
+
+test('the test runner applies one canonical migration set and no longer reads supabase/expansion', () => {
+  const runner = readFileSync('scripts/test-supabase.mjs', 'utf8');
+  assert.ok(!/readdirSync\('supabase\/expansion'\)/.test(runner), 'the runner must not apply the historic expansion directory');
+  assert.ok(!runner.includes("roots = ['supabase/migrations', 'supabase/expansion']"));
+  assert.match(runner, /baseMigrations\(\)/);
+  assert.match(runner, /v2Migrations\(\)/);
+  // protocol.sql exercises the legacy writer, so it must run before migration 001 fences it.
+  assert.ok(runner.indexOf('tests/supabase/protocol.sql') < runner.indexOf('v2Migrations().map(migrationPath)'));
+});
+
+test('release evidence hashes only the canonical migration set', () => {
+  for (const file of ['scripts/write-ci-evidence.mjs', 'scripts/write-release-candidate.mjs', 'scripts/protocol-check.mjs']) {
+    const text = readFileSync(file, 'utf8');
+    assert.ok(!text.includes("'supabase/expansion'"), `${file} must not hash the historic expansion root`);
+  }
+  const config = readFileSync('supabase/config.toml', 'utf8');
+  assert.match(config, /supabase\/migrations/);
+});
+
+test('the historic expansion sources remain available for review', () => {
+  for (const file of expansionChain()) {
+    assert.ok(existsSync(`supabase/expansion/${file}`), `historic review source ${file} should be retained`);
+  }
+  assert.ok(readdirSync('supabase/migrations').length >= BASE_MIGRATIONS.length + expansionChain().length);
+});
+
 
 const read=file=>readFileSync(file,'utf8');
 
@@ -36,7 +81,7 @@ test('Simple Operations RC surfaces preserve atomic domain commands and friendly
   for(const marker of ['purchaseOrder.receive','procurement.receiveDelivery','scanUnitQuantity','Unknown barcode','Review Delivery','Confirm Delivery']) assert.match(receive,new RegExp(marker.replace('.','\\.')));
   for(const marker of ['room.quickCreate','asset.quickCreate','maintenance.report','Review rooms','Advanced details']) assert.match(hospitality,new RegExp(marker.replace('.','\\.')));
   for(const marker of ['Paste from Excel','Match your columns','Validate mapped data','Nothing is applied automatically']) assert.match(importUi,new RegExp(marker));
-  for(const bad of ['Â·','â€¦','â†’','â€”','â€“']) assert.equal(importUi.includes(bad),false,`FriendlyImport contains mojibake marker ${bad}`);
+  for(const bad of ['Ã‚Â·','Ã¢â‚¬Â¦','Ã¢â€ â€™','Ã¢â‚¬â€','Ã¢â‚¬â€œ']) assert.equal(importUi.includes(bad),false,`FriendlyImport contains mojibake marker ${bad}`);
 
   assert.match(guides,/id:\s*'pos\.first-sale'/);
   assert.match(guides,/id:\s*'stock\.count'/);
