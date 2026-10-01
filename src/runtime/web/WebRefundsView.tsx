@@ -3,8 +3,9 @@ import type {BusinessRecord,WebSession} from './session';
 import {allowed} from './session';
 import {operatorError} from './operatorError';
 import {Dialog} from '../../design-system/controls';
+import type {CommandOutcome} from '../../types/transactions';
 
-type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
+type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
 const field='w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white';
 const button='rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold disabled:opacity-40';
 const primary='rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-40';
@@ -12,6 +13,7 @@ const data=(record?:BusinessRecord)=>record?.data as Record<string,any>|undefine
 const active=(records:BusinessRecord[],collection:string)=>records.filter(r=>r.collection===collection&&!r.archived);
 const money=(minor:unknown)=>new Intl.NumberFormat('en-KE',{style:'currency',currency:'KES'}).format(Number(minor||0)/100);
 const toMinor=(value:string)=>{const amount=Number(value);if(!Number.isFinite(amount)||amount<=0)throw new Error('Enter a valid amount greater than zero.');return Math.round(amount*100)};
+const outcomeMessage=(outcome:CommandOutcome)=>outcome.kind==='DRAFT_SAVED'?'Refund saved as a draft; it has not been submitted.':outcome.kind==='PENDING'?'Refund is waiting to synchronize. Do not submit it again.':outcome.kind==='OUTCOME_UNKNOWN'||outcome.kind==='REJECTED'||outcome.kind==='CONFLICT'||outcome.kind==='BLOCKED'?outcome.message:'';
 
 export function WebRefundsView({records,session,disabled,command}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:CommandFn}){
  const payments=active(records,'payments').slice().sort((a,b)=>String(data(b)?.occurredAt||'').localeCompare(String(data(a)?.occurredAt||'')));
@@ -22,7 +24,7 @@ export function WebRefundsView({records,session,disabled,command}:{records:Busin
  const submit=async(reverse:boolean)=>{
   if(!current)return;
   const method=String(data(current)?.method||'').toUpperCase();const payload={paymentId:current.id,reason:reason.trim(),...(reverse?{}:{amountMinor:toMinor(amount)}),...(method!=='CASH'?{externalReference:reference.trim(),manuallyConfirmed:confirmed}:{})};
-  try{await command(reverse?'payment.reverse':'payment.refund','payments',current.id,payload);setCurrent(null)}catch(error){setNotice(operatorError(error))}
+  try{const outcome=await command(reverse?'payment.reverse':'payment.refund','payments',current.id,payload);if(outcome.kind==='CONFIRMED'){setCurrent(null);setNotice('Refund confirmed and synchronized.');return}setNotice(operatorError(outcomeMessage(outcome)||'Refund was not confirmed. Keep these details and review Activity before retrying.'))}catch(error){setNotice(operatorError(error))}
  };
  return <section className="space-y-5">
   <header><h2 className="text-2xl font-bold">Payments &amp; refunds</h2><p className="mt-1 text-sm text-slate-400">Refunds reverse money and accounting. Ingredient stock is not automatically restored.</p></header>

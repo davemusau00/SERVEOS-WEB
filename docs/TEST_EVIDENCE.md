@@ -1,5 +1,9 @@
 # Test evidence
 
+## DEV final sprint FS-04 shared Web command outcome contract - 2026-10-01 (unverified)
+
+Wired the existing discriminated `CommandOutcome` type for confirmed, draft-saved, pending, unknown, rejected, conflict, and blocked operations into the WebBusinessApp submission boundary. Front Desk, guest accounts/folio reversal, housekeeping, and refund views now consume outcomes explicitly, preserving inputs and showing that drafts/pending/unknown requests are not confirmed. The shell preserves command IDs for uncertain results and blocks replacements while predecessors remain unresolved; unmigrated modules receive a confirmed-only adapter. Source-contract assertions were authored. They have not been run; no lint, typecheck, build, browser, native, or cloud verification was performed. POS, remaining callers, Native parity, and full FS-04 acceptance remain open.
+
 ## DEV final sprint P4 Web Smart Item recipes - 2026-09-30 (unverified)
 
 The Web Smart Item flow now separates recipe-only menu products from stocked products so POS recipe deductions do not leave a misleading linked stock master. Recipe ingredients are converted to their stock unit, costed for preview, and submitted in one queued `product.save`; setup requires catalog management plus inventory viewing, the dependency resolver records ingredient/outlet versions, and expansion 032 enforces those baselines in the server transaction. Disposable SQL acceptance was added for persisted recipe lines, stale ingredient-version rejection, and permission denial, with source-contract assertions. Neither acceptance suite nor build/lint/browser checks were run; expansion 032 has not been applied. V2 remains default-off.

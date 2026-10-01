@@ -5,8 +5,9 @@ import {allowed,type BusinessRecord,type WebSession} from './session';
 import {businessDateTimeInput,businessDateTimeToUtc} from '../../utils/businessTime';
 import {Dialog} from '../../design-system/controls';
 import {operatorError} from './operatorError';
+import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
 
-type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
+type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
 const field='w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-amber-400';
 const button='rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold hover:bg-slate-800 disabled:opacity-40';
 const primary='rounded-lg bg-amber-400 px-3 py-2 text-sm font-black text-slate-950 hover:bg-amber-300 disabled:opacity-40';
@@ -16,6 +17,7 @@ const active=(records:BusinessRecord[],collection:string)=>records.filter(r=>r.c
 const money=(minor:unknown)=>new Intl.NumberFormat('en-KE',{style:'currency',currency:'KES'}).format(Number(minor||0)/100);
 const toMinor=(value:string)=>{const amount=Number(value);if(!Number.isFinite(amount)||amount<0)throw new Error('Enter a valid nonnegative amount.');return Math.round(amount*100)};
 const localDateTime=(timeZone:string)=>businessDateTimeInput(new Date(),timeZone);
+const outcomeMessage=(outcome:CommandOutcome,action='Action')=>{switch(outcome.kind){case'CONFIRMED':return `${action} confirmed and synchronized.`;case'DRAFT_SAVED':return `${action} saved as a draft; no business transaction was completed.`;case'PENDING':return `${action} is waiting to synchronize. Do not submit it again.`;case'OUTCOME_UNKNOWN':case'REJECTED':case'CONFLICT':case'BLOCKED':return outcome.message}};
 const cashChange=(tender:string,amount:string)=>{const cash=Number(tender||0),paid=Number(amount||0);return money(Number.isFinite(cash)&&Number.isFinite(paid)?Math.max(0,Math.round(cash*100)-Math.round(paid*100)):0)};
 type TenderDraft={accountId:string;amount:string;cashTendered:string;reference:string;receivedAmount:string;receivedAt:string;confirmed:boolean};
 const draftTender=(accountId:string,timeZone:string,amount=''):TenderDraft=>({accountId,amount,cashTendered:amount,reference:'',receivedAmount:amount,receivedAt:localDateTime(timeZone),confirmed:false});
@@ -81,15 +83,17 @@ export function WebPosView({records,session,disabled,command}:{records:BusinessR
  const orderReceipts=active(records,'receiptDocuments').filter(receipt=>data(receipt)?.orderId===activeOrder?.id).sort((a,b)=>String(data(b)?.issuedAt||'').localeCompare(String(data(a)?.issuedAt||'')));
   const folioTargets=roomReservations.filter(reservation=>String(data(reservation)?.status)==='CHECKED_IN').map(reservation=>{const folio=folios.find(row=>String(data(row)?.reservationId||row.id)===reservation.id);const room=active(records,'rooms').find(row=>row.id===String(data(reservation)?.roomId));const guest=customers.find(row=>row.id===String(data(reservation)?.customerId));return folio?{folioId:folio.id,folioVersion:folio.version,balanceMinor:Number(data(folio)?.balanceMinor||0),roomNumber:String(data(room)?.number||data(room)?.label||''),guestName:String(data(guest)?.name||'Guest')}:null}).filter(Boolean) as Array<{folioId:string;folioVersion:number;balanceMinor:number;roomNumber:string;guestName:string}>;
 
- const run=async(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>{
+ const run=async(operation:string,collection:string,id:string,payload:Record<string,unknown>):Promise<CommandOutcome>=>{
    setNotice('');
-   await command(operation,collection,id,payload);
+   try{const outcome=await command(operation,collection,id,payload);setNotice(outcomeMessage(outcome));return outcome}
+   catch(error){const message=operatorError(error);setNotice(message);return {kind:'BLOCKED',message}}
  };
 
  const createOrder=async(input:{name:string;tableId?:string;customerId?:string})=>{
    if(!currentOutlet)return;
    const id=crypto.randomUUID();
-   await run('order.create','orders',id,{id,outletId:currentOutlet.id,...input});
+   const outcome=await run('order.create','orders',id,{id,outletId:currentOutlet.id,...input});
+   if(!isCommandConfirmed(outcome))return;
    setActiveId(id);setNewTab(false);setTabName('');setCustomerId('');
  };
 
@@ -121,17 +125,17 @@ export function WebPosView({records,session,disabled,command}:{records:BusinessR
 
  const saveConfigured=async()=>{
    if(!config||!activeOrder)return;
-   await run('order.addItem','orders',activeOrder.id,{
+   const outcome=await run('order.addItem','orders',activeOrder.id,{
      orderId:activeOrder.id,productId:config.product.id,itemId:crypto.randomUUID(),quantity:config.quantity,
      portionId:config.portionId||undefined,modifierIds:config.modifierIds
    });
-   setConfig(null);
+   if(isCommandConfirmed(outcome))setConfig(null);
  };
 
  const voidOrder=async()=>{
    if(!activeOrder||!voidReason.trim())return;
-   await run('order.void','orders',activeOrder.id,{orderId:activeOrder.id,reason:voidReason.trim(),disposition:voidDisposition});
-   setVoiding(false);setVoidReason('');
+   const outcome=await run('order.void','orders',activeOrder.id,{orderId:activeOrder.id,reason:voidReason.trim(),disposition:voidDisposition});
+   if(isCommandConfirmed(outcome)){setVoiding(false);setVoidReason('')}
  };
 
  const total=Number(data(activeOrder)?.grandTotalMinor||0);
@@ -159,24 +163,24 @@ export function WebPosView({records,session,disabled,command}:{records:BusinessR
    if(paymentLines.length>1&&sum!==balance)throw new Error('Split tender amounts must equal the entire outstanding balance.');
    if(sum>balance)throw new Error('Payment exceeds the outstanding balance.');
    const payload=paymentLines.length===1?{orderId:activeOrder.id,...paymentLines[0]}:{orderId:activeOrder.id,payments:paymentLines};
-   await run(paymentLines.length===1?'payment.record':'payment.split','orders',activeOrder.id,payload);
-   setPaying(false);setTenders([]);
+   const outcome=await run(paymentLines.length===1?'payment.record':'payment.split','orders',activeOrder.id,payload);
+   if(isCommandConfirmed(outcome)){setPaying(false);setTenders([])}
  };
   const chargeToAccount=async(approvalToken='')=>{
     if(!activeOrder||!activeCustomerId||balance<=0)return;
     if(!allowed(session,'credit.charge'))throw new Error('Your role cannot charge customer accounts.');
     if(!creditAccount||String(data(creditAccount)?.status||'ACTIVE')!=='ACTIVE')throw new Error('Select a customer with an active credit account.');
     if(balance>creditAvailable&&!approvalToken.trim())throw new Error(`Credit limit exceeded. Available credit is ${money(creditAvailable)}. Manager approval is required.`);
-    await run('credit.charge','orders',activeOrder.id,{orderId:activeOrder.id,customerId:activeCustomerId,amountMinor:balance,notes:'POS charge to customer account',approvalToken:approvalToken.trim()||undefined});setCreditApprovalOpen(false);setCreditApprovalToken('');
+    const outcome=await run('credit.charge','orders',activeOrder.id,{orderId:activeOrder.id,customerId:activeCustomerId,amountMinor:balance,notes:'POS charge to customer account',approvalToken:approvalToken.trim()||undefined});if(isCommandConfirmed(outcome)){setCreditApprovalOpen(false);setCreditApprovalToken('')}
   };
- const submitOpenTill=async()=>{const id=crypto.randomUUID();await run('till.open','tillSessions',id,{id,openingFloatMinor:toMinor(openingFloat)});setOpeningFloat('')};
+ const submitOpenTill=async()=>{const id=crypto.randomUUID();const outcome=await run('till.open','tillSessions',id,{id,openingFloatMinor:toMinor(openingFloat)});if(isCommandConfirmed(outcome))setOpeningFloat('')};
  const refundedFor=(paymentId:string)=>refunds.filter(refund=>data(refund)?.paymentId===paymentId).reduce((sum,refund)=>sum+Number(data(refund)?.amountMinor||0),0);
  const beginRefund=(payment:BusinessRecord)=>{setRefundTarget(payment);setRefundAmount(((Number(data(payment)?.amountMinor||0)-refundedFor(payment.id))/100).toFixed(2));setRefundReason('');setRefundReference('');setRefundConfirmed(false)};
  const submitRefund=async(reverse=false)=>{
    if(!refundTarget)return;
    const payload={paymentId:refundTarget.id,reason:refundReason.trim(),...(reverse?{}:{amountMinor:toMinor(refundAmount)}),...(refundReference.trim()?{externalReference:refundReference.trim(),manuallyConfirmed:refundConfirmed}:{})};
-   await run(reverse?'payment.reverse':'payment.refund','payments',refundTarget.id,payload);
-   setRefundTarget(null);
+   const outcome=await run(reverse?'payment.reverse':'payment.refund','payments',refundTarget.id,payload);
+   if(isCommandConfirmed(outcome))setRefundTarget(null);
  };
   const submitPosAction=async()=>{if(!activeOrder)return;const target=targetTableId;const targetTable=tables.find(table=>table.id===target);const op=posDialog==='MOVE'?'order.transfer':posDialog==='MERGE'?'order.merge':posDialog==='DISCOUNT'?'order.discount':'order.comp';const payload=posDialog==='ROOM'?{orderId:activeOrder.id,folioId:roomFolioId,folioVersion:folioTargets.find(row=>row.folioId===roomFolioId)?.folioVersion}:{orderId:activeOrder.id,...(posDialog==='MOVE'||posDialog==='MERGE'?{sourceTableId:String(data(activeOrder)?.tableId||''),targetTableId:target,targetOrderId:String(data(targetTable)?.currentOrderId||'')}:{percent:Number(discountPercent),reason:posReason.trim(),...(posDialog==='COMP'?{compReason:posReason.trim()}: {})})};await run(posDialog==='ROOM'?'pos.roomCharge':op,'orders',activeOrder.id,payload);setPosDialog(null);setPosReason('');};
   const downloadReceipt=(receipt:BusinessRecord)=>{const d=data(receipt)!;const lines=[String(d.business?.name||'Business'),String(d.outlet||''),String(d.number||''),'',...(d.items||[]).map((item:any)=>`${item.quantity} x ${item.description} ${money(item.amountMinor)}`),'',`Total ${money(d.totalMinor)}`,`Paid ${money(d.paidMinor)}`,String(d.message||'')];const url=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}));const anchor=document.createElement('a');anchor.href=url;anchor.download=`${String(d.number||receipt.id)}.txt`;anchor.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000)};

@@ -94,3 +94,28 @@ test('staged staff administration binds Auth identities and consumes scoped appr
   const acceptance=readFileSync('tests/supabase/staff-devices.sql','utf8');
   for(const invariant of ['Staff role escalation was not denied','wrong target','wrong initiator','wrong action','Expired approval was accepted','Approval was reusable','Revoked device command was accepted'])assert.ok(acceptance.includes(invariant),invariant);
 });
+
+test('browser command boundary preserves distinct confirmation, draft, pending, unknown, rejection and conflict outcomes',()=>{
+  const contracts=readFileSync('src/types/transactions.ts','utf8');
+  const app=readFileSync('src/runtime/web/WebBusinessApp.tsx','utf8');
+  const hospitality=readFileSync('src/runtime/web/WebHospitalityViews.tsx','utf8');
+  const refunds=readFileSync('src/runtime/web/WebRefundsView.tsx','utf8');
+  for(const kind of ['CONFIRMED','DRAFT_SAVED','PENDING','OUTCOME_UNKNOWN','REJECTED','CONFLICT','BLOCKED'])assert.match(contracts,new RegExp(`kind:\\s*['"]${kind}['"]`),kind);
+  assert.match(contracts,/isCommandConfirmed\s*=\s*\(outcome:CommandOutcome\)=>outcome\.kind==='CONFIRMED'/);
+  assert.match(app,/Promise<CommandOutcome>/);
+  assert.match(app,/submitForModule=async[\s\S]*isCommandConfirmed\(await submit\(/);
+  assert.match(app,/current\?\.state==='OUTCOME_UNKNOWN'[\s\S]*kind:'OUTCOME_UNKNOWN'/);
+  assert.match(app,/current\?\.state==='CONFLICT'[\s\S]*kind:'CONFLICT'/);
+  assert.match(app,/current\?\.state==='REJECTED'[\s\S]*kind:'REJECTED'/);
+  assert.match(app,/predecessor\?\.state==='PENDING_SYNC'\|\|predecessor\?\.state==='OUTCOME_UNKNOWN'[\s\S]*kind:'BLOCKED'/);
+  assert.match(app,/retainForReview\(\[message\],command\.id,false\)/);
+  assert.match(app,/command=\{submitForModule\}/);
+  assert.match(app,/WebFrontDeskView[\s\S]*command=\{submit\}/);
+  assert.match(app,/WebRefundsView[\s\S]*command=\{submit\}/);
+  assert.match(hospitality,/Promise<CommandOutcome>/);
+  assert.match(hospitality,/if\(!isCommandConfirmed\(guestOutcome\)\)/);
+  assert.match(hospitality,/if\(isCommandConfirmed\(outcome\)\)onClose\(\)/);
+  assert.match(hospitality,/return isCommandConfirmed\(outcome\)/);
+  assert.match(refunds,/Promise<CommandOutcome>/);
+  assert.match(refunds,/outcome\.kind==='CONFIRMED'[\s\S]*setCurrent\(null\)/);
+});
