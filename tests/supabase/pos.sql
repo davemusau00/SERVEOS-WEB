@@ -35,6 +35,26 @@ begin
  return r;
 end$$;
 
+-- Assert that a direct staged write is refused by a database guard carrying the expected code.
+-- The refused write is rolled back, so the stored record is left unchanged.
+create function pg_temp.failing_put(
+  label text,collection_name text,record_key text,p jsonb,expected_detail text default 'VALIDATION_FAILED'
+) returns void language plpgsql as $$
+declare failure text;
+begin
+  begin
+    perform servos_v2.put_record(collection_name,record_key,p);
+  exception when others then
+    failure:=sqlerrm;
+  end;
+  if failure is null then
+    raise exception '%: the guard accepted a write it should have rejected',label;
+  end if;
+  if position(expected_detail in failure)=0 then
+    raise exception '%: expected %, got %',label,expected_detail,failure;
+  end if;
+end$$;
+
 select pg_temp.pos_command('posPolicy.save','posPolicy','policy','{"id":"policy","data":{"vatBasisPoints":0,"cateringLevyBasisPoints":0}}');
 select pg_temp.pos_command('stockLocation.save','stockLocations','bar-stock','{"id":"bar-stock","data":{"name":"Bar Stock","code":"BAR","type":"BAR"}}');
 select pg_temp.pos_command('outlet.save','outlets','bar','{"id":"bar","data":{"name":"Main Bar","code":"BAR","defaultStockLocationId":"bar-stock"}}');
