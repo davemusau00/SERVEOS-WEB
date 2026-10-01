@@ -4,7 +4,7 @@ import {allowed} from './session';
 import {Dialog} from '../../design-system/controls';
 import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
 import {ReceiptBrandingEditor} from '../../receipts/ReceiptBrandingEditor';
-import type {PreparedBrandingImage} from '../../receipts/branding';
+import type {PreparedBrandingImage,PreparedTillQr} from '../../receipts/branding';
 
 type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
 const field='w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-amber-400';
