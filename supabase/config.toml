@@ -7,7 +7,7 @@
 # `supabase/expansion/` is retained only as the historic review source; it is never applied by a
 # deployment and is not required by production. See scripts/canonical-migrations.mjs.
 
-project_id = "servos"
+project_id = "uwzqljrsbpzqlqbtkcro"
 
 [api]
 enabled = true
@@ -36,9 +36,12 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = ""
-# Additional redirect URLs are set per environment; never committed with production values.
-additional_redirect_urls = []
+site_url = "https://countrysideres.vercel.app"
+
+additional_redirect_urls = [
+  "https://countrysideres.vercel.app/**",
+  "http://localhost:3000/**"
+]
 
 [auth.email]
 enable_signup = true
