@@ -99,3 +99,21 @@ test('disposable Supabase harness runs inventory acceptance after expansion SQL'
   const domain=readFileSync('supabase/expansion/011_inventory_catalog.sql','utf8');
   assert.match(domain,/insufficient stock/i);
 });
+
+test('inventory, Smart Item, and procurement retain workflows until commands are confirmed',()=>{
+  const app=readFileSync('src/runtime/web/WebBusinessApp.tsx','utf8');
+  const inventory=readFileSync('src/runtime/web/WebCatalogInventory.tsx','utf8');
+  const smartItem=readFileSync('src/runtime/web/SmartItemDialog.tsx','utf8');
+  const procurement=readFileSync('src/runtime/web/WebProcurementView.tsx','utf8');
+  assert.match(app,/WebCatalogView[\s\S]*command=\{submit\}/);
+  assert.match(app,/WebInventoryView[\s\S]*command=\{submit\}/);
+  assert.match(inventory,/Promise<CommandOutcome>/);
+  assert.match(inventory,/if\(!outcome\|\|!isCommandConfirmed\(outcome\)\)/);
+  assert.match(inventory,/if\(!isCommandConfirmed\(outcome\)\)return/);
+  assert.match(inventory,/if\(isCommandConfirmed\(outcome\)\)\{setBatchOpen\(false\);return true\}/);
+  assert.match(smartItem,/Promise<CommandOutcome>/);
+  assert.match(smartItem,/if\(!isCommandConfirmed\(result\)\)/);
+  assert.match(procurement,/Promise<CommandOutcome>/);
+  for(const marker of ['setPoOpen(false);setPoLines([])','setReceiving(null)','setMatching(null)','setPaying(null)','setCommissioning(null)'])assert.ok(procurement.includes(marker),marker);
+  for(const marker of ['if(isCommandConfirmed(outcome)){setPoOpen(false);setPoLines([])}','if(isCommandConfirmed(outcome)){setCommandNotice(outcomeMessage(outcome,\'Goods receipt\'));setReceiving(null)}','if(isCommandConfirmed(outcome))setMatching(null)','if(isCommandConfirmed(outcome))setPaying(null)','if(isCommandConfirmed(outcome))setCommissioning(null)'])assert.ok(procurement.includes(marker),marker);
+});

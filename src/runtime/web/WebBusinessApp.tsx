@@ -173,9 +173,9 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
   {ready&&tab==='Help'&&<WebHelpView initialQuery={helpQuery} permissions={session.permissions} progress={guidance} onStartTour={startTour} onRestartGuide={guideId=>void saveGuidance({guideId,guideVersion:1,state:'IN_PROGRESS',currentStepId:null,completedStepIds:[]})}/>}
  {ready&&tab==='POS'&&<WebPosView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='KDS'&&<WebKDSView records={records} session={session} disabled={disabled} command={submitForModule}/>}
- {ready&&tab==='Catalog'&&<WebCatalogView records={records} session={session} disabled={disabled} command={submitForModule}/>}
- {ready&&tab==='Inventory'&&<WebInventoryView records={records} session={session} disabled={disabled} command={submitForModule}/>}
- {ready&&tab==='Procurement'&&<WebProcurementView records={records} session={session} disabled={disabled} command={submitForModule}/>}
+ {ready&&tab==='Catalog'&&<WebCatalogView records={records} session={session} disabled={disabled} command={submit}/>}
+ {ready&&tab==='Inventory'&&<WebInventoryView records={records} session={session} disabled={disabled} command={submit}/>}
+ {ready&&tab==='Procurement'&&<WebProcurementView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Front Desk'&&<WebFrontDeskView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Guest Accounts'&&<WebGuestAccountsView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Housekeeping'&&<WebHousekeepingView records={records} session={session} disabled={disabled} command={submit}/>}

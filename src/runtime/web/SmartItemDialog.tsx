@@ -9,8 +9,9 @@ import {
 import { Dialog } from '../../design-system/controls';
 import type { BusinessRecord, WebSession } from './session';
 import { operatorError } from './operatorError';
+import { isCommandConfirmed, type CommandOutcome } from '../../types/transactions';
 
-type Command = (operation: string, collection: string, id: string, payload: Record<string, unknown>) => Promise<unknown>;
+type Command = (operation: string, collection: string, id: string, payload: Record<string, unknown>) => Promise<CommandOutcome>;
 type SetupKind = 'STOCKED' | 'RECIPE' | 'BATCH' | 'STOCK_ONLY';
 type RecipeLine = { stockItemId: string; quantity: number; tracked: true };
 
@@ -232,9 +233,10 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
           openingMovementId,
         });
       }
-      if (result !== true) {
+      if (!isCommandConfirmed(result)) {
         setPendingReview(true);
-        setError('The save was not confirmed. Check workspace status and Saved Changes before retrying; this form is locked to avoid a duplicate item.');
+        const detail=result.kind==='DRAFT_SAVED'?'The item was saved as a draft, not created.':result.kind==='PENDING'?'The item is waiting to synchronize.':result.kind==='OUTCOME_UNKNOWN'||result.kind==='REJECTED'||result.kind==='CONFLICT'||result.kind==='BLOCKED'?result.message:'The item was not confirmed.';
+        setError(`${detail} Check Activity before retrying; this form is locked to avoid a duplicate item.`);
         return;
       }
       onClose();

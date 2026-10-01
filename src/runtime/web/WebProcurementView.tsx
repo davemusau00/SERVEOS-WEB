@@ -4,8 +4,9 @@ import {barcodeEquals,useBarcodeScanner} from '../../hooks/useBarcodeScanner';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import {parseQuantity} from '../../utils/fiscal';
 import {Dialog} from '../../design-system/controls';
+import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
 
-type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
+type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
 type DraftLine={
   lineId:string;
   treatment:'STOCK'|'EXPENSE'|'ASSET';
@@ -31,6 +32,7 @@ const data=(record?:BusinessRecord)=>record?.data as Record<string,any>|undefine
 const active=(records:BusinessRecord[],collection:string)=>records.filter(r=>r.collection===collection&&!r.archived);
 const record=(records:BusinessRecord[],collection:string,id:string)=>records.find(r=>r.collection===collection&&r.id===id);
 const today=()=>new Date().toISOString().slice(0,10);
+const outcomeMessage=(outcome:CommandOutcome,action='Action')=>{switch(outcome.kind){case'CONFIRMED':return `${action} confirmed and synchronized.`;case'DRAFT_SAVED':return `${action} saved as a draft; it has not taken effect.`;case'PENDING':return `${action} is waiting to synchronize. Do not submit it again.`;case'OUTCOME_UNKNOWN':case'REJECTED':case'CONFLICT':case'BLOCKED':return outcome.message}};
 
 export function WebProcurementView({
   records,session,disabled,command
@@ -99,6 +101,7 @@ export function WebProcurementView({
 
   const [commissioning,setCommissioning]=useState<BusinessRecord|null>(null);
   const [commissionForm,setCommissionForm]=useState({name:'',tag:'',serialNumber:'',roomId:'',locationId:'',notes:''});
+  const [commandNotice,setCommandNotice]=useState('');
 
   const openSupplier=(existing?:BusinessRecord)=>{
     const d=data(existing)||{};
@@ -112,9 +115,10 @@ export function WebProcurementView({
 
   const saveSupplier=async()=>{
     const id=supplierEdit?.id||crypto.randomUUID();
-    await command('supplier.save','suppliers',id,{id,data:supplierForm});
-    setSupplierEdit(undefined);
+    const outcome=await command('supplier.save','suppliers',id,{id,data:supplierForm});setCommandNotice(outcomeMessage(outcome,'Supplier save'));
+    if(isCommandConfirmed(outcome))setSupplierEdit(undefined);
   };
+  const archiveSupplier=async(supplier:BusinessRecord)=>{const outcome=await command('supplier.archive','suppliers',supplier.id,{id:supplier.id});setCommandNotice(outcomeMessage(outcome,'Supplier archive'))};
 
   const addDraftLine=()=>{
     let qty:number;
@@ -140,7 +144,7 @@ export function WebProcurementView({
   const submitPo=async()=>{
     if(!poSupplier||!poLines.length)return;
     const id=crypto.randomUUID();
-    await command('purchaseOrder.create','purchaseOrders',id,{
+    const outcome=await command('purchaseOrder.create','purchaseOrders',id,{
       id,supplierId:poSupplier,
       items:poLines.map(line=>({
         lineId:line.lineId,treatment:line.treatment,quantityOrdered:line.quantityOrdered,unitPriceMinor:line.unitPriceMinor,
@@ -150,7 +154,7 @@ export function WebProcurementView({
         ...(line.assetName?{assetName:line.assetName,assetCategoryId:line.assetCategoryId}:{})
       }))
     });
-    setPoOpen(false);setPoLines([]);
+    setCommandNotice(outcomeMessage(outcome,'Purchase order'));if(isCommandConfirmed(outcome)){setPoOpen(false);setPoLines([])}
   };
 
   const beginReceive=(order:BusinessRecord)=>{
@@ -207,12 +211,12 @@ export function WebProcurementView({
     const invalid=drafts.find((line:any)=>line?.error);if(invalid){setReceiptError(String(invalid.error));return}
     const lines=drafts.filter((line:any)=>line&&line.quantityDelivered>0);
     if(!lines.length)return;
-    await command('purchaseOrder.receive','purchaseOrders',receiving.id,{
+    const outcome=await command('purchaseOrder.receive','purchaseOrders',receiving.id,{
       purchaseOrderId:receiving.id,
       ...(lines.some((received:any)=>{const line=(order.items||[]).find((x:any)=>x.lineId===received.lineId);return line?.treatment==='STOCK'})?{locationId:receiptLocation}:{}),
       supplierInvoiceNumber:receiptInvoice.trim(),deliveryNote:receiptDeliveryNote.trim(),notes:receiptNotes.trim(),lines,...(receiptApprovalToken.trim()?{approvalToken:receiptApprovalToken.trim()}: {})
     });
-    setReceiving(null);
+    if(isCommandConfirmed(outcome)){setCommandNotice(outcomeMessage(outcome,'Goods receipt'));setReceiving(null)}else setReceiptError(outcomeMessage(outcome,'Goods receipt'));
   };
 
   const beginMatch=(payable:BusinessRecord)=>{
@@ -231,11 +235,11 @@ export function WebProcurementView({
     const lines=(data(receipt)?.lines||[]).filter((line:any)=>Number(line.quantityAccepted)>0).map((line:any)=>({
       lineId:line.lineId,quantityBilled:Number(line.quantityAccepted),unitPriceMinor:Number(line.unitPriceMinor)
     }));
-    await command('supplierPayable.matchInvoice','supplierPayables',matching.id,{
+    const outcome=await command('supplierPayable.matchInvoice','supplierPayables',matching.id,{
       payableId:matching.id,invoiceNumber:invoiceNumber.trim(),
       invoiceAmountMinor:Number(p.amountMinor||0),invoiceDate,dueDate:invoiceDue,lines
     });
-    setMatching(null);
+    setCommandNotice(outcomeMessage(outcome,'Invoice match'));if(isCommandConfirmed(outcome))setMatching(null);
   };
 
   const beginPay=(payable:BusinessRecord)=>{
@@ -245,11 +249,11 @@ export function WebProcurementView({
 
   const pay=async()=>{
     if(!paying)return;
-    await command('supplierPayable.pay','supplierPayables',paying.id,{
+    const outcome=await command('supplierPayable.pay','supplierPayables',paying.id,{
       payableId:paying.id,amountMinor:Math.round(Number(payAmount)*100),method:payMethod,
       reference:payReference.trim(),reason:payReason.trim(),confirmed:payConfirmed
     });
-    setPaying(null);
+    setCommandNotice(outcomeMessage(outcome,'Supplier payment'));if(isCommandConfirmed(outcome))setPaying(null);
   };
 
   const beginCommission=(acquisition:BusinessRecord)=>{
@@ -259,11 +263,11 @@ export function WebProcurementView({
   const commission=async()=>{
     if(!commissioning)return;
     const id=crypto.randomUUID();
-    await command('asset.commission','assets',id,{
+    const outcome=await command('asset.commission','assets',id,{
       id,acquisitionId:commissioning.id,...commissionForm,
       roomId:commissionForm.roomId||undefined,locationId:commissionForm.locationId||undefined
     });
-    setCommissioning(null);
+    setCommandNotice(outcomeMessage(outcome,'Asset commissioning'));if(isCommandConfirmed(outcome))setCommissioning(null);
   };
 
   const openPoTotal=useMemo(()=>orders.filter(o=>['APPROVED','PARTIALLY_RECEIVED'].includes(String(data(o)?.status))).reduce((sum,o)=>sum+Number(data(o)?.grandTotalMinor||0),0),[orders]);
@@ -275,6 +279,7 @@ export function WebProcurementView({
       <div><h2 className="flex items-center gap-2 text-xl font-bold"><Truck className="h-5 w-5 text-amber-300"/>Purchasing</h2><p className="mt-1 max-w-3xl text-sm text-slate-400">Create an order, check what arrived, and record supplier payments only after the money has actually been sent.</p></div>
       <div className="flex gap-2">{canManage&&<><button disabled={disabled} className={button} onClick={()=>openSupplier()}>New supplier</button><button disabled={disabled||!suppliers.length} className={primary} onClick={()=>{setPoSupplier(suppliers[0]?.id||'');setPoLines([]);setStockId(stockItems[0]?.id||'');setPurchasePackageId(String(data(stockItems[0])?.purchasePackages?.[0]?.id||''));setAssetCategoryId(categories[0]?.id||'');setPoOpen(true)}}><Plus className="mr-1 inline h-4 w-4"/>New PO</button></>}</div>
     </div>
+    {commandNotice&&<p role="status" className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm">{commandNotice}</p>}
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric icon={<ClipboardCheck className="h-4 w-4"/>} label="Open purchase orders" value={String(orders.filter(o=>['APPROVED','PARTIALLY_RECEIVED'].includes(String(data(o)?.status))).length)}/>
@@ -299,7 +304,7 @@ export function WebProcurementView({
 
     {section==='PAYABLES'&&<div className="space-y-3">{payables.map(payable=>{const d=data(payable)!;return <article key={payable.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="flex flex-wrap justify-between gap-3"><div><b>{String(d.payableNumber)}</b><div className="text-sm">{String(d.supplierName)} · {String(d.status)}</div><div className="text-xs text-slate-500">{String(d.grnNumber)} · {String(d.supplierInvoiceNumber||'Invoice not matched')}</div></div><div className="text-right"><b>{money(d.amountDueMinor)}</b><div className="mt-2 flex gap-2">{canManage&&d.status==='RECEIVED_UNINVOICED'&&<button disabled={disabled} className={button} onClick={()=>beginMatch(payable)}>Match invoice</button>}{canPay&&['MATCHED_UNPAID','PARTIALLY_PAID'].includes(String(d.status))&&<button disabled={disabled} className={primary} onClick={()=>beginPay(payable)}>Record payment</button>}</div></div></div></article>})}{payments.length>0&&<details className="rounded-xl border border-slate-800 p-4"><summary className="cursor-pointer font-semibold">Payment history ({payments.length})</summary><div className="mt-3 space-y-2">{payments.map(payment=>{const d=data(payment)!;return <div key={payment.id} className="rounded-lg bg-slate-900 p-3 text-sm">{String(d.paymentNumber)} · {String(d.supplierName)} · {money(d.amountMinor)} · {String(d.method)} · {String(d.reference)}</div>})}</div></details>}{!payables.length&&<Empty>No supplier payables yet.</Empty>}</div>}
 
-    {section==='SUPPLIERS'&&<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{suppliers.map(supplier=>{const d=data(supplier)!;return <article key={supplier.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="flex justify-between gap-3"><div><b>{String(d.name)}</b><div className="font-mono text-xs text-slate-500">{String(d.code)}</div></div>{canManage&&<button disabled={disabled} className={button} onClick={()=>openSupplier(supplier)}>Edit</button>}</div><div className="mt-2 text-xs text-slate-400">{String(d.contactPerson||'')} {String(d.phone||'')}<br/>Terms: {Number(d.paymentTermsDays||0)} days</div>{canManage&&<button disabled={disabled} className={button+' mt-3'} onClick={()=>void command('supplier.archive','suppliers',supplier.id,{id:supplier.id})}>Archive</button>}</article>})}{!suppliers.length&&<Empty>No suppliers yet.</Empty>}</div>}
+    {section==='SUPPLIERS'&&<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{suppliers.map(supplier=>{const d=data(supplier)!;return <article key={supplier.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="flex justify-between gap-3"><div><b>{String(d.name)}</b><div className="font-mono text-xs text-slate-500">{String(d.code)}</div></div>{canManage&&<button disabled={disabled} className={button} onClick={()=>openSupplier(supplier)}>Edit</button>}</div><div className="mt-2 text-xs text-slate-400">{String(d.contactPerson||'')} {String(d.phone||'')}<br/>Terms: {Number(d.paymentTermsDays||0)} days</div>{canManage&&<button disabled={disabled} className={button+' mt-3'} onClick={()=>void archiveSupplier(supplier)}>Archive</button>}</article>})}{!suppliers.length&&<Empty>No suppliers yet.</Empty>}</div>}
 
     {section==='ACQUISITIONS'&&<div className="grid gap-3 md:grid-cols-2">{acquisitions.map(acq=>{const d=data(acq)!;return <article key={acq.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><b>{String(d.assetName)}</b><div className="text-sm">{String(d.assetCategoryName)} · {money(d.unitCostMinor)}</div><div className="text-xs text-slate-500">{String(d.poNumber)} / {String(d.grnNumber)} · unit {String(d.unitOrdinal)}</div>{canAssets&&<button disabled={disabled} className={primary+' mt-3'} onClick={()=>beginCommission(acq)}>Commission asset</button>}</article>})}{!acquisitions.length&&<Empty>No capital assets waiting for commissioning.</Empty>}</div>}
 
