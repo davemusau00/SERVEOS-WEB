@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   pull_request:
+defaults:
+  run:
+    shell: bash
 jobs:
   frontend:
     runs-on: ubuntu-latest
@@ -10,19 +13,23 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run build
-      - run: npm test
-      - run: npm run audit:ui
+      - run: mkdir -p artifacts/ci-logs
+      - run: npm ci 2>&1 | tee artifacts/ci-logs/frontend-install.log
+      - run: npm run lint 2>&1 | tee artifacts/ci-logs/frontend-lint.log
+      - run: npm run build 2>&1 | tee artifacts/ci-logs/frontend-build.log
+      - run: npm test 2>&1 | tee artifacts/ci-logs/frontend-node-tests.log
+      - run: npm run audit:ui 2>&1 | tee artifacts/ci-logs/frontend-ui-audit.log
+      - run: npm run docs:check 2>&1 | tee artifacts/ci-logs/frontend-docs-check.log
       - name: Upload UI audit artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ui-audit-${{ github.sha }}
-          path: artifacts/ui-audit/**
+          name: ui-audit-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            artifacts/ui-audit/**
+            artifacts/ci-logs/frontend-*.log
+          if-no-files-found: error
           retention-days: 14
-      - run: npm run docs:check
 
   browser-preview:
     runs-on: ubuntu-latest
@@ -30,19 +37,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      - run: npm ci
+      - run: mkdir -p artifacts/ci-logs
+      - run: npm ci 2>&1 | tee artifacts/ci-logs/browser-preview-install.log
       - name: Install preview browser prerequisites
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium 2>&1 | tee artifacts/ci-logs/browser-preview-install-browser.log
       - name: Run preview browser suite
-        run: npm run test:browser
+        run: npm run test:browser 2>&1 | tee artifacts/ci-logs/browser-preview-tests.log
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-preview-${{ github.sha }}
+          name: browser-preview-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             test-results/**
             playwright-report/**
+            artifacts/ci-logs/browser-preview-*.log
+          if-no-files-found: error
           retention-days: 14
 
   browser-production:
@@ -51,33 +61,39 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      - run: npm ci
+      - run: mkdir -p artifacts/ci-logs
+      - run: npm ci 2>&1 | tee artifacts/ci-logs/browser-production-install.log
       - name: Install production browser prerequisites
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium 2>&1 | tee artifacts/ci-logs/browser-production-install-browser.log
       - name: Run production acceptance browser suite
-        run: npm run test:browser:production
+        run: npm run test:browser:production 2>&1 | tee artifacts/ci-logs/browser-production-tests.log
       - name: Upload production browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-production-${{ github.sha }}
+          name: browser-production-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             test-results/**
             playwright-report/**
+            artifacts/ci-logs/browser-production-*.log
+          if-no-files-found: error
           retention-days: 14
   native-domain:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --locked --manifest-path native-tests/Cargo.toml
+      - run: mkdir -p artifacts/ci-logs
+      - run: rustc --version | tee artifacts/ci-logs/native-domain.log
+      - run: cargo --version | tee -a artifacts/ci-logs/native-domain.log
+      - run: cargo test --locked --manifest-path native-tests/Cargo.toml 2>&1 | tee -a artifacts/ci-logs/native-domain.log
       - name: Upload native evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: native-domain-${{ github.sha }}
-          path: native-tests/target/**/test-results/**
-          if-no-files-found: ignore
+          name: native-domain-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/ci-logs/native-domain.log
+          if-no-files-found: error
           retention-days: 14
   cloud-protocol-base:
     runs-on: ubuntu-latest
@@ -85,14 +101,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: npm run test:cloud:base
+      - run: mkdir -p artifacts/ci-logs
+      - run: npm run test:cloud:base 2>&1 | tee artifacts/ci-logs/cloud-base.log
       - name: Upload base cloud evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cloud-base-${{ github.sha }}
-          path: artifacts/**
-          if-no-files-found: ignore
+          name: cloud-base-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/ci-logs/cloud-base.log
+          if-no-files-found: error
           retention-days: 14
   cloud-protocol-v2:
     runs-on: ubuntu-latest
@@ -100,32 +117,36 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: npm ci
-      - run: npm run test:cloud:v2
+      - run: mkdir -p artifacts/ci-logs
+      - run: npm ci 2>&1 | tee artifacts/ci-logs/cloud-v2-install.log
+      - run: npm run test:cloud:v2 2>&1 | tee artifacts/ci-logs/cloud-v2.log
       - name: Upload expansion cloud evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cloud-v2-${{ github.sha }}
-          path: artifacts/**
-          if-no-files-found: ignore
+          name: cloud-v2-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/ci-logs/cloud-v2*.log
+          if-no-files-found: error
           retention-days: 14
   desktop-shell:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - run: mkdir -p artifacts/ci-logs
       - name: Install Tauri Linux dependencies
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - run: npm run check:desktop
-      - run: npm run test:desktop
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf 2>&1 | tee artifacts/ci-logs/desktop-dependencies.log
+      - run: rustc --version | tee artifacts/ci-logs/desktop-shell.log
+      - run: cargo --version | tee -a artifacts/ci-logs/desktop-shell.log
+      - run: npm run check:desktop 2>&1 | tee -a artifacts/ci-logs/desktop-shell.log
+      - run: npm run test:desktop 2>&1 | tee -a artifacts/ci-logs/desktop-shell.log
       - name: Upload desktop evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-shell-${{ github.sha }}
-          path: artifacts/**
-          if-no-files-found: ignore
+          name: desktop-shell-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/ci-logs/desktop-*.log
+          if-no-files-found: error
           retention-days: 14
   evidence-summary:
     if: always()
@@ -135,6 +156,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          path: artifacts/downloaded
       - run: npm run ci:evidence
         env:
           SERVOS_RELEASE_PROFILE: CI_PREVIEW_AND_STAGED_V2
@@ -147,22 +172,27 @@ jobs:
           SERVOS_JOB_DESKTOP: ${{ needs.desktop-shell.result }}
       - uses: actions/upload-artifact@v4
         with:
-          name: servos-ci-evidence-${{ github.sha }}
+          name: servos-ci-evidence-${{ github.sha }}-${{ github.run_attempt }}
           path: artifacts/servos-ci-evidence.json
+          if-no-files-found: error
           retention-days: 30
 
   release-candidate:
     if: github.ref == 'refs/heads/main'
-    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell]
+    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, evidence-summary]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/downloaded
       - name: Mark same-commit candidate eligibility
         run: node scripts/write-release-candidate.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: servos-release-candidate-${{ github.sha }}
+          name: servos-release-candidate-${{ github.sha }}-${{ github.run_attempt }}
           path: artifacts/servos-release-candidate.json
+          if-no-files-found: error
           retention-days: 30

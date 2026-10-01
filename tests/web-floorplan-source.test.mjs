@@ -17,6 +17,10 @@ test('Web floorplan is discoverable and submits one versioned atomic command',()
  assert.match(view,/command\('floorplan\.save','tables',outletId,\{outletId,baseline,tables\}\)/);
  assert.match(view,/currentOrderId/);
  assert.match(view,/Baseline version checks protect against stale editors/);
+ assert.match(view,/Promise<CommandOutcome>/);
+ assert.match(view,/isCommandConfirmed\(result\)/);
+ assert.match(view,/setOutcome\(result\)/);
+ assert.match(app,/tab==='Floorplan'.*command=\{submit\}/);
  assert.match(dependencies,/operation === 'floorplan\.save'/);
  assert.match(dependencies,/add\('tables', \(entry as Record<string, unknown>\)\.id\)/);
  assert.match(dispatch,/operation'='floorplan\.save' then return servos_v2\.apply_floorplan/);

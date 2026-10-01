@@ -1,8 +1,9 @@
 import React,{useMemo,useState} from 'react';
 import type {BusinessRecord,WebSession} from './session';
 import {allowed} from './session';
+import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
 
-type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<unknown>;
+type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
 type CollectionKey='customers'|'suppliers'|'roomTypes'|'assetCategories';
 type Field={key:string;label:string;type?:'text'|'email'|'number'|'textarea';optional?:boolean;defaultValue?:string};
 
@@ -16,13 +17,14 @@ const definitions:Array<{collection:CollectionKey;label:string;permission:string
  {collection:'assetCategories',label:'Asset Categories',permission:'assetCategories.manage',description:'Reusable categories for property assets and operational history.',fields:[{key:'name',label:'Category name'}],defaults:{name:''}},
 ];
 const data=(record?:BusinessRecord)=>record?.data as Record<string,any>|undefined;
+const outcomeText=(outcome:CommandOutcome)=>{switch(outcome.kind){case'CONFIRMED':return 'Master-data change confirmed and synchronized.';case'DRAFT_SAVED':return 'Change saved as a draft; it has not taken effect.';case'PENDING':return 'Change is waiting to synchronize. Do not submit it again.';case'OUTCOME_UNKNOWN':case'REJECTED':case'CONFLICT':case'BLOCKED':return outcome.message}};
 
 export function WebMasterDataView({records,session,disabled,command}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:CommandFn}){
  const available=useMemo(()=>definitions.filter(def=>allowed(session,def.permission)),[session]);
  const [collection,setCollection]=useState<CollectionKey>(available[0]?.collection||'customers');
  const [query,setQuery]=useState('');
  const [editing,setEditing]=useState<BusinessRecord|null>(null);
- const [notice,setNotice]=useState('');
+ const [outcome,setOutcome]=useState<CommandOutcome|null>(null);
  const def=available.find(item=>item.collection===collection)||available[0];
  const rows=records.filter(record=>record.collection===def?.collection&&!record.archived&&JSON.stringify(record.data).toLowerCase().includes(query.toLowerCase()));
  const save=async(values:Record<string,string>)=>{
@@ -31,16 +33,16 @@ export function WebMasterDataView({records,session,disabled,command}:{records:Bu
   const recordData:Record<string,unknown>={...values};
   if(def.collection==='roomTypes')recordData.maxGuests=Number(values.maxGuests);
   if(def.collection==='suppliers')recordData.paymentTermsDays=Number(values.paymentTermsDays||0);
-  try{await command('record.save',def.collection,id,{id,collection:def.collection,data:recordData});setEditing(null);setNotice(`${def.label} saved.`)}catch(error){setNotice(String(error))}
+  setOutcome(null);try{const result=await command('record.save',def.collection,id,{id,collection:def.collection,data:recordData});setOutcome(result);if(isCommandConfirmed(result))setEditing(null)}catch{setOutcome({kind:'BLOCKED',message:'The master-data change could not be submitted. Refresh the record and review Activity before retrying.'})}
  };
- const archive=async(record:BusinessRecord)=>{try{await command('record.archive',def.collection,record.id,{collection:def.collection,id:record.id});setNotice(`${String(data(record)?.name||record.id)} archived.`)}catch(error){setNotice(String(error))}};
+ const archive=async(record:BusinessRecord)=>{setOutcome(null);try{setOutcome(await command('record.archive',def.collection,record.id,{collection:def.collection,id:record.id}))}catch{setOutcome({kind:'BLOCKED',message:'The record could not be archived. Refresh the record and review Activity before retrying.'})}};
  if(!def)return <section className="space-y-3"><h2 className="text-2xl font-bold">Master Data</h2><p className="text-sm text-slate-400">No editable master-data collections are available to this role.</p></section>;
  return <section className="space-y-5">
-  <div className="flex flex-wrap items-start justify-between gap-3"><header><h2 className="text-2xl font-bold">Master Data</h2><p className="mt-1 text-sm text-slate-400">Safe CRUD for reusable business masters. Transaction ledgers are intentionally excluded.</p></header><button disabled={disabled} className={primary} onClick={()=>{setEditing({id:'',collection:def.collection,version:0,archived:false,data:{...def.defaults}} as BusinessRecord);setNotice('')}}>New {def.label.replace(/s$/,'')}</button></div>
+  <div className="flex flex-wrap items-start justify-between gap-3"><header><h2 className="text-2xl font-bold">Master Data</h2><p className="mt-1 text-sm text-slate-400">Safe CRUD for reusable business masters. Transaction ledgers are intentionally excluded.</p></header><button disabled={disabled} className={primary} onClick={()=>{setOutcome(null);setEditing({id:'',collection:def.collection,version:0,archived:false,data:{...def.defaults}} as BusinessRecord)}}>New {def.label.replace(/s$/,'')}</button></div>
   <div className="flex flex-wrap gap-2">{available.map(item=><button key={item.collection} className={item.collection===def.collection?primary:button} onClick={()=>{setCollection(item.collection);setQuery('');setEditing(null)}}>{item.label}</button>)}</div>
   <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">{def.description}</div>
   <input aria-label={`Search ${def.label}`} className={fieldClass} placeholder={`Search ${def.label.toLowerCase()}…`} value={query} onChange={e=>setQuery(e.target.value)}/>
-  {notice&&<p role="status" className="rounded-lg bg-slate-900 p-3 text-sm">{notice}</p>}
+  {outcome&&<p role={['OUTCOME_UNKNOWN','REJECTED','CONFLICT','BLOCKED'].includes(outcome.kind)?'alert':'status'} className={`rounded-lg border p-3 text-sm ${outcome.kind==='CONFIRMED'?'border-emerald-800 bg-emerald-950':'border-amber-800 bg-amber-950'}`}>{outcomeText(outcome)}</p>}
   <div className="space-y-2">{rows.map(record=><article key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4"><div><div className="font-bold">{String(data(record)?.name||data(record)?.code||record.id)}</div><div className="text-xs text-slate-500">{[data(record)?.code,data(record)?.phone,data(record)?.email].filter(Boolean).join(' · ')}</div></div><div className="flex gap-2"><button disabled={disabled} className={button} onClick={()=>setEditing(record)}>Edit</button><button disabled={disabled} className={button} onClick={()=>void archive(record)}>Archive</button></div></article>)}{!rows.length&&<p className="rounded-xl border border-dashed border-slate-700 p-6 text-sm text-slate-500">No {def.label.toLowerCase()} found.</p>}</div>
   {editing&&<Editor definition={def} value={editing} disabled={disabled} onClose={()=>setEditing(null)} onSave={save}/>} 
  </section>;

@@ -6,6 +6,17 @@ if (process.env.GITHUB_REF !== 'refs/heads/main' || !process.env.GITHUB_SHA) {
   throw new Error('Release-candidate evidence can only be created by the gated main-branch workflow.');
 }
 
+const ciEvidenceName = `servos-ci-evidence-${process.env.GITHUB_SHA}-${process.env.GITHUB_RUN_ATTEMPT}`;
+const ciEvidencePath = path.join('artifacts', 'downloaded', ciEvidenceName, 'servos-ci-evidence.json');
+if (!fs.existsSync(ciEvidencePath)) throw new Error('Same-run CI evidence artifact is missing; candidate creation is blocked.');
+const ciEvidence = JSON.parse(fs.readFileSync(ciEvidencePath, 'utf8'));
+if (ciEvidence.sha !== process.env.GITHUB_SHA || String(ciEvidence.run) !== String(process.env.GITHUB_RUN_ID) || String(ciEvidence.runAttempt) !== String(process.env.GITHUB_RUN_ATTEMPT)) {
+  throw new Error('CI evidence SHA or run ID does not match this candidate run.');
+}
+if (ciEvidence.requiredChecksPassed !== true || ciEvidence.requiredArtifactsPresent !== true || ciEvidence.candidateRequirementsMet !== true) {
+  throw new Error('Required engine checks or same-commit evidence artifacts are incomplete; candidate creation is blocked.');
+}
+
 const roots = ['supabase/migrations', 'supabase/expansion'];
 const files = roots.flatMap(root => fs.existsSync(root)
   ? fs.readdirSync(root).filter(name => name.endsWith('.sql')).sort().map(name => path.join(root, name))
@@ -21,6 +32,12 @@ const candidate = {
   runAttempt: process.env.GITHUB_RUN_ATTEMPT || null,
   profile: 'CI_PREVIEW_AND_STAGED_V2',
   schema: { files, sha256: hash.digest('hex') },
+  ciEvidence: {
+    artifact: ciEvidenceName,
+    sha256: crypto.createHash('sha256').update(fs.readFileSync(ciEvidencePath)).digest('hex'),
+    requiredArtifacts: ciEvidence.artifacts.names,
+    artifactChecksums: ciEvidence.artifactChecksums,
+  },
   eligibleForReview: true,
   productionDeploymentAuthorized: false,
   note: 'All required same-commit CI jobs passed. This artifact marks candidate eligibility only; it is not staging, hardware, hosted-live, or production-cutover approval.',

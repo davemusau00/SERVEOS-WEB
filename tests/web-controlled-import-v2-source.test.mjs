@@ -88,6 +88,14 @@ test('Web controlled import dry-run rolls back domain validation and apply is ha
 });
 
 test('Web import UI exposes server review and explicit apply while recording partial parity', () => {
+  assert.match(ui, /Promise<CommandOutcome>/);
+  assert.match(ui, /isCommandConfirmed\(await run\(/);
+  assert.match(ui, /case'OUTCOME_UNKNOWN':case'REJECTED'/);
+  assert.match(ui, /command=\{submit\}/);
+  assert.match(ui, /const data=\(record\?:BusinessRecord\):Record<string,unknown>=>record\?\.data\?\?\{\}/);
+  assert.match(ui, /const previewRows=\(value:unknown\):Record<string,unknown>\[\]/);
+  assert.match(ui, /typeof row\.reason==='string'&&row\.reason\.length>0/);
+  assert.doesNotMatch(ui, /Record<string,any>/);
   assert.match(ui, /admin\.import\.dryRun/);
   assert.match(ui, /admin\.import\.apply/);
   assert.match(ui, /Staged batches/);
