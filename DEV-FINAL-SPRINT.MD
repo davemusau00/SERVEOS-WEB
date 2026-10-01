@@ -55,33 +55,42 @@ The prior implementation's cloud log identifies migration 040's nested row-previ
 
 Known source-test failures cover tax class, native barcode error collection, batch stock consumption, operator identity/device reuse, staff binding, dispatcher contract, import contract, floorplan, editor retention, replacement correlation, whole-location count, and inventory command routing. Some literal-match tests fail because valid source structure changed; distinguish stale assertions from behavioral defects and replace brittle checks with meaningful behavior coverage where needed. Do not delete expectations merely to obtain green CI.
 
-## 3. Receipt and branding audit: requirements versus implementation
+## 3. Receipt and branding state of play: requirements versus implementation
 
 Reviewed sources:
 
 - `docs/RECIEPT-PRINCIPLES.md` — owner's receipt presentation instructions (retain this filename for compatibility).
 - `docs/RECEIPT_SPEC.md` — immutable document and 80mm output contract.
+- `docs/RECEIPT_BRANDING_SETUP.md` — Admin branding and Till QR setup.
 - `docs/user-guide/33-receipts-settings.md` — operator settings/history/printing workflow.
 - `APP-LOGO.png` — green/gold emblem without the full business wordmark.
 - `reciept-logo.png` — Country Side Resort emblem and wordmark; supplied colour raster artwork.
-- `src/types/receipt.ts`, `src/components/pos/ReceiptDocumentView.tsx`, `src/native/NativeReceiptDialog.tsx`, `src-tauri/src/receipts.rs`, `src-tauri/src/printer.rs`.
-- `src/runtime/web/WebPosView.tsx`, `src/index.css`, `src-tauri/tauri.conf.json`.
+- `src/types/receipt.ts`, `src/receipts/branding.ts`, `src/receipts/format.ts`, `src/components/pos/ReceiptDocumentView.tsx`, `src/native/NativeReceiptDialog.tsx`, `src/native/NativeSettingsPanel.tsx`, `src-tauri/src/receipts.rs`, `src-tauri/src/printer.rs`, `src-tauri/src/store.rs`.
+- `src/runtime/web/WebAdministrationView.tsx`, `src/runtime/web/WebPosView.tsx`, `supabase/expansion/043_receipt_branding_snapshots.sql`, `supabase/expansion/044_mpesa_till_qr.sql`.
+- `DEV-FINAL-SPRINT-UPDATED.MD` — Revision 3 receipt / M-Pesa Till QR patch. This section implements it.
 
-| Requirement | Observed gap | Required resolution |
+| Requirement | State in source | Remaining evidence |
 |---|---|---|
-| Four-line KINGSFORGE footer | TS and Rust constants still contain old three-line “Built By Davemusau.co.ke” attribution | Update all renderers and fixtures together |
-| Replaceable receipt logo | ReceiptDocument has no logo reference/snapshot field; inspected renderers contain no logo output | Add versioned settings and immutable branding snapshot |
-| Correct app/business branding | Assets exist at repository root; inspected application sources do not reference the supplied filenames | Deliberately wire the emblem into appropriate business UI; distinguish it from generic ServOS product identity |
-| Print selected Web receipt | Web calls `window.print()` from history without establishing its selected document root | Use shared selected-document preview/portal, not arbitrary page printing |
-| Consistent print CSS | Global CSS expects `thermal-receipt-print-root`; shared receipt portal uses `servos-receipt-print` | Select one root and one print contract; verify stylesheet ordering and route isolation |
-| Thermal logo | Colour source is detailed and gradient-based | Produce bounded monochrome raster output; validate wordmark/detail on actual paper |
-| Pretty customer identifiers | Receipt numbering currently includes the device namespace; raw internal identity exists in business copy | Friendly collision-safe public numbers; technical identity retained in audit/detail, not customer presentation |
-| Same output across paths | Web history/download is a simplified representation, separate from native document layout | Normalize persisted documents through one contract for preview, text and direct print |
-| Footer/cutter space | Owner explicitly requires a buffer | Feed after the complete footer and before each cut; verify physically |
+| Four-line KINGSFORGE footer | Implemented. TS and Rust constants carry the four KINGSFORGE lines with the legacy three-line fallback reserved for schema-v1 documents | Paper readability on XP-80T |
+| Replaceable receipt logo | Implemented. `receiptLogoDataUrl` + `thermalLogo` in `ReceiptBrandingSnapshot`, immutable at payment commit | Photo proof on 80mm |
+| Correct app/business branding | Implemented. Emblem and logo wired through `ReceiptBrandingEditor` on Terminal and staged Web | — |
+| Print selected Web receipt | Implemented. Single `#servos-receipt-print` root; the competing `thermal-receipt-print-root` expectation is resolved | Browser acceptance run |
+| Consistent print CSS | Implemented. One root and one print contract; verify stylesheet ordering stays intact on future edits | — |
+| Thermal logo | Implemented. Bounded monochrome raster with printer-profile width bound | Physical wordmark validation |
+| Pretty customer identifiers | Implemented. Sequential `R-xxxxxx` / `ORD-xxxxxx` for schema-v2 | — |
+| Same output across paths | Implemented. HTML preview, text download, native text and ESC/POS share one document contract | Native/Web totals on paper |
+| Footer/cutter space | Implemented. `receiptFeedLines` 2–12 plus cutter handling | Accept an `receiptFeedLines` value on the printer |
+| **M-Pesa Till payment QR** | **Implemented in source (FS-06B/06C).** Settings, immutable snapshot, customer-only placement, HTML/text/ESC/POS parity | **Physical scan acceptance (06.13) remains open** |
 
-### Receipt ordering decision for this sprint
+### M-Pesa Till payment QR
+
+The QR is an operator-uploaded image supplied by the business's M-Pesa Till provider. ServOS never fabricates a Safaricom/M-Pesa QR payload from a Till number, and the QR is never presented as proof that funds were received or provider-confirmed. It is a payment convenience on the customer copy only.
+
+### Receipt ordering decision for this release
 
 The principles file has described both “footer last after logo” and “logo last on customer side.” The resolved order for this release is: fixed four-line attribution footer, customer logo, then blank feed space before the cut. The logo is the final customer-facing business-brand element. Apply this order consistently to preview, downloads, OS print, and ESC/POS; the business copy has no logo. Confirm the printed result with the owner during paper acceptance.
+
+The optional M-Pesa Till QR sits at the bottom of the transactional receipt, immediately before the fixed footer. It never displaces the footer, the logo, or the cutter feed margin.
 
 Customer receipt sequence:
 
@@ -91,9 +100,10 @@ Customer receipt sequence:
 4. Subtotal, discounts, actual tax/levy where applicable, prominent TOTAL.
 5. Tender amounts, real manual M-Pesa reference where applicable, cash tendered/change, paid and balance.
 6. Configurable business thank-you.
-7. Centred fixed attribution exactly as below.
-8. Centred receipt business logo.
-9. Blank feed buffer before cut.
+7. Optional centred M-Pesa Till payment QR.
+8. Centred fixed attribution exactly as below.
+9. Centred receipt business logo.
+10. Blank feed buffer before cut.
 
 ```text
 Built By KINGSFORGE
@@ -103,6 +113,40 @@ info@davemusau.co.ke
 ```
 
 Business copy uses the same financial snapshot with an unmistakable BUSINESS RECORD COPY label and a compact audit reference. Preserve full immutable IDs in backend/support detail; do not dump UUIDs on the customer copy. No ETR/eTIMS or provider-confirmed claims are to be invented. Actual tax calculations must remain intact. Amounts use two decimal places and an explicit currency context; references and names wrap without colliding with amounts.
+
+Customer copy:
+
+```text
+transaction content
+  ↓
+thank-you
+  ↓
+M-PESA TILL QR   [optional]
+  ↓
+KINGSFORGE footer
+  ↓
+receipt logo     [optional]
+  ↓
+feed margin
+  ↓
+cut
+```
+
+Business record copy:
+
+```text
+transaction content
+  ↓
+business/audit detail
+  ↓
+KINGSFORGE footer
+  ↓
+feed margin
+  ↓
+cut
+```
+
+No Till QR and no customer-facing receipt logo on the business copy unless a later explicit requirement changes that rule.
 
 ## 4. Execution sequence and release gates
 

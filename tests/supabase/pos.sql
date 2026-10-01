@@ -158,6 +158,47 @@ do $$declare o jsonb;s jsonb;receipt jsonb;begin
  if (servos_v2.read_record('tillSessions','shift-1')->>'expectedCashMinor')::bigint<>21000 then raise exception 'Cash drawer total is wrong';end if;
  if (select data->>'changeMinor' from servos_v2.records where collection='payments' and data->>'orderId'='tab-1' and data->>'method'='CASH')<>'2000' then raise exception 'Cash change snapshot is wrong';end if;
  if exists(select 1 from servos_v2.records where collection='payments' and data->>'method'='MPESA' and data->>'confirmation'<>'MANUALLY_CONFIRMED') then raise exception 'M-Pesa was represented as provider initiated';end if;
+  -- The enabled Till QR is snapshotted immutably, is a bounded square PNG raster.
+  if receipt->'brandingSnapshot'->'mpesaTillQr'->>'enabled'<>'true'
+     or receipt->'brandingSnapshot'->'mpesaTillQr'->>'dataUrl' !~ '^data:image/png;base64,'
+     or (receipt->'brandingSnapshot'->'mpesaTillQr'->'thermalRaster'->>'width')::integer
+        <> (receipt->'brandingSnapshot'->'mpesaTillQr'->'thermalRaster'->>'height')::integer
+     or (receipt->'brandingSnapshot'->'mpesaTillQr'->'thermalRaster'->>'width')::integer>320 then
+    raise exception 'Receipt did not snapshot the configured Till QR';
+  end if;
+  -- The Till QR is a payment convenience only: it never carries a payment reference.
+  if receipt->'brandingSnapshot'->'mpesaTillQr' ? 'reference' then raise exception 'Till QR snapshot carried a payment reference';end if;
+  -- QR presence must not change any captured amount.
+  if (receipt->>'totalMinor')::bigint<>55000 or (receipt->>'paidMinor')::bigint<>55000 then raise exception 'Till QR altered receipt totals';end if;
+end$$;
+
+-- Replacing the Till QR affects new receipts only; an earlier receipt keeps its own snapshot.
+select pg_temp.pos_command('order.create','orders','order-qr-two','{"id":"order-qr-two","outletId":"bar","name":"QR replacement test"}');
+select pg_temp.pos_command('order.addItem','orders','order-qr-two','{"orderId":"order-qr-two","productId":"gin-shot","itemId":"qr-two-line","quantity":1,"portionId":"single","modifierIds":[]}');
+select servos_v2.put_record('organization','business',jsonb_set(data,'{receipt,mpesaTillQr}',jsonb_build_object('enabled',true,'label','Replacement Till','dataUrl','data:image/png;base64,BB==','thermalRaster',jsonb_build_object('width',8,'height',8,'base64','AwMDAwMDAwMDA='))) from servos_v2.records where collection='organization' and id='business');
+select pg_temp.pos_command('payment.record','orders','order-qr-two','{"orderId":"order-qr-two","amountMinor":10000,"accountId":"cash","cashTenderedMinor":10000}');
+
+-- Removing the Till QR affects new receipts only; earlier receipts retain their own QR.
+select pg_temp.pos_command('order.create','orders','order-qr-three','{"id":"order-qr-three","outletId":"bar","name":"QR removal test"}');
+select pg_temp.pos_command('order.addItem','orders','order-qr-three','{"orderId":"order-qr-three","productId":"gin-shot","itemId":"qr-three-line","quantity":1,"portionId":"single","modifierIds":[]}');
+select servos_v2.put_record('organization','business',jsonb_set(data,'{receipt}',(data->'receipt')-'mpesaTillQr') from servos_v2.records where collection='organization' and id='business');
+select pg_temp.pos_command('payment.record','orders','order-qr-three','{"orderId":"order-qr-three","amountMinor":10000,"accountId":"cash","cashTenderedMinor":10000}');
+
+-- A disabled QR is omitted from the snapshot even while the image stays configured.
+select pg_temp.pos_command('order.create','orders','order-qr-four','{"id":"order-qr-four","outletId":"bar","name":"QR disabled test"}');
+select pg_temp.pos_command('order.addItem','orders','order-qr-four','{"orderId":"order-qr-four","productId":"gin-shot","itemId":"qr-four-line","quantity":1,"portionId":"single","modifierIds":[]}');
+select servos_v2.put_record('organization','business',jsonb_set(data,'{receipt,mpesaTillQr,enabled}','false') from servos_v2.records where collection='organization' and id='business');
+select pg_temp.pos_command('payment.record','orders','order-qr-four','{"orderId":"order-qr-four","amountMinor":10000,"accountId":"cash","cashTenderedMinor":10000}');
+
+do $$declare first_qr jsonb;second_qr jsonb;third_qr jsonb;fourth_qr jsonb;begin
+  select data->'brandingSnapshot'->'mpesaTillQr' into first_qr from servos_v2.records where collection='receiptDocuments' and data->>'orderId'='tab-1';
+  select data->'brandingSnapshot'->'mpesaTillQr' into second_qr from servos_v2.records where collection='receiptDocuments' and data->>'orderId'='order-qr-two';
+  select data->'brandingSnapshot'->'mpesaTillQr' into third_qr from servos_v2.records where collection='receiptDocuments' and data->>'orderId'='order-qr-three';
+  select data->'brandingSnapshot'->'mpesaTillQr' into fourth_qr from servos_v2.records where collection='receiptDocuments' and data->>'orderId'='order-qr-four';
+  if first_qr is null or first_qr->>'label'<>'Country Side Till' then raise exception 'Historical receipt lost its original Till QR';end if;
+  if second_qr->>'label'<>'Replacement Till' then raise exception 'Replacement QR did not reach the new receipt';end if;
+  if third_qr is not null and jsonb_typeof(third_qr)<>'null' then raise exception 'Removing the QR did not clear it on a new receipt';end if;
+  if fourth_qr is not null and jsonb_typeof(fourth_qr)<>'null' then raise exception 'A disabled QR must not be snapshotted';end if;
 end$$;
 
 -- Duplicate M-Pesa reference rejects without a partial payment.
