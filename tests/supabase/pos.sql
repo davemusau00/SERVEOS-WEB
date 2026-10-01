@@ -172,22 +172,35 @@ do $$declare o jsonb;s jsonb;receipt jsonb;begin
   if (receipt->>'totalMinor')::bigint<>55000 or (receipt->>'paidMinor')::bigint<>55000 then raise exception 'Till QR altered receipt totals';end if;
 end$$;
 
+-- Till QR settings validation: an enabled QR must carry a printable square raster, and the
+-- migration 044 guard is authoritative. A rejected write must not change the stored settings.
+select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":16,"base64":"AwMDAwMDAwM="}}}','VALIDATION_FAILED');
+select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":400,"height":400,"base64":"AwMDAwMDAwM="}}}','VALIDATION_FAILED');
+select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwMDA="}}}','VALIDATION_FAILED');
+select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"enabled":true,"thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwM="}}}','VALIDATION_FAILED');
+select pg_temp.failing_put('business','organization','business','{"name":"Test Business","receipt":{"mpesaTillQr":{"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":8,"height":8,"base64":"AwMDAwMDAwM="}}}}','VALIDATION_FAILED');
+do $$begin
+  if servos_v2.read_record('organization','business')->'receipt'->'mpesaTillQr'->>'label'<>'Replacement Till' then
+    raise exception 'A rejected Till QR write changed the stored settings';
+  end if;
+end$$;
+
 -- Replacing the Till QR affects new receipts only; an earlier receipt keeps its own snapshot.
 select pg_temp.pos_command('order.create','orders','order-qr-two','{"id":"order-qr-two","outletId":"bar","name":"QR replacement test"}');
 select pg_temp.pos_command('order.addItem','orders','order-qr-two','{"orderId":"order-qr-two","productId":"gin-shot","itemId":"qr-two-line","quantity":1,"portionId":"single","modifierIds":[]}');
-select servos_v2.put_record('organization','business',jsonb_set(data,'{receipt,mpesaTillQr}',jsonb_build_object('enabled',true,'label','Replacement Till','dataUrl','data:image/png;base64,BB==','thermalRaster',jsonb_build_object('width',8,'height',8,'base64','AwMDAwMDAwMDA='))) from servos_v2.records where collection='organization' and id='business');
+select servos_v2.put_record('organization','business',jsonb_set(servos_v2.read_record('organization','business'),'{receipt,mpesaTillQr}',jsonb_build_object('enabled',true,'label','Replacement Till','dataUrl','data:image/png;base64,BB==','thermalRaster',jsonb_build_object('width',8,'height',8,'base64','AwMDAwMDAwM='))));
 select pg_temp.pos_command('payment.record','orders','order-qr-two','{"orderId":"order-qr-two","amountMinor":10000,"accountId":"cash","cashTenderedMinor":10000}');
 
 -- Removing the Till QR affects new receipts only; earlier receipts retain their own QR.
 select pg_temp.pos_command('order.create','orders','order-qr-three','{"id":"order-qr-three","outletId":"bar","name":"QR removal test"}');
 select pg_temp.pos_command('order.addItem','orders','order-qr-three','{"orderId":"order-qr-three","productId":"gin-shot","itemId":"qr-three-line","quantity":1,"portionId":"single","modifierIds":[]}');
-select servos_v2.put_record('organization','business',jsonb_set(data,'{receipt}',(data->'receipt')-'mpesaTillQr') from servos_v2.records where collection='organization' and id='business');
+select servos_v2.put_record('organization','business',jsonb_set(servos_v2.read_record('organization','business'),'{receipt}',(servos_v2.read_record('organization','business')->'receipt')-'mpesaTillQr'));
 select pg_temp.pos_command('payment.record','orders','order-qr-three','{"orderId":"order-qr-three","amountMinor":10000,"accountId":"cash","cashTenderedMinor":10000}');
 
 -- A disabled QR is omitted from the snapshot even while the image stays configured.
 select pg_temp.pos_command('order.create','orders','order-qr-four','{"id":"order-qr-four","outletId":"bar","name":"QR disabled test"}');
 select pg_temp.pos_command('order.addItem','orders','order-qr-four','{"orderId":"order-qr-four","productId":"gin-shot","itemId":"qr-four-line","quantity":1,"portionId":"single","modifierIds":[]}');
-select servos_v2.put_record('organization','business',jsonb_set(data,'{receipt,mpesaTillQr,enabled}','false') from servos_v2.records where collection='organization' and id='business');
+select servos_v2.put_record('organization','business',jsonb_set(servos_v2.read_record('organization','business'),'{receipt,mpesaTillQr,enabled}','false'));
 select pg_temp.pos_command('payment.record','orders','order-qr-four','{"orderId":"order-qr-four","amountMinor":10000,"accountId":"cash","cashTenderedMinor":10000}');
 
 do $$declare first_qr jsonb;second_qr jsonb;third_qr jsonb;fourth_qr jsonb;begin
