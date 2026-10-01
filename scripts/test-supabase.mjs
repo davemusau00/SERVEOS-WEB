@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { testRoomConcurrency } from '../tests/supabase/concurrency.mjs';
+import { BASE_MIGRATIONS, canonicalMigrations, expansionChain, canonicalNameFor, migrationPath } from './canonical-migrations.mjs';
 
 const container = `servos-policy-test-${randomUUID()}`;
 const run = (args, input) => {
@@ -36,8 +37,34 @@ try {
       (logs.stderr || logs.stdout || '')
     );
   }
-  const files = ['tests/supabase/bootstrap.sql', ...readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort().map(f => `supabase/migrations/${f}`), 'tests/supabase/protocol.sql'];
-  if (process.argv.includes('--expansion')) files.push(...readdirSync('supabase/expansion').filter(f=>f.endsWith('.sql')).sort().map(f=>`supabase/expansion/${f}`),'tests/supabase/expansion.sql','tests/supabase/allocations.sql','tests/supabase/assets.sql','tests/supabase/rooms.sql','tests/supabase/folios.sql','tests/supabase/web-session.sql','tests/supabase/inventory.sql','tests/supabase/smart-items.sql','tests/supabase/procurement.sql','tests/supabase/pos.sql','tests/supabase/floorplan.sql','tests/supabase/staff-devices.sql','tests/supabase/financial-controls.sql','tests/supabase/settings.sql','tests/supabase/controlled-import.sql');
+  // One canonical migration set, applied exactly once, in the reviewed order.
+  // Base mode stops after the terminal-replica migrations; --expansion adds the staged v2 chain.
+  const expansion = process.argv.includes('--expansion');
+  const migrations = expansion ? canonicalMigrations() : BASE_MIGRATIONS;
+  const files = [
+    'tests/supabase/bootstrap.sql',
+    ...migrations.map(migrationPath),
+    'tests/supabase/protocol.sql',
+  ];
+  if (expansion) {
+    files.push(
+      'tests/supabase/expansion.sql',
+      'tests/supabase/allocations.sql',
+      'tests/supabase/assets.sql',
+      'tests/supabase/rooms.sql',
+      'tests/supabase/folios.sql',
+      'tests/supabase/web-session.sql',
+      'tests/supabase/inventory.sql',
+      'tests/supabase/smart-items.sql',
+      'tests/supabase/procurement.sql',
+      'tests/supabase/pos.sql',
+      'tests/supabase/floorplan.sql',
+      'tests/supabase/staff-devices.sql',
+      'tests/supabase/financial-controls.sql',
+      'tests/supabase/settings.sql',
+      'tests/supabase/controlled-import.sql',
+    );
+  }
   for (const file of files) {
     run(['exec', '-i', container, 'psql', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1'], readFileSync(file, 'utf8'));
     console.log(`Passed: ${file}`);
