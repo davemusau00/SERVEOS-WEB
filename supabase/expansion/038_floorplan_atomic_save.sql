@@ -73,22 +73,15 @@ begin
  return changes;
 end$$;
 
-create or replace function servos_v2.dispatch(command jsonb) returns jsonb language plpgsql set search_path='' as $$
+alter function servos_v2.dispatch(jsonb) rename to dispatch_before_floorplan;
+create function servos_v2.dispatch(command jsonb) returns jsonb language plpgsql set search_path='' as $$
 begin
+ -- This migration adds one operation; all existing routes and safety checks
+ -- stay in the previously installed canonical dispatcher.
  if coalesce((command->>'offlineFinalized')::boolean,false) then raise exception 'PROTOCOL_UNSUPPORTED: signed offline grants required';end if;
- if command->>'operation' like 'admin.%' or command->>'operation'='business.settings.save' or command->>'operation'='backup.request' then return servos_v2.apply_admin_operations(command);end if;
  if command->>'operation'='floorplan.save' then return servos_v2.apply_floorplan(command);end if;
- if command->>'operation' like 'payment.%' or command->>'operation' like 'till.%' then return servos_v2.apply_payments(command);end if;
- if command->>'operation' in ('record.save','record.archive','record.reactivate') then return servos_v2.apply_master(command);end if;
- if command->>'operation' like 'posPolicy.%' or command->>'operation' like 'outlet.%' or command->>'operation' like 'table.%' or command->>'operation' like 'order.%' or command->>'operation'='product.salesConfig' then return servos_v2.apply_pos(command);end if;
- if command->>'operation' like 'supplier.%' or command->>'operation' like 'purchaseOrder.%' or command->>'operation' like 'supplierPayable.%' or command->>'operation'='asset.commission' then return servos_v2.apply_procurement(command);end if;
- if command->>'operation' like 'product.%' or command->>'operation' like 'stockItem.%' or command->>'operation' like 'stockLocation.%' or command->>'operation' like 'inventory.%' then return servos_v2.apply_catalog_inventory(command);end if;
- if command->>'operation' like 'asset.%' or command->>'operation' like 'maintenance.%' then return servos_v2.apply_assets(command);end if;
- if command->>'operation' like 'folio.%' then return servos_v2.apply_folios(command);end if;
- if command->>'operation' like 'stay.%' then return servos_v2.apply_stays(command);end if;
- if command->>'operation' like 'room.%' or command->>'operation' like 'ratePlan.%' or command->>'operation' like 'roomReservation.%' then return servos_v2.apply_rooms(command);end if;
- raise exception 'PROTOCOL_UNSUPPORTED: domain operation not enabled';
+ return servos_v2.dispatch_before_floorplan(command);
 end$$;
 
-revoke all on function servos_v2.apply_floorplan(jsonb) from public,anon,authenticated;
+revoke all on function servos_v2.apply_floorplan(jsonb),servos_v2.dispatch(jsonb),servos_v2.dispatch_before_floorplan(jsonb) from public,anon,authenticated;
 commit;

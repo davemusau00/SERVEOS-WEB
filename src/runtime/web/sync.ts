@@ -5,8 +5,9 @@ export interface CloudTransport {execute(command:BusinessCommandV2):Promise<Tran
 export async function synchronizeStore(store:BusinessStore,transport:CloudTransport):Promise<void>{
   if(!navigator.locks)throw new Error('This browser cannot safely coordinate device synchronization');
   await navigator.locks.request(`servos-v2-sync:${store.scope}:${store.deviceId}:${store.actorId}`,async()=>{
-    const pending=(await store.queue()).filter(row=>row.state==='PENDING_SYNC');
+    const pending=(await store.queue()).filter(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN');
     for(const row of pending){
+      await store.markOutcomeUnknown(row.id);
       const result=await transport.execute(row.command);
       if(result.commandId!==row.id)throw new Error('Server acknowledged a different command');
       await store.acknowledge(result);

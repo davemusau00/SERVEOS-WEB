@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 const sql = readFileSync('supabase/expansion/039_controlled_csv_import.sql', 'utf8');
 const forwardSql = readFileSync('supabase/expansion/040_controlled_import_master_templates.sql', 'utf8');
 const roomSql = readFileSync('supabase/expansion/041_controlled_import_room_inventory.sql', 'utf8');
+const dispatchRepairSql = readFileSync('supabase/expansion/042_floorplan_dispatch_repair.sql', 'utf8');
+const floorplanSql = readFileSync('supabase/expansion/038_floorplan_atomic_save.sql', 'utf8');
 const importFixture = readFileSync('tests/supabase/controlled-import.sql', 'utf8');
 const ui = readFileSync('src/runtime/web/WebAdministrationView.tsx', 'utf8');
 const manifest = readFileSync('src/runtime/operationManifest.ts', 'utf8');
@@ -18,6 +20,16 @@ test('Web controlled import stages bounded CSV and preserves reviewed source has
   assert.match(sql, /externalId/);
   assert.match(sql, /barcode/);
   assert.match(sql, /scientific notation is not accepted/);
+});
+
+test('floorplan migrations preserve the complete canonical dispatch chain', () => {
+  assert.match(floorplanSql, /alter function servos_v2\.dispatch\(jsonb\) rename to dispatch_before_floorplan;/);
+  assert.match(floorplanSql, /operation'='floorplan\.save'.*apply_floorplan/s);
+  assert.match(floorplanSql, /return servos_v2\.dispatch_before_floorplan\(command\)/);
+  assert.match(dispatchRepairSql, /alter function servos_v2\.dispatch\(jsonb\) rename to dispatch_before_floorplan_repair;/);
+  assert.match(dispatchRepairSql, /operation'='floorplan\.save'.*apply_floorplan/s);
+  assert.match(dispatchRepairSql, /return servos_v2\.dispatch_before_batch_preparation\(command\)/);
+  for (const source of [floorplanSql, dispatchRepairSql]) assert.match(source, /revoke all on function servos_v2\.dispatch\(jsonb\)/);
 });
 
 test('Web controlled import dry-run rolls back domain validation and apply is hash-bound', () => {
@@ -49,6 +61,11 @@ test('Web controlled import dry-run rolls back domain validation and apply is ha
   assert.match(roomSql, /assetCategories\.manage/);
   assert.match(roomSql, /exactly one room or stock-location external ID/);
   assert.match(roomSql, /md5\(key\|\|':'\|\|target_id\)::uuid/);
+  assert.match(roomSql, /template='staff' then perform servos_v2\.require_permission\('staff\.create'\)/);
+  assert.match(roomSql, /servos_v2\.apply_staff_device\(domain_command\)/);
+  assert.match(roomSql, /staff\.create/);
+  assert.match(roomSql, /existing Auth user ID and an explicit role/);
+  assert.doesNotMatch(roomSql, /insert into auth\.users/i);
   assert.match(importFixture, /template='ratePlans'/);
   assert.match(importFixture, /template='rooms'/);
   assert.match(importFixture, /room_type_external_id/);
@@ -58,6 +75,8 @@ test('Web controlled import dry-run rolls back domain validation and apply is ha
   assert.match(importFixture, /import cancellation rejected/);
   assert.match(importFixture, /cancelled batch ID was unexpectedly reusable/);
   assert.match(importFixture, /applied import was incorrectly cancelled/);
+  assert.match(importFixture, /template='staff'/);
+  assert.match(importFixture, /existing Auth-bound staff command/);
 });
 
 test('Web import UI exposes server review and explicit apply while recording partial parity', () => {
@@ -66,9 +85,14 @@ test('Web import UI exposes server review and explicit apply while recording par
   assert.match(ui, /Staged batches/);
   assert.match(ui, /stockLocations:\[.*roomTypes:/s);
   assert.match(ui, /value="stockLocations">Stock locations.*value="roomTypes">Room types/s);
-  assert.match(ui, /nightly rates, rooms, guests, suppliers, asset categories and assets.*does not import reservations\/bookings, opening balances, historical transactions or staff/i);
+  assert.match(ui, /nightly rates, rooms, guests, suppliers, asset categories, assets, and invited-Auth staff profiles.*No reservations, opening balances, historical transactions, or asset history/i);
   assert.match(ui, /value="ratePlans">Nightly rate plans.*value="rooms">Rooms/s);
   assert.match(ui, /value="assetCategories">Asset categories.*value="assets">Assets \(no history\)/s);
+  assert.match(ui, /value="staff">Invited staff profiles \(Auth IDs required\)/);
+  assert.match(ui, /Invite every operator through Supabase Auth first/);
+  assert.match(ui, /const detectImportTemplate=/);
+  assert.match(ui, /Header pattern looks like/);
+  assert.match(ui, /Use detected template/);
   assert.match(ui, /admin\.import\.cancel/);
   assert.match(ui, /Cancel batch and remove file/);
   assert.match(manifest, /operation: 'admin\.import\.stage'.*backend: 'partial'.*web: 'partial'/);

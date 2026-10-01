@@ -14,11 +14,17 @@ const posMigration=read('../supabase/expansion/036_batch_pos_stock_consumption.s
 const modifierMigration=read('../supabase/expansion/037_batch_modifier_inventory.sql');
 const contracts=JSON.parse(readFileSync(new URL('../contracts/operations.json',import.meta.url),'utf8'));
 
+test('native store validation errors collect using the shared String result type',()=>{
+  assert.match(nativeStore,/ok_or_else\(\|\|"Stock barcode aliases must be non-empty text up to 128 characters"\.to_string\(\)\)\.collect::<Result<Vec<_>>>\(\)\?/);
+});
+
 test('batch preparation atomically consumes full recipe yields and records output stock',()=>{
   assert.match(nativeStore,/"inventory\.produceBatch" =>/);
   assert.match(nativeStore,/per_portion\*yield_per_batch\*batches as f64/);
   assert.match(nativeStore,/"BATCH_PREPARATION_INGREDIENT"/);
   assert.match(nativeStore,/"BATCH_PREPARATION_OUTPUT"/);
+  assert.match(nativeStore,/let movement_id=id\(\);[\s\S]*"organizationId":"business","propertyId":"property"[\s\S]*"occurredAt":now\(\)/);
+  assert.doesNotMatch(nativeStore,/let movement_id=new_id\(\)|user\.organization_id|user\.property_id|now_iso\(\)/);
   assert.match(nativeStore,/Finished portions must use the stock item linked to this batch recipe/);
   assert.match(prepareMigration,/require_permission\('inventory\.adjust'\)/);
   assert.match(prepareMigration,/assert_version\(command,'stockItems',ingredient_key\)/);

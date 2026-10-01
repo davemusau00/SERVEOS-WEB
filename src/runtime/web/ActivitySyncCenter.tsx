@@ -4,10 +4,11 @@ import type { QueuedCommand, WorkflowDraft } from './BusinessStore';
 import { ds } from '../../design-system/tokens';
 import { EmptyState, StatusBadge } from '../../design-system/components';
 
-type QueueFilter = 'ALL' | 'WAITING' | 'SYNCED' | 'CONFLICT' | 'REJECTED';
+type QueueFilter = 'ALL' | 'WAITING' | 'OUTCOME_UNKNOWN' | 'SYNCED' | 'CONFLICT' | 'REJECTED';
 
 const labels: Record<QueuedCommand['state'], string> = {
   PENDING_SYNC: 'Waiting to sync',
+  OUTCOME_UNKNOWN: 'Checking outcome',
   SYNCHRONIZED: 'Synchronized',
   CONFLICT: 'Conflict',
   REJECTED: 'Rejected',
@@ -15,6 +16,7 @@ const labels: Record<QueuedCommand['state'], string> = {
 
 const tone: Record<QueuedCommand['state'], 'warning' | 'success' | 'danger' | 'info'> = {
   PENDING_SYNC: 'warning',
+  OUTCOME_UNKNOWN: 'warning',
   SYNCHRONIZED: 'success',
   CONFLICT: 'danger',
   REJECTED: 'danger',
@@ -22,6 +24,7 @@ const tone: Record<QueuedCommand['state'], 'warning' | 'success' | 'danger' | 'i
 
 const icon: Record<QueuedCommand['state'], React.ComponentType<{ className?: string }>> = {
   PENDING_SYNC: Clock3,
+  OUTCOME_UNKNOWN: AlertTriangle,
   SYNCHRONIZED: CheckCircle2,
   CONFLICT: AlertTriangle,
   REJECTED: XCircle,
@@ -37,7 +40,8 @@ export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync, onR
     if (filter === 'SYNCED') return item.state === 'SYNCHRONIZED';
     return item.state === filter;
   }), [filter, queue]);
-  const pending = queue.filter(item => item.state === 'PENDING_SYNC').length;
+  const pending = queue.filter(item => item.state === 'PENDING_SYNC' || item.state === 'OUTCOME_UNKNOWN').length;
+  const unknown = queue.filter(item => item.state === 'OUTCOME_UNKNOWN').length;
   const conflicts = queue.filter(item => item.state === 'CONFLICT' || item.state === 'REJECTED').length;
 
   return <section className="space-y-5" data-guide-anchor="activity.sync-center">
@@ -49,18 +53,20 @@ export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync, onR
       <div className="mt-4 flex flex-wrap gap-2">
         <StatusBadge tone={online ? 'success' : 'warning'}>{online ? 'Online' : 'Offline · saved changes only'}</StatusBadge>
         {pending > 0 && <StatusBadge tone="warning"><Send className="h-3.5 w-3.5" />{pending} waiting</StatusBadge>}
+        {unknown > 0 && <StatusBadge tone="warning">{unknown} outcome check{unknown===1?'':'s'} required</StatusBadge>}
         {conflicts > 0 && <StatusBadge tone="danger"><AlertTriangle className="h-3.5 w-3.5" />{conflicts} need review</StatusBadge>}
       </div>
     </div>
 
     <div className="flex flex-wrap gap-2" role="group" aria-label="Activity filters">
-      {(['ALL', 'WAITING', 'SYNCED', 'CONFLICT', 'REJECTED'] as QueueFilter[]).map(value => <button type="button" key={value} className={`${ds.button} ${filter === value ? 'border-amber-400 bg-amber-400 text-slate-950' : ''}`} onClick={() => setFilter(value)}>{value === 'ALL' ? 'All changes' : value === 'WAITING' ? 'Waiting' : value === 'SYNCED' ? 'Synchronized' : value === 'CONFLICT' ? 'Conflicts' : 'Rejected'}</button>)}
+      {(['ALL', 'WAITING', 'OUTCOME_UNKNOWN', 'SYNCED', 'CONFLICT', 'REJECTED'] as QueueFilter[]).map(value => <button type="button" key={value} className={`${ds.button} ${filter === value ? 'border-amber-400 bg-amber-400 text-slate-950' : ''}`} onClick={() => setFilter(value)}>{value === 'ALL' ? 'All changes' : value === 'WAITING' ? 'Waiting' : value === 'OUTCOME_UNKNOWN' ? 'Checking outcome' : value === 'SYNCED' ? 'Synchronized' : value === 'CONFLICT' ? 'Conflicts' : 'Rejected'}</button>)}
     </div>
 
     {filtered.length === 0 && drafts.length === 0 ? <EmptyState title="No saved changes yet" description="Commands and local drafts will appear here after you work in the browser." /> : <div className="space-y-3">
       {filtered.map(item => { const Icon = icon[item.state]; return <article className={`${ds.panel} p-4`} key={item.id}>
         <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-3"><span className="mt-0.5 rounded-lg bg-slate-950 p-2 text-slate-300"><Icon className="h-4 w-4" /></span><div><h3 className="font-bold text-white">{operationLabel(item.command.operation)}</h3><p className="mt-1 text-xs text-slate-500">Command saved on this browser · sequence {item.sequence}</p></div></div><StatusBadge tone={tone[item.state]}>{labels[item.state]}</StatusBadge></div>
         {item.result?.error && <p className="mt-3 rounded-lg border border-rose-900/70 bg-rose-950/30 p-3 text-sm text-rose-200">{item.result.error.message}</p>}
+        {item.state === 'OUTCOME_UNKNOWN' && <p role="status" className="mt-3 rounded-lg border border-amber-800 bg-amber-950/30 p-3 text-sm text-amber-100">The server may have committed this command, but its acknowledgement was not received. Synchronize to retry the same command ID and reconcile its original result. Do not submit this action again.</p>}
         {item.state === 'CONFLICT' && <p className="mt-3 text-sm leading-6 text-amber-100">The server did not silently overwrite this change. Review the current records, then reopen the saved workflow and submit a new command with fresh versions.</p>}
         {item.state === 'REJECTED' && <p className="mt-3 text-sm leading-6 text-slate-300">The server rejected this command. Do not resend it. Review the saved workflow and create a new command only after its business conditions are valid.</p>}
         <details className="mt-3 text-xs text-slate-500"><summary className="cursor-pointer font-semibold">Technical details</summary><p className="mt-2 break-all">{item.command.operation} · {item.id}</p><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-3">{JSON.stringify(item.result || item.command.payload, null, 2)}</pre></details>

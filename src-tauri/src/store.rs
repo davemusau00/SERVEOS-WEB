@@ -3072,7 +3072,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                     if collection=="stockItems" {
                         let aliases=data.get("barcodeAliases").and_then(Value::as_array).cloned().unwrap_or_default();
                         if aliases.len()>100{return Err("At most 100 stock barcode aliases may be assigned".into());}
-                        let normalized:Vec<String>=aliases.iter().map(|alias|alias.as_str().map(str::trim).filter(|value|!value.is_empty()&&value.len()<=128).map(str::to_lowercase).ok_or("Stock barcode aliases must be non-empty text up to 128 characters")).collect::<Result<Vec<_>>>()?;
+                        let normalized:Vec<String>=aliases.iter().map(|alias|alias.as_str().map(str::trim).filter(|value|!value.is_empty()&&value.len()<=128).map(str::to_lowercase).ok_or_else(||"Stock barcode aliases must be non-empty text up to 128 characters".to_string())).collect::<Result<Vec<_>>>()?;
                         let mut unique=std::collections::HashSet::new();
                         if normalized.iter().any(|value|!unique.insert(value.clone())){return Err("Duplicate stock barcode alias".into());}
                         let primary=barcode.unwrap_or_default().to_lowercase();let stock_code=data.get("code").and_then(Value::as_str).unwrap_or("").trim().to_lowercase();
@@ -3409,8 +3409,8 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             updated_output["currentStock"][location_id]=json!(existing_output+portion_output);
             put(&tx,"stockItems",output_stock_id,updated_output,&mut changes)?;
             let location_name=get(&tx,"stockLocations",location_id)?.1["name"].as_str().unwrap_or("Location").to_string();
-            let movement_id=new_id();
-            put(&tx,"stockMovements",&movement_id,json!({"id":movement_id,"organizationId":user.organization_id,"propertyId":user.property_id,"stockItemId":output_stock_id,"stockItemName":output_stock["name"],"locationId":location_id,"locationName":location_name,"quantityDelta":portion_output,"baseUnit":output_stock["baseUnit"],"movementType":"BATCH_PREPARATION_OUTPUT","sourceId":cmd.id,"reasonCode":movement_reason,"occurredAt":now_iso(),"actorUserId":user.staff_id,"actorName":user.name,"unitCostSnapshot":output_unit_cost,"totalCostValuation":(output_unit_cost*portion_output*100.0).round()/100.0}),&mut changes)?;
+            let movement_id=id();
+            put(&tx,"stockMovements",&movement_id,json!({"id":movement_id,"organizationId":"business","propertyId":"property","stockItemId":output_stock_id,"stockItemName":output_stock["name"],"locationId":location_id,"locationName":location_name,"quantityDelta":portion_output,"baseUnit":output_stock["baseUnit"],"movementType":"BATCH_PREPARATION_OUTPUT","sourceId":cmd.id,"reasonCode":movement_reason,"occurredAt":now(),"actorUserId":user.staff_id,"actorName":user.name,"unitCostSnapshot":output_unit_cost,"totalCostValuation":(output_unit_cost*portion_output*100.0).round()/100.0}),&mut changes)?;
         }
         "inventory.openingBalance" | "inventory.receive" | "inventory.adjust" | "inventory.waste" | "inventory.transfer" => {
             let permission=match cmd.operation.as_str(){"inventory.receive"=>"inventory.receive","inventory.transfer"=>"inventory.transfer","inventory.waste"=>"inventory.waste","inventory.adjust"=>"inventory.adjust",_=>"inventory.adjust"};

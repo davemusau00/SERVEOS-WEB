@@ -10,7 +10,7 @@ begin
  for i in 0..jsonb_array_length(headers)-1 loop
   header:=lower(regexp_replace(trim(headers->>i),'[^a-zA-Z0-9]+','_','g'));
   value:=cells->>i;field:=null;
-  if header in ('external_id','externalid','record_id','id') then field:='externalId';
+  if header in ('external_id','externalid','record_id','id','staff_id') then field:='externalId';
   elsif header in ('name','product','product_name','item_name','menu_item','stock_item','guest','customer','guest_name','supplier','supplier_name','vendor','full_name') then field:='name';
   elsif header in ('code','sku','product_code','item_code','stock_code','supplier_code','vendor_code') then field:='code';
   elsif header in ('price','selling_price','unit_price','price_kes','base_rate','nightly_rate') then field:='price';
@@ -21,6 +21,10 @@ begin
   elsif header in ('reorder_level','minimum_stock','par_level') then field:='reorderLevel';
   elsif header in ('phone','mobile','telephone','contact_number') then field:='phone';
   elsif header in ('email','email_address') then field:='email';
+  elsif header in ('auth_user_id','auth_id') then field:='authUserId';
+  elsif header='role' then field:='role';
+  elsif header in ('outlet_ids','outlets') then field:='outletIds';
+  elsif header in ('service_areas','serviceareas') then field:='serviceAreas';
   elsif header in ('capacity_adults','adults') then field:='capacityAdults';
   elsif header in ('capacity_children','children') then field:='capacityChildren';
   elsif header='capacity' then field:=case when template='rooms' then 'capacity' else 'maxGuests' end;
@@ -63,7 +67,8 @@ begin
    (template='ratePlans' and field in ('externalId','name','roomTypeExternalId','price','currency','taxBasisPoints','mode','notes')) or
    (template='rooms' and field in ('externalId','number','roomTypeExternalId','capacity','turnaroundMinutes','floor','amenities','notes')) or
    (template='assetCategories' and field in ('externalId','name','code','notes','description')) or
-   (template='assets' and field in ('externalId','name','assetTag','categoryExternalId','roomExternalId','locationExternalId','serialNumber','acquiredAt','acquisitionCost','warrantyUntil','notes'))
+   (template='assets' and field in ('externalId','name','assetTag','categoryExternalId','roomExternalId','locationExternalId','serialNumber','acquiredAt','acquisitionCost','warrantyUntil','notes')) or
+   (template='staff' and field in ('externalId','name','authUserId','role','outletIds','serviceAreas'))
   ) then raise exception 'VALIDATION_FAILED: populated column is not supported by this template: %',header;end if;
   if field is null and value<>'' then raise exception 'VALIDATION_FAILED: populated CSV column is not mapped: %',header;end if;
   if field is not null then
@@ -80,15 +85,15 @@ begin
     if value<>'' then amount:=value::numeric;if trunc(amount)<>amount and field<>'reorderLevel' then raise exception 'VALIDATION_FAILED: % must be a whole number',field;end if;result:=result||jsonb_build_object(field,amount);end if;
    elsif field='externalId' then
     if value<>'' then result:=result||jsonb_build_object(field,value);end if;
-   elsif field='amenities' then result:=result||jsonb_build_object('amenities',to_jsonb(array(select trim(entry) from unnest(string_to_array(value,';')) as amenity(entry) where trim(entry)<>'')));
-   elsif field in ('barcode','phone','email','externalId','roomTypeExternalId','categoryExternalId','locationExternalId','roomExternalId') then
+   elsif field in ('amenities','outletIds','serviceAreas') then result:=result||jsonb_build_object(field,to_jsonb(array(select distinct trim(entry) from unnest(string_to_array(value,';')) as list(entry) where trim(entry)<>'' order by trim(entry))));
+   elsif field in ('barcode','phone','email','externalId','roomTypeExternalId','categoryExternalId','locationExternalId','roomExternalId','authUserId') then
     if value<>'' then result:=result||jsonb_build_object(field,value);end if;
    elsif field in ('acquiredAt','warrantyUntil') then
     if value<>'' then perform value::date;result:=result||jsonb_build_object(field,value);end if;
    elsif value<>'' then result:=result||jsonb_build_object(field,value);end if;
   end if;
  end loop;
- if template not in ('products','stockItems','customers','suppliers','stockLocations','roomTypes','ratePlans','rooms','assetCategories','assets') then raise exception 'VALIDATION_FAILED: unsupported import template';end if;
+ if template not in ('products','stockItems','customers','suppliers','stockLocations','roomTypes','ratePlans','rooms','assetCategories','assets','staff') then raise exception 'VALIDATION_FAILED: unsupported import template';end if;
  if template<>'rooms' and nullif(trim(result->>'name'),'') is null then raise exception 'VALIDATION_FAILED: name is required';end if;
  if nullif(result->>'externalId','') is null then raise exception 'VALIDATION_FAILED: external_id is required for stable import identity';end if;
  if template in ('products','stockItems','suppliers') and nullif(trim(result->>'code'),'') is null then raise exception 'VALIDATION_FAILED: code is required';end if;
@@ -124,6 +129,11 @@ begin
   if nullif(trim(result->>'assetTag'),'') is null or nullif(result->>'categoryExternalId','') is null or ((nullif(result->>'roomExternalId','') is null)=(nullif(result->>'locationExternalId','') is null)) then raise exception 'VALIDATION_FAILED: asset requires a unique tag, category, and exactly one room or stock-location external ID';end if;
   if not (result ? 'acquisitionCostMinor') then raise exception 'VALIDATION_FAILED: acquisition cost is required';end if;
  end if;
+ if template='staff' then
+  if nullif(result->>'authUserId','') is null or nullif(result->>'role','') is null then raise exception 'VALIDATION_FAILED: staff import requires an existing Auth user ID and an explicit role';end if;
+  perform (result->>'authUserId')::uuid;
+  if result->>'role' not in ('Admin','Manager','Cashier','Server','Chef','Housekeeper','Accountant','Custom') then raise exception 'VALIDATION_FAILED: unsupported staff role';end if;
+ end if;
  if template='customers' then result:=result-'code'-'priceMinor'-'category'-'barcode'-'baseUnit'-'reorderLevel';end if;
  if template='suppliers' then result:=result-'priceMinor'-'category'-'barcode'-'baseUnit'-'reorderLevel';end if;
  if template='products' then result:=result-'phone'-'email'-'baseUnit'-'reorderLevel';end if;
@@ -132,6 +142,7 @@ begin
  if template='ratePlans' then result:=result-'price';end if;
  if template='assetCategories' then result:=result-'phone'-'email'-'priceMinor';end if;
  if template='assets' then result:=result-'phone'-'email';end if;
+ if template='staff' then result:=result-'phone'-'email'-'code'-'priceMinor'-'barcode'-'category'-'baseUnit'-'reorderLevel';end if;
  return result;
 end$$;
 
@@ -171,12 +182,12 @@ create or replace function servos_v2.apply_admin_operations(command jsonb)
 returns jsonb language plpgsql set search_path='' as $$
 declare
  op text:=command->>'operation';p jsonb:=command->'payload';who uuid:=auth.uid();key text;batch jsonb;raw_rows jsonb;headers jsonb;cells jsonb;row_data jsonb;preview jsonb:='[]'::jsonb;line jsonb;changes jsonb:='[]'::jsonb;domain_command jsonb;
- row_no integer;row_total integer;target_id text;template text;source_hash text;plan_hash text;message text;valid_count integer:=0;seen_ids text[]:='{}';seen_codes text[]:='{}';seen_tags text[]:='{}';candidate text;source_csv text;row_results jsonb:='[]'::jsonb;
+ row_no integer;row_total integer;target_id text;template text;source_hash text;plan_hash text;message text;valid_count integer:=0;seen_ids text[]:='{}';seen_codes text[]:='{}';seen_tags text[]:='{}';seen_auth_users text[]:='{}';candidate text;source_csv text;row_results jsonb:='[]'::jsonb;
 begin
  if op='admin.import.stage' then
   perform servos_v2.require_permission('data.import.stage');
   template:=servos_v2.required_text(p,'templateKey');
-  if template not in ('products','stockItems','customers','suppliers','stockLocations','roomTypes','ratePlans','rooms','assetCategories','assets') then raise exception 'VALIDATION_FAILED: unsupported import template';end if;
+  if template not in ('products','stockItems','customers','suppliers','stockLocations','roomTypes','ratePlans','rooms','assetCategories','assets','staff') then raise exception 'VALIDATION_FAILED: unsupported import template';end if;
   raw_rows:=servos_v2.parse_import_csv(p->>'csvText');headers:=raw_rows->0;row_total:=jsonb_array_length(raw_rows)-1;
   if length(coalesce(p->>'fileName','')) not between 1 and 255 then raise exception 'VALIDATION_FAILED: import file name';end if;
   key:=coalesce(nullif(p->>'id',''),'import-'||(command->>'id'));
@@ -185,7 +196,7 @@ begin
   source_csv:=p->>'csvText';
   insert into servos_v2.import_sources(batch_id,source_hash,csv_text,staged_by) values(key,source_hash,source_csv,who) on conflict(batch_id) do nothing;
   if not exists(select 1 from servos_v2.import_sources s where s.batch_id=key and s.source_hash=source_hash and s.csv_text=source_csv) then raise exception 'IMPORT_SOURCE_CONFLICT: batch ID already belongs to different content';end if;
-  return servos_v2.put_record('importBatches',key,jsonb_build_object('id',key,'fileName',p->>'fileName','templateKey',template,'status','STAGED','rowCount',row_total,'sourceHash',source_hash,'stagedBy',who,'stagedAt',now(),'validation','SERVER_DRY_RUN_REQUIRED','importKind','MASTER_DATA_ONLY'));
+  return servos_v2.put_record('importBatches',key,jsonb_build_object('id',key,'fileName',p->>'fileName','templateKey',template,'status','STAGED','rowCount',row_total,'sourceHash',source_hash,'stagedBy',who,'stagedAt',now(),'validation','SERVER_DRY_RUN_REQUIRED','importKind',case when template='staff' then 'AUTH_BOUND_STAFF' else 'MASTER_DATA_ONLY' end));
  elsif op='admin.import.dryRun' then
   perform servos_v2.require_permission('data.import.stage');key:=servos_v2.required_text(p,'batchId');
   select r.data into batch from servos_v2.records r where r.collection='importBatches' and r.id=key and not r.archived for update;
@@ -202,7 +213,8 @@ begin
   elsif template='roomTypes' then perform servos_v2.require_any_permission(array['roomTypes.manage']);
   elsif template in ('ratePlans','rooms') then perform servos_v2.require_permission('rooms.manage');
   elsif template='assetCategories' then perform servos_v2.require_permission('assetCategories.manage');
-  elsif template='assets' then perform servos_v2.require_permission('assets.manage');end if;
+  elsif template='assets' then perform servos_v2.require_permission('assets.manage');
+  elsif template='staff' then perform servos_v2.require_permission('staff.create');end if;
   raw_rows:=servos_v2.parse_import_csv(source_csv);headers:=raw_rows->0;row_total:=jsonb_array_length(raw_rows)-1;
   for row_no in 1..row_total loop
    cells:=raw_rows->row_no;row_data:=null;message:=null;target_id:=null;
@@ -221,6 +233,11 @@ begin
      if candidate=any(seen_tags) then raise exception 'DUPLICATE_REFERENCE: duplicate asset tag within file';end if;
      seen_tags:=array_append(seen_tags,candidate);
     end if;
+    if template='staff' then
+     candidate:=lower(row_data->>'authUserId');
+     if candidate=any(seen_auth_users) then raise exception 'DUPLICATE_REFERENCE: Auth user appears more than once in this staff import';end if;
+     seen_auth_users:=array_append(seen_auth_users,candidate);
+    end if;
     if template='products' then
      domain_command:=jsonb_build_object('operation','product.save','payload',jsonb_build_object('id',target_id,'data',row_data),'expectedVersions',jsonb_build_array(jsonb_build_object('collection','products','id',target_id,'version',0)));
     elsif template='stockItems' then
@@ -233,6 +250,8 @@ begin
      domain_command:=servos_v2.import_asset_domain_command(target_id,row_data,(command->>'deviceId')::uuid,md5(key||':'||target_id)::uuid);
     elsif template='assetCategories' then
      domain_command:=jsonb_build_object('operation','record.save','payload',jsonb_build_object('collection','assetCategories','id',target_id,'data',row_data),'expectedVersions',jsonb_build_array(jsonb_build_object('collection','assetCategories','id',target_id,'version',0)));
+    elsif template='staff' then
+     domain_command:=jsonb_build_object('operation','staff.create','payload',jsonb_build_object('authUserId',row_data->'authUserId','staffId',target_id,'name',row_data->'name','role',row_data->'role')||case when row_data ? 'outletIds' then jsonb_build_object('outletIds',row_data->'outletIds') else '{}'::jsonb end||case when row_data ? 'serviceAreas' then jsonb_build_object('serviceAreas',row_data->'serviceAreas') else '{}'::jsonb end);
     elsif template='suppliers' then
      domain_command:=jsonb_build_object('operation','supplier.save','payload',jsonb_build_object('id',target_id,'data',row_data),'expectedVersions',jsonb_build_array(jsonb_build_object('collection','suppliers','id',target_id,'version',0)));
     else
@@ -242,6 +261,7 @@ begin
      if template in ('products','stockItems','stockLocations') then perform servos_v2.apply_catalog_inventory(domain_command);
      elsif template in ('rooms','ratePlans') then perform servos_v2.apply_rooms(domain_command);
      elsif template='assets' then perform servos_v2.apply_assets(domain_command);
+     elsif template='staff' then perform servos_v2.apply_staff_device(domain_command);
      elsif template='suppliers' then perform servos_v2.apply_procurement(domain_command);
      else perform servos_v2.apply_master(domain_command);end if;
      raise exception using errcode='Z0001',message='IMPORT_DRY_RUN_ROLLBACK';
@@ -295,6 +315,9 @@ begin
    elsif template='assetCategories' then
     domain_command:=jsonb_build_object('operation','record.save','payload',jsonb_build_object('collection','assetCategories','id',target_id,'data',row_data),'expectedVersions',jsonb_build_array(jsonb_build_object('collection','assetCategories','id',target_id,'version',0)));
     changes:=changes||servos_v2.apply_master(domain_command);
+   elsif template='staff' then
+    domain_command:=jsonb_build_object('operation','staff.create','payload',jsonb_build_object('authUserId',row_data->'authUserId','staffId',target_id,'name',row_data->'name','role',row_data->'role')||case when row_data ? 'outletIds' then jsonb_build_object('outletIds',row_data->'outletIds') else '{}'::jsonb end||case when row_data ? 'serviceAreas' then jsonb_build_object('serviceAreas',row_data->'serviceAreas') else '{}'::jsonb end);
+    changes:=changes||servos_v2.apply_staff_device(domain_command);
    elsif template='suppliers' then
     domain_command:=jsonb_build_object('operation','supplier.save','payload',jsonb_build_object('id',target_id,'data',row_data),'expectedVersions',jsonb_build_array(jsonb_build_object('collection','suppliers','id',target_id,'version',0)));
     changes:=changes||servos_v2.apply_procurement(domain_command);

@@ -1,6 +1,6 @@
 import type {BusinessCommandV2,ChangePage,RecordVersion,TransactionResult} from '../../types/transactions';
 
-export interface QueuedCommand {id:string; sequence:number; command:BusinessCommandV2; state:'PENDING_SYNC'|'SYNCHRONIZED'|'CONFLICT'|'REJECTED'; result?:TransactionResult}
+export interface QueuedCommand {id:string; sequence:number; command:BusinessCommandV2; state:'PENDING_SYNC'|'OUTCOME_UNKNOWN'|'SYNCHRONIZED'|'CONFLICT'|'REJECTED'; result?:TransactionResult; firstAttemptAt?:string}
 export interface WorkflowDraftField {key:string;label:string;type?:'text'|'number'|'money'|'datetime-local'|'select';options?:Array<{value:string;label:string}>;value?:string;optional?:boolean}
 export interface WorkflowDraft {
   id:string; schemaVersion:2; contractVersion:2; operation:string; collection:string; targetId:string;
@@ -9,7 +9,8 @@ export interface WorkflowDraft {
 }
 const request=<T>(value:IDBRequest<T>)=>new Promise<T>((resolve,reject)=>{value.onsuccess=()=>resolve(value.result);value.onerror=()=>reject(value.error||new Error('Storage request failed'))});
 const sensitiveKey=/password|secret|token|credential|pin/i;
-const draftPayload=(value:unknown):unknown=>Array.isArray(value)?value.map(draftPayload):value&&typeof value==='object'?Object.fromEntries(Object.entries(value as Record<string,unknown>).filter(([name])=>!sensitiveKey.test(name)).map(([name,item])=>[name,draftPayload(item)])):value;
+const safeDraftText=(value:string)=>value.replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi,'Bearer [redacted]').replace(/\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,'[redacted token]');
+export const redactSensitiveData=(value:unknown):unknown=>Array.isArray(value)?value.map(redactSensitiveData):value&&typeof value==='object'?Object.fromEntries(Object.entries(value as Record<string,unknown>).filter(([name])=>!sensitiveKey.test(name)).map(([name,item])=>[name,redactSensitiveData(item)])):typeof value==='string'?safeDraftText(value):value;
 
 /** Staged v2 store. Enqueuing master edits does not claim an offline sale commit. */
 export class BusinessStore {
@@ -43,7 +44,9 @@ export class BusinessStore {
   private requireOnline(){if(typeof navigator==='undefined'||!navigator.onLine)throw new Error('Business v2 submission requires an online connection. Save the workflow as a draft to continue offline.')}
   async saveDraft(input:Omit<WorkflowDraft,'schemaVersion'|'contractVersion'|'createdAt'|'updatedAt'> & {createdAt?:string}){
     const now=new Date().toISOString();
-    const draft:WorkflowDraft={...input,schemaVersion:2,contractVersion:2,payload:draftPayload(input.payload) as Record<string,unknown>,createdAt:input.createdAt||now,updatedAt:now};
+    const safeFields=input.fields?.map(field=>sensitiveKey.test(field.key)?{...field,value:''}:redactSensitiveData(field) as WorkflowDraftField);
+    const safeInputs=Object.fromEntries(Object.entries(input.inputValues).filter(([key])=>!sensitiveKey.test(key)).map(([key,value])=>[key,safeDraftText(value)]));
+    const draft:WorkflowDraft={...input,inputValues:safeInputs,fields:safeFields,validationSummary:input.validationSummary.map(safeDraftText),schemaVersion:2,contractVersion:2,payload:redactSensitiveData(input.payload) as Record<string,unknown>,createdAt:input.createdAt||now,updatedAt:now};
     await this.transaction(['drafts'],'readwrite',async tx=>{await request(tx.objectStore('drafts').put(draft))});
   }
   async resumeDraft(id:string):Promise<WorkflowDraft|undefined>{return this.transaction(['drafts'],'readonly',tx=>request(tx.objectStore('drafts').get(id)))}
@@ -80,6 +83,13 @@ export class BusinessStore {
       if(!entry)throw new Error('Acknowledgement has no matching command');
       if(entry.result&&JSON.stringify(entry.result)!==JSON.stringify(result))throw new Error('Server changed an acknowledged result');
       await request(entries.put({...entry,state:result.status,result}));
+    });
+  }
+  async markOutcomeUnknown(id:string){
+    await this.transaction(['queue'],'readwrite',async tx=>{
+      const entries=tx.objectStore('queue');const entry=await request(entries.get(id)) as QueuedCommand|undefined;
+      if(!entry)throw new Error('Cannot mark an unknown command without its durable queue entry');
+      if(entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN')await request(entries.put({...entry,state:'OUTCOME_UNKNOWN',firstAttemptAt:entry.firstAttemptAt||new Date().toISOString()}));
     });
   }
   async cursor():Promise<number>{return this.transaction(['meta'],'readonly',async tx=>(await request(tx.objectStore('meta').get('cursor')) as number|undefined)||0)}
@@ -119,5 +129,5 @@ export class BusinessStore {
     });
   }
   async records():Promise<Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>>{return this.transaction(['records'],'readonly',tx=>request(tx.objectStore('records').getAll()))}
-  async hasPending():Promise<boolean>{return (await this.queue()).some(entry=>entry.state==='PENDING_SYNC')}
+  async hasPending():Promise<boolean>{return (await this.queue()).some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN')}
 }

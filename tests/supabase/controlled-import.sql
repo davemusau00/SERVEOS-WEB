@@ -105,7 +105,22 @@ begin
  if not exists(select 1 from servos_v2.records where collection='assetEvents' and data->>'assetId'='asset-001' and data->>'operation'='asset.save') then raise exception 'asset import did not leave immutable domain audit event';end if;
 end$$;
 do $$
-declare c jsonb;r jsonb;seq bigint:=28;command_id uuid;target_batch_id text:='import-fixture-cancelled';
+declare c jsonb;r jsonb;seq bigint:=28;command_id uuid;batch_id text:='import-fixture-staff';
+begin
+ command_id:=('20000000-0000-0000-0000-'||lpad((50+seq)::text,12,'0'))::uuid;
+ c:=jsonb_build_object('id',command_id,'schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',seq,'operation','admin.import.stage','payload',jsonb_build_object('id',batch_id,'fileName','staff.csv','templateKey','staff','csvText',E'external_id,auth_user_id,name,role,outlet_ids,service_areas\nstaff-import-2,00000000-0000-4000-8000-000000000002,Second operator,Server,main,floor;bar'),'expectedVersions','[]'::jsonb);
+ r:=public.servos_v2_execute(c);if r->>'status'<>'SYNCHRONIZED' then raise exception 'staff import stage rejected: %',r;end if;seq:=seq+1;
+ command_id:=('20000000-0000-0000-0000-'||lpad((50+seq)::text,12,'0'))::uuid;
+ c:=jsonb_build_object('id',command_id,'schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',seq,'operation','admin.import.dryRun','payload',jsonb_build_object('batchId',batch_id),'expectedVersions','[]'::jsonb);
+ r:=public.servos_v2_execute(c);if r->>'status'<>'SYNCHRONIZED' then raise exception 'staff import dry-run rejected: %',r;end if;
+ if (select data->>'status' from servos_v2.records where collection='importBatches' and id=batch_id)<>'DRY_RUN_READY' then raise exception 'valid staff import did not pass dry-run';end if;seq:=seq+1;
+ command_id:=('20000000-0000-0000-0000-'||lpad((50+seq)::text,12,'0'))::uuid;
+ c:=jsonb_build_object('id',command_id,'schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',seq,'operation','admin.import.apply','payload',jsonb_build_object('batchId',batch_id),'expectedVersions','[]'::jsonb);
+ r:=public.servos_v2_execute(c);if r->>'status'<>'SYNCHRONIZED' then raise exception 'staff import apply rejected: %',r;end if;
+ if not exists(select 1 from servos_v2.staff_profiles where staff_id='staff-import-2' and auth_user_id='00000000-0000-4000-8000-000000000002' and role='Server' and outlet_ids=array['main'] and service_areas=array['bar','floor']) then raise exception 'staff import did not use the existing Auth-bound staff command';end if;
+end$$;
+do $$
+declare c jsonb;r jsonb;seq bigint:=32;command_id uuid;target_batch_id text:='import-fixture-cancelled';
 begin
  command_id:=('20000000-0000-0000-0000-'||lpad((50+seq)::text,12,'0'))::uuid;
  c:=jsonb_build_object('id',command_id,'schemaVersion',2,'deviceId','10000000-0000-0000-0000-000000000039','actorId',auth.uid(),'clientSequence',seq,'operation','admin.import.stage','payload',jsonb_build_object('id',target_batch_id,'fileName','cancelled.csv','templateKey','products','csvText',E'external_id,name,code,price\ncancelled-product,Unused,CAN001,10.00'),'expectedVersions','[]'::jsonb);

@@ -23,15 +23,44 @@ jobs:
           path: artifacts/ui-audit/**
           retention-days: 14
       - run: npm run docs:check
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
-      - run: npm run test:browser:production
-        if: always()
+
+  browser-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Install preview browser prerequisites
+        run: npx playwright install --with-deps chromium
+      - name: Run preview browser suite
+        run: npm run test:browser
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-evidence-${{ github.sha }}
+          name: browser-preview-${{ github.sha }}
+          path: |
+            test-results/**
+            playwright-report/**
+          retention-days: 14
+
+  browser-production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Install production browser prerequisites
+        run: npx playwright install --with-deps chromium
+      - name: Run production acceptance browser suite
+        run: npm run test:browser:production
+      - name: Upload production browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-production-${{ github.sha }}
           path: |
             test-results/**
             playwright-report/**
@@ -100,7 +129,7 @@ jobs:
           retention-days: 14
   evidence-summary:
     if: always()
-    needs: [frontend, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell]
+    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -109,8 +138,31 @@ jobs:
       - run: npm run ci:evidence
         env:
           SERVOS_RELEASE_PROFILE: CI_PREVIEW_AND_STAGED_V2
+          SERVOS_JOB_FRONTEND: ${{ needs.frontend.result }}
+          SERVOS_JOB_BROWSER_PREVIEW: ${{ needs.browser-preview.result }}
+          SERVOS_JOB_BROWSER_PRODUCTION: ${{ needs.browser-production.result }}
+          SERVOS_JOB_NATIVE: ${{ needs.native-domain.result }}
+          SERVOS_JOB_CLOUD_BASE: ${{ needs.cloud-protocol-base.result }}
+          SERVOS_JOB_CLOUD_V2: ${{ needs.cloud-protocol-v2.result }}
+          SERVOS_JOB_DESKTOP: ${{ needs.desktop-shell.result }}
       - uses: actions/upload-artifact@v4
         with:
           name: servos-ci-evidence-${{ github.sha }}
           path: artifacts/servos-ci-evidence.json
+          retention-days: 30
+
+  release-candidate:
+    if: github.ref == 'refs/heads/main'
+    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Mark same-commit candidate eligibility
+        run: node scripts/write-release-candidate.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: servos-release-candidate-${{ github.sha }}
+          path: artifacts/servos-release-candidate.json
           retention-days: 30

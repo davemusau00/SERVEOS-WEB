@@ -89,7 +89,7 @@ test('staged staff administration binds Auth identities and consumes scoped appr
   assert.doesNotMatch(migration,/update\s+servos_v2\.control\s+set\s+enabled\s*=\s*true/i);
   for(const marker of ['servos_v2.canonical_permissions','servos_v2.role_permissions','staff_profiles','manager_approval_uses','devices.manage','last_seen_at','VERSION_CONFLICT','cannot remove the final active Admin'])assert.ok(migration.includes(marker),marker);
   assert.match(procurement,/require_manager_approval\(\(p->>'approvalToken'\)::uuid,'procurement\.over_receive',p->>'purchaseOrderId',who\)/);
-  for(const marker of ['staff.create','staff.update','staff.deactivate','managerApproval.issue','device.revoke','Existing Auth user ID','Issue five-minute one-time approval'])assert.ok(view.includes(marker),marker);
+  for(const marker of ['staff.create','staff.update','staff.deactivate','managerApproval.issue','device.revoke','Existing Auth user ID','Issue five-minute one-time approval','useState<string>','UUID from the completed Supabase Auth invitation'])assert.ok(view.includes(marker),marker);
   assert.match(workspace,/WebStaffAdminView/);
   const acceptance=readFileSync('tests/supabase/staff-devices.sql','utf8');
   for(const invariant of ['Staff role escalation was not denied','wrong target','wrong initiator','wrong action','Expired approval was accepted','Approval was reusable','Revoked device command was accepted'])assert.ok(acceptance.includes(invariant),invariant);

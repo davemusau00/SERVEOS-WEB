@@ -1,5 +1,15 @@
 # Current release state
 
+## Current source-only continuation - 2026-10-01
+
+FS-01 dispatch source repair is present: corrected expansion 038 wraps the prior canonical dispatcher for clean application, while forward expansion 042 repairs databases that already applied the former 038 partial router. SQL/domain execution remains deferred; this does not constitute migration, staging, or hosted acceptance. FS-21 now has advisory CSV-header template detection and an eleven-template Import Center including Auth-bound staff; source assertions and fixtures are authored but not run, and expansions 041/042 remain unapplied. Opening balances/history, full migration reconciliation, all FS-01 acceptance, and v2 cutover remain open. Keep shared v2 default-off.
+
+FS-02 source corrections now cover typed persisted count maps, the Web Help click/guide callback boundary, Auth UUID validation for staff binding, and valid native batch-output movement identity/timestamps. Source assertions are updated but the compiler and acceptance suites have not been run; no dependency-lock claim is made.
+
+FS-03 CI source now separates preview/production browser execution from frontend quality, records required job conclusions in same-SHA evidence, and gates candidate-review artifact creation on frontend/browser/native/cloud/desktop success. The candidate artifact does not authorize production deployment. Workflow execution, failure injection, branch protection and six known Node failure triage remain open.
+
+FS-04/05 now records unknown Web command outcomes durably before execution, retries exact IDs, guards duplicate central submissions, blocks premature draft replacement, and removes redundant drafts after confirmation. Drafts and Activity details redact sensitive material. Serializer restoration remains a known gap; no browser/native test or build has been run.
+
 ## DEV final sprint P0/P1 foundation - 2026-09-30
 
 P0 local baseline passed after `npm ci`. The latest regression pass on the current source tree: lint/build, 146 Node tests, 32 desktop/mobile browser tests, 72 Linux-container native domain tests, disposable cloud v2 protocol through expansion 027, documentation checks, UI audit gate, and `git diff --check`. The latest audit found no browser prompt/confirm use and reports 389 review candidates across 3,578 interactions. These local results do not establish hosted CI, packaged-terminal, physical hardware, or live deployment acceptance.

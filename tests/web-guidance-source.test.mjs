@@ -16,6 +16,8 @@ test('web terminal shares task-first intake and help language with the native te
   assert.match(app, /WebStartHere/);
   assert.match(app, /WebHelpView/);
   assert.match(app, /WebGuidedTour/);
+  assert.match(guidance, /onStartTour:startTour/);
+  assert.match(guidance, /React\.MouseEvent<HTMLButtonElement>/);
 });
 
 test('web quick actions remain permission filtered and use existing queued editors', () => {
@@ -75,9 +77,20 @@ test('web task guides resume by guide ID and only complete on a server-confirmed
 
 test('activity recovery never instructs operators to resend immutable commands', () => {
   const activity = read('src/runtime/web/ActivitySyncCenter.tsx');
+  const store = read('src/runtime/web/BusinessStore.ts');
+  const sync = read('src/runtime/web/sync.ts');
+  const app = read('src/runtime/web/WebBusinessApp.tsx');
   assert.match(activity, /reopen the saved workflow and submit a new command with fresh versions/);
   assert.match(activity, /Do not resend it/);
-  assert.doesNotMatch(activity, /retry the same command/);
+  assert.match(activity, /OUTCOME_UNKNOWN/);
+  assert.match(activity, /retry the same command ID/);
+  assert.match(sync, /row\.state==='PENDING_SYNC'\|\|row\.state==='OUTCOME_UNKNOWN'/);
+  assert.match(sync, /await store\.markOutcomeUnknown\(row\.id\)/);
+  assert.match(store, /state:'PENDING_SYNC'\|'OUTCOME_UNKNOWN'/);
+  assert.match(app, /submitInFlight\.current/);
+  assert.match(app, /original command is saved for outcome checking/);
+  assert.match(app, /draft\.supersedes===entry\.id/);
+  assert.match(store, /export const redactSensitiveData/);
 });
 
 test('activity exposes typed draft reopening and the app re-resolves the workflow', () => {

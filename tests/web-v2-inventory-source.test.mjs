@@ -27,6 +27,8 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   const sealedCountSql=readFileSync('supabase/expansion/034_sealed_location_counts.sql','utf8');
   const harness=readFileSync('scripts/test-supabase.mjs','utf8');
   const cloudAcceptance=readFileSync('tests/supabase/smart-items.sql','utf8');
+  assert.match(ui,/const counts:Record<string,number\|null>=\{\}/);
+  assert.match(ui,/typeof quantity==='number'&&Number\.isFinite\(quantity\)&&quantity>=0/);
   assert.match(ui,/product\.save/);
   assert.match(ui,/SmartItemDialog/);
   assert.match(smart,/catalog\.createWithOpeningStock/);
