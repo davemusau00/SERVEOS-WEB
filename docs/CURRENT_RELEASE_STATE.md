@@ -10,6 +10,8 @@ FS-03 CI source now separates preview/production browser execution from frontend
 
 FS-04/05 now records unknown Web command outcomes durably before execution, retries exact IDs, guards duplicate central submissions, blocks premature draft replacement, and removes redundant drafts after confirmation. Drafts and Activity details redact sensitive material. Serializer restoration remains a known gap; no browser/native test or build has been run.
 
+FS-08 operator-auth setup source and `docs/TERMINAL_OPERATOR_AUTH_SETUP.md` now describe Auth users bound to stable local Staff IDs, one-time Admin terminal pairing, OS-keyring refresh-token handling, operator switching/sign-out, local-PIN-only legacy offline use, and the default-off v2 boundary. These are source/documentation findings only. Hosted Auth, SQL migration, native, packaged-terminal, cross-operator privacy, and operator acceptance remain unverified; FS-08 remains open.
+
 ## DEV final sprint P0/P1 foundation - 2026-09-30
 
 P0 local baseline passed after `npm ci`. The latest regression pass on the current source tree: lint/build, 146 Node tests, 32 desktop/mobile browser tests, 72 Linux-container native domain tests, disposable cloud v2 protocol through expansion 027, documentation checks, UI audit gate, and `git diff --check`. The latest audit found no browser prompt/confirm use and reports 389 review candidates across 3,578 interactions. These local results do not establish hosted CI, packaged-terminal, physical hardware, or live deployment acceptance.
