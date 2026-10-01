@@ -1,10 +1,23 @@
 export const RECEIPT_FOOTER = ['Built By KINGSFORGE', 'info@kingsforge.co.ke', 'info@davemusau.co.ke', '0746157440'] as const;
 export const LEGACY_RECEIPT_FOOTER = ['Built By Davemusau.co.ke', 'info@davemusau.co.ke', '0746157440'] as const;
+export interface ThermalRaster { width: number; height: number; base64: string }
+/**
+ * Immutable M-Pesa Till payment QR captured with the receipt. This is a payment convenience only and
+ * is never evidence that M-Pesa funds were received or confirmed by the provider.
+ */
+export interface MpesaTillQrSnapshot {
+  enabled: boolean;
+  label?: string;
+  tillNumber?: string;
+  dataUrl: string;
+  thermalRaster?: ThermalRaster | null;
+}
 export interface ReceiptBrandingSnapshot {
   version: number;
   footerLines?: string[];
   receiptLogoDataUrl?: string | null;
-  thermalLogo?: { width: number; height: number; base64: string } | null;
+  thermalLogo?: ThermalRaster | null;
+  mpesaTillQr?: MpesaTillQrSnapshot | null;
 }
 export interface ReceiptDocument {
   id: string; schemaVersion: 1 | 2; orderId: string; sourceCommandId?: string; deviceId?: string;

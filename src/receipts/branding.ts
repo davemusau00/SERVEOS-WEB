@@ -6,6 +6,12 @@ export const DEFAULT_RECEIPT_LOGO = receiptLogoAsset;
 export const MAX_BRANDING_DATA_URL_LENGTH = 240_000;
 export const MAX_THERMAL_LOGO_WIDTH = 576;
 export const MAX_THERMAL_LOGO_HEIGHT = 220;
+/** Printed Till QR target is roughly 30-36mm square at the validated 74mm content width. */
+export const MAX_TILL_QR_DOTS = 320;
+export const TILL_QR_TARGET_DOTS = 288;
+export const MAX_TILL_QR_SOURCE_PX = 1024;
+export const TILL_QR_MIN_QUIET_MODULES = 4;
+export const TILL_QR_SCREEN_PX = 480;
 
 export interface ThermalLogo {
   width: number;
@@ -75,6 +81,88 @@ export async function prepareBrandingImage(blob: Blob): Promise<PreparedBranding
   } finally {
     bitmap.close();
   }
+}
+
+/**
+ * Convert a sampled dark/white grid into a packed 1-bit-per-dot ESC/POS raster.
+ * Quiet-zone rows/columns are emitted as blank, so every row is a whole number of modules wide.
+ */
+function packQrRaster(dark: Uint8Array, modules: number, quiet: number, modulePixels: number): ThermalLogo {
+  const total = modules + quiet * 2;
+  const width = Math.max(1, total * modulePixels);
+  const rowBytes = Math.ceil(width / 8);
+  const packed = new Uint8Array(rowBytes * width);
+  for (let y = 0; y < width; y++) {
+    const my = Math.floor(y / modulePixels) - quiet;
+    const row = y * rowBytes;
+    if (my < 0 || my >= modules) continue;
+    for (let x = 0; x < width; x++) {
+      const mx = Math.floor(x / modulePixels) - quiet;
+      if (mx >= 0 && mx < modules && dark[my * modules + mx]) packed[row + (x >> 3)] |= 0x80 >> (x & 7);
+    }
+  }
+  return { width, height: width, base64: encodeBase64(packed) };
+}
+
+/** Greatest common divisor of positive run lengths, used to recover the QR module pitch. */
+function runPitch(values: Uint8Array): number {
+  const runs: number[] = [];
+  let current = values.length ? values[0] : 0;
+  for (let i = 1; i <= values.length; i++) {
+    if (i < values.length && values[i] === current) continue;
+    if (current > 0) runs.push(current);
+    current = i < values.length ? values[i] : 0;
+  }
+  if (!runs.length) return 0;
+  let pitch = runs[0];
+  for (const run of runs) { let a = pitch; let b = run; while (b) { const t = a % b; a = b; b = t; } pitch = a; }
+  return pitch;
+}
+
+export interface PreparedTillQr {
+  dataUrl: string;
+  label?: string;
+  tillNumber?: string;
+  thermalRaster: ThermalLogo;
+}
+
+/** Extract the QR module grid from a decoded square source image, or throw a plain-language error. */
+function readQrGrid(size: number, pixels: Uint8ClampedArray): { content: Uint8Array; modules: number; quiet: number } {
+  // Hard binarize: crisp module edges, never photographic dithering or smoothing.
+  const grid = new Uint8Array(size * size);
+  let darkCount = 0;
+  for (let i = 0; i < grid.length; i++) {
+    const at = i * 4;
+    const luminance = pixels[at] * 0.299 + pixels[at + 1] * 0.587 + pixels[at + 2] * 0.114;
+    if (luminance < 128) { grid[i] = 1; darkCount++; }
+  }
+  if (darkCount === 0) throw new Error('That image is blank and contains no Till QR.');
+  if (darkCount / grid.length > 0.92) throw new Error('That image is almost entirely solid. Upload a clear Till QR code on a white background.');
+  // Locate the printed code so the quiet zone can be measured and never cropped away.
+  let top = size; let bottom = -1; let left = size; let right = -1;
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    if (!grid[y * size + x]) continue;
+    if (y < top) top = y;
+    if (y > bottom) bottom = y;
+    if (x < left) left = x;
+    if (x > right) right = x;
+  }
+  const boxWidth = right - left + 1;
+  const boxHeight = bottom - top + 1;
+  if (boxWidth < 20 || Math.abs(boxWidth - boxHeight) > 2) throw new Error('That image does not contain a square QR code. Upload the Till QR image itself.');
+  const content = new Uint8Array(boxWidth * boxHeight);
+  for (let y = 0; y < boxHeight; y++) for (let x = 0; x < boxWidth; x++) content[y * boxWidth + x] = grid[(top + y) * size + left + x];
+  const pitch = runPitch(content.slice(0, boxWidth));
+  if (pitch < 1 || boxWidth % pitch !== 0 || boxHeight % pitch !== 0) {
+    throw new Error('That image could not be read as a QR code. Upload a crisp square Till QR, not a photo.');
+  }
+  const modules = boxWidth / pitch;
+  if (modules < 21 || modules % 4 !== 1 || boxHeight / pitch !== modules) {
+    throw new Error('That image is not a valid QR code. Upload the Till QR image itself.');
+  }
+  const marginModules = Math.max(0, Math.min(left, top, size - 1 - right, size - 1 - bottom) / pitch);
+  // Always emit at least the required quiet zone, keeping any larger margin the operator supplied.
+  return { content, modules, quiet: Math.max(TILL_QR_MIN_QUIET_MODULES, Math.min(8, Math.floor(marginModules))) };
 }
 
 export async function loadDefaultBrandingImage(url: string): Promise<PreparedBrandingImage> {
