@@ -1,3 +1,490 @@
+# ServOS DEV FINAL SPRINT UPDATED — REVISION 5
+
+**Prepared:** 1 October 2026, Africa/Nairobi  
+**Repository:** `davemusau00/SERVEOS-WEB`  
+**Live head reviewed:** `cc3094746f81bcfa174ec0589520b206300e0a85`  
+**Primary objective:** ship the fresh Native production terminal as soon as the remaining release gates are genuinely green.
+
+This revision supersedes the status/sequence at the top of Revision 4. Keep the older material below for implementation detail.
+
+---
+
+## R5.1 Current live repository state
+
+Latest observed ServOS CI run: **#127**.
+
+| Gate | Current state |
+|---|---|
+| Frontend | ✅ PASS |
+| Native domain | ✅ PASS |
+| Cloud protocol base | ✅ PASS |
+| Cloud protocol v2 | ✅ PASS |
+| Desktop shell | ⏳ running at review time; known source compile defect still present |
+| Browser preview | ⏳ running at review time |
+| Browser production | ⏳ running at review time |
+| Vercel | ✅ PASS |
+
+### What changed since Revision 4
+
+The M-Pesa Till QR / Cloud-v2 blocker is now **cleared**.
+
+Recent commits repaired the QR database guard and acceptance fixtures, including replacement/removal/disabled snapshot behavior and close-day test arithmetic. The newest head's `cloud-protocol-v2` job passes.
+
+Therefore:
+
+- Cloud-v2 fixture repair is **closed** unless it regresses.
+- Migration `044_mpesa_till_qr.sql` validation remains strict.
+- QR source/database acceptance is now green.
+- Real XP-80T paper/scan acceptance is still required.
+
+---
+
+# R5.2 P0 — Desktop shell is the primary code blocker
+
+The old Rust call is still present in `src-tauri/src/lib.rs`:
+
+```rust
+let pending=store::next_native_v2_pending(
+    &state.db.lock().map_err(|e|e.to_string())?,
+    &terminal
+)?
+.ok_or("Durable v2 command queue entry disappeared")?;
+```
+
+Replace it with a short explicit lock scope:
+
+```rust
+let pending = {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    store::next_native_v2_pending(&*db, &terminal)?
+}
+.ok_or("Durable v2 command queue entry disappeared")?;
+```
+
+Audit adjacent v2 SQLite access with one rule:
+
+> Never hold the SQLite mutex across an awaited network operation.
+
+Required same-SHA verification:
+
+```text
+npm run check:desktop
+npm run test:desktop
+npm run test:native
+```
+
+**Exit:** `desktop-shell` and `native-domain` green on the exact terminal candidate SHA.
+
+---
+
+# R5.3 P0 — Canonical Supabase migration automation has NOT landed
+
+Current repository structure remains:
+
+```text
+supabase/migrations/
+  202609240001_terminal_replica.sql
+  202609240002_remote_requests.sql
+  202609240003_request_validation.sql
+  202609270001_reconciliation_manifest.sql
+
+supabase/expansion/
+  001_protocol.sql
+  ...
+  044_mpesa_till_qr.sql
+```
+
+Still absent:
+
+```text
+supabase/config.toml
+.github/workflows/*supabase-deploy*
+```
+
+Only `.github/workflows/ci.yml` exists.
+
+The disposable test runner knows how to append `supabase/expansion`, but normal Supabase CLI deployment does not. Production and CI therefore still do not share one canonical migration path.
+
+## Required fix
+
+1. Add `supabase/config.toml`.
+2. Convert the reviewed expansion chain into timestamped files under `supabase/migrations/`, preserving exact order.
+3. Update `scripts/test-supabase.mjs` to execute the canonical migration set exactly once.
+4. Remove production dependency on the custom `supabase/expansion/` directory.
+5. Prove a clean database can reset from zero from canonical migrations only.
+6. Add protected staging and production migration workflows.
+7. Record project ref, Git SHA, migration list and highest migration in release evidence.
+
+### Production CLI path
+
+```text
+supabase link --project-ref <PROJECT_ID>
+supabase migration list
+supabase db push --dry-run
+supabase db push
+supabase migration list
+```
+
+### Deployment secrets only
+
+```text
+SUPABASE_ACCESS_TOKEN
+PRODUCTION_PROJECT_ID
+PRODUCTION_DB_PASSWORD
+STAGING_PROJECT_ID
+STAGING_DB_PASSWORD
+```
+
+### Client-visible values only
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_PUBLISHABLE_KEY
+```
+
+Never place database passwords, access tokens or service-role credentials in the Tauri/Web client.
+
+---
+
+# R5.4 P0 — Add a Terminal Release Candidate gate
+
+The full release candidate should continue protecting the complete dual-runtime product.
+
+Add a separate `terminal-release-candidate` gate requiring:
+
+- frontend green
+- native-domain green
+- desktop-shell green
+- cloud-base green
+- cloud-v2 green
+- canonical migration verification green
+- exact source SHA recorded
+- migration-set hash recorded
+- Windows installer/package built from the same SHA
+
+Browser-only presentation/navigation defects do not automatically block the first Native terminal.
+
+A browser failure **does** block the terminal if it exposes a shared:
+
+- domain
+- migration
+- Auth
+- permission
+- financial
+- stock
+- receipt
+
+defect.
+
+---
+
+# R5.5 Immediate terminal deployment sequence
+
+Once Desktop + canonical migrations are green:
+
+1. Freeze candidate SHA.
+2. Create a clean production Supabase project.
+3. Deploy canonical migrations from that exact SHA.
+4. Verify production migration history.
+5. Confirm `servos_v2.control.enabled = false`.
+6. Provision real Admin Auth identity.
+7. Build Windows installer from the frozen SHA.
+8. Fresh-install target terminal.
+9. Complete Intake with real production data.
+10. Pair terminal once as Admin.
+11. Configure XP-80T.
+12. Upload official receipt logo.
+13. Upload official M-Pesa Till QR.
+14. Configure barcode scanner.
+15. Create real local staff records.
+16. Invite individual Auth users.
+17. Bind each Auth UUID to the exact stable Staff ID.
+18. Import reviewed master data.
+19. Enter/reconcile opening stock and till state.
+20. Run printer/QR/scanner physical acceptance.
+21. Run complete shift rehearsal.
+22. Create and restore backup.
+23. Reconcile.
+24. Sign Go Live.
+
+---
+
+# R5.6 Administrator commissioning
+
+The initial Administrator must be an individual production identity, not a shared daily-login account.
+
+Required:
+
+- real Supabase Auth account
+- own password
+- initial stable Staff ID using existing `auth:<Auth UUID>` convention
+- active business membership
+- correct Admin permissions
+- one-time DESKTOP device pairing
+- business/payment/printer/branding configuration
+
+The Admin must never share their password with operators.
+
+Do not identify staff using:
+
+- email as the permanent Staff ID
+- display name as the Staff ID
+- terminal/device ID as the Staff ID
+
+---
+
+# R5.7 Operator commissioning
+
+Every operator gets:
+
+```text
+one stable local Staff ID
+one individual Supabase Auth identity
+one explicit role
+one explicit outlet/service-area scope
+one exact Auth UUID → Staff ID binding
+```
+
+Local PIN and online Auth remain separate security boundaries.
+
+### Setup flow
+
+1. Create/confirm local staff record.
+2. Assign canonical role.
+3. Assign outlet/service scope.
+4. Send individual Auth invitation.
+5. Operator accepts invitation and chooses their own password.
+6. Bind Auth UUID to existing stable Staff ID.
+7. Sign in on the already-paired terminal.
+8. Verify permissions.
+
+Do not:
+
+- share cashier accounts
+- collect operator passwords
+- grant `devices.register` to cashiers
+- create a new terminal pairing per operator
+- generate a new Staff ID when an existing one already represents that person
+
+### Pre-Go-Live permission proof
+
+Prove:
+
+- Admin-only action succeeds for Admin
+- normal sale succeeds for operator
+- Admin-only action fails for operator
+- operator switch clears prior session
+- terminal device ID remains unchanged
+- inactive/unbound identity is rejected
+
+---
+
+# R5.8 Fresh data commissioning
+
+Trial data is not production truth.
+
+Import only reviewed master data such as:
+
+```text
+products/menu
+stock definitions
+stock locations
+room types
+rates
+rooms
+guests/customers
+suppliers
+asset categories
+assets
+staff profiles where appropriate
+```
+
+Opening state is separate:
+
+```text
+stock by location
+sealed/open bottle state
+opening till float
+supported opening receivables/payables
+```
+
+Do not fabricate historical transactions to create opening balances.
+
+Generate an Opening Balance Reconciliation report before Go Live.
+
+---
+
+# R5.9 M-Pesa Till QR state
+
+Current source/database state is substantially stronger:
+
+- enabled flag validated
+- enabled QR requires printable thermal raster
+- square/bounded raster checked
+- receipt snapshot immutable
+- replacement affects only new receipts
+- removal affects only new receipts
+- disabled QR omitted from new receipt snapshot
+- Cloud v2 acceptance now green
+
+Still required on physical XP-80T:
+
+- customer copy only
+- correct placement before fixed footer
+- logo after footer
+- no crop
+- quiet zone preserved
+- repeated scan success
+- long receipt test
+- restart + reprint
+- historic reprint
+
+---
+
+# R5.10 Physical scanner acceptance
+
+Validate the actual HID scanner:
+
+```text
+rapid scan
+Enter suffix
+unit barcode
+package barcode
+dish/menu barcode
+duplicate scan
+unknown barcode
+stock count
+goods receipt
+disconnect/reconnect
+```
+
+A scanner capture must not leak into:
+
+```text
+cash amount
+M-Pesa reference
+guest name
+room number
+reason fields
+```
+
+---
+
+# R5.11 Full shift acceptance
+
+Before Go Live:
+
+```text
+Admin sign-in
+operator sign-in
+open till
+cash sale
+M-Pesa sale
+split sale
+receipt/reprint
+void/refund where permitted
+stock movement
+room/folio action where used
+cash-up
+till close
+backup
+restart
+reconcile
+```
+
+No unexplained balance or stock differences remain.
+
+---
+
+# R5.12 Backup/restore gate
+
+Before Go Live:
+
+1. create backup
+2. hash/copy backup
+3. restore into isolated/replacement state
+4. launch ServOS
+5. verify business settings, staff, products, stock, receipts, branding, QR and printer profile
+6. document recovery steps
+
+A backup file that has never been restored is not accepted recovery proof.
+
+---
+
+# R5.13 What can remain after first terminal launch
+
+Provided shared Web/PostgreSQL v2 transactional authority remains disabled:
+
+- Web OUTCOME_UNKNOWN modal recovery
+- Web Branding & receipts navigation cleanup
+- Add Another Size family-inheritance polish
+- remaining stay Web parity
+- remaining procurement Web parity
+- repeat-round/discount/comp/void Web exception UX
+- credit operation canonicalization
+- item-comp parity
+- PWA update/install acceptance
+- broad lower-risk Web operator UX review
+- final shared-v2 writer cutover
+
+Reclassify anything that exposes a shared data/money/stock/Auth/receipt defect.
+
+---
+
+# R5.14 Current critical path
+
+```text
+Desktop green
+→ canonical Supabase migrations
+→ migration CI/CD
+→ terminal-release-candidate
+→ clean production Supabase
+→ Admin/operator provisioning
+→ exact-SHA Windows installer
+→ fresh terminal
+→ XP-80T + QR + scanner
+→ full shift
+→ restore rehearsal
+→ GO LIVE
+```
+
+Cloud v2 is no longer on the blocker list unless it regresses.
+
+---
+
+# R5.15 Go / No-Go
+
+- [ ] exact release SHA recorded
+- [ ] frontend green
+- [ ] native-domain green
+- [ ] desktop-shell green
+- [ ] cloud-base green
+- [ ] cloud-v2 green
+- [ ] canonical migrations in `supabase/migrations`
+- [ ] migration CI/CD exists
+- [ ] production dry-run reviewed
+- [ ] production migration push completed
+- [ ] production migration list matches Git
+- [ ] shared-v2 writer deliberately OFF
+- [ ] real Admin identity configured
+- [ ] terminal paired once
+- [ ] individual operator identities bound
+- [ ] operator permission denial tested
+- [ ] real business settings configured
+- [ ] official Till QR uploaded
+- [ ] XP-80T receipt pair accepted
+- [ ] paper QR scans reliably
+- [ ] physical scanner accepted
+- [ ] opening state reconciled
+- [ ] full shift accepted
+- [ ] backup restore demonstrated
+- [ ] trial data absent from live books
+- [ ] Go Live signed off
+
+---
+
+# APPENDIX — REVISION 4 AND EARLIER DETAIL
+
 # ServOS DEV FINAL SPRINT UPDATED — REVISION 4
 
 **Prepared:** 1 October 2026, Africa/Nairobi  
