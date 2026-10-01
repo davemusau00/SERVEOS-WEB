@@ -41,6 +41,7 @@ declare
  barcode_aliases jsonb;
  barcode_alias text;
  stock_key text;
+ recipe_stock_key text;
  location_key text;
  target_key text;
  reason text;
@@ -94,11 +95,11 @@ begin
    if data ? 'recipeIngredients' then
     if jsonb_typeof(data->'recipeIngredients') is distinct from 'array' or jsonb_array_length(data->'recipeIngredients')>100 then raise exception 'VALIDATION_FAILED: recipe ingredients';end if;
     for recipe_line in select value from jsonb_array_elements(data->'recipeIngredients') loop
-     stock_key:=servos_v2.required_text(recipe_line,'stockItemId');
+     recipe_stock_key:=servos_v2.required_text(recipe_line,'stockItemId');
      recipe_qty:=servos_v2.quantity_value(recipe_line,'quantity',false);
-     recipe_stock:=servos_v2.read_record('stockItems',stock_key);
-     if exists(select 1 from jsonb_array_elements(recipe_ingredients) existing where existing->>'stockItemId'=stock_key) then raise exception 'DUPLICATE_REFERENCE: recipe stock item';end if;
-     recipe_ingredients:=recipe_ingredients||jsonb_build_array(jsonb_build_object('stockItemId',stock_key,'quantity',recipe_qty,'tracked',true));
+     recipe_stock:=servos_v2.read_record('stockItems',recipe_stock_key);
+     if exists(select 1 from jsonb_array_elements(recipe_ingredients) existing where existing->>'stockItemId'=recipe_stock_key) then raise exception 'DUPLICATE_REFERENCE: recipe stock item';end if;
+     recipe_ingredients:=recipe_ingredients||jsonb_build_array(jsonb_build_object('stockItemId',recipe_stock_key,'quantity',recipe_qty,'tracked',true));
     end loop;
    end if;
    next_data:=jsonb_build_object(
@@ -113,6 +114,11 @@ begin
    if data ? 'portionVolume' then next_data:=next_data||jsonb_build_object('portionVolume',servos_v2.quantity_value(data,'portionVolume',false));end if;
    if data ? 'inventoryType' then next_data:=next_data||jsonb_build_object('inventoryType',upper(servos_v2.required_text(data,'inventoryType')));end if;
    if data ? 'recipeIngredients' then next_data:=next_data||jsonb_build_object('recipeIngredients',recipe_ingredients);end if;
+   if data ? 'recipeYield' then
+    recipe_qty:=servos_v2.quantity_value(data,'recipeYield',false);
+    if recipe_qty>100000 or trunc(recipe_qty)<>recipe_qty then raise exception 'VALIDATION_FAILED: recipe yield must be a whole number from 1 to 100000';end if;
+    next_data:=next_data||jsonb_build_object('recipeYield',recipe_qty);
+   end if;
    foreach field_name in array array['inventoryType','recipeIngredients','portions','portionVolume','containerQuantity','containerUnit','productFamilyId','productFamilyName','packageType','variantLabel','recipeYield','recipeBatchCostMinor','modifiers'] loop
     if not (data ? field_name) and current_data ? field_name then next_data:=next_data||jsonb_build_object(field_name,current_data->field_name);end if;
    end loop;

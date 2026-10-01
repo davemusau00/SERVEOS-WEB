@@ -27,7 +27,7 @@ declare product jsonb;policy jsonb;portion jsonb;modifier jsonb;adjustment jsonb
  selected_modifiers jsonb:='[]';ingredients jsonb:='[]';selected_ids jsonb:=coalesce(input->'modifierIds','[]'::jsonb);
  qty numeric;unit_minor bigint;base_minor bigint;modifier_minor bigint:=0;line_minor bigint;
  vat_bps integer;levy_bps integer;net bigint;vat bigint;levy bigint;denominator integer;
- volume numeric;container_size numeric;inventory_type text;whole_container boolean:=false;
+ volume numeric;inventory_type text;whole_container boolean:=false;
 begin
  perform servos_v2.assert_version(command,'products',product_key);
  product:=servos_v2.read_record('products',product_key);
@@ -57,9 +57,8 @@ begin
  ingredients:=coalesce(product->'recipeIngredients','[]'::jsonb);
  if jsonb_array_length(ingredients)=0 and nullif(product->>'stockItemId','') is not null then
   volume:=coalesce((portion->>'volume')::numeric,(product->>'portionVolume')::numeric,1);
-  container_size:=coalesce((product->>'portionVolume')::numeric,0);
   inventory_type:=upper(coalesce(product->>'inventoryType',product->>'category',''));
-  whole_container:=inventory_type in ('SPIRIT','SPIRITS','WINE') and container_size>0 and abs(volume-container_size)<0.000001;
+  whole_container:=inventory_type in ('SPIRIT','SPIRITS','WINE') and portion->>'id'='whole-container';
   ingredients:=jsonb_build_array(jsonb_build_object('stockItemId',product->>'stockItemId','quantity',volume,'tracked',true,'wholeContainerSale',whole_container));
  end if;
 

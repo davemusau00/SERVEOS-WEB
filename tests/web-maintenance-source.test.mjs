@@ -20,7 +20,7 @@ test('Web maintenance exposes only the staged/native maintenance command family'
   assert.match(view, /Promise<CommandOutcome>/);
   assert.match(view, /isCommandConfirmed\(await run\(/);
   assert.match(view, /setOutcome\(result\)/);
-  assert.match(view, /OUTCOME_UNKNOWN:case'REJECTED'/);
+  assert.match(view, /case'OUTCOME_UNKNOWN':case'REJECTED'/);
   assert.doesNotMatch(view, /Maintenance action queued/);
   assert.match(view, /parts:\[\]/, 'parts issue must remain explicitly empty until the form supports it');
 });

@@ -73,7 +73,7 @@ select pg_temp.inv_command('inventory.transfer','stockItems','gin','{"id":"gin",
 do $$declare s jsonb;begin
  s:=servos_v2.read_record('stockItems','gin');
  if (s->'currentStock'->>'main')::numeric<>5 or (s->'currentStock'->>'bar')::numeric<>3 then raise exception 'Transfer quantities incorrect';end if;
- if (select count(*) from servos_v2.records where collection='stockMovements' and data->>'sourceCommandId' is not null and data->>'movementType' in ('TRANSFER_OUT','TRANSFER_IN'))<>2 then raise exception 'Transfer movement pair missing';end if;
+ if (select count(*) from servos_v2.records where collection='stockMovements' and data->>'sourceCommandId' is not null and data->>'reason'='Bar replenishment' and data->>'movementType' in ('TRANSFER_OUT','TRANSFER_IN'))<>2 then raise exception 'Transfer movement pair missing';end if;
 end$$;
 
 select pg_temp.inv_command('inventory.waste','stockItems','gin','{"id":"gin","stockItemId":"gin","locationId":"main","quantity":2,"reason":"Broken bottle"}');
@@ -108,6 +108,10 @@ select pg_temp.inv_command('stockItem.save','stockItems','batch-flour','{"id":"b
 select pg_temp.inv_command('inventory.count','stockItems','batch-flour','{"id":"batch-flour","stockItemId":"batch-flour","locationId":"main","countedQty":100,"reason":"Batch route opening stock"}');
 select pg_temp.inv_command('stockItem.save','stockItems','batch-portions','{"id":"batch-portions","data":{"name":"Prepared batch portions","code":"BATCH-PORTIONS","baseUnit":"portion","scanUnitQuantity":1,"reorderLevel":0,"averageUnitCostMinor":0}}');
 select pg_temp.inv_command('product.save','products','batch-pot','{"id":"batch-pot","data":{"id":"batch-pot","name":"Batch acceptance pot","code":"BATCH-POT","priceMinor":400,"category":"FOOD","routeTo":"KITCHEN","inventoryType":"BATCH","stockItemId":"batch-portions","recipeYield":4,"recipeIngredients":[{"stockItemId":"batch-flour","quantity":5,"tracked":true}]}}');
+do $$declare batch_product jsonb;begin
+ batch_product:=servos_v2.read_record('products','batch-pot');
+ if batch_product->>'stockItemId'<>'batch-portions' or batch_product->'recipeIngredients'->0->>'stockItemId'<>'batch-flour' or (batch_product->>'recipeYield')::numeric<>4 then raise exception 'batch recipe save lost finished stock, ingredients or yield';end if;
+end$$;
 select pg_temp.inv_command('inventory.produceBatch','stockItems','batch-portions','{"id":"batch-pot","recipeProductId":"batch-pot","outputStockItemId":"batch-portions","locationId":"main","batchCount":1,"reason":"Batch yield acceptance"}');
 do $$declare ingredient_stock jsonb;output_stock jsonb;begin
  ingredient_stock:=servos_v2.read_record('stockItems','batch-flour');

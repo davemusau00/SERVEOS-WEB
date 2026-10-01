@@ -44,9 +44,10 @@ test('web operator copy hides implementation terms from the primary workflow', (
 test('web command editors remain available until synchronization is confirmed', () => {
   const app = read('src/runtime/web/WebBusinessApp.tsx');
   const submit = app.slice(app.indexOf('const submit='), app.indexOf('const action=', app.indexOf('const submit=')));
-  assert.match(submit, /enqueue\(operation,payload,baselines,editor\?\.supersedes\);setNotice\(/);
+  assert.match(submit, /const command=await store\.current\.enqueue\(operation,payload,baselines,editor\?\.supersedes\);activeCommandId=command\.id;setNotice\(/);
   assert.match(submit, /saveDraft\(\{id:draftId,operation,collection,targetId:id/);
-  assert.match(submit, /workflow was saved for review/);
+  assert.match(submit, /retainForReview\(\[safeError\],command\.id,false\)/);
+  assert.match(submit, /setEditor\(currentEditor=>currentEditor\?\{\.\.\.currentEditor,supersedes:command\.id\}/);
   assert.match(submit, /result\?\.status==='SYNCHRONIZED'\).*setEditor\(null\)/);
   assert.doesNotMatch(submit, /enqueue\(operation,payload,baselines\);setEditor\(null\)/);
 });
@@ -116,7 +117,7 @@ test('reviewed replacement commands carry immutable supersedes correlation', () 
   assert.match(types, /supersedes\?:string/);
   assert.match(store, /async enqueue\(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion\[\],supersedes\?:string\)/);
   assert.match(app, /enqueue\(operation,payload,baselines,editor\?\.supersedes\)/);
-  assert.match(app, /command\.id\);setNotice/);
+  assert.match(app, /command\.id;setNotice\('Saved on this browser; waiting to sync\.'/);
   assert.match(migration, /previous\.result->>'status' not in \('CONFLICT','REJECTED'\)/);
   assert.match(acceptance, /supersedes correlation missing/);
 });

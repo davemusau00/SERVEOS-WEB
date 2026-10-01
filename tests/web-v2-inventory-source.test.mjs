@@ -27,6 +27,7 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   const sealedCountSql=readFileSync('supabase/expansion/034_sealed_location_counts.sql','utf8');
   const harness=readFileSync('scripts/test-supabase.mjs','utf8');
   const cloudAcceptance=readFileSync('tests/supabase/smart-items.sql','utf8');
+  const inventoryAcceptance=readFileSync('tests/supabase/inventory.sql','utf8');
   assert.match(ui,/const counts:Record<string,number\|null>=\{\}/);
   assert.match(ui,/typeof quantity==='number'&&Number\.isFinite\(quantity\)&&quantity>=0/);
   assert.match(ui,/product\.save/);
@@ -50,7 +51,7 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(recipeSql,/assert_version\(command,'stockItems'/);
   assert.match(recipeSql,/dispatch_before_recipe_product_dependencies/);
   assert.match(recipeSql,/require_permission\('inventory\.view'\)/);
-  assert.match(recipeSql,/revoke all on function servos_v2\.dispatch/);
+  assert.match(recipeSql,/revoke all on function [^;]*servos_v2\.dispatch/);
   assert.match(sealedTransferSql,/apply_sealed_inventory_transfer/);
   assert.match(sealedTransferSql,/sealedOpenEffect/);
   assert.match(sealedTransferSql,/destination already has open liquid/);
@@ -65,8 +66,8 @@ test('web v2 catalog and inventory use command queue rather than direct Supabase
   assert.match(cloudAcceptance,/Stale recipe stock baseline was accepted/);
   assert.match(cloudAcceptance,/Recipe without inventory\.view was not denied/);
   assert.match(cloudAcceptance,/Opening stock did not initialize sealed bottles/);
-  assert.match(cloudAcceptance,/Sealed transfer destination bottle state mismatch/);
-  assert.match(cloudAcceptance,/Whole-location count did not reconcile sealed\/open bottle state/);
+  assert.match(inventoryAcceptance,/Sealed transfer destination bottle state mismatch/);
+  assert.match(inventoryAcceptance,/Whole-location count did not reconcile sealed\/open bottle state/);
   assert.match(manifest,/catalog\.createWithOpeningStock[^\n]*backend: 'implemented'[^\n]*web: 'partial'/);
   assert.match(ui,/stockItem\.save/);
   assert.match(ui,/inventory\.count/);
@@ -111,10 +112,12 @@ test('inventory, Smart Item, and procurement retain workflows until commands are
   assert.match(inventory,/if\(!outcome\|\|!isCommandConfirmed\(outcome\)\)/);
   assert.match(inventory,/if\(!isCommandConfirmed\(outcome\)\)return/);
   assert.match(inventory,/if\(isCommandConfirmed\(outcome\)\)setBatchOpen\(false\);return outcome/);
-  assert.match(inventory,/commandNotice&&!modal&&!batchOpen/);
+  assert.match(inventory,/commandNotice&&!kind&&!smartItemOpen/);
+  assert.match(inventory,/commandNotice&&<p role="status"/);
+  assert.match(inventory,/if\(!isCommandConfirmed\(outcome\)\)return;[\s\S]*if\(modal==='COUNT'\)\{localStorage\.removeItem\(sessionKey\)/);
   assert.match(inventory,/modal&&<Modal[\s\S]*commandNotice&&<p role="status"/);
   assert.match(smartItem,/Promise<CommandOutcome>/);
-  assert.match(smartItem,/if\(!isCommandConfirmed\(result\)\)/);
+  assert.match(smartItem,/if\s*\(!isCommandConfirmed\(result\)\)/);
   assert.match(procurement,/Promise<CommandOutcome>/);
   for(const marker of ['setPoOpen(false);setPoLines([])','setReceiving(null)','setMatching(null)','setPaying(null)','setCommissioning(null)'])assert.ok(procurement.includes(marker),marker);
   for(const marker of ['if(isCommandConfirmed(outcome)){setPoOpen(false);setPoLines([])}','if(isCommandConfirmed(outcome)){setCommandNotice(outcomeMessage(outcome,\'Goods receipt\'));setReceiving(null)}','if(isCommandConfirmed(outcome))setMatching(null)','if(isCommandConfirmed(outcome))setPaying(null)','if(isCommandConfirmed(outcome))setCommissioning(null)'])assert.ok(procurement.includes(marker),marker);

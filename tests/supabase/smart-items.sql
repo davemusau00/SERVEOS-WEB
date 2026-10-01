@@ -72,7 +72,7 @@ do $$declare command_data jsonb;result jsonb;recipe_product jsonb;begin
  command_data:=jsonb_set(command_data,'{expectedVersions,0,id}','"stale-recipe-product"'::jsonb);
  command_data:=jsonb_set(command_data,'{expectedVersions,1,version}','0'::jsonb);
  result:=public.servos_v2_execute(command_data);
- if result->>'status'<>'REJECTED' or result->'error'->>'code'<>'VERSION_CONFLICT' then raise exception 'Stale recipe stock baseline was accepted: %',result;end if;
+ if result->>'status'<>'CONFLICT' or result->'error'->>'code'<>'VERSION_CONFLICT' then raise exception 'Stale recipe stock baseline did not conflict as expected: %',result;end if;
  if exists(select 1 from servos_v2.records where collection='products' and id='stale-recipe-product') then raise exception 'Rejected stale recipe created a product';end if;
 
  update servos_v2.members set permissions=array['records.view','catalog.manage'] where user_id=auth.uid();

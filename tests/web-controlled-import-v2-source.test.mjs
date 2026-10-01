@@ -31,7 +31,7 @@ test('floorplan migrations preserve the complete canonical dispatch chain', () =
   assert.match(dispatchRepairSql, /operation'='inventory\.produceBatch'.*apply_inventory_batch_preparation/s);
   assert.match(dispatchRepairSql, /return servos_v2\.dispatch_before_batch_preparation\(command\)/);
   for (const source of [floorplanSql, dispatchRepairSql]) {
-    assert.match(source, /revoke all on function servos_v2\.dispatch\(jsonb\)/);
+    assert.match(source, /revoke all on function [^;]*servos_v2\.dispatch\(jsonb\)/);
     assert.match(source, /signed offline grants required/);
   }
 });
@@ -79,7 +79,8 @@ test('Web controlled import dry-run rolls back domain validation and apply is ha
   assert.match(importFixture, /import cancellation rejected/);
   assert.match(importFixture, /cancelled batch ID was unexpectedly reusable/);
   assert.match(importFixture, /applied import was incorrectly cancelled/);
-  assert.match(importFixture, /template='staff'/);
+  assert.match(importFixture, /templateKey','staff'/);
+  assert.match(importFixture, /staff import did not use the existing Auth-bound staff command/);
   assert.match(importFixture, /existing Auth-bound staff command/);
   assert.match(importFixture, /dry-run row preview omitted validated product values/);
   assert.match(importFixture, /scientific notation row was not rejected with its actionable reason/);
@@ -91,7 +92,8 @@ test('Web import UI exposes server review and explicit apply while recording par
   assert.match(ui, /Promise<CommandOutcome>/);
   assert.match(ui, /isCommandConfirmed\(await run\(/);
   assert.match(ui, /case'OUTCOME_UNKNOWN':case'REJECTED'/);
-  assert.match(ui, /command=\{submit\}/);
+  assert.match(ui, /type CommandFn=\(operation:string,collection:string,id:string,payload:Record<string,unknown>\)=>Promise<CommandOutcome>/);
+  assert.match(ui, /command\(operation,collection,id,payload\)/);
   assert.match(ui, /const data=\(record\?:BusinessRecord\):Record<string,unknown>=>record\?\.data\?\?\{\}/);
   assert.match(ui, /const previewRows=\(value:unknown\):Record<string,unknown>\[\]/);
   assert.match(ui, /typeof row\.reason==='string'&&row\.reason\.length>0/);

@@ -17,7 +17,7 @@ const inventoryAcceptance=read('../tests/supabase/inventory.sql');
 const contracts=JSON.parse(readFileSync(new URL('../contracts/operations.json',import.meta.url),'utf8'));
 
 test('native store validation errors collect using the shared String result type',()=>{
-  assert.match(nativeStore,/ok_or_else\(\|\|"Stock barcode aliases must be non-empty text up to 128 characters"\.to_string\(\)\)\.collect::<Result<Vec<_>>>\(\)\?/);
+  assert.match(nativeStore,/aliases\.iter\(\)\.map\([\s\S]*?ok_or_else\(\|\|"Stock barcode aliases must be non-empty text up to 128 characters"\.to_string\(\)\)[\s\S]*?collect::<Result<Vec<_>>>\(\)\?/);
 });
 
 test('batch preparation atomically consumes full recipe yields and records output stock',()=>{
@@ -43,7 +43,7 @@ test('batch preparation atomically consumes full recipe yields and records outpu
 
 test('batch portion sales consume prepared stock instead of consuming recipe inputs twice',()=>{
   assert.match(nativeStore,/if inventory_type=="BATCH"[\s\S]*Batch recipe has no linked finished-portions stock item/);
-  assert.match(posMigration,/inventoryType','BATCH/);
+  assert.match(posMigration,/upper\(coalesce\(product->>'inventoryType',''\)\)<>'BATCH'/);
   assert.match(posMigration,/pos_build_item_before_batch_stock/);
   assert.match(posMigration,/ingredientSnapshot/);
   assert.match(modifierMigration,/ingredientAdjustments/);

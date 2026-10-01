@@ -49,7 +49,7 @@ test('interactive product creation requires an explicit tax class',()=>{
   assert.match(setup,/Tax class<select required/);
   assert.match(csv,/tax_class_id must be A_16, B_0 or C_EXEMPT/);
   assert.doesNotMatch(csv,/taxClassId:\s*get\('taxClassId'\)\s*\|\|\s*'A_STANDARD'/);
-  assert.match(catalog,/parseQuantity\(resumable\.counts\[stock\.id\]\)/);
-  assert.match(procurement,/parseQuantity\(draft\.delivered\)/);
+  assert.match(catalog,/parseQuantity\(resumable\.counts\?\.\[stock\.id\]\)/);
+  assert.match(procurement,/parseQuantity\(draft\.delivered,\{integer:Boolean\(line\?\.purchasePackageId\)\}\)/);
   assert.match(procurement,/integer:lineKind==='ASSET'/);
 });

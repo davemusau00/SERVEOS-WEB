@@ -27,7 +27,7 @@ test('native operator online identity binds Auth, stable staff, and the paired t
   assert.match(identityPolicyMigration,/policyVersion/);
   assert.match(identityPolicyMigration,/order by 1/);
   assert.match(identityMigration, /staff_profiles s where s\.auth_user_id=who and s\.active/);
-  assert.match(identityMigration, /where id=\$1 and d\.active/);
+  assert.match(identityMigration, /where d\.id=\$1 and d\.active/);
 });
 
 test('refresh credentials use OS storage and rotate without entering SQLite metadata', () => {
@@ -53,7 +53,7 @@ test('one terminal can be reused by active operators without transferring regist
   assert.match(identityMigration, /not existing\.active or existing\.kind<>\$3/);
   assert.match(identityMigration, /owner_id=original_owner/);
   assert.match(setupGuide,/On a fresh terminal, commission its staged v2 pairing by signing in online as an active Admin authorized for `devices\.register`/);
-  assert.match(setupGuide,/Do not use a cashier\/Server account for first pairing/);
+  assert.match(setupGuide,/Do not use an ordinary cashier\/Server account for first pairing/);
 });
 
 test('authenticated identity initializes staged protocol state and isolates v2 feed reconciliation', () => {
