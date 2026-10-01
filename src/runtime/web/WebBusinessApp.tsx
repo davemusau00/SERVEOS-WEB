@@ -4,6 +4,7 @@ import {BusinessStore,redactSensitiveData,type QueuedCommand,type WorkflowDraft,
 import {resolveOperationDependencies} from './dependencies';
 import {startAutomaticSync,synchronizeStore} from './sync';
 import {allowed,loadAuthorizedSnapshot,openWebDevice,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
+import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
 
 const WebCatalogView=React.lazy(()=>import('./WebCatalogInventory').then(module=>({default:module.WebCatalogView})));
 const WebInventoryView=React.lazy(()=>import('./WebCatalogInventory').then(module=>({default:module.WebInventoryView})));
@@ -111,29 +112,35 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
  const choices=(collection:string)=>active(collection).map(r=>({value:r.id,label:label(r)}));
  const select=(key:string,title:string,collection:string):Field=>({key,label:title,type:'select',options:choices(collection)});
  const open=(next:Editor)=>{setEditor(next);setValues(Object.fromEntries(next.fields.map(f=>[f.key,f.value??''])));setError('')};
- const submit=async(operation:string,collection:string,id:string,payload:Record<string,unknown>):Promise<boolean>=>{
-  if(!store.current||!ready||submitInFlight.current)return false;submitInFlight.current=true;setBusy(true);setError('');setNotice('');
+ const submit=async(operation:string,collection:string,id:string,payload:Record<string,unknown>):Promise<CommandOutcome>=>{
+  if(!store.current||!ready)return {kind:'BLOCKED',message:'The business workspace is not ready. Reconnect and try again.'};
+  if(submitInFlight.current)return {kind:'BLOCKED',message:'Another business action is being submitted. Wait for its outcome before continuing.'};
+  submitInFlight.current=true;setBusy(true);setError('');setNotice('');let activeCommandId='';
   try{
     if(operation==='roomStay.settings'){
       const roomTypeId=String(payload.roomTypeId||'');
       const ratePlanId=String(payload.ratePlanId||'');
       const rate=allNightlyRates.find(record=>record.id===ratePlanId);
-      if(!roomTypeId||!rate||String(rate.data.roomTypeId||'')!==roomTypeId){setBusy(false);setError('Choose a NIGHTLY rate belonging to the selected room type before saving room-stay policy.');return false}
+      if(!roomTypeId||!rate||String(rate.data.roomTypeId||'')!==roomTypeId){const message='Choose a NIGHTLY rate belonging to the selected room type before saving room-stay policy.';setError(message);return {kind:'BLOCKED',message}}
     }
     const baselines=resolveOperationDependencies(operation,collection,id,payload,records);
     const draftId=editor?.draftId||crypto.randomUUID();
     const draftFields=editor?.fields.map(field=>({...field,value:values[field.key]||''})) as WorkflowDraftField[]|undefined;
     const retainForReview=async(validationSummary:string[],supersedes?:string)=>{await store.current?.saveDraft({id:draftId,operation,collection,targetId:id,editorKind:editor?.title||operation,inputValues:editor?values:{},fields:draftFields,supersedes:supersedes||editor?.supersedes,payload,expectedVersions:baselines,policyVersion:await store.current?.policyVersion(),validationSummary,requiresReview:true});await refresh();setEditor(null)};
     const currentPolicyVersion=await store.current.policyVersion();
-    if(editor?.draftId&&editor.policyVersion&&currentPolicyVersion!==editor.policyVersion){await retainForReview(['Business policy changed while this workflow was saved. Review the current authorization and submit again.']);setError('Business policy changed. The workflow was retained for review and no command was queued.');return false}
-    if(!navigator.onLine){await store.current.saveDraft({id:draftId,operation,collection,targetId:id,editorKind:editor?.title||operation,inputValues:editor?values:{},fields:draftFields,supersedes:editor?.supersedes,payload,expectedVersions:baselines,policyVersion:await store.current.policyVersion(),validationSummary:[],requiresReview:/payment|refund|credit|approval/i.test(operation)});setNotice('Draft saved on this browser. Review and submit when online.');await refresh();setEditor(null);return false}
-    const command=await store.current.enqueue(operation,payload,baselines,editor?.supersedes);setNotice('Saved on this browser; waiting to sync.');await refresh();
-   try{await syncRef.current()}catch(e){const current=(await store.current.queue()).find(q=>q.id===command.id);if(current?.state==='SYNCHRONIZED'){if(editor?.draftId)await store.current.discardDraft(editor.draftId);setEditor(null);setNotice('Saved and confirmed. The shared view is refreshing; do not submit again.');return true}await retainForReview([String(e)],command.id);setError(current?.state==='OUTCOME_UNKNOWN'?'The outcome is unknown. The original command is saved for outcome checking; synchronize it before creating another action.':'This action is still queued behind earlier work. Synchronize the earlier command before creating another action.');return false}
+    if(editor?.draftId&&editor.policyVersion&&currentPolicyVersion!==editor.policyVersion){const message='Business policy changed. The workflow was retained for review and no command was queued.';await retainForReview(['Business policy changed while this workflow was saved. Review the current authorization and submit again.']);setError(message);return {kind:'BLOCKED',message}}
+    if(!navigator.onLine){await store.current.saveDraft({id:draftId,operation,collection,targetId:id,editorKind:editor?.title||operation,inputValues:editor?values:{},fields:draftFields,supersedes:editor?.supersedes,payload,expectedVersions:baselines,policyVersion:await store.current.policyVersion(),validationSummary:[],requiresReview:/payment|refund|credit|approval/i.test(operation)});setNotice('Draft saved on this browser. Review and submit when online.');await refresh();setEditor(null);return {kind:'DRAFT_SAVED',draftId}}
+    const command=await store.current.enqueue(operation,payload,baselines,editor?.supersedes);activeCommandId=command.id;setNotice('Saved on this browser; waiting to sync.');await refresh();
+   try{await syncRef.current()}catch(e){const current=(await store.current.queue()).find(q=>q.id===command.id);if(current?.state==='SYNCHRONIZED'){if(editor?.draftId)await store.current.discardDraft(editor.draftId);setEditor(null);setNotice('Saved and confirmed. The shared view is refreshing; do not submit again.');return {kind:'CONFIRMED',commandId:command.id}}await retainForReview([String(e)],command.id);const message=current?.state==='OUTCOME_UNKNOWN'?'The outcome is unknown. The original command is saved for outcome checking; synchronize it before creating another action.':'This action is still queued behind earlier work. Synchronize the earlier command before creating another action.';setError(message);return current?.state==='OUTCOME_UNKNOWN'?{kind:'OUTCOME_UNKNOWN',commandId:command.id,message}:{kind:'PENDING',commandId:command.id}}
    const current=(await store.current.queue()).find(q=>q.id===command.id);const result=current?.result;
-   if(result?.status==='SYNCHRONIZED'){if(editor?.draftId)await store.current.discardDraft(editor.draftId);setEditor(null);setNotice('Saved and synchronized.');return true}
-   await retainForReview([result?.error?.message||'The server requires review before this change can be submitted again.'],command.id);setNotice('');setError(result?.error?.message||'This change needs review. See Saved changes in Activity.');return false
-  }catch(e){setError(String(e));return false}finally{submitInFlight.current=false;setBusy(false)}
+   if(result?.status==='SYNCHRONIZED'){if(editor?.draftId)await store.current.discardDraft(editor.draftId);setEditor(null);setNotice('Saved and synchronized.');return {kind:'CONFIRMED',commandId:command.id}}
+   const message=result?.error?.message||'This change needs review. See Saved changes in Activity.';await retainForReview([message],command.id);setNotice('');setError(message);
+   if(result?.status==='CONFLICT')return {kind:'CONFLICT',commandId:command.id,message};
+   if(result?.status==='REJECTED')return {kind:'REJECTED',commandId:command.id,message};
+   return {kind:'PENDING',commandId:command.id}
+  }catch(e){const message=String(e);setError(message);return activeCommandId?{kind:'OUTCOME_UNKNOWN',commandId:activeCommandId,message}:{kind:'BLOCKED',message}}finally{submitInFlight.current=false;setBusy(false)}
  };
+ const submitForModule=async(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>isCommandConfirmed(await submit(operation,collection,id,payload));
  const reviewDraft=(draft:WorkflowDraft)=>{if(draft.supersedes){const original=queue.find(item=>item.id===draft.supersedes);if(original?.state==='PENDING_SYNC'||original?.state==='OUTCOME_UNKNOWN'){setError('ServOS is still checking the original command. Synchronize it before reviewing or submitting a replacement.');return}if(original?.state==='SYNCHRONIZED'){void store.current?.discardDraft(draft.id).then(refresh);setError('The original command was confirmed. Its duplicate review draft was removed.');return}}if(!draft.fields){setError('This saved workflow has no reopenable form fields. Review its evidence and start a new workflow.');return}open({title:draft.editorKind,operation:draft.operation,collection:draft.collection,id:draft.targetId,fields:draft.fields as Field[],draftId:draft.id,supersedes:draft.supersedes,policyVersion:draft.policyVersion,payload:next=>({...draft.payload,...next})})};
  const action=(title:string,operation:string,collection:string,id:string,fields:Field[]=[],extra:Record<string,unknown>={})=>open({title,operation,collection,id,fields,payload:v=>({id,...extra,...v})});
  const master=(collection:string,title:string,fields:Field[])=>{const id=crypto.randomUUID();open({title,operation:'record.save',collection,id,fields,payload:v=>({id,collection,data:{...v,...(collection==='roomTypes'?{maxGuests:Number(v.maxGuests)}:{}),...(collection==='suppliers'?{paymentTermsDays:Number(v.paymentTermsDays)}:{})}})})};
