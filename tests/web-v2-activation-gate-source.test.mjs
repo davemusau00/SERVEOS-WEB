@@ -129,6 +129,24 @@ test('the disposable harness proves the cutover bootstrap boundary',()=>{
   assert.match(readFileSync('scripts/test-supabase.mjs','utf8'),/tests\/supabase\/cutover\.sql/);
 });
 
+test('the Tauri npm packages match the locked Rust crate major/minor',()=>{
+  // `npm run native:build` refuses to start when the npm API and the Rust crate
+  // are on different minor releases. Cargo.lock is authoritative because every
+  // release build uses `--locked`, so the npm floor must track it.
+  const pkg=JSON.parse(readFileSync('package.json','utf8'));
+  const lock=readFileSync('src-tauri/Cargo.lock','utf8');
+  const rustTauri=/name = "tauri"\r?\nversion = "(\d+)\.(\d+)\.(\d+)"/.exec(lock);
+  assert.ok(rustTauri,'the locked tauri crate version must be readable from Cargo.lock');
+  const rustMinor=`${rustTauri[1]}.${rustTauri[2]}`;
+  for(const name of ['@tauri-apps/api','@tauri-apps/cli']){
+    const range=pkg.dependencies[name] ?? pkg.devDependencies?.[name];
+    assert.ok(range,`${name} must stay declared`);
+    assert.ok(range.includes(rustMinor),
+      `${name} (${range}) must allow the locked tauri crate minor ${rustMinor}; `+
+      'a mismatch makes `npm run native:build` abort with "Found version mismatched Tauri packages"');
+  }
+});
+
 test('the authority-mode wrapper is valid SQL and the identity exposes the mode',()=>{
   const sql=readFileSync('supabase/migrations/20261001045_authority_modes.sql','utf8');
   // A bare SELECT body declared as plpgsql is a syntax error: `select ...; end$$`.
