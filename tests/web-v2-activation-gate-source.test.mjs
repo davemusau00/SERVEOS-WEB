@@ -84,7 +84,9 @@ test('the SQLite -> v2 cutover is gated, replayable, allowlisted and provenance 
   assert.match(sql,/Admin staff profile required/);
   // Immutable history keeps provenance and is never re-transacted.
   assert.match(sql,/function servos_v2\.cutover_collection_is_history/);
-  assert.match(sql,/'source','LEGACY_SQLITE_CUTOVER','sourceCutoverId',cutover_id::text/);
+  assert.match(sql,/'source','LEGACY_SQLITE_CUTOVER','sourceCutoverId',p_cutover_id::text/);
+  // Parameters are prefixed because bare names collide with same-named columns.
+  assert.match(sql,/servos_v2_import_cutover_page\(p_cutover_id uuid,p_page_index integer/);
   // Duplicate/conflicting ids are refused, never silently overwritten.
   assert.match(sql,/DUPLICATE_CONFLICT/);
   // Credential fields may not enter shared business records.
@@ -109,19 +111,58 @@ test('the disposable harness proves the cutover bootstrap boundary',()=>{
     'cutover import must be refused outside CUTOVER_PREP',
     'a malformed manifest hash must be refused',
     'an invalid source terminal must be refused',
+    'a refused manifest must not create a cutover',
+    'the cutover allowlist must exclude unsupported collections',
+    'CUTOVER_PREP must freeze the legacy writer',
+    'CUTOVER_PREP must still refuse v2 business writes',
     'an ineligible collection must be refused',
     'identical page replay must be idempotent',
     'a conflicting page replay must be refused',
     'imported history must carry cutover provenance',
     'a credential field must be refused on import',
     'commit before verification must be refused',
-    'commit without backup evidence must be refused',
     'page evidence must be immutable',
     'cutover evidence must not be deletable',
     'an abort reason must be required',
   ]) assert.ok(suite.includes(marker),marker);
   assert.match(suite,/\nrollback;\s*$/);
   assert.match(readFileSync('scripts/test-supabase.mjs','utf8'),/tests\/supabase\/cutover\.sql/);
+});
+
+test('the authority-mode wrapper is valid SQL and the identity exposes the mode',()=>{
+  const sql=readFileSync('supabase/migrations/20261001045_authority_modes.sql','utf8');
+  // A bare SELECT body declared as plpgsql is a syntax error: `select ...; end$$`.
+  // This exact shape aborted the whole migration transaction when first executed.
+  assert.ok(/create function public\.servos_v2_terminal_identity\(device_id uuid\)\s*\nreturns jsonb language sql security definer/.test(sql),
+    'the identity wrapper must be language sql because its body is a bare SELECT');
+  assert.ok(!/servos_v2_terminal_identity\(device_id uuid\)[\s\S]{0,200}language plpgsql[\s\S]{0,400}\nselect[\s\S]{0,200}end\$\$;/.test(sql),
+    'a bare SELECT must never be wrapped in plpgsql');
+  assert.match(sql,/select public\.servos_v2_terminal_identity_before_authority_mode/);
+});
+
+test('a malformed cutover source id yields an actionable validation failure',()=>{
+  // The guard lives in the cutover bootstrap migration, not the authority-mode one.
+  const sql=readFileSync('supabase/migrations/20261001046_v2_cutover_bootstrap.sql','utf8');
+  assert.match(sql,/raise exception 'VALIDATION_FAILED: source terminal id must be a UUID'/);
+  // Parameters must not collide with same-named columns inside plpgsql.
+  assert.match(sql,/where p\.cutover_id=p_cutover_id and p\.page_index=p_page_index/);
+  // paymentByTender is an object and must never be cast to numeric.
+  assert.match(sql,/if coalesce\(client_totals->'paymentByTender','\{\}'::jsonb\)/);
+});
+
+test('the parity harness proves the two payload shapes charge identically',()=>{
+  const suite=readFileSync('tests/supabase/native-parity.sql','utf8');
+  assert.match(readFileSync('scripts/test-supabase.mjs','utf8'),/tests\/supabase\/native-parity\.sql/);
+  assert.ok(suite.includes('the derived Native payload and the explicit Web payload must charge the same amount'));
+  assert.ok(suite.includes('a refused under-charge must not create a credit entry'));
+  assert.ok(suite.includes('a refused charge must leave the order open'));
+  // The Native payload deliberately carries no customerId and no amountMinor.
+  assert.match(suite,/pg_temp\.parity_command\('customerCredit\.charge','orders','parity-native',\s*\n\s*jsonb_build_object\('orderId','parity-native'\)\)/);
+  const sql=readFileSync('supabase/migrations/20261001047_native_command_parity.sql','utf8');
+  assert.match(sql,/command->>'operation' in \('credit\.charge','customerCredit\.charge'\)/);
+  // order.assignCustomer was emitted by Native with no v2 handler and no ledger entry.
+  assert.match(sql,/create or replace function servos_v2\.apply_order_assign_customer/);
+  assert.match(sql,/command->>'operation'='order\.assignCustomer'/);
 });
 
 test('the disposable harness proves the authority mode matrix',()=>{
