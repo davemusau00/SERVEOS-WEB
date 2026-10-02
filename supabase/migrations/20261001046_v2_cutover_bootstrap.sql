@@ -151,7 +151,13 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare who uuid:=servos_v2.cutover_precheck();state servos_v2.control;terminal uuid;existing servos_v2.cutovers;
 begin
   select * into state from servos_v2.control where singleton for update;
-  terminal:=nullif(manifest->>'terminalId','')::uuid;
+  -- A malformed terminal id must produce an actionable validation failure, not a
+  -- raw "invalid input syntax for type uuid" cast error from a client payload.
+  begin
+    terminal:=(manifest->>'terminalId')::uuid;
+  exception when others then
+    raise exception 'VALIDATION_FAILED: source terminal id must be a UUID';
+  end;
   if terminal is null then raise exception 'VALIDATION_FAILED: source terminal id';end if;
   if manifest->>'manifestHash' is null or length(manifest->>'manifestHash')<>64 then
     raise exception 'VALIDATION_FAILED: manifest hash must be a SHA-256 digest';
@@ -183,13 +189,17 @@ grant execute on function public.servos_v2_begin_cutover(jsonb) to authenticated
 
 -- Import one page. Replaying a page with identical content is a no-op; replaying
 -- it with different content is refused, so a corrupted retry cannot half-apply.
-create or replace function public.servos_v2_import_cutover_page(cutover_id uuid,page_index integer,collection_name text,page jsonb)
+--
+-- The parameters are prefixed because a bare `cutover_id`/`page_index` name
+-- collides with the same-named columns on servos_v2.cutover_pages and resolves
+-- ambiguously inside plpgsql.
+create or replace function public.servos_v2_import_cutover_page(p_cutover_id uuid,p_page_index integer,collection_name text,page jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare who uuid:=servos_v2.cutover_precheck();cut servos_v2.cutovers;existing_hash text;computed text;
         imported integer:=0;replayed boolean:=false;record jsonb;record_id text;record_version bigint;
         record_data jsonb;is_history boolean;conflicts text[]:='{}';
 begin
-  if page_index is null or page_index<0 then raise exception 'VALIDATION_FAILED: page index';end if;
+  if p_page_index is null or p_page_index<0 then raise exception 'VALIDATION_FAILED: page index';end if;
   if not servos_v2.cutover_collection_allowed(collection_name) then
     raise exception 'VALIDATION_FAILED: collection % is not eligible for cutover import',collection_name;
   end if;
@@ -197,7 +207,7 @@ begin
   if jsonb_array_length(page->'records')>500 then raise exception 'VALIDATION_FAILED: page size';end if;
   if page->>'afterId' is null then raise exception 'VALIDATION_FAILED: page cursor';end if;
 
-  select * into cut from servos_v2.cutovers c where c.id=cutover_id for update;
+  select * into cut from servos_v2.cutovers c where c.id=p_cutover_id for update;
   if not found then raise exception 'VALIDATION_FAILED: unknown cutover';end if;
   if cut.status not in ('IMPORTING','VERIFYING') then raise exception 'VALIDATION_FAILED: cutover is %',cut.status;end if;
 
@@ -210,12 +220,12 @@ begin
   end if;
 
   select p.page_hash into existing_hash from servos_v2.cutover_pages p
-   where p.cutover_id=cutover_id and p.page_index=page_index;
+   where p.cutover_id=p_cutover_id and p.page_index=p_page_index;
   if existing_hash is not null then
     if existing_hash<>computed then
-      raise exception 'REPLAY_MISMATCH: page % was already imported with different content',page_index;
+      raise exception 'REPLAY_MISMATCH: page % was already imported with different content',p_page_index;
     end if;
-    return jsonb_build_object('cutoverId',cutover_id,'pageIndex',page_index,'imported',0,'replayed',true,'recordCount',jsonb_array_length(page->'records'));
+    return jsonb_build_object('cutoverId',p_cutover_id,'pageIndex',p_page_index,'imported',0,'replayed',true,'recordCount',jsonb_array_length(page->'records'));
   end if;
 
   is_history:=servos_v2.cutover_collection_is_history(collection_name);
@@ -241,7 +251,7 @@ begin
     -- Imported history carries explicit provenance and is never a new transaction.
     if is_history then
       record_data:=record_data
-        || jsonb_build_object('source','LEGACY_SQLITE_CUTOVER','sourceCutoverId',cutover_id::text,'sourceVersion',record_version);
+        || jsonb_build_object('source','LEGACY_SQLITE_CUTOVER','sourceCutoverId',p_cutover_id::text,'sourceVersion',record_version);
     end if;
     insert into servos_v2.records(collection,id,version,data,archived)
       values(collection_name,record_id,record_version,record_data,coalesce((record->>'archived')::boolean,false));
@@ -253,9 +263,9 @@ begin
   end if;
 
   insert into servos_v2.cutover_pages(cutover_id,page_index,collection,after_id,record_count,page_hash)
-    values(cutover_id,page_index,collection_name,page->>'afterId',jsonb_array_length(page->'records'),computed);
+    values(p_cutover_id,p_page_index,collection_name,page->>'afterId',jsonb_array_length(page->'records'),computed);
 
-  return jsonb_build_object('cutoverId',cutover_id,'pageIndex',page_index,'imported',imported,
+  return jsonb_build_object('cutoverId',p_cutover_id,'pageIndex',p_page_index,'imported',imported,
     'replayed',replayed,'recordCount',jsonb_array_length(page->'records'),'afterId',page->>'afterId');
 end$$;
 revoke all on function public.servos_v2_import_cutover_page(uuid,integer,text,jsonb) from public,anon;

@@ -88,14 +88,18 @@ do $$declare failed boolean:=false;begin
 end$$;
 
 -- Once a cutover is verified, SHARED_V2 becomes reachable and v2 writes open.
-do $$declare result jsonb;begin
-  create table if not exists servos_v2.cutovers(business_id uuid,status text);
-  insert into servos_v2.cutovers(business_id,status) values((select business_id from servos_v2.control where singleton),'READY');
+-- The real cutovers table from migration 046 is used: a stub would both shadow
+-- the shipped schema and drop the real table at the end of this suite.
+do $$declare result jsonb;ready_cut uuid;begin
+  insert into servos_v2.cutovers(business_id,source_terminal_id,source_manifest_hash,source_schema_version,
+    started_by,record_count,status,source_manifest)
+  values((select business_id from servos_v2.control where singleton),
+    '10000000-0000-4000-8000-0000000000c1',repeat('d',64),15,auth.uid(),0,'READY','{}'::jsonb)
+  returning id into ready_cut;
   result:=public.servos_v2_set_authority_mode('SHARED_V2','Verified v2 cutover committed');
   if result->>'authorityMode'<>'SHARED_V2' then raise exception 'SHARED_V2 was not reached: %',result;end if;
   if result->>'v2WritesEnabled'<>'true' then raise exception 'SHARED_V2 must enable v2 business writes';end if;
   if not servos_v2.shared_v2_active() then raise exception 'shared_v2_active must be true under SHARED_V2';end if;
-  drop table servos_v2.cutovers;
 end$$;
 
 rollback;
