@@ -1,7 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { BASE_MIGRATIONS, canonicalMigrations, expansionChain, canonicalNameFor } from '../scripts/canonical-migrations.mjs';
+
+test('every icon declared for bundling exists and is the expected format', () => {
+  const config = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+  const icons = config.bundle?.icon;
+  // Declared explicitly: relying on Tauri's implicit defaults left the MSI
+  // bundler failing with "Couldn't find a .ico icon" while NSIS still worked.
+  assert.ok(Array.isArray(icons) && icons.length > 0, 'bundle.icon must be declared explicitly');
+  for (const icon of icons) {
+    const path = join('src-tauri', icon);
+    assert.ok(existsSync(path), `declared bundle icon must exist: ${path}`);
+  }
+  // Windows bundles need a real multi-size ICO, not a renamed PNG.
+  const ico = readFileSync(join('src-tauri', 'icons', 'icon.ico'));
+  assert.equal(ico.readUInt16LE(0), 0, 'ICO reserved field must be zero');
+  assert.equal(ico.readUInt16LE(2), 1, 'ICO type field must be 1 (icon)');
+  assert.ok(ico.readUInt16LE(4) > 0, 'ICO must declare at least one image');
+});
 
 test('the canonical migration set is complete, ordered and free of duplicates', () => {
   const chain = expansionChain();
