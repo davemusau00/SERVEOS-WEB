@@ -130,6 +130,35 @@ begin
   return servos_v2.put_record('orders',order_key,updated);
 end$$;
 
+-- Link a customer to an open tab. The Native terminal emits this before a credit
+-- charge, and it previously had no v2 handler at all: the ledger did not track
+-- the operation, so the parity gate could not see the gap.
+create or replace function servos_v2.apply_order_assign_customer(command jsonb)
+returns jsonb language plpgsql set search_path='' as $$
+declare p jsonb:=command->'payload';order_key text;customer_key text;
+        order_data jsonb;customer_data jsonb;customer_name text;paid bigint;
+begin
+  perform servos_v2.require_permission('pos.open_tab');
+  order_key:=servos_v2.required_text(p,'orderId');
+  customer_key:=servos_v2.required_text(p,'customerId');
+  perform servos_v2.assert_version(command,'orders',order_key);
+  select data into order_data from servos_v2.records where collection='orders' and id=order_key and not archived for update;
+  if order_data is null then raise exception 'VALIDATION_FAILED: order not found';end if;
+  if order_data->>'state' in ('COMPLETED','VOIDED') then raise exception 'INVALID_STATE: closed orders cannot change customer';end if;
+  paid:=coalesce((order_data->>'amountPaidMinor')::bigint,0)+coalesce((order_data->>'amountCreditedMinor')::bigint,0);
+  if paid>0 then raise exception 'INVALID_STATE: assign the customer before settling any part of this tab';end if;
+  select data into customer_data from servos_v2.records where collection='customers' and id=customer_key and not archived;
+  if customer_data is null then raise exception 'VALIDATION_FAILED: customer not found';end if;
+  customer_name:=customer_data->>'name';
+
+  order_data:=order_data||jsonb_build_object('customerId',customer_key,'customerName',customer_name);
+  -- A Walk-in tab adopts the customer name, matching native behaviour.
+  if coalesce(order_data->>'tabName','') like 'Walk-in%' then
+    order_data:=order_data||jsonb_build_object('tabName',customer_name);
+  end if;
+  return servos_v2.put_record('orders',order_key,order_data);
+end$$;
+
 -- Route both operations before the established chain. credit.charge is
 -- intercepted here too, so the derived Native payload and the explicit Web
 -- payload share exactly one implementation.
@@ -143,9 +172,13 @@ begin
  if command->>'operation'='order.compItem' then
   return servos_v2.apply_order_comp_item(command);
  end if;
+ if command->>'operation'='order.assignCustomer' then
+  return servos_v2.apply_order_assign_customer(command);
+ end if;
  return servos_v2.dispatch_before_native_parity(command);
 end$$;
 
 revoke all on function servos_v2.dispatch(jsonb),servos_v2.dispatch_before_native_parity(jsonb),
-  servos_v2.apply_credit_charge(jsonb),servos_v2.apply_order_comp_item(jsonb) from public,anon,authenticated;
+  servos_v2.apply_credit_charge(jsonb),servos_v2.apply_order_comp_item(jsonb),
+  servos_v2.apply_order_assign_customer(jsonb) from public,anon,authenticated;
 commit;
