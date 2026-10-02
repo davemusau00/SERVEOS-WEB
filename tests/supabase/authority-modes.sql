@@ -61,9 +61,11 @@ do $$declare page jsonb;session jsonb;failed boolean:=false;begin
 end$$;
 
 -- Identity exposes the explicit mode so a terminal never infers it from a bool.
+-- The device must be paired first: the established identity check is preserved.
 do $$declare identity jsonb;begin
-  identity:=public.servos_v2_terminal_identity('10000000-0000-4000-8000-000000000001');
-  if identity->>'authorityMode'<>'CUTOVER_PREP' then raise exception 'Identity must expose the authority mode';end if;
+  perform public.servos_v2_register_device('10000000-0000-4000-8000-0000000000c1','Authority Mode Device','DESKTOP');
+  identity:=public.servos_v2_terminal_identity('10000000-0000-4000-8000-0000000000c1');
+  if identity->>'authorityMode'<>'CUTOVER_PREP' then raise exception 'Identity must expose the authority mode, got %',identity->>'authorityMode';end if;
   if identity->>'sharedV2'<>'false' then raise exception 'Identity must expose shared v2 state';end if;
 end$$;
 

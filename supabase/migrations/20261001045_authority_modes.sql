@@ -138,12 +138,16 @@ grant execute on function public.servos_v2_execute(jsonb) to authenticated;
 -- Identity responses must carry the explicit mode so a terminal never has to
 -- infer the authority from a boolean. Preserve the established identity checks
 -- and append the mode to the response.
+--
+-- This wrapper is a single SELECT, so it is declared `language sql`. A plpgsql
+-- body cannot be a bare statement list: `select ...; end$$` is a syntax error
+-- and would abort the whole migration transaction.
 alter function public.servos_v2_terminal_identity(uuid) rename to servos_v2_terminal_identity_before_authority_mode;
 create function public.servos_v2_terminal_identity(device_id uuid)
-returns jsonb language plpgsql security definer set search_path='' as $$
-select public.servos_v2_terminal_identity_before_authority_mode($1)
-       || jsonb_build_object('authorityMode',servos_v2.authority(),'sharedV2',servos_v2.shared_v2_active());
-end$$;
+returns jsonb language sql security definer set search_path='' as $$
+  select public.servos_v2_terminal_identity_before_authority_mode($1)
+      || jsonb_build_object('authorityMode',servos_v2.authority(),'sharedV2',servos_v2.shared_v2_active());
+$$;
 revoke all on function public.servos_v2_terminal_identity(uuid) from public,anon;
 grant execute on function public.servos_v2_terminal_identity(uuid) to authenticated;
 
