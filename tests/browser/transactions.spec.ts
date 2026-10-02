@@ -54,7 +54,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
    select servos_v2.put_record('outlets','web-pos-outlet','{"name":"Browser Bar","code":"WEBPOS","defaultStockLocationId":"web-pos-stock"}');
    select servos_v2.put_record('products','web-pos-soda','{"name":"Test Soda","code":"TESTSODA","priceMinor":1250,"category":"DRINKS","portions":[],"modifiers":[],"recipeIngredients":[],"outletIds":[]}');
    select servos_v2.put_record('paymentAccounts','web-pos-cash','{"name":"Cash","method":"CASH","accountCode":"CASH"}');
-   update servos_v2.control set enabled=true;
+   update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
    `);
  });
  test.afterAll(()=>{if(running)docker(['stop',container])});

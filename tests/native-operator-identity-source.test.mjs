@@ -6,6 +6,8 @@ const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const runtime = read('../src-tauri/src/lib.rs');
 const nativeStore = read('../src-tauri/src/store.rs');
 const nativeV2Migration = read('../src-tauri/migrations/014_native_v2_outbox.sql');
+const authorityMigration = read('../src-tauri/migrations/015_v2_cutover_state.sql');
+const nativeTests = read('../src-tauri/src/tests.rs');
 const provider = read('../src/runtime/RuntimeProvider.tsx');
 const unlock = read('../src/native/UnlockView.tsx');
 const identityMigration = read('../supabase/expansion/028_terminal_operator_identity.sql');
@@ -78,6 +80,73 @@ test('authenticated identity initializes staged protocol state and isolates v2 f
   assert.match(nativeV2Migration, /WHERE state='PENDING'/);
   assert.match(runtime, /seed_native_v2_state\(&db,&identity\)/);
   assert.match(nativeV2Migration, /PRAGMA user_version=14/);
+});
+
+test('business authority is persisted terminal state, not a property of the login session',()=>{
+  // Persisted mode with the three explicit values the cutover runbook uses.
+  assert.match(authorityMigration,/CREATE TABLE IF NOT EXISTS authority_state/);
+  assert.match(authorityMigration,/CHECK\(mode IN \('LEGACY_LOCAL','CUTOVER_PREP','SHARED_V2'\)\)/);
+  assert.match(authorityMigration,/VALUES\(1,'LEGACY_LOCAL'/);
+  // Immutable transition evidence plus the legacy outbox resolution states.
+  assert.match(authorityMigration,/CREATE TABLE IF NOT EXISTS authority_transitions/);
+  assert.match(authorityMigration,/Authority transitions cannot be updated/);
+  assert.match(authorityMigration,/CREATE TABLE IF NOT EXISTS legacy_outbox_resolution/);
+  assert.match(authorityMigration,/SUPERSEDED_BY_V2_CUTOVER/);
+  assert.match(authorityMigration,/CLOUD_ACKNOWLEDGED/);
+  // The outbox rows themselves are never deleted, only evidenced.
+  assert.ok(!/DELETE FROM outbox/i.test(authorityMigration),'migration must never delete outbox rows');
+  assert.match(authorityMigration,/PRAGMA user_version=15/);
+  assert.match(nativeStore,/pub enum AuthorityMode/);
+  assert.match(nativeStore,/pub fn authority_mode/);
+  assert.match(nativeStore,/pub fn set_authority_mode/);
+  // Forward-only transitions keep a stale replica from undoing a cutover.
+  assert.match(nativeStore,/Authority cannot move directly from/);
+  assert.match(nativeStore,/pub fn reject_legacy_business_write/);
+  assert.match(nativeStore,/pub fn supersede_legacy_outbox/);
+  assert.match(nativeStore,/The server cutover must be READY/);
+  // The fence lives in the store itself, not only in Tauri callers.
+  const executeFn=nativeStore.slice(nativeStore.indexOf('pub fn execute('),nativeStore.indexOf('fn simple_setup_execute('));
+  assert.match(executeFn,/reject_legacy_business_write\(db,/,'store::execute must enforce the persisted authority');
+  // The legacy operational view is closed under shared authority.
+  const legacySnapshot=nativeStore.slice(nativeStore.indexOf('pub fn snapshot('),nativeStore.indexOf('pub fn snapshot(')+2000);
+  assert.match(legacySnapshot,/AuthorityMode::SharedV2/,'legacy snapshot must fail closed under SHARED_V2');
+  // The behaviours that caused the STOP-SHIP bug must be covered.
+  assert.match(nativeTests,/shared_v2_refuses_legacy_business_writes_even_for_a_valid_local_pin/);
+  assert.match(nativeTests,/business_authority_mode_is_persistent_forward_only_and_audited/);
+  assert.match(nativeTests,/legacy_outbox_can_be_formally_superseded_only_after_a_ready_cutover/);
+  // The unresolved-outbox guard replaces the acknowledged_at IS NULL test.
+  assert.match(nativeStore,/pub fn reject_unresolved_legacy_outbox/);
+  assert.match(nativeStore,/neither acknowledged by the cloud nor resolved by a v2 cutover/);
+});
+
+test('runtime routing follows the persisted authority and never falls back to a legacy write',()=>{
+  // The old session-dependent guard is gone.
+  assert.match(runtime,/fn reject_legacy_business_write_when_v2_active\(state:&Runtime,workflow:&str\)/);
+  // runtime_command must be driven by the persisted mode and must NOT contain
+  // the __legacyFallback escape hatch that silently created a second writer.
+  const commandFn=runtime.slice(runtime.indexOf('async fn runtime_command('),runtime.indexOf('fn runtime_manager_approve('));
+  assert.match(commandFn,/store::authority_mode\(&db\)\?/);
+  assert.match(commandFn,/mode==store::AuthorityMode::SharedV2/);
+  assert.match(commandFn,/local PIN access cannot write business records/);
+  assert.ok(!commandFn.includes('__legacyFallback'),'the legacy write fallback must be removed');
+  // runtime_sync must not reach the legacy uploader under shared authority.
+  const syncFn=runtime.slice(runtime.indexOf('async fn runtime_sync('),runtime.indexOf('async fn sync_inner('));
+  assert.match(syncFn,/store::authority_mode\(&db\)\?/);
+  assert.match(syncFn,/mode==store::AuthorityMode::SharedV2\|\|v2_active/);
+  assert.match(syncFn,/the legacy upload path is closed/);
+  // runtime_snapshot must fail closed rather than expose legacy truth.
+  const snapshotFn=runtime.slice(runtime.indexOf('async fn runtime_snapshot('),runtime.indexOf('fn runtime_login_offline('));
+  assert.match(snapshotFn,/store::authority_mode\(&db\)\?/);
+  assert.match(snapshotFn,/The shared v2 baseline is not installed/);
+  // Offline local PIN must not create a write-capable session under shared v2.
+  const offlineFn=runtime.slice(runtime.indexOf('fn runtime_login_offline('),runtime.indexOf('fn runtime_guidance_progress('));
+  assert.match(offlineFn,/AuthorityMode::SharedV2/);
+  assert.match(offlineFn,/local PIN unlock cannot create a business write session/);
+  // Operator-visible status must report the persisted authority.
+  assert.match(runtime,/"authorityMode":mode\.as_str\(\)/);
+  assert.match(runtime,/"legacyWritesFenced":mode\.legacy_writes_fenced\(\)/);
+  assert.match(runtime,/runtime_set_authority_mode,/);
+  assert.match(runtime,/runtime_resolve_legacy_outbox,/);
 });
 
 test('native v2 command routing persists intent before authenticated dispatch and never falls back on transport failure', () => {

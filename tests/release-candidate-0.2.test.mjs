@@ -5,7 +5,7 @@ import { BASE_MIGRATIONS, canonicalMigrations, expansionChain, canonicalNameFor 
 
 test('the canonical migration set is complete, ordered and free of duplicates', () => {
   const chain = expansionChain();
-  assert.equal(chain.length, 44, 'the reviewed staged v2 chain must keep all 44 migrations');
+  assert.equal(chain.length, 45, 'the reviewed staged v2 chain must keep all 45 migrations');
   const canonical = canonicalMigrations();
   assert.equal(canonical.length, BASE_MIGRATIONS.length + chain.length);
   assert.equal(new Set(canonical).size, canonical.length, 'no migration may be applied twice');

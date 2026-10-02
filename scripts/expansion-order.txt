@@ -42,3 +42,4 @@
 042_floorplan_dispatch_repair.sql
 043_receipt_branding_snapshots.sql
 044_mpesa_till_qr.sql
+045_authority_modes.sql

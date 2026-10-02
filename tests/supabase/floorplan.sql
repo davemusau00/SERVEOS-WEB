@@ -5,7 +5,7 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001'
 set local role authenticated;
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000061','Floorplan test','WEB');
 reset role;
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 select servos_v2.put_record('outlets','layout-outlet','{"name":"Dining","propertyId":"property"}');
 
 create function pg_temp.floorplan_command(p jsonb,expected_status text default 'SYNCHRONIZED',expected_code text default null,command_id uuid default gen_random_uuid()) returns jsonb language plpgsql as $$

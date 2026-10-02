@@ -6,7 +6,7 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001'
 set local role authenticated;
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000071','Smart Item terminal','DESKTOP');
 reset role;
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 select servos_v2.put_record('outlets','smart-outlet',jsonb_build_object('name','Smart Item Outlet','active',true));
 select public.servos_v2_execute(jsonb_build_object(
  'id','20000000-0000-4000-8000-000000000071','schemaVersion',2,

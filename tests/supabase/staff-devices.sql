@@ -4,7 +4,7 @@ insert into servos_v2.staff_profiles(auth_user_id,staff_id,name,role,created_by,
 values('00000000-0000-4000-8000-000000000001','admin','Owner','Admin','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001')
 on conflict(auth_user_id) do update set role='Admin',active=true;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 set local role authenticated;
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000061','Admin workstation','DESKTOP');
 reset role;

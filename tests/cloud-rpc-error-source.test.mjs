@@ -29,15 +29,32 @@ test('native cloud RPC rejection preserves the server response body',()=>{
   assert.ok(!rpc.includes('"Server rejected request ({}); local data retained"'),'status-only rejection message must not remain');
 });
 test('server error detail is bounded before it is stored as local evidence',()=>{
-  const lib=readFileSync('src-tauri/src/lib.rs','utf8');
-  assert.match(lib,/const MAX_SERVER_ERROR_DETAIL: usize = 400;/);
-  assert.match(lib,/fn bounded_detail\(detail: &str\) -> String/);
+  // The bounded formatter lives in its own module so the dependency-free
+  // native-tests crate can compile the exact shipped source. Keeping it inside
+  // the Tauri crate root previously broke the native-domain harness.
+  const rpcError=readFileSync('src-tauri/src/rpc_error.rs','utf8');
+  assert.match(rpcError,/pub const MAX_SERVER_ERROR_DETAIL: usize = 400;/);
+  assert.match(rpcError,/pub fn bounded_detail\(detail: &str\) -> String/);
   // Truncation must respect UTF-8 character boundaries.
-  assert.match(lib,/while end > 0 && !detail\.is_char_boundary\(end\)/);
+  assert.match(rpcError,/while end > 0 && !detail\.is_char_boundary\(end\)/);
+  // It must not depend on Tauri, or native-tests cannot compile it. Prose in
+  // doc comments may mention these crates; only real code is inspected.
+  const rpcErrorCode=rpcError.split('\n').filter(line=>!/^\s*(\/\/|\/\*|\*)/.test(line)).join('\n');
+  assert.doesNotMatch(rpcErrorCode,/\btauri\b|\breqwest\b|\bkeyring\b/, 'rpc_error must stay free of Tauri-only dependencies');
+  // Both crates must consume this one implementation, never a copy.
+  const lib=readFileSync('src-tauri/src/lib.rs','utf8');
+  assert.match(lib,/mod rpc_error;/);
+  assert.match(lib,/use rpc_error::bounded_detail;/);
+  const nativeTests=readFileSync('native-tests/src/lib.rs','utf8');
+  assert.match(nativeTests,/#\[path = "\.\.\/\.\.\/src-tauri\/src\/rpc_error\.rs"\]/);
+  assert.match(nativeTests,/pub mod rpc_error;/);
   // The rejection string is persisted with local evidence, so it must stay bounded.
   const tests=readFileSync('src-tauri/src/tests.rs','utf8');
   assert.match(tests,/server_error_detail_is_preserved_and_bounded/);
-  assert.match(tests,/use super::\{bounded_detail, MAX_SERVER_ERROR_DETAIL\};/);
+  assert.match(tests,/use super::rpc_error::\{bounded_detail, MAX_SERVER_ERROR_DETAIL\};/);
+  // The duplicate implementation must be gone from the Tauri crate root.
+  assert.doesNotMatch(lib,/const MAX_SERVER_ERROR_DETAIL/, 'constant must not be duplicated in lib.rs');
+  assert.doesNotMatch(lib,/fn bounded_detail\(detail: &str\)/, 'implementation must not be duplicated in lib.rs');
 });
 test('the duplicate frontend-tree copy of the native runtime stays in sync',()=>{
   // src/lib.rs is a mirror of src-tauri/src/lib.rs that Cargo does not compile.

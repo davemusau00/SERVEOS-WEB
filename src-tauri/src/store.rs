@@ -93,7 +93,7 @@ pub fn open(path: &std::path::Path) -> Result<Connection> {
     let version: i64 = db
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .map_err(error)?;
-    if version > 14 {
+    if version > 15 {
         return Err("Database requires a newer ServOS version".into());
     }
     if version < 1 {
@@ -141,6 +141,10 @@ pub fn open(path: &std::path::Path) -> Result<Connection> {
     if version<14 {
         db.execute_batch(include_str!("../migrations/014_native_v2_outbox.sql")).map_err(error)?;
     }
+    let version:i64=db.query_row("PRAGMA user_version",[],|r|r.get(0)).map_err(error)?;
+    if version<15 {
+        db.execute_batch(include_str!("../migrations/015_v2_cutover_state.sql")).map_err(error)?;
+    }
     Ok(db)
 }
 pub fn meta(db: &Connection, key: &str) -> Result<Option<String>> {
@@ -158,7 +162,193 @@ pub fn set_meta(db: &Connection, key: &str, value: &str) -> Result<()> {
     .map_err(error)?;
     Ok(())
 }
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
 
+/// The persistent business authority mode. This is terminal state, not a
+/// property of the current login session, so signing out and unlocking with a
+/// local PIN can never silently restore the legacy writer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AuthorityMode {
+    LegacyLocal,
+    CutoverPrep,
+    SharedV2,
+}
+impl AuthorityMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::LegacyLocal => "LEGACY_LOCAL",
+            Self::CutoverPrep => "CUTOVER_PREP",
+            Self::SharedV2 => "SHARED_V2",
+        }
+    }
+    fn parse(value: &str) -> Result<Self> {
+        match value {
+            "LEGACY_LOCAL" => Ok(Self::LegacyLocal),
+            "CUTOVER_PREP" => Ok(Self::CutoverPrep),
+            "SHARED_V2" => Ok(Self::SharedV2),
+            other => Err(format!("Unknown business authority mode: {other}")),
+        }
+    }
+    /// True when a legacy SQLite business mutation must be refused. Both
+    /// CUTOVER_PREP (frozen maintenance window) and SHARED_V2 (v2 is the sole
+    /// authority) forbid the legacy writer.
+    pub fn legacy_writes_fenced(self) -> bool {
+        !matches!(self, Self::LegacyLocal)
+    }
+}
+
+/// Read the persisted authority mode. A missing row means this terminal has
+/// never been cut over, which is LEGACY_LOCAL.
+pub fn authority_mode(db: &Connection) -> Result<AuthorityMode> {
+    let stored: Option<String> = db
+        .query_row("SELECT mode FROM authority_state WHERE singleton=1", [], |r| r.get(0))
+        .optional()
+        .map_err(error)?;
+    match stored {
+        Some(value) => AuthorityMode::parse(&value),
+        None => Ok(AuthorityMode::LegacyLocal),
+    }
+}
+
+/// Persist the authority mode and append immutable transition evidence.
+/// Only forward transitions are accepted, so a cutover can never be undone by
+/// replaying an older terminal state or a stale replica.
+pub fn set_authority_mode(
+    db: &Connection,
+    next: AuthorityMode,
+    actor_id: Option<&str>,
+    cutover_id: Option<&str>,
+    reason: &str,
+) -> Result<AuthorityMode> {
+    let current = authority_mode(db)?;
+    if current == next {
+        return Ok(current);
+    }
+    let allowed = matches!(
+        (current, next),
+        (AuthorityMode::LegacyLocal, AuthorityMode::CutoverPrep)
+            | (AuthorityMode::CutoverPrep, AuthorityMode::SharedV2)
+    );
+    if !allowed {
+        return Err(format!(
+            "Authority cannot move directly from {} to {}",
+            current.as_str(),
+            next.as_str()
+        ));
+    }
+    if reason.trim().is_empty() {
+        return Err("An authority transition requires a recorded reason".into());
+    }
+    let tx = db.unchecked_transaction().map_err(error)?;
+    tx.execute(
+        "INSERT INTO authority_state(singleton,mode,cutover_id,updated_at) VALUES(1,?,?,?)
+         ON CONFLICT(singleton) DO UPDATE SET mode=excluded.mode,cutover_id=excluded.cutover_id,updated_at=excluded.updated_at",
+        params![next.as_str(), cutover_id, now()],
+    )
+    .map_err(error)?;
+    tx.execute(
+        "INSERT INTO authority_transitions(id,from_mode,to_mode,actor_id,cutover_id,reason,occurred_at)
+         VALUES(?,?,?,?,?,?,?)",
+        params![id(), current.as_str(), next.as_str(), actor_id, cutover_id, reason, now()],
+    )
+    .map_err(error)?;
+    tx.commit().map_err(error)?;
+    Ok(next)
+}
+
+/// Refuse a legacy SQLite business mutation whenever v2 owns or is preparing to
+/// own the business. This is intentionally independent of `operator_auth`: an
+/// absent Auth session must fail closed, not fall back to the legacy writer.
+pub fn reject_legacy_business_write(db: &Connection, workflow: &str) -> Result<()> {
+    let mode = authority_mode(db)?;
+    if !mode.legacy_writes_fenced() {
+        return Ok(());
+    }
+    Err(format!(
+        "{workflow} is not available while the business authority is {}. Use the shared v2 command workflow.",
+        mode.as_str()
+    ))
+}
+
+/// Legacy outbox rows that are neither acknowledged by the cloud nor formally
+/// resolved by a verified v2 cutover.
+pub fn unresolved_legacy_outbox(db: &Connection) -> Result<i64> {
+    db.query_row(
+        "SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL
+         AND sequence NOT IN (SELECT sequence FROM legacy_outbox_resolution)",
+        [],
+        |r| r.get(0),
+    )
+    .map_err(error)
+}
+
+/// Guard used by the v2 baseline installer, command dispatcher and read paths.
+/// `resolution IS NULL` is the point: a formally superseded legacy row is not
+/// pending work, so it must not block the cutover that superseded it.
+pub fn reject_unresolved_legacy_outbox(db: &Connection, blocked: &str) -> Result<()> {
+    let pending = unresolved_legacy_outbox(db)?;
+    if pending > 0 {
+        return Err(format!(
+            "{blocked}. {pending} legacy command(s) are neither acknowledged by the cloud nor resolved by a v2 cutover"
+        ));
+    }
+    Ok(())
+}
+
+/// Formally resolve legacy outbox rows as superseded by a verified v2 cutover.
+/// Rows are never deleted, and resolution is refused until the server reports
+/// the cutover READY, so a half-finished import cannot strand the terminal.
+pub fn supersede_legacy_outbox(db: &mut Connection, cutover_id: &str, server_ready: bool) -> Result<usize> {
+    if cutover_id.trim().is_empty() {
+        return Err("Superseding legacy work requires a cutover identifier".into());
+    }
+    if !server_ready {
+        return Err("The server cutover must be READY before legacy work can be superseded".into());
+    }
+    let mode = authority_mode(db)?.as_str().to_string();
+    let occurred = now();
+    let tx = db.transaction().map_err(error)?;
+    let rows: Vec<(i64, String, String)> = {
+        let mut stmt = tx
+            .prepare("SELECT sequence,command_id,envelope FROM outbox WHERE acknowledged_at IS NULL
+                      AND sequence NOT IN (SELECT sequence FROM legacy_outbox_resolution) ORDER BY sequence")
+            .map_err(error)?;
+        let collected = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .map_err(error)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(error)?;
+        collected
+    };
+    let mut resolved = 0usize;
+    for (sequence, command_id, envelope) in &rows {
+        tx.execute(
+            "INSERT INTO legacy_outbox_resolution(sequence,resolution,cutover_id,envelope_hash,resolved_at)
+             VALUES(?,'SUPERSEDED_BY_V2_CUTOVER',?,?,?)",
+            params![*sequence, cutover_id, sha256_hex(envelope.as_bytes()), occurred],
+        )
+        .map_err(error)?;
+        tx.execute(
+            "INSERT INTO authority_transitions(id,from_mode,to_mode,actor_id,cutover_id,reason,occurred_at)
+             VALUES(?,?,?,?,?,?,?)",
+            params![
+                id(),
+                mode,
+                mode,
+                None::<&str>,
+                cutover_id,
+                format!("Legacy command {command_id} superseded by v2 cutover"),
+                occurred
+            ],
+        )
+        .map_err(error)?;
+        resolved += 1;
+    }
+    tx.commit().map_err(error)?;
+    Ok(resolved)
+}
 /// Initialize staged v2 sequence/feed state once from authenticated identity.
 /// Later identity refreshes must not advance cursors past unapplied feed data
 /// or acknowledgements; this function never enqueues business commands.
@@ -228,8 +418,7 @@ pub fn install_native_v2_snapshot(db: &mut Connection, device_id: &str, business
         return Err("Invalid or oversized v2 baseline snapshot".into());
     }
     let tx = db.transaction().map_err(error)?;
-    let legacy_pending:i64=tx.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|row|row.get(0)).map_err(error)?;
-    if legacy_pending>0{return Err("Install the v2 baseline only after the legacy outbox is drained and reconciled".into());}
+    reject_unresolved_legacy_outbox(&tx, "Install the v2 baseline only after the legacy outbox is drained and reconciled")?;
     let (stored_business,previous_cursor,complete):(String,i64,i64)=tx.query_row(
         "SELECT business_id,feed_cursor,snapshot_complete FROM native_v2_state WHERE device_id=?",
         [device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
@@ -267,8 +456,7 @@ pub fn queue_native_v2_command(db:&mut Connection,device_id:&str,business_id:&st
     let (stored_business,last_sequence,snapshot_complete)=state.ok_or("V2 device state is not initialized")?;
     if stored_business!=business_id{return Err("V2 command business does not match paired terminal".into());}
     if snapshot_complete!=1{return Err("Install a complete v2 baseline before submitting shared commands".into());}
-    let legacy_pending:i64=tx.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|row|row.get(0)).map_err(error)?;
-    if legacy_pending>0{return Err("V2 writes are blocked until the legacy outbox is drained and reconciled".into());}
+    reject_unresolved_legacy_outbox(&tx, "V2 writes are blocked until the legacy outbox is drained and reconciled")?;
     let v2_pending:i64=tx.query_row("SELECT COUNT(*) FROM native_v2_outbox WHERE device_id=? AND state='PENDING'",[device_id],|row|row.get(0)).map_err(error)?;
     if v2_pending>0{return Err("A v2 command is awaiting acknowledgement; synchronize it before submitting another".into());}
     let client_sequence=last_sequence.checked_add(1).ok_or("V2 command sequence exhausted")?;
@@ -310,8 +498,7 @@ pub fn acknowledge_native_v2_command(db:&mut Connection,result:&Value)->Result<V
 
 pub fn native_v2_snapshot(db:&Connection,token:&str,device_id:&str,server_permissions:&Value)->Result<Value>{
     let user=actor(db,token,false)?;
-    let legacy_pending:i64=db.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|row|row.get(0)).map_err(error)?;
-    if legacy_pending>0{return Err("Shared v2 view is blocked until pending legacy work is drained and reconciled".into());}
+    reject_unresolved_legacy_outbox(db, "Shared v2 view is blocked until pending legacy work is drained and reconciled")?;
     let (business_id,feed_cursor,policy,complete,updated_at):(String,i64,Option<String>,i64,String)=db.query_row("SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete,updated_at FROM native_v2_state WHERE device_id=?",[device_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?))).map_err(error)?;
     if complete!=1{return Err("The v2 shadow baseline has not been installed".into());}
     let mut statement=db.prepare("SELECT collection,record_id,version,data,archived FROM native_v2_records ORDER BY collection,record_id").map_err(error)?;
@@ -2332,7 +2519,13 @@ fn room_execute(tx:&Transaction,user:&Session,cmd:&BusinessCommand,changes:&mut 
     Ok(true)
 }
 
+/// The single legacy SQLite business write boundary.
+///
+/// Every legacy business mutation funnels through here, so the persisted
+/// authority mode is enforced at the store itself rather than in each caller.
+/// A caller that forgets to check cannot silently become a second writer.
 pub fn execute(db: &mut Connection, token: &str, cmd: BusinessCommand) -> Result<Value> {
+    reject_legacy_business_write(db, &format!("Legacy command {}", cmd.operation))?;
     let user = actor(db, token, true)?;
     execute_as(db, &user, cmd)
 }
@@ -5714,6 +5907,12 @@ pub fn import_apply(db:&mut Connection,token:&str,plan_id:&str)->Result<Value>{
 }
 
 pub fn snapshot(db: &Connection, token: &str) -> Result<Value> {
+    // Once v2 owns the business, legacy operational records are historical
+    // migration evidence only. Serving them as current truth would silently
+    // reintroduce the second authority this cutover removes.
+    if authority_mode(db)?==AuthorityMode::SharedV2 {
+        return Err("This terminal serves shared v2 state only; the local operational view is closed while SHARED_V2 is active".into());
+    }
     let user=actor(db,token,false)?;
     let mut records=vec![];
     let mut stmt=db.prepare("SELECT DISTINCT collection FROM records").map_err(error)?;

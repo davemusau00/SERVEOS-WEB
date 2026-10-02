@@ -1,5 +1,7 @@
 mod store;
 mod printer;
+mod rpc_error;
+use rpc_error::bounded_detail;
 #[cfg(test)]
 mod tests;
 use rusqlite::{Connection, OptionalExtension};
@@ -17,11 +19,45 @@ struct Runtime {
 }
 #[derive(Clone)]
 struct OperatorAuth { staff_id: String, access_token: String, expires_at: i64, identity: Value }
-fn reject_legacy_business_write_when_v2_active(state:&Runtime)->store::Result<()>{
-    if state.operator_auth.lock().map_err(|e|e.to_string())?.as_ref().is_some_and(|auth|auth.identity["enabled"]==true){
-        return Err("This local workflow is not available while shared v2 authority is active. Use an online v2 command workflow.".into());
+/// The business authority is persisted terminal state, never a property of the
+/// current login session. An absent `operator_auth` therefore fails closed
+/// instead of re-enabling the legacy writer.
+fn reject_legacy_business_write_when_v2_active(state:&Runtime,workflow:&str)->store::Result<()>{
+    let db=state.db.lock().map_err(|e|e.to_string())?;
+    store::reject_legacy_business_write(&db,workflow)
+}
+/// Move this terminal between business authorities. Only a forward move is
+/// possible, a reason is mandatory, and the move is recorded as immutable
+/// evidence. Entering CUTOVER_PREP freezes legacy business mutation; entering
+/// SHARED_V2 additionally closes local PIN business writes entirely.
+#[tauri::command]
+fn runtime_set_authority_mode(state: State<Runtime>, token: String, mode: String, cutover_id: Option<String>, reason: String) -> store::Result<Value> {
+    let db=state.db.lock().map_err(|e|e.to_string())?;
+    let actor=store::actor(&db,&token,false)?;
+    if !store::permissions(&actor.role).contains(&"system.configure"){
+        return Err("Permission required: system.configure".into());
     }
-    Ok(())
+    let next=match mode.as_str(){
+        "LEGACY_LOCAL"=>store::AuthorityMode::LegacyLocal,
+        "CUTOVER_PREP"=>store::AuthorityMode::CutoverPrep,
+        "SHARED_V2"=>store::AuthorityMode::SharedV2,
+        other=>return Err(format!("Unknown business authority mode: {other}")),
+    };
+    let current=store::set_authority_mode(&db,next,Some(&actor.staff_id),cutover_id.as_deref(),&reason)?;
+    Ok(json!({"authorityMode":current.as_str(),"legacyWritesFenced":current.legacy_writes_fenced(),"unresolvedLegacyCommands":store::unresolved_legacy_outbox(&db)?}))
+}
+/// Formally close legacy outbox work as superseded by a verified v2 cutover.
+/// `server_ready` must reflect a real READY response from the cutover RPC; the
+/// rows are preserved and evidenced, never deleted.
+#[tauri::command]
+fn runtime_resolve_legacy_outbox(state: State<Runtime>, token: String, cutover_id: String, server_ready: bool) -> store::Result<Value> {
+    let mut db=state.db.lock().map_err(|e|e.to_string())?;
+    let actor=store::actor(&db,&token,false)?;
+    if !store::permissions(&actor.role).contains(&"system.configure"){
+        return Err("Permission required: system.configure".into());
+    }
+    let resolved=store::supersede_legacy_outbox(&mut db,&cutover_id,server_ready)?;
+    Ok(json!({"cutoverId":cutover_id,"resolution":"SUPERSEDED_BY_V2_CUTOVER","resolvedCommands":resolved,"unresolvedLegacyCommands":store::unresolved_legacy_outbox(&db)?,"authorityMode":store::authority_mode(&db)?.as_str()}))
 }
 #[tauri::command]
 fn runtime_status(state: State<Runtime>) -> store::Result<Value> {
@@ -29,7 +65,8 @@ fn runtime_status(state: State<Runtime>) -> store::Result<Value> {
     let mut stmt=db.prepare("SELECT id,name,role FROM staff WHERE active=1 ORDER BY name").map_err(|e|e.to_string())?;
     let staff=stmt.query_map([],|r|Ok(json!({"id":r.get::<_,String>(0)?,"name":r.get::<_,String>(1)?,"role":r.get::<_,String>(2)?}))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
     let intake=store::meta(&db,"intake_profile")?.and_then(|value|serde_json::from_str::<Value>(&value).ok());
-    Ok(json!({"enrolled":store::meta(&db,"terminal_id")?.is_some(),"installationStage":store::installation_stage(&db)?,"staff":staff,"intakeProfile":intake}))
+    let mode=store::authority_mode(&db)?;
+    Ok(json!({"enrolled":store::meta(&db,"terminal_id")?.is_some(),"installationStage":store::installation_stage(&db)?,"staff":staff,"intakeProfile":intake,"authorityMode":mode.as_str(),"legacyWritesFenced":mode.legacy_writes_fenced(),"unresolvedLegacyCommands":store::unresolved_legacy_outbox(&db)?}))
 }
 
 fn intake_required<'a>(profile: &'a Value, group: &str, key: &str) -> store::Result<&'a str> {
@@ -81,7 +118,7 @@ fn validate_intake_profile(profile: &Value, complete: bool) -> store::Result<()>
 
 #[tauri::command]
 fn runtime_intake_save(state: State<Runtime>, profile: Value) -> store::Result<Value> {
-    reject_legacy_business_write_when_v2_active(&state)?;
+    reject_legacy_business_write_when_v2_active(&state,"Intake setup")?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     if store::meta(&db,"terminal_id")?.is_some(){return Err("Intake cannot be changed after enrollment".into());}
     validate_intake_profile(&profile,false)?;
@@ -89,7 +126,7 @@ fn runtime_intake_save(state: State<Runtime>, profile: Value) -> store::Result<V
 }
 #[tauri::command]
 fn runtime_intake_complete(state: State<Runtime>, profile: Value) -> store::Result<Value> {
-    reject_legacy_business_write_when_v2_active(&state)?;
+    reject_legacy_business_write_when_v2_active(&state,"Intake setup")?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     if store::meta(&db,"terminal_id")?.is_some(){return Err("Intake cannot be changed after enrollment".into());}
     validate_intake_profile(&profile,true)?;
@@ -97,7 +134,7 @@ fn runtime_intake_complete(state: State<Runtime>, profile: Value) -> store::Resu
 }
 #[tauri::command]
 fn runtime_intake_reopen(state: State<Runtime>) -> store::Result<()> {
-    reject_legacy_business_write_when_v2_active(&state)?;
+    reject_legacy_business_write_when_v2_active(&state,"Intake setup")?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     if store::meta(&db,"terminal_id")?.is_some(){return Err("Intake cannot be reopened after enrollment".into());}
     if store::meta(&db,"intake_profile")?.is_none(){return Err("No saved Intake profile is available".into());}
@@ -105,7 +142,7 @@ fn runtime_intake_reopen(state: State<Runtime>) -> store::Result<()> {
 }
 #[tauri::command]
 fn runtime_intake_clear(state: State<Runtime>) -> store::Result<()> {
-    reject_legacy_business_write_when_v2_active(&state)?;
+    reject_legacy_business_write_when_v2_active(&state,"Intake setup")?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     if store::meta(&db,"terminal_id")?.is_some(){return Err("Intake cannot be cleared after enrollment".into());}
     db.execute("DELETE FROM metadata WHERE key IN ('intake_profile','installation_stage')",[]).map_err(|e|e.to_string())?; Ok(())
@@ -365,6 +402,15 @@ fn runtime_lock(state: State<Runtime>, token: String) -> store::Result<()> {
 }
 #[tauri::command]
 async fn runtime_snapshot(state: State<'_,Runtime>, token: String) -> store::Result<Value> {
+    // The persisted authority decides the read source. Falling back to the legacy
+    // operational snapshot here would expose stale local state as current truth.
+    let mode={
+        let db=state.db.lock().map_err(|e|e.to_string())?;
+        store::authority_mode(&db)?
+    };
+    if mode==store::AuthorityMode::SharedV2&&state.operator_auth.lock().map_err(|e|e.to_string())?.is_none(){
+        return Err("This terminal is in shared v2 authority. Sign in online to view current business records.".into());
+    }
     if state.operator_auth.lock().map_err(|e|e.to_string())?.is_some(){
         // Revalidate the grant fingerprint before exposing the shared shadow;
         // periodic refresh alone leaves a revocation window between polls.
@@ -391,12 +437,23 @@ async fn runtime_snapshot(state: State<'_,Runtime>, token: String) -> store::Res
             }
             return Ok(snapshot);
         }
+        // SHARED_V2 without a complete baseline must fail closed rather than serve
+        // legacy records as if they were current business truth.
+        if mode==store::AuthorityMode::SharedV2{
+            return Err("The shared v2 baseline is not installed on this terminal. Install or refresh the authorized snapshot before viewing business records.".into());
+        }
     }
     store::snapshot(&db, &token)
 }
 #[tauri::command]
 fn runtime_login_offline(state: State<Runtime>, staff_id: String, pin: String) -> store::Result<store::Session> {
     let db=state.db.lock().map_err(|e|e.to_string())?;
+    // Signed v2 offline grants do not exist yet. Rather than silently creating a
+    // second writer, shared authority requires an online sign-in; the cached v2
+    // view stays readable through the Auth-bound session only.
+    if store::authority_mode(&db)?==store::AuthorityMode::SharedV2{
+        return Err("This terminal is in shared v2 authority. An online sign-in is required; local PIN unlock cannot create a business write session.".into());
+    }
     store::login(&db,&staff_id,&pin)
 }
 #[tauri::command]
@@ -431,8 +488,21 @@ async fn runtime_command(
     command: store::BusinessCommand,
     expected_versions: Option<Value>,
 ) -> store::Result<Value> {
-    let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone();
-    if active.as_ref().is_some_and(|auth|auth.identity["enabled"]==true){
+    // Routing is decided by the PERSISTED business authority, not by whether an
+    // Auth session happens to be loaded. Deciding from `operator_auth` allowed
+    // this unsafe sequence: v2 active -> operator signs out -> local PIN unlock
+    // -> operator_auth = None -> fall back to store::execute -> a second writer
+    // whose outbox could never upload because the server had fenced legacy.
+    let (mode,active)={
+        let db=state.db.lock().map_err(|e|e.to_string())?;
+        let mode=store::authority_mode(&db)?;
+        // Fail closed before any write when shared authority needs online Auth.
+        if mode==store::AuthorityMode::SharedV2&&state.operator_auth.lock().map_err(|e|e.to_string())?.is_none(){
+            return Err("This terminal is in shared v2 authority. Sign in online to send a business command; local PIN access cannot write business records.".into());
+        }
+        (mode,state.operator_auth.lock().map_err(|e|e.to_string())?.clone())
+    };
+    if mode==store::AuthorityMode::SharedV2||active.as_ref().is_some_and(|auth|auth.identity["enabled"]==true){
         {
             let mut running=state.syncing.lock().map_err(|e|e.to_string())?;
             if *running{return Err("Another synchronization is already running".into());}
@@ -441,8 +511,10 @@ async fn runtime_command(
         let result=async {
             if !refresh_operator_auth_inner(&state,true).await? {return Err("Online operator authentication is required for shared v2 writes".into());}
             let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
+            // Never silently fall back to the legacy writer. Losing v2 during a
+            // refresh is a hard stop, not a licence to create a second authority.
             if active.identity["enabled"]!=true{
-                return Ok(json!({"__legacyFallback":true}));
+                return Err("Shared v2 authority is active but this session is not authorized for it. Sign in online again; this action was not sent and nothing was written locally.".into());
             }
             let (url,key,terminal,business_id)={
                 let db=state.db.lock().map_err(|e|e.to_string())?;
@@ -467,7 +539,6 @@ async fn runtime_command(
             };
             let command_id=store::text(&envelope,"id")?.to_string();
             // Short explicit lock scope: take the connection, read the pending command, then drop the guard.
-             // The SQLite mutex must never be held across the awaited RPC below.
              let pending=store::next_native_v2_pending(&state.db.lock().map_err(|e|e.to_string())?,&terminal)?.ok_or("Durable v2 command queue entry disappeared")?;
             if pending.0!=command_id{return Err("V2 command sequence changed before dispatch".into());}
             {let db=state.db.lock().map_err(|e|e.to_string())?;store::mark_native_v2_attempt(&db,&command_id)?;}
@@ -484,7 +555,6 @@ async fn runtime_command(
             Ok(result)
         }.await;
         if let Ok(mut running)=state.syncing.lock(){*running=false;}
-        if result.as_ref().is_ok_and(|value|value["__legacyFallback"]==true){let mut db=state.db.lock().map_err(|e|e.to_string())?;return store::execute(&mut db,&token,command);}
         return result;
     }
     let mut db=state.db.lock().map_err(|e|e.to_string())?;
@@ -492,7 +562,7 @@ async fn runtime_command(
 }
 #[tauri::command]
 fn runtime_manager_approve(state: State<Runtime>, token: String, approver_id: String, pin: String, permission: String, target: Option<String>) -> store::Result<Value> {
-    reject_legacy_business_write_when_v2_active(&state)?;
+    reject_legacy_business_write_when_v2_active(&state,"Manager approval")?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     store::create_approval(&db,&token,&approver_id,&pin,&permission,target.as_deref())
 }
@@ -511,20 +581,9 @@ fn validate_url(url: &str) -> store::Result<String> {
     }
     Ok(url.trim_end_matches('/').into())
 }
-/// Maximum server error detail retained in a rejection message. The message is
-/// rendered in the operator UI and persisted with local rejection evidence, so
-/// an unbounded proxy or gateway body must never be stored verbatim.
-const MAX_SERVER_ERROR_DETAIL: usize = 400;
-fn bounded_detail(detail: &str) -> String {
-    if detail.len() <= MAX_SERVER_ERROR_DETAIL {
-        return detail.to_string();
-    }
-    let mut end = MAX_SERVER_ERROR_DETAIL;
-    while end > 0 && !detail.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!("{}… ({} bytes total)", &detail[..end], detail.len())
-}
+/// Maximum server error detail retained in a rejection message and the bounded
+/// formatter itself live in `rpc_error`, which the dependency-free
+/// `native-tests` crate also compiles. See `src-tauri/src/rpc_error.rs`.
 async fn rpc(
     url: &str,
     key: &str,
@@ -639,8 +698,15 @@ async fn runtime_sync(state: State<'_, Runtime>, token: String) -> store::Result
         *running = true;
     }
     let result=async {
-        let v2_active=state.operator_auth.lock().map_err(|e|e.to_string())?.as_ref().is_some_and(|auth|auth.identity["enabled"]==true);
-        if v2_active{
+        // Shared authority owns synchronization: only the native v2 outbox and
+        // the v2 change feed may run. Reaching sync_inner here would call
+        // servos_upload, which the server has fenced, and would present a
+        // permanent failure as a business problem.
+        let (mode,v2_active)={
+            let db=state.db.lock().map_err(|e|e.to_string())?;
+            (store::authority_mode(&db)?,state.operator_auth.lock().map_err(|e|e.to_string())?.as_ref().is_some_and(|auth|auth.identity["enabled"]==true))
+        };
+        if mode==store::AuthorityMode::SharedV2||v2_active{
             if !refresh_operator_auth_inner(&state,true).await?{return Err("Online operator authentication is required for v2 synchronization".into());}
             let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
             if active.identity["enabled"]==true{
@@ -648,6 +714,9 @@ async fn runtime_sync(state: State<'_, Runtime>, token: String) -> store::Result
                 let mut report=sync_native_v2_feed(&state,&active).await?;
                 report["acknowledgedCommands"]=json!(acknowledged);
                 return Ok(report);
+            }
+            if mode==store::AuthorityMode::SharedV2{
+                return Err("Shared v2 authority is active but this session is not authorized for it. Sign in online again; the legacy upload path is closed.".into());
             }
         }
         sync_inner(&state,&token).await
@@ -934,7 +1003,7 @@ fn runtime_import_plan_detail(state: State<Runtime>, token: String, plan_id: Str
 }
 #[tauri::command]
 fn runtime_import_apply(state: State<Runtime>, token: String, plan_id: String) -> store::Result<Value> {
-    reject_legacy_business_write_when_v2_active(&state)?;
+    reject_legacy_business_write_when_v2_active(&state,"Import apply")?;
     let mut db=state.db.lock().map_err(|e|e.to_string())?;
     store::import_apply(&mut db,&token,&plan_id)
 }
@@ -1238,7 +1307,7 @@ fn runtime_acceptance_status(state:State<Runtime>,token:String)->store::Result<V
 }
 #[tauri::command]
 fn runtime_acceptance_action(state:State<Runtime>,token:String,action:String,payload:Value)->store::Result<Value>{
-    reject_legacy_business_write_when_v2_active(&state)?;
+    reject_legacy_business_write_when_v2_active(&state,"Terminal acceptance record")?;
     let db=state.db.lock().map_err(|e|e.to_string())?;
     let actor=acceptance_actor(&db,&token)?;
     match action.as_str(){
@@ -1398,6 +1467,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             runtime_status,
+            runtime_set_authority_mode,
+            runtime_resolve_legacy_outbox,
             runtime_intake_save,
             runtime_intake_complete,
             runtime_intake_reopen,

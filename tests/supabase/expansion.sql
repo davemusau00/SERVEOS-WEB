@@ -12,7 +12,7 @@ do $$declare c jsonb;failed boolean:=false;begin
  begin perform public.servos_v2_execute(c);exception when others then failed:=sqlerrm like '%PROTOCOL_DISABLED%';end;
  if not failed then raise exception 'v2 allowed writes before cutover';end if;
 end$$;
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 set local role authenticated;
 do $$declare c jsonb;r jsonb;again jsonb;failed boolean:=false;page jsonb;begin
  c:=jsonb_build_object('id','20000000-0000-4000-8000-000000000001','schemaVersion',2,'deviceId','10000000-0000-4000-8000-000000000001','actorId','00000000-0000-4000-8000-000000000001','clientSequence',1,'operation','record.save','expectedVersions',jsonb_build_array(jsonb_build_object('collection','customers','id','customer-1','version',0)),'payload',jsonb_build_object('collection','customers','id','customer-1','data',jsonb_build_object('name','Customer One')));

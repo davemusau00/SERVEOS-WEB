@@ -12,7 +12,7 @@ select public.servos_v2_register_device(
  '10000000-0000-4000-8000-000000000041','Procurement desktop','DESKTOP'
 );
 reset role;
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 
 create function pg_temp.proc_command(
  op text, collection_name text, record_key text, p jsonb,

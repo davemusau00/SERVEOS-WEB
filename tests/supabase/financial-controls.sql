@@ -5,7 +5,7 @@ insert into servos_v2.members(user_id,active,permissions) values
   ('00000000-0000-4000-8000-000000000001',true,array['*']),
   ('00000000-0000-4000-8000-000000000002',true,array['records.view','devices.register'])
 on conflict(user_id) do update set active=true,permissions=excluded.permissions;
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
 select servos_v2.put_record('organization','business','{"name":"Financial controls test"}');
 select servos_v2.put_record('property','property','{"currency":"KES","timezone":"Africa/Nairobi"}');

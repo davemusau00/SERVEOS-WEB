@@ -1,5 +1,5 @@
 use super::store::*;
-use super::{bounded_detail, MAX_SERVER_ERROR_DETAIL};
+use super::rpc_error::{bounded_detail, MAX_SERVER_ERROR_DETAIL};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -19,6 +19,109 @@ fn server_error_detail_is_preserved_and_bounded() {
     assert!(bounded_multibyte.is_char_boundary(0));
     assert!(bounded_multibyte.len() <= MAX_SERVER_ERROR_DETAIL + 32);
     assert!(!bounded_multibyte.contains('\u{FFFD}'), "truncation must not corrupt UTF-8");
+}
+
+#[test]
+fn business_authority_mode_is_persistent_forward_only_and_audited() {
+    let (dir,db,admin)=setup();
+    // A fresh or upgraded installation keeps the pre-cutover behaviour.
+    assert_eq!(authority_mode(&db).unwrap(),AuthorityMode::LegacyLocal);
+    assert!(reject_legacy_business_write(&db,"Legacy command").is_ok());
+
+    // Only the forward cutover sequence is accepted; there is no way to jump
+    // straight to shared authority and skip the maintenance window.
+    assert!(set_authority_mode(&db,AuthorityMode::SharedV2,None,None,"skip prep").is_err());
+    assert!(set_authority_mode(&db,AuthorityMode::CutoverPrep,None,None,"").is_err());
+    assert_eq!(authority_mode(&db).unwrap(),AuthorityMode::LegacyLocal);
+
+    set_authority_mode(&db,AuthorityMode::CutoverPrep,Some(&admin.staff_id),Some("cutover-1"),"Freeze and bootstrap").unwrap();
+    assert_eq!(authority_mode(&db).unwrap(),AuthorityMode::CutoverPrep);
+    // CUTOVER_PREP is a real maintenance window: the legacy writer is frozen.
+    assert!(reject_legacy_business_write(&db,"Legacy command").is_err());
+    // Backwards transitions are refused so a stale replica cannot undo a cutover.
+    assert!(set_authority_mode(&db,AuthorityMode::LegacyLocal,None,None,"undo").is_err());
+
+    set_authority_mode(&db,AuthorityMode::SharedV2,Some(&admin.staff_id),Some("cutover-1"),"v2 verified").unwrap();
+    assert_eq!(authority_mode(&db).unwrap(),AuthorityMode::SharedV2);
+    // Re-applying the current mode is a no-op, not an error.
+    assert_eq!(set_authority_mode(&db,AuthorityMode::SharedV2,None,None,"again").unwrap(),AuthorityMode::SharedV2);
+
+    // The mode is persisted, not session state: reopening must not reset it.
+    drop(admin); drop(db);
+    let reopened=open(&dir.path().join("test.sqlite")).unwrap();
+    assert_eq!(authority_mode(&reopened).unwrap(),AuthorityMode::SharedV2);
+    // Both real transitions are retained as immutable evidence.
+    let transitions:Vec<(String,String,String)>={
+        let mut stmt=reopened.prepare("SELECT from_mode,to_mode,reason FROM authority_transitions ORDER BY occurred_at").unwrap();
+        stmt.query_map([],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap().collect::<std::result::Result<Vec<_>,_>>().unwrap()
+    };
+    assert_eq!(transitions.len(),2,"both transitions must be recorded exactly once");
+    assert_eq!(transitions[0],("LEGACY_LOCAL".into(),"CUTOVER_PREP".into(),"Freeze and bootstrap".into()));
+    assert_eq!(transitions[1],("CUTOVER_PREP".into(),"SHARED_V2".into(),"v2 verified".into()));
+    // Evidence cannot be rewritten after the fact.
+    assert!(reopened.execute("UPDATE authority_transitions SET reason='tampered'",[]).is_err());
+    assert!(reopened.execute("DELETE FROM authority_transitions",[]).is_err());
+}
+
+#[test]
+fn shared_v2_refuses_legacy_business_writes_even_for_a_valid_local_pin() {
+    let (_dir,mut db,admin)=setup();
+    // Prove the legacy path works first, so a later refusal is the fence and not
+    // an unrelated validation failure.
+    run(&mut db,&admin,"record.save",json!({"collection":"suppliers","id":"legacy-supplier","data":{"name":"Legacy Supplier","code":"LEG-1","paymentTermsDays":0}}));
+    assert_eq!(get(&db,"suppliers","legacy-supplier").unwrap().1["name"],"Legacy Supplier");
+    let orders_before=list(&db,"orders").unwrap().len();
+
+    set_authority_mode(&db,AuthorityMode::CutoverPrep,None,None,"freeze").unwrap();
+    set_authority_mode(&db,AuthorityMode::SharedV2,None,None,"cutover").unwrap();
+
+    // A perfectly valid local-PIN Admin session must still be refused. This is
+    // the STOP-SHIP case: signing out and unlocking locally must not create a
+    // second business writer.
+    let admin_id:String=db.query_row("SELECT id FROM staff WHERE name='Owner'",[],|r|r.get(0)).unwrap();
+    let local_session=login(&db,&admin_id,"827193").unwrap();
+    let refused=execute(&mut db,&local_session.token,cmd("record.save",json!({"collection":"suppliers","id":"v2-supplier","data":{"name":"V2 Supplier","code":"V2-1","paymentTermsDays":0}})));
+    let message=refused.expect_err("SHARED_V2 must refuse a legacy business write");
+    assert!(message.contains("SHARED_V2"),"the refusal must name the active authority: {message}");
+    // Nothing was written and no legacy outbox row was produced.
+    assert!(get(&db,"suppliers","v2-supplier").is_err());
+    assert_eq!(list(&db,"orders").unwrap().len(),orders_before);
+
+    // The legacy operational view must not be served as current truth either.
+    assert!(snapshot(&db,&local_session.token).is_err());
+}
+
+#[test]
+fn legacy_outbox_can_be_formally_superseded_only_after_a_ready_cutover() {
+    let (_dir,mut db,admin)=setup();
+    run(&mut db,&admin,"record.save",json!({"collection":"suppliers","id":"queued-supplier","data":{"name":"Queued Supplier","code":"QUE-1","paymentTermsDays":0}}));
+    let pending=unresolved_legacy_outbox(&db).unwrap();
+    assert!(pending>0,"the legacy write must be queued as unresolved work");
+
+    // Unresolved legacy work blocks the v2 baseline until it is formally closed.
+    assert!(reject_unresolved_legacy_outbox(&db,"Install the v2 baseline").is_err());
+    // Supersession is refused before the server reports READY.
+    assert!(supersede_legacy_outbox(&mut db,"cutover-1",false).is_err());
+    assert!(supersede_legacy_outbox(&mut db,"",true).is_err());
+    assert_eq!(unresolved_legacy_outbox(&db).unwrap(),pending,"a refused supersession must resolve nothing");
+
+    let resolved=supersede_legacy_outbox(&mut db,"cutover-1",true).unwrap();
+    assert_eq!(resolved as i64,pending);
+    assert_eq!(unresolved_legacy_outbox(&db).unwrap(),0);
+    // Formally resolved work no longer blocks the v2 baseline, and the original
+    // outbox rows are preserved rather than deleted.
+    assert!(reject_unresolved_legacy_outbox(&db,"Install the v2 baseline").is_ok());
+    assert_eq!(db.query_row::<i64,_,_>("SELECT COUNT(*) FROM outbox",[],|r|r.get(0)).unwrap(),pending);
+    // Every superseded row carries the evidence the runbook requires.
+    let evidence:(i64,String,String,i64)=db.query_row(
+        "SELECT COUNT(*),MIN(envelope_hash),MIN(cutover_id),COUNT(DISTINCT resolution) FROM legacy_outbox_resolution",
+        [],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap();
+    assert_eq!(evidence.0,pending);
+    assert_eq!(evidence.1.len(),64,"the envelope hash must be a SHA-256 digest");
+    assert_eq!(evidence.2,"cutover-1");
+    assert_eq!(evidence.3,1,"every row shares the single supersession resolution");
+    // Replaying the same supersession is idempotent.
+    assert_eq!(supersede_legacy_outbox(&mut db,"cutover-1",true).unwrap(),0);
 }
 
 #[test]
@@ -134,7 +237,7 @@ fn inventory_scanner_draft_is_persistent_staff_scoped_and_outside_business_outbo
 }
 
 #[test]
-fn schema_ten_upgrades_to_fourteen_for_scanner_drafts_credit_and_v2_state() {
+fn schema_ten_upgrades_to_fifteen_for_scanner_drafts_credit_v2_and_authority_state() {
     let dir=tempfile::tempdir().unwrap();
     let path=dir.path().join("upgrade.sqlite");
     let db=open(&path).unwrap();
@@ -142,8 +245,12 @@ fn schema_ten_upgrades_to_fourteen_for_scanner_drafts_credit_and_v2_state() {
     drop(db);
     let upgraded=open(&path).unwrap();
     let version:i64=upgraded.query_row("PRAGMA user_version",[],|row|row.get(0)).unwrap();
-    assert_eq!(version,14);
+    assert_eq!(version,15);
     assert!(upgraded.query_row("SELECT name FROM sqlite_master WHERE type='table' AND name='inventory_count_drafts'",[],|row|row.get::<_,String>(0)).is_ok());
+    // The authority state must arrive on upgrade, and it must default to the
+    // pre-cutover mode so an existing installation keeps working unchanged.
+    assert_eq!(authority_mode(&upgraded).unwrap(),AuthorityMode::LegacyLocal);
+    assert_eq!(upgraded.query_row::<i64,_,_>("SELECT COUNT(*) FROM authority_transitions",[],|r|r.get(0)).unwrap(),0);
 }
 
 #[test]
@@ -1149,7 +1256,7 @@ fn classified_asset_quantity_requires_whole_units_and_commissioning_is_live_only
 fn terminal_acceptance_evidence_is_local_immutable_and_latest_schema() {
     let (_dir,db,s)=setup();
     let schema:i64=db.query_row("PRAGMA user_version",[],|r|r.get(0)).unwrap();
-    assert_eq!(schema,14);
+    assert_eq!(schema,15);
     let before:(i64,i64,i64)=db.query_row(
         "SELECT (SELECT COUNT(*) FROM records),(SELECT COUNT(*) FROM outbox),(SELECT COUNT(*) FROM commands)",
         [],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))

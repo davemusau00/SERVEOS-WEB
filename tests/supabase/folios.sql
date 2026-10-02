@@ -4,7 +4,7 @@ insert into servos_v2.members values('00000000-0000-4000-8000-000000000001',true
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000001','Folio desktop','DESKTOP');
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000002','Folio web','WEB');
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 select servos_v2.put_record('rooms','room','{"number":"1","capacity":2,"turnaroundMinutes":30,"housekeepingState":"CLEAN","maintenanceState":"AVAILABLE"}');
 select servos_v2.put_record('rooms','day-room','{"number":"2","capacity":2,"turnaroundMinutes":30,"housekeepingState":"DIRTY","maintenanceState":"AVAILABLE"}');
 select servos_v2.put_record('roomReservations','stay',jsonb_build_object('roomId','room','customerId','guest','guests',1,'startsAt',now()-interval '1 hour','endsAt',now()+interval '47 hours','blockedUntil',now()+interval '47 hours 30 minutes','status','RESERVED','units',2,'rateSnapshot',jsonb_build_object('mode','NIGHTLY','priceMinor',11600,'taxBasisPoints',1600,'currency','KES')));

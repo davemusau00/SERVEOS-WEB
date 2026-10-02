@@ -1,7 +1,7 @@
 begin;
 insert into servos_v2.members values('00000000-0000-4000-8000-000000000001',true,array['*']) on conflict(user_id) do update set active=true,permissions=array['*'];
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 select servos_v2.put_record('property','property','{"timezone":"Africa/Nairobi","nightlyCheckoutTime":"11:00","dayStayCutoffTime":"17:00","roomStayRoomTypeId":"configured-room-type","roomStayRatePlanId":"configured-rate","kraPin":"SENSITIVE-TEST-VALUE"}');
 select servos_v2.put_record('customers','a','{"name":"First"}');
 select servos_v2.put_record('customers','b','{"name":"Second"}');
@@ -25,7 +25,7 @@ end$$;
 do $$declare session jsonb;progress jsonb;begin
   update servos_v2.members set permissions=array['*'],active=true where user_id='00000000-0000-4000-8000-000000000001';
   insert into servos_v2.members(user_id,active,permissions) values('00000000-0000-4000-8000-000000000002',true,array['help.view','records.view']) on conflict(user_id) do update set active=true,permissions=excluded.permissions;
-  update servos_v2.control set enabled=false,lifecycle_stage='INTAKE',setup_state='{}'::jsonb;
+  update servos_v2.control set enabled=false,authority_mode='LEGACY_LOCAL',lifecycle_stage='INTAKE',setup_state='{}'::jsonb;
   session:=public.servos_v2_web_lifecycle('intake.save',jsonb_build_object('profile',jsonb_build_object('tradingName','Hosted Test Business')));
   if session->>'lifecycleStage'<>'SETUP' then raise exception 'Hosted intake did not enter setup';end if;
   perform public.servos_v2_web_lifecycle('setup.complete',jsonb_build_object('step','business'));

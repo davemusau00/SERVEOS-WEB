@@ -4,7 +4,7 @@ reset role;
 insert into servos_v2.members(user_id,active,permissions)
 values ('00000000-0000-4000-8000-000000000001',true,array['*'])
 on conflict(user_id) do update set active=true,permissions=array['*'];
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
 select public.servos_v2_register_device('10000000-0000-0000-0000-000000000039','Controlled import fixture','WEB');
 -- The assertions below read protected internal tables. Keep JWT claims set so

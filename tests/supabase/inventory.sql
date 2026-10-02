@@ -7,7 +7,7 @@ set local role authenticated;
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000031','Inventory desktop','DESKTOP');
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000032','Inventory web','WEB');
 reset role;
-update servos_v2.control set enabled=true;
+update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
 
 create function pg_temp.inv_command(op text,collection_name text,record_key text,p jsonb,device_key uuid default '10000000-0000-4000-8000-000000000031',expected_status text default 'SYNCHRONIZED',expected_code text default null)
 returns jsonb language plpgsql as $$
