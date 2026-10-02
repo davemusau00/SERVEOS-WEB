@@ -68,9 +68,8 @@ async fn runtime_v2_verify_baseline(state: State<'_, Runtime>) -> store::Result<
 /// evidence. Entering CUTOVER_PREP freezes legacy business mutation; entering
 /// SHARED_V2 additionally closes local PIN business writes entirely.
 #[tauri::command]
-fn runtime_set_authority_mode(state: State<Runtime>, token: String, mode: String, cutover_id: Option<String>, reason: String) -> store::Result<Value> {
-    let db=state.db.lock().map_err(|e|e.to_string())?;
-    let actor=store::actor(&db,&token,false)?;
+async fn runtime_set_authority_mode(state: State<'_,Runtime>, token: String, mode: String, cutover_id: Option<String>, reason: String) -> store::Result<Value> {
+    let actor={let db=state.db.lock().map_err(|e|e.to_string())?;store::actor(&db,&token,false)?};
     if !store::permissions(&actor.role).contains(&"system.configure"){
         return Err("Permission required: system.configure".into());
     }
@@ -80,6 +79,18 @@ fn runtime_set_authority_mode(state: State<Runtime>, token: String, mode: String
         "SHARED_V2"=>store::AuthorityMode::SharedV2,
         other=>return Err(format!("Unknown business authority mode: {other}")),
     };
+    if next==store::AuthorityMode::SharedV2 {
+        let cutover=cutover_id.as_deref().ok_or("A committed cutover ID is required")?;
+        let (evidence,active,terminal)=authenticated_cutover_evidence(&state,cutover).await?;
+        let db=state.db.lock().map_err(|e|e.to_string())?;
+        store::actor(&db,&token,false)?;
+        store::cutover::verify_server_evidence(&evidence,cutover,&terminal,store::text(&active.identity,"businessId")?,None,true)?;
+        if evidence["authorityMode"]!="SHARED_V2"{return Err("Server shared authority has not been activated".into());}
+        store::reject_unresolved_legacy_outbox(&db,"Activate shared authority")?;
+        store::verify_native_v2_baseline(&db,&terminal,store::text(&active.identity,"businessId")?,store::text(&active.identity,"policyVersion")?,active.identity["cursor"].as_i64().ok_or("Server cursor missing")?)?;
+    }
+    let db=state.db.lock().map_err(|e|e.to_string())?;
+    store::actor(&db,&token,false)?;
     let current=store::set_authority_mode(&db,next,Some(&actor.staff_id),cutover_id.as_deref(),&reason)?;
     Ok(json!({"authorityMode":current.as_str(),"legacyWritesFenced":current.legacy_writes_fenced(),"unresolvedLegacyCommands":store::unresolved_legacy_outbox(&db)?}))
 }
@@ -87,14 +98,28 @@ fn runtime_set_authority_mode(state: State<Runtime>, token: String, mode: String
 /// `server_ready` must reflect a real READY response from the cutover RPC; the
 /// rows are preserved and evidenced, never deleted.
 #[tauri::command]
-fn runtime_resolve_legacy_outbox(state: State<Runtime>, token: String, cutover_id: String, server_ready: bool) -> store::Result<Value> {
-    let mut db=state.db.lock().map_err(|e|e.to_string())?;
-    let actor=store::actor(&db,&token,false)?;
+async fn runtime_resolve_legacy_outbox(state: State<'_,Runtime>, token: String, cutover_id: String, server_ready: bool) -> store::Result<Value> {
+    let actor={let db=state.db.lock().map_err(|e|e.to_string())?;store::actor(&db,&token,false)?};
     if !store::permissions(&actor.role).contains(&"system.configure"){
         return Err("Permission required: system.configure".into());
     }
-    let resolved=store::supersede_legacy_outbox(&mut db,&cutover_id,server_ready)?;
+    if !server_ready{return Err("Server readiness must be verified before resolving legacy work".into());}
+    let (evidence,active,terminal)=authenticated_cutover_evidence(&state,&cutover_id).await?;
+    let mut db=state.db.lock().map_err(|e|e.to_string())?;
+    store::actor(&db,&token,false)?;
+    let manifest=store::cutover::cutover_manifest(&db)?;
+    store::cutover::verify_server_evidence(&evidence,&cutover_id,&terminal,store::text(&active.identity,"businessId")?,manifest["manifestHash"].as_str(),false)?;
+    let resolved=store::supersede_legacy_outbox(&mut db,&cutover_id,true)?;
     Ok(json!({"cutoverId":cutover_id,"resolution":"SUPERSEDED_BY_V2_CUTOVER","resolvedCommands":resolved,"unresolvedLegacyCommands":store::unresolved_legacy_outbox(&db)?,"authorityMode":store::authority_mode(&db)?.as_str()}))
+}
+
+async fn authenticated_cutover_evidence(state:&Runtime,cutover_id:&str)->store::Result<(Value,OperatorAuth,String)>{
+    if !refresh_operator_auth_inner(state,true).await?{return Err("Sign in online as Admin to verify cutover evidence".into());}
+    let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
+    let (url,key,terminal)={let db=state.db.lock().map_err(|e|e.to_string())?;
+        (store::meta(&db,"cloud_url")?.ok_or("Cloud URL missing")?,store::meta(&db,"cloud_key")?.ok_or("Cloud key missing")?,store::meta(&db,"terminal_id")?.ok_or("Terminal ID missing")?)};
+    let evidence=rpc(&url,&key,Some(&active.access_token),"servos_v2_cutover_status",json!({"cutover_id":cutover_id})).await?;
+    Ok((evidence,active,terminal))
 }
 #[tauri::command]
 fn runtime_status(state: State<Runtime>) -> store::Result<Value> {

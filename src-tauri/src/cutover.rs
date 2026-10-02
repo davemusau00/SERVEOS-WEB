@@ -61,6 +61,29 @@ pub const FORBIDDEN_MANIFEST_KEYS: &[&str] = &[
 
 /// Maximum records in one import page. Mirrors the server-side page cap.
 pub const MAX_PAGE_RECORDS: usize = 500;
+
+/// Validate authenticated server evidence before resolving any local work.
+/// The frontend's boolean is never sufficient proof of a successful cutover.
+pub fn verify_server_evidence(evidence: &Value, cutover_id: &str, terminal_id: &str, business_id: &str, manifest_hash: Option<&str>, committed: bool) -> Result<()> {
+    if Uuid::parse_str(cutover_id).is_err()
+        || evidence["cutoverId"].as_str()!=Some(cutover_id)
+        || evidence["sourceTerminalId"].as_str()!=Some(terminal_id)
+        || evidence["businessId"].as_str()!=Some(business_id) {
+        return Err("Server cutover evidence does not match this business, terminal and cutover".into());
+    }
+    let status=evidence["status"].as_str().unwrap_or("");
+    if (committed && status!="COMMITTED") || (!committed && status!="READY" && status!="COMMITTED") {
+        return Err("A verified server cutover is required before resolving local work".into());
+    }
+    let digest=evidence["verificationHash"].as_str().unwrap_or("");
+    if digest.len()!=64 || !digest.bytes().all(|byte|byte.is_ascii_hexdigit()) {
+        return Err("Server cutover verification hash is missing or invalid".into());
+    }
+    if manifest_hash.is_some_and(|hash|evidence["sourceManifestHash"].as_str()!=Some(hash)) {
+        return Err("Server cutover manifest does not match the frozen SQLite source".into());
+    }
+    Ok(())
+}
 /// Serialize a value with object keys sorted, so a content hash does not depend
 /// on the order fields happened to be written in.
 pub fn canonical_json(value: &Value) -> String {

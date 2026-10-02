@@ -36,7 +36,15 @@ export function baseMigrations() {
  * the legacy writer and `protocol.sql` exercises that writer before the cutover.
  */
 export function v2Migrations() {
-  return assertPresent(expansionChain().map(canonicalNameFor));
+  const reviewed = assertPresent(expansionChain().map(canonicalNameFor));
+  const known = new Set([...BASE_MIGRATIONS, ...reviewed]);
+  const additions = readdirSync(MIGRATION_DIR).filter(file => file.endsWith('.sql') && !known.has(file)).sort();
+  for (const file of additions) {
+    if (!/^\d{14}_[a-z0-9_]+\.sql$/.test(file) || file <= reviewed.at(-1)) {
+      throw new Error(`New migration must be a CLI-generated timestamp after the reviewed chain: ${file}`);
+    }
+  }
+  return [...reviewed, ...additions];
 }
 
 function assertPresent(list) {

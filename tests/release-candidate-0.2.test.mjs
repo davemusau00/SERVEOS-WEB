@@ -7,7 +7,8 @@ test('the canonical migration set is complete, ordered and free of duplicates', 
   const chain = expansionChain();
   assert.equal(chain.length, 47, 'the reviewed staged v2 chain must keep all 47 migrations');
   const canonical = canonicalMigrations();
-  assert.equal(canonical.length, BASE_MIGRATIONS.length + chain.length);
+  assert.ok(canonical.length >= BASE_MIGRATIONS.length + chain.length);
+  assert.deepEqual(canonical, readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort(), 'CLI and acceptance must apply the same inventory');
   assert.equal(new Set(canonical).size, canonical.length, 'no migration may be applied twice');
   // Base migrations precede the staged v2 chain, which preserves the reviewed order.
   for (const base of BASE_MIGRATIONS) assert.ok(canonical.indexOf(base) < canonical.indexOf(canonicalNameFor('001_protocol.sql')));
