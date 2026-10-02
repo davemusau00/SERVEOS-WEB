@@ -22,10 +22,12 @@ select servos_v2.put_record('customers','credit-cust','{"name":"Credit Customer"
 
 -- A shared helper that builds the optimistic version set the same way the
 -- established POS suite does: every current record version, plus an explicit
--- version 0 for a record that does not exist yet.
+-- version 0 for a record that does not exist yet. The signature mirrors the POS
+-- helper exactly, so the sixth positional argument is the expected error code.
 create or replace function pg_temp.parity_command(
   op text,collection_name text,record_key text,payload jsonb,
   expected_status text default 'SYNCHRONIZED',
+  expected_code text default null,
   device_key uuid default '10000000-0000-4000-8000-0000000000b1')
 returns jsonb language plpgsql as $$
 declare
@@ -45,6 +47,9 @@ begin
   r:=public.servos_v2_execute(c);
   if r->>'status' is distinct from expected_status then
     raise exception '% expected % but got %',op,expected_status,r;
+  end if;
+  if expected_code is not null and r#>>'{error,code}' is distinct from expected_code then
+    raise exception '% expected code % but got %',op,expected_code,r;
   end if;
   return r;
 end$$;
