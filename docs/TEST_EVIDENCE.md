@@ -44,6 +44,15 @@ The generated parity ledger now enforces this as a build gate: any operation wit
 Current result: 84 shared Native mutations, 2 correctly excluded. The gate was confirmed to fail when a real
 gap was reintroduced.
 
+**Phase 3.** Added `store::verify_native_v2_baseline` and the `runtime_v2_verify_baseline` command. Phase 3
+exists so that "the snapshot installer said OK" is never the only evidence: the verifier re-derives every
+condition from local SQLite state and compares it against the **live server identity** (business id, device
+id, permission policy, feed cursor), not against the values the installer was handed earlier. It refuses an
+absent, incomplete, empty, wrong-business, policy-drifted or feed-behind baseline, and returns a content
+digest as cutover evidence. Covered by `v2_baseline_verification_refuses_anything_it_cannot_prove`, which
+also proves the installer refuses while legacy outbox work is unresolved and only proceeds after Phase 2
+supersession.
+
 **Phase 7.** Removed the incorrect `GS !` QR positioning (`GS !` is character size, not position) in favour of
 `ESC a 1` / `GS v 0` / `ESC a 0`, with byte-level regression tests. The Font B footer is no longer space-padded
 for the Font A width; it is stripped and centered with `ESC a 1`. Removed the invalid `size: 80mm auto`

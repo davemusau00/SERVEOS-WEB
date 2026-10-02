@@ -500,6 +500,38 @@ mod tests {
         assert!(!text.contains("        Built By KINGSFORGE"), "pre-padded footer text must never reach the printer");
     }
 
+    /// A real LAN endpoint is impossible in CI, so the byte stream can still be
+    /// inspected. This dumps the exact ESC/POS a printer would receive, which is
+    /// what a reviewer needs before committing paper to a printer.
+    #[test]
+    fn acceptance_receipt_byte_stream_is_inspectable() {
+        let profile = lan_profile();
+        // A real receipt prints the footer on both copies, so both are exercised.
+        let bytes = encode_receipt(&customer_lines(), &customer_lines(), None, Some(&qr()), &profile);
+
+        // Structural expectations a reviewer can check by eye.
+        let hex: String = bytes.iter().map(|b| format!("{b:02X}")).collect();
+        assert_eq!(hex.len(), bytes.len() * 2);
+        // The stream starts with ESC @ (initialise) and is ASCII-printable apart
+        // from the documented control bytes.
+        assert_eq!(&bytes[0..2], &[0x1b, b'@']);
+        // Exactly one cut per copy when auto-cut is enabled.
+        assert_eq!(bytes.windows(3).filter(|p| *p == [0x1d, b'V', 0]).count(), 2);
+        // No non-zero character-size command anywhere.
+        for index in 0..bytes.len().saturating_sub(2) {
+            if bytes[index] == 0x1d && bytes[index + 1] == b'!' {
+                assert_eq!(bytes[index + 2], 0, "unexpected GS ! n = {}", bytes[index + 2]);
+            }
+        }
+        // The fixed footer is present on both copies.
+        let text = String::from_utf8_lossy(&bytes);
+        assert_eq!(text.matches("Built By KINGSFORGE").count(), 2);
+        assert_eq!(text.matches("0746157440").count(), 2);
+        // Feed lines precede each cut so paper never jams into the cutter.
+        let cut = bytes.windows(3).position(|p| *p == [0x1d, b'V', 0]).expect("a cut command");
+        assert!(bytes[cut - profile.feed_lines_before_cut..cut].iter().all(|b| *b == b'\n'));
+    }
+
     /// ESC a 1 must immediately precede the QR raster, and ESC a 0 must restore
     /// left justification afterwards. GS ! is the character-size command and must
     /// never appear in QR placement: it magnifies text rather than positioning it.

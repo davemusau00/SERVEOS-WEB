@@ -41,6 +41,28 @@ fn runtime_v2_cutover_page(state: State<Runtime>, collection: String, after_id: 
     store::cutover::cutover_page(&db, &collection, &after_id, page_size.unwrap_or(200))
 }
 
+/// Prove the installed v2 baseline against the live server identity.
+///
+/// The server is the source of truth for business, device, policy and cursor, so
+/// this compares local SQLite state with the current authenticated identity
+/// rather than trusting the values the installer was handed earlier.
+#[tauri::command]
+async fn runtime_v2_verify_baseline(state: State<'_, Runtime>) -> store::Result<Value> {
+    if !refresh_operator_auth_inner(&state, true).await? {
+        return Err("Sign in online to verify the v2 baseline".into());
+    }
+    let active = state.operator_auth.lock().map_err(|e| e.to_string())?.clone()
+        .ok_or("Online operator session is unavailable")?;
+    let business_id = store::text(&active.identity, "businessId")?.to_string();
+    let device_id = store::text(&active.identity, "deviceId")?.to_string();
+    let policy = store::text(&active.identity, "policyVersion")?.to_string();
+    let cursor = active.identity["cursor"].as_i64().ok_or("The server identity did not return a feed cursor")?;
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let report = store::verify_native_v2_baseline(&db, &device_id, &business_id, &policy, cursor)?;
+    Ok(report)
+}
+
 /// Move this terminal between business authorities. Only a forward move is
 /// possible, a reason is mandatory, and the move is recorded as immutable
 /// evidence. Entering CUTOVER_PREP freezes legacy business mutation; entering
@@ -1630,6 +1652,7 @@ pub fn run() {
             runtime_set_authority_mode,
             runtime_v2_cutover_manifest,
             runtime_v2_cutover_page,
+            runtime_v2_verify_baseline,
             runtime_resolve_legacy_outbox,
             runtime_intake_save,
             runtime_intake_complete,

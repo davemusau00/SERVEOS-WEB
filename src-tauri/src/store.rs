@@ -299,6 +299,99 @@ pub fn reject_unresolved_legacy_outbox(db: &Connection, blocked: &str) -> Result
     Ok(())
 }
 
+/// Prove the installed v2 baseline is complete and belongs to this business and
+/// this device before any shared write is enabled.
+///
+/// Phase 3 exists so that "the snapshot installer said OK" is never the only
+/// evidence. Every condition is re-derived from local SQLite state, and a
+/// mismatch is a hard stop rather than a warning.
+pub fn verify_native_v2_baseline(
+    db: &Connection,
+    device_id: &str,
+    expected_business_id: &str,
+    expected_policy: &str,
+    expected_cursor: i64,
+) -> Result<Value> {
+    let (business_id, feed_cursor, policy, complete, updated_at): (String, i64, Option<String>, i64, String) = db
+        .query_row(
+            "SELECT business_id,feed_cursor,snapshot_policy,snapshot_complete,updated_at
+             FROM native_v2_state WHERE device_id=?",
+            [device_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+        )
+        .optional()
+        .map_err(error)?
+        .ok_or("This terminal has no v2 baseline state; install the authorized snapshot first")?;
+
+    if complete != 1 {
+        return Err("The v2 baseline on this terminal is incomplete; install or refresh the authorized snapshot".into());
+    }
+    if business_id != expected_business_id {
+        return Err(format!(
+            "The v2 baseline belongs to business {business_id}, not {expected_business_id}"
+        ));
+    }
+    if expected_policy.trim().is_empty() {
+        return Err("A policy version is required to verify the v2 baseline".into());
+    }
+    if policy.as_deref() != Some(expected_policy) {
+        return Err(format!(
+            "Operator permissions changed since this v2 snapshot was installed (local {}, server {expected_policy}); refresh the authorized snapshot",
+            policy.as_deref().unwrap_or("<none>")
+        ));
+    }
+    if expected_cursor < 0 {
+        return Err("A negative server cursor cannot be verified".into());
+    }
+    if feed_cursor < expected_cursor {
+        return Err(format!(
+            "The local v2 replica is behind the server feed (local {feed_cursor}, server {expected_cursor}); pull the change feed before writing"
+        ));
+    }
+
+    // Content evidence, so "installed" is not merely "a row exists".
+    let (records, collections): (i64, i64) = db
+        .query_row(
+            "SELECT COUNT(*),COUNT(DISTINCT collection) FROM native_v2_records",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(error)?;
+    if records == 0 {
+        return Err("The v2 baseline contains no records; the authorized snapshot did not install".into());
+    }
+
+    let legacy_pending = unresolved_legacy_outbox(db)?;
+    let mode = authority_mode(db)?;
+    let digest = sha256_hex(
+        db.query_row(
+            "SELECT coalesce(group_concat(h,''),'') FROM (
+               SELECT collection||':'||record_id||':'||version||':'||feed_sequence AS h
+               FROM native_v2_records ORDER BY collection,record_id)",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map_err(error)?
+        .as_bytes(),
+    );
+
+    Ok(json!({
+        "verified": true,
+        "deviceId": device_id,
+        "businessId": business_id,
+        "snapshotComplete": complete == 1,
+        "policyVersion": policy,
+        "feedCursor": feed_cursor,
+        "serverCursor": expected_cursor,
+        "recordCount": records,
+        "collectionCount": collections,
+        "baselineDigest": digest,
+        "authorityMode": mode.as_str(),
+        "unresolvedLegacyCommands": legacy_pending,
+        "installedAt": updated_at,
+    }))
+}
+
 /// Formally resolve legacy outbox rows as superseded by a verified v2 cutover.
 /// Rows are never deleted, and resolution is refused until the server reports
 /// the cutover READY, so a half-finished import cannot strand the terminal.

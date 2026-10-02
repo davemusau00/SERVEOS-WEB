@@ -252,6 +252,81 @@ fn cutover_manifest_refuses_once_the_terminal_is_already_shared() {
 }
 
 #[test]
+fn v2_baseline_verification_refuses_anything_it_cannot_prove() {
+    let (_dir,db,_admin)=setup();
+    let device="20000000-0000-4000-8000-000000000001".to_string();
+    let business="30000000-0000-4000-8000-000000000001".to_string();
+    let policy="policy-a".to_string();
+    let records=vec![
+        json!({"collection":"customers","id":"cust-1","version":1,"data":{"id":"cust-1","name":"One"},"archived":false}),
+        json!({"collection":"products","id":"prod-1","version":1,"data":{"id":"prod-1","name":"Cola"},"archived":false}),
+    ];
+
+    // No baseline at all.
+    let missing=verify_native_v2_baseline(&db,&device,&business,&policy,0).unwrap_err();
+    assert!(missing.contains("no v2 baseline state"),"{missing}");
+
+    // Seed an incomplete baseline with no records.
+    db.execute(
+        "INSERT INTO native_v2_state(device_id,business_id,last_sequence,feed_cursor,snapshot_complete,snapshot_policy,updated_at)
+         VALUES(?,?,0,0,0,NULL,'2026-10-02T00:00:00Z')",
+        rusqlite::params![device,&business],
+    ).unwrap();
+    let incomplete=verify_native_v2_baseline(&db,&device,&business,&policy,0).unwrap_err();
+    assert!(incomplete.contains("incomplete"),"{incomplete}");
+
+    // Install a real baseline. The fixture's own legacy writes are unresolved
+    // work, so Phase 2 supersession must close them first: the v2 baseline
+    // installer must never pretend they were uploaded.
+    assert!(unresolved_legacy_outbox(&db).unwrap()>0);
+    assert!(install_native_v2_snapshot(&mut db_clone(&db),&device,&business,7,&policy,&records).is_err(),
+        "an unresolved legacy outbox must block the v2 baseline");
+    assert!(supersede_legacy_outbox(&mut db_clone(&db),"cutover-1",true).unwrap()>0);
+    assert_eq!(unresolved_legacy_outbox(&db).unwrap(),0);
+    install_native_v2_snapshot(&mut db_clone(&db),&device,&business,7,&policy,&records).unwrap();
+
+    // A complete, matching baseline verifies and carries content evidence.
+    let report=verify_native_v2_baseline(&db,&device,&business,&policy,7).unwrap();
+    assert_eq!(report["verified"],true);
+    assert_eq!(report["snapshotComplete"],true);
+    assert_eq!(report["recordCount"],2);
+    assert_eq!(report["collectionCount"],2);
+    assert_eq!(report["feedCursor"],7);
+    assert_eq!(report["businessId"],business.as_str());
+    assert_eq!(report["baselineDigest"].as_str().unwrap().len(),64);
+    // The digest is stable for the same content.
+    let again=verify_native_v2_baseline(&db,&device,&business,&policy,7).unwrap();
+    assert_eq!(again["baselineDigest"],report["baselineDigest"]);
+
+    // A changed permission policy invalidates the baseline.
+    let drifted=verify_native_v2_baseline(&db,&device,&business,"policy-b",7).unwrap_err();
+    assert!(drifted.contains("permissions changed"),"{drifted}");
+
+    // The wrong business is refused.
+    let wrong_business=verify_native_v2_baseline(&db,&device,"40000000-0000-4000-8000-000000000009",&policy,7).unwrap_err();
+    assert!(wrong_business.contains("belongs to business"),"{wrong_business}");
+
+    // A replica behind the server feed cannot be trusted for writes.
+    let behind=verify_native_v2_baseline(&db,&device,&business,&policy,99).unwrap_err();
+    assert!(behind.contains("behind the server feed"),"{behind}");
+
+    // An empty policy is never accepted as proof.
+    let no_policy=verify_native_v2_baseline(&db,&device,&business,"",7).unwrap_err();
+    assert!(no_policy.contains("policy version is required"),"{no_policy}");
+
+    // A different device has no state of its own.
+    let other_device=verify_native_v2_baseline(&db,"20000000-0000-4000-8000-0000000000ff",&business,&policy,7).unwrap_err();
+    assert!(other_device.contains("no v2 baseline state"),"{other_device}");
+}
+
+/// Open a second connection to the same file so the installer can take a write
+/// transaction without fighting the caller's borrowed handle.
+fn db_clone(db: &rusqlite::Connection) -> rusqlite::Connection {
+    let path: String = db.query_row("PRAGMA database_list", [], |r| r.get::<_, String>(2)).unwrap_or_default();
+    rusqlite::Connection::open(path).unwrap()
+}
+
+#[test]
 fn native_roles_fail_closed_for_unknown_and_do_not_inherit_server_access() {
     for role in ["Admin", "Manager", "Cashier", "Server", "Chef", "Housekeeper", "Accountant", "Custom"] {
         assert!(!permissions(role).is_empty(), "role should have an explicit profile: {role}");
