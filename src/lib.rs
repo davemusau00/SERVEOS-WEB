@@ -511,6 +511,20 @@ fn validate_url(url: &str) -> store::Result<String> {
     }
     Ok(url.trim_end_matches('/').into())
 }
+/// Maximum server error detail retained in a rejection message. The message is
+/// rendered in the operator UI and persisted with local rejection evidence, so
+/// an unbounded proxy or gateway body must never be stored verbatim.
+const MAX_SERVER_ERROR_DETAIL: usize = 400;
+fn bounded_detail(detail: &str) -> String {
+    if detail.len() <= MAX_SERVER_ERROR_DETAIL {
+        return detail.to_string();
+    }
+    let mut end = MAX_SERVER_ERROR_DETAIL;
+    while end > 0 && !detail.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}… ({} bytes total)", &detail[..end], detail.len())
+}
 async fn rpc(
     url: &str,
     key: &str,
@@ -533,10 +547,32 @@ async fn rpc(
         .send()
         .await
         .map_err(|_| "Server unreachable; all local operations remain queued")?;
-    if !res.status().is_success() {
+    let status = res.status();
+    if !status.is_success() {
+        // A PostgREST failure carries the actionable cause in the body
+        // (PGRST202 missing function, PGRST203 bad signature, the raised
+        // exception text). Discarding it forced debugging through HTTP status
+        // alone, so the detail is surfaced with a bounded length.
+        let body = res.text().await.unwrap_or_default();
+        let detail = serde_json::from_str::<Value>(&body)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| value.get("error").and_then(|v| v.as_str()))
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| {
+                if body.trim().is_empty() {
+                    "No server error details returned".to_string()
+                } else {
+                    body
+                }
+            });
         return Err(format!(
-            "Server rejected request ({}); local data retained",
-            res.status()
+            "Server rejected request ({status}): {}; local data retained",
+            bounded_detail(&detail)
         ));
     }
     res.json()

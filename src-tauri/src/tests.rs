@@ -1,6 +1,25 @@
 use super::store::*;
+use super::{bounded_detail, MAX_SERVER_ERROR_DETAIL};
 use serde_json::{json, Value};
 use uuid::Uuid;
+
+#[test]
+fn server_error_detail_is_preserved_and_bounded() {
+    // A short PostgREST detail is preserved verbatim.
+    assert_eq!(bounded_detail("Terminal authentication failed"), "Terminal authentication failed");
+    // Oversized gateway bodies are truncated rather than persisted in full.
+    let huge = "x".repeat(MAX_SERVER_ERROR_DETAIL * 3);
+    let bounded = bounded_detail(&huge);
+    assert!(bounded.len() < huge.len(), "oversized detail must be bounded");
+    assert!(bounded.starts_with(&"x".repeat(MAX_SERVER_ERROR_DETAIL)));
+    assert!(bounded.contains("bytes total"), "truncation must report the original size: {bounded}");
+    // Truncation must not split a multi-byte character.
+    let multibyte = "é".repeat(MAX_SERVER_ERROR_DETAIL);
+    let bounded_multibyte = bounded_detail(&multibyte);
+    assert!(bounded_multibyte.is_char_boundary(0));
+    assert!(bounded_multibyte.len() <= MAX_SERVER_ERROR_DETAIL + 32);
+    assert!(!bounded_multibyte.contains('\u{FFFD}'), "truncation must not corrupt UTF-8");
+}
 
 #[test]
 fn native_roles_fail_closed_for_unknown_and_do_not_inherit_server_access() {
