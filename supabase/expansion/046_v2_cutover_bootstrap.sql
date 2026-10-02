@@ -287,7 +287,13 @@ begin
   imported:=(select count(*) from servos_v2.records where not archived);
 
   -- Financial and stock control totals must agree before anything may commit.
-  foreach key in array array['paymentByTender','stockQuantity','stockMovements','tillCount',
+  -- `paymentByTender` is a per-tender object and must be compared as jsonb; every
+  -- other total is a scalar and is compared numerically.
+  if coalesce(client_totals->'paymentByTender','{}'::jsonb)
+       is distinct from coalesce(server_totals->'paymentByTender','{}'::jsonb) then
+    differences:=array_append(differences,format('paymentByTender: manifest %s, server %s',client_totals->'paymentByTender',server_totals->'paymentByTender'));
+  end if;
+  foreach key in array array['stockQuantity','stockMovements','tillCount',
       'openTillCashMinor','closedTillCashMinor','creditOutstandingMinor','payableOutstandingMinor',
       'receiptTotalMinor','orderTotalMinor'] loop
     if coalesce((client_totals->>key)::numeric,-1) is distinct from coalesce((server_totals->>key)::numeric,-1) then

@@ -17,7 +17,7 @@ export async function testRoomConcurrency(container) {
     select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',false);
     select public.servos_v2_register_device('10000000-0000-4000-8000-000000000001','Concurrent desktop','DESKTOP');
     select public.servos_v2_register_device('10000000-0000-4000-8000-000000000002','Concurrent web','WEB');
-    update servos_v2.control set enabled=true;
+    update servos_v2.control set enabled=true,authority_mode='SHARED_V2';
     select servos_v2.put_record('roomTypes','race-type','{"name":"Double","maxGuests":2}');
     select servos_v2.put_record('customers','race-guest','{"name":"Guest"}');
     select servos_v2.put_record('rooms','race-room','{"number":"201","roomTypeId":"race-type","capacity":2,"turnaroundMinutes":30,"housekeepingState":"CLEAN","maintenanceState":"AVAILABLE"}');
