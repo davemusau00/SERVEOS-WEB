@@ -39,7 +39,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "@tailwindcss/vite": "^4.3.3",
-    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/api": "^2.12.1",
     "@vitejs/plugin-react": "^6.1.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
@@ -50,7 +50,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "@tauri-apps/cli": "^2.0.0",
+    "@tauri-apps/cli": "^2.12.1",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
