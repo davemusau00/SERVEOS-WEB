@@ -11,9 +11,13 @@
 }
 
 @media print {
+  /* CSS paged media accepts `auto` or one/two explicit lengths. `size: 80mm auto`
+     mixes a length with `auto`, which is invalid, so browsers and drivers ignore
+     it and fall back to A4/Letter. The production XP-80T path sends direct RAW
+     ESC/POS; this OS_PRINT fallback relies on the selected Windows queue's own
+     80mm paper definition rather than inventing a variable page height. */
   @page {
-    size: 80mm auto;
-    margin: 0mm;
+    margin: 0;
   }
 
   html, body {

@@ -73,10 +73,13 @@ export const ThermalReceiptModal = ({ isOpen, onClose, order, paymentDetails, is
       {message && <p role="status" className="text-xs">{message}</p>}
     </section>
     <style>{`@media print {
-      @page { size: 80mm auto; margin: 3mm; }
+      /* No \`size\` declaration: \`80mm auto\` is invalid CSS paged media and makes
+         the driver fall back to A4/Letter. Paper width comes from the selected
+         Windows printer queue's own 80mm definition. */
+      @page { margin: 0; }
       body * { visibility: hidden !important; }
       .receipt-print-copy, .receipt-print-copy * { visibility: visible !important; }
-      .receipt-print-copy { display: block !important; position: relative; width: 74mm; margin: 0; padding: 2mm 0; color: #000; background: #fff; font-family: monospace; font-size: 9pt; break-after: page; page-break-after: always; }
+      .receipt-print-copy { display: block !important; position: relative; width: 72mm; max-width: 72mm; margin: 0 auto; padding: 2mm 0 6mm; color: #000; background: #fff; font-family: monospace; font-size: 9pt; break-after: page; page-break-after: always; }
       .receipt-print-copy:last-child { break-after: auto; page-break-after: auto; }
     }
     @media screen { .receipt-print-copy { border: 1px solid rgb(51 65 85); border-radius: .5rem; background: #fff; color: #000; padding: 1rem; font-family: monospace; font-size: .75rem; } }

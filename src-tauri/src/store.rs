@@ -12,6 +12,8 @@ use uuid::Uuid;
 pub mod receipts;
 #[path = "customer_credit.rs"]
 pub mod customer_credit;
+#[path = "cutover.rs"]
+pub mod cutover;
 
 pub type Result<T> = std::result::Result<T, String>;
 fn error(e: impl std::fmt::Display) -> String {

@@ -57,6 +57,7 @@ try {
       'tests/supabase/folios.sql',
       'tests/supabase/web-session.sql',
       'tests/supabase/authority-modes.sql',
+      'tests/supabase/cutover.sql',
       'tests/supabase/inventory.sql',
       'tests/supabase/smart-items.sql',
       'tests/supabase/procurement.sql',

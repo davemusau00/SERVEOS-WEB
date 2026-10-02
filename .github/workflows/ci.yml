@@ -148,9 +148,34 @@ jobs:
           path: artifacts/ci-logs/desktop-*.log
           if-no-files-found: error
           retention-days: 14
+  windows-printer-shell:
+    # The XP-80T USB path is the Windows RAW spooler FFI. Linux CI compiles the
+    # non-Windows stub instead, so without this job the exact production USB
+    # transport can regress while desktop-shell stays green.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: mkdir -p artifacts/ci-logs
+      - run: npm ci 2>&1 | tee artifacts/ci-logs/windows-printer-install.log
+      - run: rustc --version | tee artifacts/ci-logs/windows-printer-shell.log
+      - run: cargo --version | tee -a artifacts/ci-logs/windows-printer-shell.log
+      - run: npm run check:desktop 2>&1 | tee -a artifacts/ci-logs/windows-printer-shell.log
+      - run: npm run test:desktop 2>&1 | tee -a artifacts/ci-logs/windows-printer-shell.log
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib 2>&1 | tee -a artifacts/ci-logs/windows-printer-shell.log
+      - name: Upload Windows printer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-printer-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/ci-logs/windows-printer-*.log
+          if-no-files-found: error
+          retention-days: 14
   evidence-summary:
     if: always()
-    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell]
+    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -170,6 +195,7 @@ jobs:
           SERVOS_JOB_CLOUD_BASE: ${{ needs.cloud-protocol-base.result }}
           SERVOS_JOB_CLOUD_V2: ${{ needs.cloud-protocol-v2.result }}
           SERVOS_JOB_DESKTOP: ${{ needs.desktop-shell.result }}
+        SERVOS_JOB_WINDOWS_PRINTER: ${{ needs.windows-printer-shell.result }}
       - uses: actions/upload-artifact@v4
         with:
           name: servos-ci-evidence-${{ github.sha }}-${{ github.run_attempt }}
@@ -179,7 +205,7 @@ jobs:
 
   release-candidate:
     if: github.ref == 'refs/heads/main'
-    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, evidence-summary]
+    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, evidence-summary]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

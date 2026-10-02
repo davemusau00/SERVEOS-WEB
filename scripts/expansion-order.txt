@@ -43,3 +43,5 @@
 043_receipt_branding_snapshots.sql
 044_mpesa_till_qr.sql
 045_authority_modes.sql
+046_v2_cutover_bootstrap.sql
+047_native_command_parity.sql

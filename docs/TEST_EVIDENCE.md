@@ -1,5 +1,70 @@
 # Test evidence
 
+## 2026-10-02 final sprint: authority cutover + receipt closure (source verified locally)
+
+**Phases 0, 1, 2, 4 and 7 implemented. Phases 3, 5, 6 and 8 remain open.**
+
+Verified by running locally on this checkout:
+
+- `npm test` 203 pass / 0 fail
+- `cargo test --locked --manifest-path native-tests/Cargo.toml` 91 pass / 0 fail
+- `npm run test:desktop` 91 pass / 0 fail
+- `npm run lint`, `npm run check:desktop`, `npm run protocol:check` clean (51 canonical migrations)
+
+**Phase 0.** `native-domain` was genuinely red: `src-tauri/src/tests.rs` imported `bounded_detail` from the
+Tauri crate root, which `native-tests` does not compile. Moved to `src-tauri/src/rpc_error.rs`, included by
+`#[path]` from both crates. The helper is free of `tauri`/`reqwest`/`keyring` and a test enforces that.
+
+**Phase 1.** Added persisted `authority_mode` (`LEGACY_LOCAL | CUTOVER_PREP | SHARED_V2`) in SQLite migration
+`015_v2_cutover_state.sql` and server migration `20261001045_authority_modes.sql`. The legacy write fence now
+lives inside `store::execute`, so a caller cannot bypass it; `__legacyFallback` was removed from
+`runtime_command`; `runtime_sync`/`runtime_snapshot`/`runtime_login_offline` fail closed under `SHARED_V2`.
+Note: the sprint document claimed `servos_v2_snapshot()` still required `control.enabled`; migration 029 had
+already removed that gate, so only `CUTOVER_PREP` was missing.
+
+**Phase 2.** `src-tauri/src/cutover.rs` produces a deterministic, secret-free cutover manifest and bounded
+import pages. Server migration `20261001046_v2_cutover_bootstrap.sql` adds `cutovers`, `cutover_pages`,
+`cutover_evidence` and the five bootstrap RPCs, permitted only in `CUTOVER_PREP`. Legacy outbox rows can be
+formally resolved as `SUPERSEDED_BY_V2_CUTOVER` (rows preserved, never deleted).
+
+**Open data decision.** Three legacy collections are written by the terminal but have no canonical v2 read
+path, so they are excluded from both import allowlists: `inventoryReceipts` (superseded by `goodsReceipts`),
+`maintenanceEvents` (v2 tracks `maintenanceOrders`), and `property` (v2 uses `organization`). **If CountrySide
+has meaningful `property` configuration, an explicit mapping to `organization` is required before cutover.**
+
+**Phase 4.** Migration `20261001047_native_command_parity.sql` closes the two contract splits. `credit.charge`
+is now canonical and derives the customer and outstanding amount from the order when the Native `{orderId}`-
+only payload is used, so both payload shapes share one implementation. `order.compItem` is implemented as a
+genuine item-level comp and is deliberately NOT conflated with whole-order `order.comp`.
+
+The generated parity ledger now enforces this as a build gate: any operation with `native: 'implemented'` and
+`v2Routing: 'shared'` whose `backend` is not `implemented` fails `npm run parity:build` (and therefore
+`npm run build`). Device-local operations (`runtime.print_receipt`, `runtime.backup`) are classified
+`local-only` and excluded by name, because a raw ESC/POS job and a SQLite backup must never route through v2.
+Current result: 84 shared Native mutations, 2 correctly excluded. The gate was confirmed to fail when a real
+gap was reintroduced.
+
+**Phase 7.** Removed the incorrect `GS !` QR positioning (`GS !` is character size, not position) in favour of
+`ESC a 1` / `GS v 0` / `ESC a 0`, with byte-level regression tests. The Font B footer is no longer space-padded
+for the Font A width; it is stripped and centered with `ESC a 1`. Removed the invalid `size: 80mm auto`
+declaration from all three receipt CSS files. Added a `windows-printer-shell` CI job so the Windows RAW
+spooler FFI is compiled on every release candidate. Unified receipt money formatting on integer minor units
+with thousands separators (`KES 1,250.00`), verified at `i64::MIN`. Added `runtime_printer_acceptance`
+printing a full production-format slip marked `SERVOS PRINTER ACCEPTANCE - NOT A SALE`.
+
+### Not verified
+
+- **Docker was unavailable, so `tests/supabase/authority-modes.sql`, `tests/supabase/cutover.sql` and the
+  `20261001046`/`20261001047` migrations have never been executed.** Their assertions are unrun. Run
+  `npm run test:cloud:v2` on a Docker host before trusting them.
+- **No hosted Supabase project was contacted.** No migration was applied and no RPC was called against any real
+  database.
+- **No physical hardware was used.** The XP-80T, QR scanning, cutter/feed spacing, barcode scanner, full shift
+  rehearsal, restart/recovery and backup/restore rehearsals (Phase 8) remain unproven. Source tests cannot
+  establish paper behaviour.
+- Phases 3, 5 and 6 are not implemented: the final baseline install/verify handshake, SHARED_V2 activation,
+  and legacy surface retirement.
+
 ## 2026-10-01 receipt and blocker follow-up — not run
 
 Source changes repair `WebAdministrationView.tsx` syntax and the whole-location variance movement assertion; add expansion 043 receipt branding snapshots and friendly v2 order numbers; add versioned native/Web logo settings, selected-document Web printing, both-copy Web text export, customer-facing identifiers, four-line footer, thermal raster and configurable feed; and reconcile both Cargo lockfiles for the direct base64 dependency. The business copy omits customer names, and staged receipt snapshots strip non-M-Pesa references. Browser and disposable SQL fixtures include card-reference retention rejection; a source test checks the image/footer/security contract and asset-manifest hashes/dimensions. Per the implementation request, no lint, TypeScript/build, Node, browser, native, `cargo --locked`, migration/cloud, docs, UI audit, or diff verification has yet been run. No result is claimed. Hardware, packaged, hosted, and live acceptance remain separate gates.

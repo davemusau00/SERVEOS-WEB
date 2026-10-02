@@ -75,7 +75,26 @@ pub fn load(db: &Connection, token: &str, order_id: &str, receipt_id: Option<&st
 }
 
 fn clean(value:&str)->String{value.chars().map(|c|if c.is_ascii()&&!c.is_control(){c}else{'?'}).collect()}
-fn amount(value:&Value,currency:&str)->String{format!("{} {:.2}",currency,value.as_i64().unwrap_or(0) as f64/100.0)}
+
+/// Format minor units as a grouped currency string.
+///
+/// This is the single receipt-money contract shared with the TypeScript preview
+/// (`src/receipts/format.ts`): `KES 1,250.00`. Grouping is done on integer minor
+/// units, so no floating point is authoritative for a stored monetary value.
+pub fn receipt_money(minor:i64,currency:&str)->String{
+    let negative=minor<0;
+    let absolute=minor.unsigned_abs();
+    let whole=absolute/100;
+    let cents=absolute%100;
+    let digits=whole.to_string();
+    let mut grouped=String::with_capacity(digits.len()+digits.len()/3+8);
+    for (index,ch) in digits.chars().enumerate(){
+        if index>0&&(digits.len()-index)%3==0{grouped.push(',');}
+        grouped.push(ch);
+    }
+    format!("{}{} {}.{:02}",if negative{"-"}else{""},currency,grouped,cents)
+}
+fn amount(value:&Value,currency:&str)->String{receipt_money(value.as_i64().unwrap_or(0),currency)}
 fn pair(left:&str,right:&str,width:usize)->String{
     let left=clean(left);let right=clean(right);
     if left.len()+right.len()+1>width{return format!("{}\n{:>width$}",left,right,width=width);}

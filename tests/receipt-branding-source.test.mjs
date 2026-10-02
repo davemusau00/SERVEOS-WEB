@@ -5,6 +5,83 @@ import { createHash } from 'node:crypto';
 
 const read = file => readFileSync(file, 'utf8');
 
+test('the ESC/POS byte stream uses valid commands for every receipt block', () => {
+  const printer = read('src-tauri/src/printer.rs');
+  // GS ! is the character-size command. It must never appear as a positioning
+  // command; the previous QR placement used it and reset it afterwards.
+  assert.ok(!/0x1d,\s*b'!'/.test(printer), 'GS ! must not be used for positioning anywhere in the encoder');
+  assert.match(printer,/bytes\.extend_from_slice\(&\[0x1b,b'a',1\]\);/);
+  assert.match(printer,/bytes\.extend_from_slice\(&\[0x1b,b'a',0\]\);/);
+  // A font switch must never be combined with pre-padded centering.
+  assert.match(printer,/line\.trim\(\)\.to_string\(\), 1u8/);
+  assert.match(printer,/fn font_switched_footer_is_never_pre_padded/);
+  assert.match(printer,/fn qr_placement_uses_justification_and_never_the_character_size_command/);
+  // The byte-level tests must be real, not just source markers.
+  assert.match(printer,/let after_justify = font_b \+ 9;/);
+  assert.match(printer,/row_bytes, 0, 16, 0/);
+});
+
+test('the OS print fallback uses valid CSS paged media syntax', () => {
+  // `size: 80mm auto` mixes a length with `auto`, which is invalid CSS paged
+  // media; browsers and drivers ignore it and fall back to A4/Letter.
+  for (const file of ['src/index.css', 'src/components/pos/ReceiptDocumentView.tsx', 'src/components/pos/ThermalReceiptModal.tsx']) {
+    const text = read(file);
+    assert.ok(!/@page\s*\{[^}]*size\s*:\s*80mm\s+auto/.test(text), `${file} must not declare size:80mm auto`);
+    assert.match(text, /@page\s*\{?\s*margin/, `${file} must keep a valid @page margin rule`);
+  }
+  // The receipt root must stay inside the printable area of an 80mm roll.
+  const view = read('src/components/pos/ReceiptDocumentView.tsx');
+  assert.match(view,/#servos-receipt-print\{display:block!important;width:72mm;max-width:72mm;margin:0 auto/);
+  const modal = read('src/components/pos/ThermalReceiptModal.tsx');
+  assert.match(modal,/width:\s*72mm;\s*max-width:\s*72mm;\s*margin:\s*0 auto/);
+});
+
+test('receipt money formatting is one shared contract, not a floating-point per-runtime guess', () => {
+  const rust = read('src-tauri/src/receipts.rs');
+  const ts = read('src/receipts/format.ts');
+  const tests = read('src-tauri/src/tests.rs');
+  // Grouped thousands separators on both runtimes.
+  assert.match(rust,/pub fn receipt_money\(minor:i64,currency:&str\)->String/);
+  assert.match(rust,/grouped\.push\(','\)/);
+  assert.match(ts,/toLocaleString\('en-KE'/);
+  // Integer minor units only: no f64 in the authoritative money path.
+  assert.ok(!/fn amount\(value:&Value,currency:&str\)->String\{[^}]*f64/.test(rust), 'amount() must not convert through f64');
+  assert.match(rust,/fn amount\(value:&Value,currency:&str\)->String\{receipt_money/);
+  assert.match(tests,/fn receipt_money_matches_the_preview_contract_with_integer_minor_units/);
+});
+
+test('a full-format acceptance slip exercises the real receipt pipeline', () => {
+  const lib = read('src-tauri/src/lib.rs');
+  assert.match(lib,/fn runtime_printer_acceptance/);
+  assert.match(lib,/fn printer_acceptance_lines/);
+  // Synthetic content must be unmistakably not a sale.
+  assert.match(lib,/SERVOS PRINTER ACCEPTANCE - NOT A SALE/);
+  // The blocks a text-only connection slip never proved.
+  for (const marker of [
+    'CUSTOMER COPY', 'BUSINESS RECORD COPY', 'Item / Qty x Unit',
+    'Subtotal', 'Discount', 'VAT included', 'TOTAL',
+    'CASH', 'MPESA', 'M-Pesa ref:', 'Cash tendered', 'Change', 'Paid', 'Balance',
+    'Thank you for your business.',
+  ]) assert.ok(lib.includes(marker), marker);
+  // A long item name and a 20+ item receipt.
+  assert.match(lib,/Imported premium single-origin Arabica beans 1kg whole bean roasted/);
+  assert.match(lib,/for index in 1\.\.=21/);
+  // The configured branding and QR must be the ones exercised.
+  assert.match(lib,/receiptThermalLogo/);
+  assert.match(lib,/receiptMpesaTillQr/);
+  // The settings under test must be recorded as acceptance evidence.
+  assert.match(lib,/"kind":"PRINTER_PAPER_OBSERVED"/);
+  assert.match(lib,/"printerMode":profile\.mode/);
+  assert.match(lib,/"columns":profile\.columns/);
+  assert.match(lib,/"feedLines":profile\.feed_lines_before_cut/);
+  assert.match(lib,/"autoCut":profile\.auto_cut/);
+  assert.match(lib,/"maxQrWidthDots":profile\.max_qr_width_dots/);
+  assert.match(lib,/"maxLogoWidthDots":profile\.max_logo_width_dots/);
+  assert.match(lib,/runtime_printer_acceptance,/);
+  // The plain connection slip must remain, as the cheaper connectivity check.
+  assert.match(lib,/fn runtime_printer_test/);
+});
+
 test('receipt branding preserves the fixed current footer and legacy receipt schema', () => {
   const types = read('src/types/receipt.ts');
   const view = read('src/components/pos/ReceiptDocumentView.tsx');

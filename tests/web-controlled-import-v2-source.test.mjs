@@ -113,5 +113,7 @@ test('Web import UI exposes server review and explicit apply while recording par
   assert.match(ui, /Use detected template/);
   assert.match(ui, /admin\.import\.cancel/);
   assert.match(ui, /Cancel batch and remove file/);
-  assert.match(manifest, /operation: 'admin\.import\.stage'.*backend: 'partial'.*web: 'partial'/);
+  // The staged v2 importer handles all eleven templates (widened by migration 041),
+  // so the backend is a complete handler. The Web surface is what remains narrower.
+  assert.match(manifest, /operation: 'admin\.import\.stage'.*backend: 'implemented'.*web: 'partial'/);
 });

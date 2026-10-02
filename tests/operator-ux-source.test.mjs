@@ -111,11 +111,15 @@ test('parity ledger distinguishes implemented Web flows from different operation
   assert.match(manifest,/operation: 'order\.transfer'.*web: 'implemented'/);
   assert.match(manifest,/operation: 'order\.merge'.*web: 'implemented'/);
   assert.match(manifest,/operation: 'order\.discount'.*web: 'partial'.*manager-approval token/);
-  assert.match(manifest,/operation: 'order\.compItem'.*backend: 'missing'.*web: 'missing'/);
+  // Migration 047 closes both splits. order.compItem is a real item-level comp,
+  // distinct from the whole-order order.comp, and customerCredit.charge is routed
+  // into the canonical credit.charge implementation.
+  assert.match(manifest,/operation: 'order\.compItem'.*backend: 'implemented'.*web: 'missing'/);
+  assert.match(manifest,/operation: 'order\.comp'.*native: 'implemented'.*backend: 'implemented'/);
   assert.match(finance,/mpesa\.discrepancy/);
   assert.match(finance,/mpesa\.discrepancy\.resolve/);
-  assert.match(manifest,/operation: 'credit\.charge'.*native: 'missing'.*backend: 'implemented'.*web: 'implemented'/);
-  assert.match(manifest,/operation: 'customerCredit\.charge'.*backend: 'missing'.*web: 'missing'/);
+  assert.match(manifest,/operation: 'credit\.charge'.*native: 'implemented'.*backend: 'implemented'.*web: 'implemented'/);
+  assert.match(manifest,/operation: 'customerCredit\.charge'.*backend: 'implemented'/);
 });
 
 test('shared design controls and generated operator audit are part of the P0/P1 contract', () => {

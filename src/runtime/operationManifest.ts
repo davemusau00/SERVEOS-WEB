@@ -10,6 +10,19 @@ export type OperationSurface = 'implemented' | 'partial' | 'missing' | 'blocked'
 export type OfflineEligibility = 'eligible' | 'online-only' | 'draft-only' | 'blocked' | 'unknown';
 export type ReviewStatus = 'accepted' | 'implemented' | 'needs-simplification' | 'blocked-by-domain' | 'unreviewed';
 
+/**
+ * How an operation reaches the shared v2 authority.
+ *
+ * `shared`      a business mutation: it must have a complete v2 handler, because
+ *               after cutover the terminal writes through servos_v2 only.
+ * `local-only`  a device-local operation that must NEVER route through v2. A raw
+ *               ESC/POS job has no meaning on a server, and a SQLite backup is
+ *               local terminal authority. Routing these to v2 would be a defect,
+ *               so they are explicitly excluded from the parity gate instead of
+ *               being left to look like missing backend coverage.
+ */
+export type V2Routing = 'shared' | 'local-only';
+
 export interface OperationDefinition {
   operation: string;
   domain: 'POS' | 'KDS' | 'Inventory' | 'Procurement' | 'Rooms' | 'Finance' | 'Staff' | 'Assets' | 'Administration';
@@ -18,6 +31,7 @@ export interface OperationDefinition {
   native: OperationSurface;
   backend: OperationSurface;
   web: OperationSurface;
+  v2Routing: V2Routing;
   offlineEligibility: OfflineEligibility;
   approval: 'required' | 'conditional' | 'none' | 'unknown';
   versioning: 'required' | 'not-required' | 'unknown';
@@ -29,23 +43,47 @@ export interface OperationDefinition {
   notes?: string;
 }
 
-const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'approval' | 'versioning' | 'auditEffect' | 'stockEffect' | 'financialEffect' | 'acceptanceTest' | 'operatorUxStatus'>[] = [
+/**
+ * Operations that are device-local and must never route through servos_v2.
+ *
+ * A raw ESC/POS print job has no meaning on a server, and a SQLite backup is
+ * local terminal authority. After cutover these still run locally by design, so
+ * they are excluded from the Native -> Cloud parity gate rather than being left
+ * looking like missing backend coverage.
+ */
+const LOCAL_ONLY_OPERATIONS = new Set<string>([
+  'runtime.print_receipt',
+  'runtime.backup',
+]);
+
+/** True when this operation must have a complete servos_v2 handler. */
+export function requiresSharedV2Handler(operation: string): boolean {
+  return !LOCAL_ONLY_OPERATIONS.has(operation);
+}
+
+/** True when this operation is device-local by design. */
+export function isLocalOnly(operation: string): boolean {
+  return LOCAL_ONLY_OPERATIONS.has(operation);
+}
+
+// v2Routing is derived from LOCAL_ONLY_OPERATIONS below, so it is not authored per entry.
+const operationDefinitions: Omit<OperationDefinition, 'v2Routing' | 'offlineEligibility' | 'approval' | 'versioning' | 'auditEffect' | 'stockEffect' | 'financialEffect' | 'acceptanceTest' | 'operatorUxStatus'>[] = [
   { operation: 'business.identity', domain: 'Administration', permission: 'business.configure', collection: 'property', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Business identity and property timezone configuration.' },
   { operation: 'business.settings.save', domain: 'Administration', permission: 'business.configure', collection: 'organization', native: 'partial', backend: 'implemented', web: 'implemented', notes: 'Web Admin updates versioned branding/receipt settings through an online BusinessCommandV2; native branding is saved to the property record. Receipt documents snapshot the logo at payment commit.' },
   { operation: 'setup.completeStep', domain: 'Administration', permission: 'system.configure', collection: 'installation', native: 'implemented', backend: 'implemented', web: 'missing' },
   { operation: 'setup.goLive', domain: 'Administration', permission: 'system.configure', collection: 'installation', native: 'implemented', backend: 'implemented', web: 'missing' },
-  { operation: 'admin.import.stage', domain: 'Administration', permission: 'data.import.stage', collection: 'importBatches', native: 'implemented', backend: 'partial', web: 'partial', notes: 'Web stages eleven templates: products, stock items, stock locations, room types, nightly rate plans, rooms, customers, suppliers, asset categories, assets, and staff profiles bound only to existing Auth users; no Auth accounts, balances/history, or full migration coverage.' },
-  { operation: 'admin.import.dryRun', domain: 'Administration', permission: 'data.import.stage', collection: 'importBatches', native: 'implemented', backend: 'partial', web: 'partial', notes: 'Server validates staged CSV rows by running existing domain validators in rolled-back subtransactions; apply requires the matching domain permission too.' },
-  { operation: 'admin.import.apply', domain: 'Administration', permission: 'data.import.execute', collection: 'importBatches', native: 'implemented', backend: 'partial', web: 'partial', notes: 'Applies only a hash-bound, fully valid eleven-template plan atomically through existing domain validators, including staff.create for invited Auth users; no Auth account creation, reservations, balances or historical transactions.' },
-  { operation: 'admin.import.cancel', domain: 'Administration', permission: 'data.import.stage', collection: 'importBatches', native: 'implemented', backend: 'partial', web: 'partial', notes: 'Cancels only unapplied batches, purges the raw CSV and dry-run plan, and retains an actor/time/reason tombstone; batch IDs cannot be reused.' },
+  { operation: 'admin.import.stage', domain: 'Administration', permission: 'data.import.stage', collection: 'importBatches', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Stages eleven templates on the server: products, stock items, stock locations, customers, suppliers, room types, rate plans, rooms, asset categories, assets and staff. Stage stores a source hash and rejects a batch ID reused for different content. Web staging UX remains narrower than the native import centre.' },
+  { operation: 'admin.import.dryRun', domain: 'Administration', permission: 'data.import.stage', collection: 'importBatches', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Server validates staged CSV rows by running the existing domain validators in rolled-back subtransactions, so a row that the native terminal would reject is rejected identically. Web surface remains narrower.' },
+  { operation: 'admin.import.apply', domain: 'Administration', permission: 'data.import.execute', collection: 'importBatches', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Applies only a hash-bound, fully valid eleven-template plan atomically through the existing domain validators, including staff.create for already-invited Auth users. It deliberately does not create Auth accounts or import balances and history; the cutover bootstrap is the supported path for existing business state.' },
+  { operation: 'admin.import.cancel', domain: 'Administration', permission: 'data.import.stage', collection: 'importBatches', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Cancels only unapplied batches, purges the raw CSV and dry-run plan, and retains an actor/time/reason tombstone; batch IDs cannot be reused. Web surface remains narrower.' },
   { operation: 'record.save', domain: 'Administration', permission: 'customers.manage', collection: 'master records', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Web Master Data scopes this shared command to authorized customer, supplier, room-type, and asset-category masters.' },
   { operation: 'record.archive', domain: 'Administration', permission: 'customers.manage', collection: 'master records', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Archive remains subject to server-side reference checks and optimistic concurrency.' },
   { operation: 'roomType.save', domain: 'Rooms', permission: 'rooms.manage', collection: 'roomTypes', native: 'implemented', backend: 'implemented', web: 'missing' },
   { operation: 'ratePlan.save', domain: 'Rooms', permission: 'rooms.manage', collection: 'ratePlans', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'floorplan.save', domain: 'POS', permission: 'floorplan.manage', collection: 'tables', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'table.ready', domain: 'POS', permission: 'pos.manage_table', collection: 'tables', native: 'implemented', backend: 'implemented', web: 'implemented' },
-  { operation: 'customerCredit.charge', domain: 'Finance', permission: 'credit.charge', collection: 'creditLedger', native: 'implemented', backend: 'missing', web: 'missing', notes: 'The Web/PostgreSQL protocol uses the distinct operation name credit.charge; do not treat that as exact command-name parity. Acceptance must verify equivalent customer balance and order effects across both contracts.' },
-  { operation: 'credit.charge', domain: 'Finance', permission: 'credit.charge', collection: 'orders', native: 'missing', backend: 'implemented', web: 'implemented', notes: 'Staged Web POS records customer credit against an order; native uses customerCredit.charge. Cross-runtime effect and payload parity remain to be accepted.' },
+  { operation: 'customerCredit.charge', domain: 'Finance', permission: 'credit.charge', collection: 'creditLedger', native: 'implemented', backend: 'implemented', web: 'missing', notes: 'Canonical v2 handler is credit.charge. Migration 047 routes customerCredit.charge into that same implementation and derives the customer and the outstanding amount from the order using the identical rule, so the derived Native payload and the explicit Web payload share one code path. The Native command name remains for the existing terminal UI; it is not a second financial rule.' },
+  { operation: 'credit.charge', domain: 'Finance', permission: 'credit.charge', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Canonical customer credit charge. Accepts the explicit Web payload (customerId + amountMinor) and the derived Native payload (orderId only); both must settle the outstanding order balance exactly.' },
   { operation: 'inventory.openingBalance', domain: 'Inventory', permission: 'inventory.adjust', collection: 'stockItems', native: 'implemented', backend: 'implemented', web: 'missing' },
   { operation: 'inventory.receive', domain: 'Inventory', permission: 'inventory.receive', collection: 'stockItems', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'inventory.adjust', domain: 'Inventory', permission: 'inventory.adjust', collection: 'stockItems', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Dedicated reason-required Admin balance correction emits an ADMIN_CORRECTION movement in native and staged SQL sources. Spirit/wine correction accepts sealed bottles plus open ml and records the conserved breakdown. Step-up re-authentication and operator acceptance remain pending.' },
@@ -89,8 +127,8 @@ const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'ap
   { operation: 'order.transfer', domain: 'POS', permission: 'order.transfer', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Web POS queues the transfer command with source/target table IDs; server rejects occupied destinations.' },
   { operation: 'order.merge', domain: 'POS', permission: 'order.merge', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'implemented', notes: 'Web POS queues a merge command with source/target table and order IDs; server remains authoritative for merge rules.' },
   { operation: 'order.discount', domain: 'POS', permission: 'order.discount', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Web collects percentage and reason, but does not yet provide the required manager-approval token flow for non-manager actors.' },
-  { operation: 'order.comp', domain: 'POS', permission: 'order.comp', collection: 'orders', native: 'missing', backend: 'implemented', web: 'partial', notes: 'Staged Web supports an order-level comp with reason; non-manager approval-token UX is missing. Native currently exposes item-level order.compItem instead.' },
-  { operation: 'order.compItem', domain: 'POS', permission: 'order.comp', collection: 'orders', native: 'implemented', backend: 'missing', web: 'missing', notes: 'Native supports item-level comps; staged SQL/Web currently implement order-level order.comp, which is not equivalent item-level parity.' },
+  { operation: 'order.comp', domain: 'POS', permission: 'order.comp', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Whole-order comp: the entire order total becomes zero. Distinct from order.compItem and never overloaded onto it. Non-manager approval-token UX is still missing on Web.' },
+  { operation: 'order.compItem', domain: 'POS', permission: 'order.comp', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'missing', notes: 'Item-level comp: zeroes exactly one order line and leaves every other line payable. Migration 047 implements it as its own handler because it is a different business operation from whole-order order.comp.' },
   { operation: 'order.void', domain: 'POS', permission: 'order.void', collection: 'orders', native: 'implemented', backend: 'implemented', web: 'partial', notes: 'Basic remote void exists; approval and full disposition parity remain.' },
   { operation: 'payment.record', domain: 'Finance', permission: 'payment.record', collection: 'payments', native: 'implemented', backend: 'implemented', web: 'implemented' },
   { operation: 'payment.split', domain: 'Finance', permission: 'payment.split', collection: 'payments', native: 'implemented', backend: 'implemented', web: 'implemented' },
@@ -125,6 +163,7 @@ const operationDefinitions: Omit<OperationDefinition, 'offlineEligibility' | 'ap
 /** Unknown is intentional until a workflow has evidence in the parity and operator audit. */
 export const WEB_OPERATION_MANIFEST: readonly OperationDefinition[] = operationDefinitions.map(item => ({
   ...item,
+  v2Routing: LOCAL_ONLY_OPERATIONS.has(item.operation) ? 'local-only' : 'shared',
   offlineEligibility: ['floorplan.save','admin.import.stage','admin.import.dryRun','admin.import.apply'].includes(item.operation) ? 'online-only' : item.web === 'blocked' ? 'blocked' : 'unknown',
   approval: item.operation === 'floorplan.save' || item.operation.startsWith('admin.import.') ? 'none' : item.notes?.toLowerCase().includes('approval') ? 'conditional' : 'unknown',
   versioning: item.operation === 'floorplan.save' || item.operation.startsWith('admin.import.') ? 'required' : 'unknown',

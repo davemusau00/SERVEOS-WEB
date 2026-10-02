@@ -28,4 +28,33 @@ const markdown = [
 fs.mkdirSync('docs/generated', { recursive: true });
 fs.writeFileSync('docs/generated/OPERATION_PARITY_LEDGER.json', `${JSON.stringify(ledger,null,2)}\n`);
 fs.writeFileSync('docs/generated/OPERATION_PARITY_LEDGER.md', markdown);
+
+// Mandatory production Native cutover gate.
+//
+// Forcing the terminal through v2 turns any Native business mutation the Cloud v2
+// dispatcher does not implement into a runtime PROTOCOL_UNSUPPORTED failure at
+// the till. This gate fails the build rather than discovering that on hardware.
+//
+// Device-local operations (raw ESC/POS printing, SQLite backup) are excluded:
+// they must never route through v2, and having no server handler is correct.
+const sharedNativeMutations = WEB_OPERATION_MANIFEST.filter(
+  item => item.native === 'implemented' && item.v2Routing === 'shared',
+);
+const localOnlyNative = WEB_OPERATION_MANIFEST.filter(
+  item => item.native === 'implemented' && item.v2Routing === 'local-only',
+);
+const blockers = sharedNativeMutations.filter(item => item.backend !== 'implemented');
+if (blockers.length) {
+  console.error(
+    `Native -> Cloud parity gate FAILED. ${blockers.length} Native business mutation(s) have no complete v2 handler:\n` +
+      blockers.map(item => `  - ${item.operation} (backend: ${item.backend})`).join('\n') +
+      `\nEvery shared operation the Native production UI emits must reach servos_v2 with the same meaning before SHARED_V2.`,
+  );
+  process.exit(1);
+}
+
 console.log(`Generated parity ledger for ${names.size} operations.`);
+console.log(
+  `Native -> Cloud parity gate passed: ${sharedNativeMutations.length} shared Native mutations have a complete v2 handler; ` +
+  `${localOnlyNative.length} device-local operations (${localOnlyNative.map(item => item.operation).join(', ')}) are correctly excluded.`,
+);

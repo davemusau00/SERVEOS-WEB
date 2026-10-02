@@ -125,6 +125,133 @@ fn legacy_outbox_can_be_formally_superseded_only_after_a_ready_cutover() {
 }
 
 #[test]
+fn receipt_money_matches_the_preview_contract_with_integer_minor_units() {
+    // The exact contract the TypeScript preview renders: KES 1,250.00.
+    assert_eq!(receipts::receipt_money(0,"KES"),"KES 0.00");
+    assert_eq!(receipts::receipt_money(125000,"KES"),"KES 1,250.00");
+    assert_eq!(receipts::receipt_money(100,"KES"),"KES 1.00");
+    assert_eq!(receipts::receipt_money(5,"KES"),"KES 0.05");
+    assert_eq!(receipts::receipt_money(999,"KES"),"KES 9.99");
+    // Grouping boundaries: 1, 12, 123, 1234, 12345, 123456.
+    assert_eq!(receipts::receipt_money(100,"KES"),"KES 1.00");
+    assert_eq!(receipts::receipt_money(123400,"KES"),"KES 1,234.00");
+    assert_eq!(receipts::receipt_money(1234567,"KES"),"KES 12,345.67");
+    assert_eq!(receipts::receipt_money(123456789,"KES"),"KES 1,234,567.89");
+    // Large Kenyan shilling totals must not lose precision to floating point.
+    assert_eq!(receipts::receipt_money(999999999999,"KES"),"KES 9,999,999,999.99");
+    // A negative amount keeps its sign and stays grouped.
+    assert_eq!(receipts::receipt_money(-125000,"KES"),"-KES 1,250.00");
+    assert_eq!(receipts::receipt_money(i64::MIN,"KES"),"-KES 92,233,720,368,547,758.08");
+}
+
+#[test]
+fn cutover_manifest_is_deterministic_secret_free_and_totals_reconcile() {
+    let (_dir,mut db,admin)=setup();
+    // A realistic slice of business state. Stock must move through the inventory
+    // ledger, not through record.save, which deliberately strips currentStock.
+    run(&mut db,&admin,"record.save",json!({"collection":"stockLocations","id":"bar","data":{"name":"Bar Store","code":"BAR","baseUnit":"unit"}}));
+    run(&mut db,&admin,"record.save",json!({"collection":"stockItems","id":"stock-cola","data":{"name":"Cola","code":"COLA","baseUnit":"bottle","averageUnitCost":0}}));
+    run(&mut db,&admin,"inventory.adjust",json!({"stockItemId":"stock-cola","locationId":"main","countedQty":24,"reason":"Establish opening balance"}));
+    run(&mut db,&admin,"inventory.adjust",json!({"stockItemId":"stock-cola","locationId":"bar","countedQty":6,"reason":"Establish opening balance"}));
+    run(&mut db,&admin,"record.save",json!({"collection":"customers","id":"cust-1","data":{"name":"Walk In","code":"WALK"}}));
+
+    let manifest=cutover::cutover_manifest(&db).unwrap();
+    let hash=manifest["manifestHash"].as_str().unwrap();
+    assert_eq!(hash.len(),64,"the manifest hash must be a SHA-256 digest");
+
+    // Deterministic: the same database always produces the same evidence, and
+    // the timestamp is excluded from the hashed body.
+    let again=cutover::cutover_manifest(&db).unwrap();
+    assert_eq!(again["manifestHash"],manifest["manifestHash"]);
+    let mut expected=manifest.clone();
+    let generated=expected.as_object_mut().unwrap().remove("generatedAt");
+    let mut other=again.clone();
+    let other_generated=other.as_object_mut().unwrap().remove("generatedAt");
+    assert!(generated.is_some()&&other_generated.is_some());
+    assert_eq!(cutover::canonical_json(&expected),cutover::canonical_json(&other));
+
+    // A single added record must change the evidence.
+    run(&mut db,&admin,"record.save",json!({"collection":"customers","id":"cust-2","data":{"name":"Second","code":"SECOND"}}));
+    assert_ne!(cutover::cutover_manifest(&db).unwrap()["manifestHash"],manifest["manifestHash"]);
+
+    // Control totals are the numbers an operator reconciles by hand.
+    let totals=&manifest["totals"];
+    assert_eq!(totals["stockQuantity"],30,"stock must total 24 main + 6 bar");
+    let stock=manifest["collections"].as_array().unwrap().iter().find(|c|c["collection"]=="stockItems").unwrap();
+    assert_eq!(stock["activeCount"],1);
+    assert_eq!(stock["records"][0]["id"],"stock-cola");
+    assert_eq!(stock["records"][0]["archived"],false);
+
+    // Secrets must never appear anywhere in the manifest.
+    let text=manifest.to_string();
+    for forbidden in cutover::FORBIDDEN_MANIFEST_KEYS{
+        assert!(!text.contains(forbidden),"manifest must not contain {forbidden}");
+    }
+    // A record that smuggles a credential field is refused outright.
+    db.execute(
+        "INSERT INTO records(collection,id,version,data,archived) VALUES('customers','cust-secret',1,'{\"name\":\"Bad\",\"pinHash\":\"leaked\"}',0)",
+        [],
+    ).unwrap();
+    let refused=cutover::cutover_manifest(&db).unwrap_err();
+    assert!(refused.contains("credential field"),"a credential field must be refused: {refused}");
+}
+
+#[test]
+fn cutover_pages_are_stable_bounded_and_allowlisted() {
+    let (_dir,mut db,admin)=setup();
+    for index in 0..7 {
+        run(&mut db,&admin,"record.save",json!({"collection":"customers","id":format!("cust-{index:02}"),"data":{"name":format!("Customer {index}"),"code":format!("C{index:02}")}}));
+    }
+
+    // Collections outside the allowlist are refused, including the three legacy
+    // collections with no canonical v2 read path.
+    for denied in ["property","inventoryReceipts","maintenanceEvents","not_a_collection"]{
+        let refused=cutover::cutover_page(&db,denied,"",10).unwrap_err();
+        assert!(refused.contains("not eligible for cutover import"),"{} should be refused: {refused}",denied);
+    }
+    // Page size is bounded on both sides.
+    assert!(cutover::cutover_page(&db,"customers","",0).is_err());
+    assert!(cutover::cutover_page(&db,"customers","",501).is_err());
+
+    // Paging is stable and complete: every record is returned exactly once.
+    let mut seen=Vec::new();
+    let mut after=String::new();
+    loop {
+        let page=cutover::cutover_page(&db,"customers",&after,3).unwrap();
+        let records=page["records"].as_array().unwrap();
+        assert!(records.len()<=3);
+        // Re-reading the same cursor must return byte-identical content, so a
+        // retried import is provably idempotent.
+        let replay=cutover::cutover_page(&db,"customers",&after,3).unwrap();
+        assert_eq!(cutover::canonical_json(&replay),cutover::canonical_json(&page));
+        for record in records{
+            seen.push(record["id"].as_str().unwrap().to_string());
+            assert_eq!(record["source"],"LEGACY_SQLITE_CUTOVER");
+            assert_eq!(record["hash"].as_str().unwrap().len(),64);
+        }
+        if page["hasMore"]!=true{break;}
+        after=page["afterId"].as_str().unwrap().to_string();
+    }
+    seen.sort();
+    assert_eq!(seen,(0..7).map(|i|format!("cust-{i:02}")).collect::<Vec<_>>());
+
+    // Immutable business history is flagged so the server never re-transacts it.
+    assert_eq!(cutover::cutover_page(&db,"payments","",10).unwrap()["historyCollection"],true);
+    assert_eq!(cutover::cutover_page(&db,"customers","",10).unwrap()["historyCollection"],false);
+    assert!(cutover::HISTORY_COLLECTIONS.contains(&"receiptDocuments"));
+    assert!(cutover::HISTORY_COLLECTIONS.contains(&"journalEntries"));
+}
+
+#[test]
+fn cutover_manifest_refuses_once_the_terminal_is_already_shared() {
+    let (_dir,db,_admin)=setup();
+    set_authority_mode(&db,AuthorityMode::CutoverPrep,None,None,"freeze").unwrap();
+    set_authority_mode(&db,AuthorityMode::SharedV2,None,None,"cutover").unwrap();
+    let refused=cutover::cutover_manifest(&db).unwrap_err();
+    assert!(refused.contains("no local state left to cut over"),"{refused}");
+}
+
+#[test]
 fn native_roles_fail_closed_for_unknown_and_do_not_inherit_server_access() {
     for role in ["Admin", "Manager", "Cashier", "Server", "Chef", "Housekeeper", "Accountant", "Custom"] {
         assert!(!permissions(role).is_empty(), "role should have an explicit profile: {role}");

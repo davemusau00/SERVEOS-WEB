@@ -26,6 +26,21 @@ fn reject_legacy_business_write_when_v2_active(state:&Runtime,workflow:&str)->st
     let db=state.db.lock().map_err(|e|e.to_string())?;
     store::reject_legacy_business_write(&db,workflow)
 }
+/// Produce the deterministic cutover manifest for the current local business
+/// state. Read-only: it changes nothing and exports no credentials.
+#[tauri::command]
+fn runtime_v2_cutover_manifest(state: State<Runtime>) -> store::Result<Value> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    store::cutover::cutover_manifest(&db)
+}
+
+/// Read one bounded, ordered import page for a collection.
+#[tauri::command]
+fn runtime_v2_cutover_page(state: State<Runtime>, collection: String, after_id: String, page_size: Option<usize>) -> store::Result<Value> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    store::cutover::cutover_page(&db, &collection, &after_id, page_size.unwrap_or(200))
+}
+
 /// Move this terminal between business authorities. Only a forward move is
 /// possible, a reason is mandatory, and the move is recorded as immutable
 /// evidence. Entering CUTOVER_PREP freezes legacy business mutation; entering
@@ -1139,6 +1154,151 @@ fn runtime_receipt_history(state: State<Runtime>, token: String) -> store::Resul
     Ok(json!(result))
 }
 
+/// Build the synthetic full-format acceptance receipt content.
+///
+/// A text-only connection slip only proves the queue or socket is reachable.
+/// This exercises the real pipeline: header, contact lines, short and long items,
+/// quantity x unit price, discount, VAT, bold TOTAL, split tender, a 20+ item
+/// long receipt, the fixed footer, and both copies. The content is clearly
+/// marked NOT A SALE and never touches an order, payment or business outbox.
+fn printer_acceptance_lines(profile: &printer::PrinterProfile) -> (Vec<String>, Vec<String>) {
+    let width = profile.columns;
+    let money = |minor: i64| store::receipts::receipt_money(minor, "KES");
+    let centered = |text: &str| format!("{text:^width$}");
+    let pair = |left: &str, right: &str| {
+        if left.len() + right.len() + 1 > width {
+            format!("{left}\n{right:>width$}")
+        } else {
+            format!("{left}{}{right}", " ".repeat(width - left.len() - right.len()))
+        }
+    };
+    let stamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let long_name = "Imported premium single-origin Arabica beans 1kg whole bean roasted";
+
+    let mut customer = vec![
+        centered("SERVOS PRINTER ACCEPTANCE - NOT A SALE"),
+        centered("CountrySide Business Centre"),
+        centered("Nairobi, Kenya"),
+        centered("+254 700 000 000"),
+        centered("billing@countryside.example"),
+        centered("OUTLET: MAIN BAR"),
+        centered("CUSTOMER COPY"),
+        "Receipt: PRINTER-ACCEPTANCE".to_string(),
+        format!("Printed: {stamp}"),
+        "Cashier: Acceptance Runner".to_string(),
+        "-".repeat(width),
+        pair("Item / Qty x Unit", "Amount"),
+        "Cola 500ml".to_string(),
+        pair(&format!("2 x {}", money(150)), &money(300)),
+        "+ no ice".to_string(),
+        long_name.to_string(),
+        pair(&format!("1 x {}", money(120_000)), &money(120_000)),
+        "-".repeat(width),
+        pair("Subtotal", &money(120_300)),
+        pair("Discount", &format!("-{}", money(5_000))),
+        pair("VAT included (16%)", &money(17_800)),
+        pair("TOTAL", &money(115_300)),
+        "-".repeat(width),
+        pair("CASH", &money(60_000)),
+        pair("MPESA", &money(55_300)),
+        "M-Pesa ref: ACCEPTANCE123".to_string(),
+        pair("Cash tendered", &money(60_000)),
+        pair("Change", &money(5_200)),
+        pair("Paid", &money(115_300)),
+        pair("Balance", &money(0)),
+        centered("Thank you for your business."),
+    ];
+    // A 20+ item receipt proves the long path does not corrupt amount alignment.
+    for index in 1..=21 {
+        customer.push(pair(&format!("{index}. Additional line item"), &money(1_000 + index)));
+    }
+    for footer in store::receipts::FOOTER {
+        customer.push(centered(footer));
+    }
+
+    let mut business = vec![
+        centered("SERVOS PRINTER ACCEPTANCE - NOT A SALE"),
+        centered("BUSINESS RECORD COPY"),
+        format!("Printed: {stamp}"),
+        "-".repeat(width),
+        pair("Items on this slip", "22"),
+        pair("Gross", &money(120_300)),
+        pair("Discount", &format!("-{}", money(5_000))),
+        pair("TOTAL", &money(115_300)),
+        pair("Paid", &money(115_300)),
+        pair("Balance", &money(0)),
+    ];
+    for footer in store::receipts::FOOTER {
+        business.push(centered(footer));
+    }
+    (customer, business)
+}
+/// Print a full-format acceptance receipt and record the settings under test.
+#[tauri::command]
+fn runtime_printer_acceptance(state: State<Runtime>, token: String) -> store::Result<Value> {
+    let policy = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        require_printer_permission(&db, &token, "business.configure")?;
+        printer_policy(&db)
+    };
+    let profile = printer::PrinterProfile::from_policy(&policy)?;
+    if !["XP80T_LAN_ESC_POS", "XP80T_USB_ESC_POS"].contains(&profile.mode.as_str()) {
+        return Err("Select XP-80T LAN or Windows USB queue mode before sending the acceptance receipt".into());
+    }
+    let (customer, business) = printer_acceptance_lines(&profile);
+
+    // Reuse the configured branding so the acceptance run exercises the same
+    // logo and QR bytes a real receipt would send.
+    let (thermal_logo, mpesa_qr) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let branding: Value = db
+            .query_row("SELECT data FROM records WHERE collection='property' AND id='property'", [], |r| r.get::<_, String>(0))
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or(Value::Null);
+        (
+            branding.get("receiptThermalLogo").cloned().unwrap_or(Value::Null),
+            branding
+                .get("receiptMpesaTillQr")
+                .filter(|qr| qr["enabled"].as_bool() == Some(true))
+                .cloned()
+                .unwrap_or(Value::Null),
+        )
+    };
+
+    let endpoint = if profile.mode == "XP80T_LAN_ESC_POS" {
+        format!("tcp {}:{}", profile.host, profile.port)
+    } else {
+        format!("windows queue {}", profile.queue)
+    };
+    let settings = json!({
+        "kind":"PRINTER_PAPER_OBSERVED",
+        "printerMode":profile.mode,
+        "endpoint":endpoint,
+        "columns":profile.columns,
+        "feedLines":profile.feed_lines_before_cut,
+        "autoCut":profile.auto_cut,
+        "maxQrWidthDots":profile.max_qr_width_dots,
+        "maxLogoWidthDots":profile.max_logo_width_dots,
+        "acceptedAt":chrono::Utc::now().to_rfc3339(),
+        "note":"Synthetic acceptance slip. NOT A SALE. Verify header, amounts, TOTAL emphasis, Till QR scan, footer centering, logo, and the cut between copies.",
+    });
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let actor = store::actor(&db, &token, false)?;
+        acceptance_insert(&db, &actor, "PRINTER_PAPER_OBSERVED", settings)?;
+    }
+    queue_printer_job(
+        &state,
+        uuid::Uuid::new_v4().to_string(),
+        "PRINTER_ACCEPTANCE".into(),
+        policy,
+        customer,
+        business,
+        thermal_logo,
+        mpesa_qr,
+    )
+}
 #[tauri::command]
 fn runtime_printer_test(state: State<Runtime>, token: String) -> store::Result<Value> {
     let policy = {
@@ -1468,6 +1628,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             runtime_status,
             runtime_set_authority_mode,
+            runtime_v2_cutover_manifest,
+            runtime_v2_cutover_page,
             runtime_resolve_legacy_outbox,
             runtime_intake_save,
             runtime_intake_complete,
@@ -1505,6 +1667,7 @@ pub fn run() {
             runtime_receipt,
             runtime_receipt_history,
             runtime_printer_test,
+            runtime_printer_acceptance,
             runtime_printer_retry,
             runtime_printer_jobs
         ])

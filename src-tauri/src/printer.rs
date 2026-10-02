@@ -140,17 +140,26 @@ fn append_copy(bytes: &mut Vec<u8>, lines: &[String], profile: &PrinterProfile, 
         }
         let footer = footer_texts.contains(&line.trim());
         let bold = line.trim_start().starts_with("TOTAL") || line.trim()=="CUSTOMER COPY" || line.trim()=="BUSINESS RECORD COPY";
-        bytes.extend_from_slice(&[0x1b, b'M', if footer {1} else {0}, 0x1b, b'E', if bold {1} else {0}]);
-        let printable: String = line
-            .chars()
-            .map(|c| if c.is_ascii() && !c.is_control() { c } else { '?' })
-            .collect();
+        // The footer is the one block printed in Font B. A line pre-padded with
+        // spaces for the Font A width would therefore be misaligned on paper, so
+        // the padding is stripped and the printer's own justification centers it
+        // at whatever width Font B actually uses. Pre-padded centering and a font
+        // switch must never be combined.
+        let (printable, justify) = if footer {
+            (line.trim().to_string(), 1u8)
+        } else {
+            (
+                line.chars().map(|c| if c.is_ascii() && !c.is_control() { c } else { '?' }).collect::<String>(),
+                0u8,
+            )
+        };
+        bytes.extend_from_slice(&[0x1b, b'M', if footer {1} else {0}, 0x1b, b'E', if bold {1} else {0}, 0x1b, b'a', justify]);
         for wrapped in wrap_line(&printable, profile.columns) {
             bytes.extend_from_slice(wrapped.as_bytes());
             bytes.push(b'\n');
         }
     }
-    bytes.extend_from_slice(&[0x1b,b'M',0,0x1b,b'E',0]);
+    bytes.extend_from_slice(&[0x1b,b'a',0,0x1b,b'M',0,0x1b,b'E',0]);
     if let Some(logo)=logo { append_logo(bytes,logo,profile); }
     // Keep the final logo/footer clear of the cutter; the accepted hardware feed remains a separate gate.
     if profile.auto_cut {
@@ -192,21 +201,26 @@ fn decode_qr(qr:&Value,profile:&PrinterProfile)->Option<(usize,usize,Vec<u8>)>{
 
 /// Center a bounded square QR raster and surround it with explicit blank rows so it never touches the
 /// totals above or the fixed footer below. The cutter feed is never reused as the QR's bottom margin.
+///
+/// Centering uses ESC a 1 (justification), which the XP-80T applies to raster
+/// data. The previous implementation also emitted `GS ! n`, which is the
+/// character-size command: it magnified subsequent text rather than positioning
+/// the QR, and the compensating `GS ! 0` reset it. No horizontal-offset arithmetic
+/// is needed or attempted here.
 fn append_qr(bytes:&mut Vec<u8>,qr:&Value,profile:&PrinterProfile){
     let Some((width,height,raster))=decode_qr(qr,profile) else{return};
-    let text_dots=profile.columns.clamp(24,64)*8;
-    let pad=text_dots.saturating_sub(width)/2;
     let row_bytes=(width+7)/8;
     // ESC/POS GS v 0 is normal-density byte mode: xL/xH and yL/yH bound the raster.
     // Blank rows before and after keep the QR clear of the totals and the footer.
     bytes.extend(std::iter::repeat_n(b'\n',2));
-    // Center by moving to an absolute horizontal position, then restore the left margin afterwards.
-    bytes.extend_from_slice(&[0x1b,b'a',1,0x1d,b'!',(pad/8) as u8]);
+    // ESC a 1 centers the raster on the print area; ESC a 0 restores left
+    // justification so the footer below is not centered by accident.
+    bytes.extend_from_slice(&[0x1b,b'a',1]);
     bytes.extend_from_slice(&[0x1d,b'v',0,0,
         (row_bytes&0xff) as u8,((row_bytes>>8)&0xff) as u8,
         (height&0xff) as u8,((height>>8)&0xff) as u8]);
     bytes.extend_from_slice(&raster);
-    bytes.extend_from_slice(&[0x1d,b'!',0,0x1b,b'a',0]);
+    bytes.extend_from_slice(&[0x1b,b'a',0]);
     bytes.extend(std::iter::repeat_n(b'\n',2));
     bytes.push(b'\n');
 }
@@ -453,6 +467,76 @@ mod tests {
         // Configured feed lines still follow the final customer-facing content before the cut.
         let trailing = &bytes[cut.saturating_sub(profile.feed_lines_before_cut)..cut];
         assert!(trailing.iter().all(|byte| *byte == b'\n'));
+    }
+
+    /// A line pre-padded with spaces for Font A must never be printed in Font B:
+    /// that is how the fixed footer visibly drifts on paper. The footer is
+    /// stripped and centered with ESC a 1 instead.
+    #[test]
+    fn font_switched_footer_is_never_pre_padded() {
+        let profile = lan_profile();
+        // Mimic receipts::lines, which pads to the Font A width.
+        let width = profile.columns;
+        let padded = format!("{:^width$}", "Built By KINGSFORGE", width = width);
+        assert!(padded.starts_with(' '), "the source line must really be pre-padded");
+        let bytes = encode_receipt(&[padded.clone()], &[], None, None, &profile);
+
+        // Find the ESC M 1 (Font B) switch and the ESC a 1 that must follow it.
+        let font_b = bytes.windows(4).position(|part| part == &[0x1b, b'M', 1, 0x1b]).expect("Font B must be selected for the footer");
+        assert_eq!(&bytes[font_b..font_b + 3], &[0x1b, b'M', 1], "Font B must be selected for the footer");
+        assert_eq!(&bytes[font_b + 3..font_b + 6], &[0x1b, b'E', 0], "emphasis select must follow the font select");
+        assert_eq!(&bytes[font_b + 6..font_b + 9], &[0x1b, b'a', 1], "Font B footer must be centered by the printer, not by padding");
+
+        // The emitted text must be the trimmed value, directly after the centering command.
+        let after_justify = font_b + 9;
+        let footer_text = b"Built By KINGSFORGE";
+        assert_eq!(
+            &bytes[after_justify..after_justify + footer_text.len()],
+            footer_text,
+            "the footer text must follow the centering command with no padding"
+        );
+        assert_eq!(bytes[after_justify + footer_text.len()], b'\n');
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(!text.contains("        Built By KINGSFORGE"), "pre-padded footer text must never reach the printer");
+    }
+
+    /// ESC a 1 must immediately precede the QR raster, and ESC a 0 must restore
+    /// left justification afterwards. GS ! is the character-size command and must
+    /// never appear in QR placement: it magnifies text rather than positioning it.
+    #[test]
+    fn qr_placement_uses_justification_and_never_the_character_size_command() {
+        let profile = lan_profile();
+        let bytes = encode_receipt(&customer_lines(), &["BUSINESS RECORD COPY".into()], None, Some(&qr()), &profile);
+        // Anchor on ESC a 1 rather than searching for the GS v 0 header: the
+        // raster payload is all zeros in this fixture and would match a naive
+        // window search inside itself.
+        let center = bytes
+            .windows(3)
+            .position(|part| part == &[0x1b, b'a', 1])
+            .expect("ESC a 1 must be emitted before the QR raster");
+        let row_bytes = ((16 + 7) / 8) as u8;
+        let raster = center + 3;
+        // GS v 0 takes four dimension bytes: xL, xH, yL, yH.
+        assert_eq!(&bytes[raster..raster + 8], &[0x1d, b'v', 0, 0, row_bytes, 0, 16, 0],
+            "the QR graphics context must immediately follow ESC a 1");
+        assert_eq!(
+            &bytes[raster..raster + 6],
+            &[0x1d, b'v', 0, 0, row_bytes, 0],
+            "GS v 0 raster dimensions must match the payload"
+        );
+        // The raster payload follows the 6-byte GS v 0 header and is row_bytes * height.
+        let height = 16usize;
+        let payload_len = row_bytes as usize * height;
+        let after = raster + 8 + payload_len;
+        assert_eq!(&bytes[after..after + 3], &[0x1b, b'a', 0],
+            "ESC a 0 must restore alignment after the raster");
+
+        // No non-zero GS ! may appear anywhere in the encoded receipt.
+        for index in 0..bytes.len().saturating_sub(2) {
+            if bytes[index] == 0x1d && bytes[index + 1] == b'!' {
+                assert_eq!(bytes[index + 2], 0, "GS ! must not be used for positioning, found n={}", bytes[index + 2]);
+            }
+        }
     }
 
     /// The Till QR width bound is validated exactly like the existing logo bound.

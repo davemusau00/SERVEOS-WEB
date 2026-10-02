@@ -30,6 +30,9 @@ const evidence = {
     cloudBase: process.env.SERVOS_JOB_CLOUD_BASE || 'not-reported',
     cloudV2: process.env.SERVOS_JOB_CLOUD_V2 || 'not-reported',
     desktop: process.env.SERVOS_JOB_DESKTOP || 'not-reported',
+    // The Windows RAW spooler FFI only compiles on windows-latest. Recording it
+    // here makes it a release gate rather than an optional extra job.
+    windowsPrinter: process.env.SERVOS_JOB_WINDOWS_PRINTER || 'not-reported',
   },
   note: 'Evidence index only. Same-run job conclusions, schema inventory, artifact checksums, and required-artifact presence are recorded; underlying logs and artifacts remain authoritative for acceptance.',
 };
@@ -44,6 +47,7 @@ const expectedArtifactNames = Object.values({
   cloudBase: `cloud-base-${artifactRunTag}`,
   cloudV2: `cloud-v2-${artifactRunTag}`,
   desktop: `desktop-shell-${artifactRunTag}`,
+  windowsPrinter: `windows-printer-${artifactRunTag}`,
 });
 const downloadedRoot = 'artifacts/downloaded';
 const downloadedNames = fs.existsSync(downloadedRoot)
