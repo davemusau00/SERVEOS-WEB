@@ -58,6 +58,7 @@ try {
       'tests/supabase/web-session.sql',
       'tests/supabase/authority-modes.sql',
       'tests/supabase/cutover.sql',
+      'tests/supabase/native-parity.sql',
       'tests/supabase/inventory.sql',
       'tests/supabase/smart-items.sql',
       'tests/supabase/procurement.sql',
