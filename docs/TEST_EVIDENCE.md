@@ -52,13 +52,37 @@ spooler FFI is compiled on every release candidate. Unified receipt money format
 with thousands separators (`KES 1,250.00`), verified at `i64::MIN`. Added `runtime_printer_acceptance`
 printing a full production-format slip marked `SERVOS PRINTER ACCEPTANCE - NOT A SALE`.
 
+### Verified against disposable PostgreSQL (Docker, `npm run test:cloud:v2`)
+
+Migrations `20261001045`, `20261001046` and `20261001047` are now **executed and passing**, along with the
+new `authority-modes.sql`, `cutover.sql` and `native-parity.sql` suites and the real two-connection room
+booking race.
+
+Running them surfaced five real defects that source review had missed. Each would have broken the live
+cutover:
+
+1. `20261001045` declared a bare-`SELECT` wrapper as `language plpgsql`, which is a syntax error
+   (`select ...; end$$`). The whole migration transaction aborted. It is now `language sql`.
+2. `20261001046.servos_v2_import_cutover_page` had parameters named `cutover_id`/`page_index` that collide
+   with the same-named columns on `servos_v2.cutover_pages`, raising `column reference is ambiguous`. The
+   parameters are now prefixed.
+3. The same RPC used a bare `cutover_id` for the provenance stamp after the rename. Fixed.
+4. `20261001046.servos_v2_verify_cutover` cast every control total to `numeric`, but `paymentByTender` is a
+   per-tender object, so verification failed on any real manifest. It is now compared as `jsonb`.
+5. `20261001046.servos_v2_begin_cutover` cast `terminalId` directly, so a malformed client payload produced a
+   raw `invalid input syntax for type uuid` instead of an actionable validation failure.
+
+The parity suite also exposed an **unrecorded gap**: the Native terminal emits `order.assignCustomer` (it is
+in the native trading command list) but v2 had no handler, and the operation was never tracked in the parity
+ledger, so the build gate could not see it. `20261001047` now implements it.
+
+Fifteen existing SQL suites and `concurrency.mjs` only set `control.enabled=true`; they were updated to also
+set `authority_mode='SHARED_V2'`, because migration 045 now gates `servos_v2_execute` on the explicit mode.
+
 ### Not verified
 
-- **Docker was unavailable, so `tests/supabase/authority-modes.sql`, `tests/supabase/cutover.sql` and the
-  `20261001046`/`20261001047` migrations have never been executed.** Their assertions are unrun. Run
-  `npm run test:cloud:v2` on a Docker host before trusting them.
-- **No hosted Supabase project was contacted.** No migration was applied and no RPC was called against any real
-  database.
+- **No hosted Supabase project was contacted.** No migration has been applied and no RPC has been called
+  against the real business database. All SQL evidence above is from disposable PostgreSQL containers.
 - **No physical hardware was used.** The XP-80T, QR scanning, cutter/feed spacing, barcode scanner, full shift
   rehearsal, restart/recovery and backup/restore rehearsals (Phase 8) remain unproven. Source tests cannot
   establish paper behaviour.
