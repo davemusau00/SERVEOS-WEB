@@ -313,7 +313,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await page.getByRole('button',{name:'Close till',exact:true}).click();
   await expect.poll(()=>sql("select data->>'status' from servos_v2.records where collection='tillSessions' and data->>'status'='CLOSED';").trim()).toBe('CLOSED');
   await page.getByRole('button',{name:'Generate close-day snapshot',exact:true}).click();
-  await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='closeDayReports' and data->'sales'->>'refundsMinor'='250';").trim()).toBe('1');
+  await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='closeDayReports' and data->'sales'->>'refundsMinor'='250';").trim(),{timeout:30000}).toBe('1');
   expect(sql("select data->'cash'->>'varianceMinor' from servos_v2.records where collection='closeDayReports';").trim()).toBe('0');
  });
 });

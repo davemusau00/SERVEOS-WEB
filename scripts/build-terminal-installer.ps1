@@ -31,6 +31,8 @@ function Invoke-Checked {
     )
     Write-Host ('> {0} {1}' -f $FilePath, ($ArgumentList -join ' ')) -ForegroundColor DarkCyan
     $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -NoNewWindow
+    # Retain the native process handle so ExitCode remains available after exit.
+    $null = $process.Handle
     # Wait for the invoked script, rather than every surviving browser descendant.
     # Failed build commands must return their exit code promptly.
     $process.WaitForExit()
