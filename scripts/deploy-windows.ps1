@@ -213,7 +213,7 @@ $env:VITE_ENABLE_DEMO = 'false'
 $env:VITE_ENABLE_WEB_V2 = 'false'
 $packageStarted = (Get-Date).ToUniversalTime()
 $bundle = if ($Msi) { 'msi' } else { 'nsis' }
-Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'native:build', '--', '--locked', '--bundles', $bundle)
+Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'native:build', '--', '--bundles', $bundle, '--', '--locked')
 
 $cargoTargetDirectory = Join-Path $Repo 'src-tauri\target'
 if (-not [string]::IsNullOrWhiteSpace($env:CARGO_TARGET_DIR)) {

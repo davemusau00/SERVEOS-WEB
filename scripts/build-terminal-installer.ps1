@@ -30,7 +30,11 @@ function Invoke-Checked {
         [Parameter(Mandatory)][string[]]$ArgumentList
     )
     Write-Host ('> {0} {1}' -f $FilePath, ($ArgumentList -join ' ')) -ForegroundColor DarkCyan
-    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -Wait -PassThru -NoNewWindow
+    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -NoNewWindow
+    # Wait for the invoked script, rather than every surviving browser descendant.
+    # Failed build commands must return their exit code promptly.
+    $process.WaitForExit()
+    $process.Refresh()
     if ($process.ExitCode -ne 0) {
         throw "$FilePath exited with code $($process.ExitCode)."
     }
