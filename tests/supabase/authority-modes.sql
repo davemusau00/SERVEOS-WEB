@@ -40,7 +40,7 @@ end$$;
 do $$declare failed boolean:=false;begin
   perform public.servos_v2_set_authority_mode('CUTOVER_PREP','Freeze the legacy writer for bootstrap');
   if servos_v2.authority()<>'CUTOVER_PREP' then raise exception 'CUTOVER_PREP was not entered';end if;
-  begin perform public.servos_v2_set_authority_mode('SHARED_V2','Activate without a verified cutover');exception when others then failed:=sqlerrm like '%verified v2 cutover is required%';end;
+  begin perform public.servos_v2_set_authority_mode('SHARED_V2','Activate without a verified cutover');exception when others then failed:=sqlerrm like '%current verified native baseline required%';end;
   if not failed then raise exception 'SHARED_V2 must require a verified cutover';end if;
   if servos_v2.authority()<>'CUTOVER_PREP' then raise exception 'A refused transition must not change the authority';end if;
 end$$;
@@ -96,6 +96,16 @@ do $$declare result jsonb;ready_cut uuid;begin
   values((select business_id from servos_v2.control where singleton),
     '10000000-0000-4000-8000-0000000000c1',repeat('d',64),15,auth.uid(),0,'READY','{}'::jsonb)
   returning id into ready_cut;
+  begin
+    perform public.servos_v2_set_authority_mode('SHARED_V2','Ready without baseline');
+    raise exception 'READY alone must not permit shared writes';
+  exception when others then
+    if sqlerrm not like '%current verified native baseline required%' then raise;end if;
+  end;
+  update servos_v2.cutovers set status='COMMITTED',verification_hash=repeat('f',64) where id=ready_cut;
+  insert into servos_v2.cutover_evidence(cutover_id,kind,payload,recorded_by)
+  values(ready_cut,'NATIVE_BASELINE_VERIFIED',jsonb_build_object('verificationHash',repeat('f',64),
+    'contentDigest',servos_v2.cutover_baseline_content_hash(),'feedCursor',(select cursor from servos_v2.control where singleton)),auth.uid());
   result:=public.servos_v2_set_authority_mode('SHARED_V2','Verified v2 cutover committed');
   if result->>'authorityMode'<>'SHARED_V2' then raise exception 'SHARED_V2 was not reached: %',result;end if;
   if result->>'v2WritesEnabled'<>'true' then raise exception 'SHARED_V2 must enable v2 business writes';end if;

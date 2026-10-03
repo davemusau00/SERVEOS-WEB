@@ -1,9 +1,9 @@
 {
   "generatedBy": "npm run audit:ui",
   "schemaVersion": 2,
-  "sourceDigest": "c3004aacfa5daebc952a271ed2ff42fa56f91c38e5aa094c9485b17ac3bbd59d",
+  "sourceDigest": "4117d57925593cd9cfdb4d9ae0018e159be7117c915b71bcfa458a84d74ff819",
   "scope": "Compact tracked summary; full static inventory is a CI artifact and findings require human review",
-  "count": 3836,
+  "count": 3840,
   "fullArtifact": "artifacts/ui-audit/UI_INTERACTION_INVENTORY.full.json",
   "interactions": [
     {
@@ -17535,618 +17535,618 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:191:144",
+      "id": "src/native/QuickProductDialog.tsx:196:144",
       "file": "src/native/QuickProductDialog.tsx",
-      "line": 191,
+      "line": 196,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:191:90",
+      "id": "src/native/QuickProductDialog.tsx:196:90",
       "file": "src/native/QuickProductDialog.tsx",
-      "line": 191,
+      "line": 196,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:192:183",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 192,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:192:96",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 192,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:193:122",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 193,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:193:57",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 193,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:197:186",
+      "id": "src/native/QuickProductDialog.tsx:197:183",
       "file": "src/native/QuickProductDialog.tsx",
       "line": 197,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:197:98",
+      "id": "src/native/QuickProductDialog.tsx:197:96",
       "file": "src/native/QuickProductDialog.tsx",
       "line": 197,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:198:144",
+      "id": "src/native/QuickProductDialog.tsx:198:122",
       "file": "src/native/QuickProductDialog.tsx",
       "line": 198,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:198:75",
+      "id": "src/native/QuickProductDialog.tsx:198:57",
       "file": "src/native/QuickProductDialog.tsx",
       "line": 198,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:202:186",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 202,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:202:98",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 202,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:203:144",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 203,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:203:75",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 203,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:199:136",
+      "id": "src/native/QuickProductDialog.tsx:204:136",
       "file": "src/native/QuickProductDialog.tsx",
-      "line": 199,
+      "line": 204,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:199:79",
+      "id": "src/native/QuickProductDialog.tsx:204:79",
       "file": "src/native/QuickProductDialog.tsx",
-      "line": 199,
+      "line": 204,
       "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:201:113",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 201,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:201:55",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 201,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:1143",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:1200",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:191",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:252",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:430",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:533",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:651",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:713",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:852",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:202:963",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 202,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:198",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:286",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:414",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:490",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:567",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:697",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:765",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:877",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:942",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:203:988",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 203,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:1274",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:1375",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:1448",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:1585",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:2009",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:2057",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:436",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:524",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:824",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:205:885",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 205,
-      "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
       "id": "src/native/QuickProductDialog.tsx:206:113",
       "file": "src/native/QuickProductDialog.tsx",
       "line": 206,
-      "surface": "select",
+      "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:206:171",
+      "id": "src/native/QuickProductDialog.tsx:206:55",
       "file": "src/native/QuickProductDialog.tsx",
       "line": 206,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:209:108",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 209,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:209:170",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 209,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:212:224",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 212,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:212:334",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 212,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:212:447",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 212,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:212:514",
+      "id": "src/native/QuickProductDialog.tsx:207:1143",
       "file": "src/native/QuickProductDialog.tsx",
-      "line": 212,
-      "surface": "onChange",
+      "line": 207,
+      "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:213:1093",
+      "id": "src/native/QuickProductDialog.tsx:207:1200",
       "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:213:1209",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:213:1272",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:213:267",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:213:333",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:213:552",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:213:645",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:213:769",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:213:869",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:213:998",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 213,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:1054",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:1129",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:1693",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:1738",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:217",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:2389",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:2445",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:274",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:2780",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:2843",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:3112",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:3207",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:3354",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:3450",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:3572",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:3638",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:399",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:462",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:593",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:687",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:846",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:214:887",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 214,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/native/QuickProductDialog.tsx:220:116",
-      "file": "src/native/QuickProductDialog.tsx",
-      "line": 220,
+      "line": 207,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:220:183",
+      "id": "src/native/QuickProductDialog.tsx:207:191",
       "file": "src/native/QuickProductDialog.tsx",
-      "line": 220,
+      "line": 207,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:207:252",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 207,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:207:430",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 207,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:207:533",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 207,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:207:651",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 207,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:207:713",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 207,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:207:852",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 207,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:207:963",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 207,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:208:198",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 208,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:208:286",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 208,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:208:414",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 208,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:208:490",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 208,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:208:567",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 208,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:208:697",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 208,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:208:765",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 208,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:208:877",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 208,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:208:942",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 208,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:220:34",
+      "id": "src/native/QuickProductDialog.tsx:208:988",
       "file": "src/native/QuickProductDialog.tsx",
-      "line": 220,
+      "line": 208,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:210:1274",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 210,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:210:1375",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 210,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:210:1448",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 210,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/native/QuickProductDialog.tsx:220:372",
+      "id": "src/native/QuickProductDialog.tsx:210:1585",
       "file": "src/native/QuickProductDialog.tsx",
-      "line": 220,
+      "line": 210,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:210:2009",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 210,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:210:2057",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 210,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:210:436",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 210,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:210:524",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 210,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:210:824",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 210,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:210:885",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 210,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:211:113",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 211,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:211:171",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 211,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:214:108",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 214,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:214:170",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 214,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:217:224",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 217,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:217:334",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 217,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:217:447",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 217,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:217:514",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 217,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:1093",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:1209",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:1272",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:267",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:333",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:552",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:645",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:769",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:869",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:218:998",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 218,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:1054",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:1129",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:1693",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:1738",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:217",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:2389",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:2445",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:274",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:2780",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:2843",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:3112",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:3207",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:3354",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:3450",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:3572",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:3638",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:399",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:462",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:593",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:687",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:846",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:219:887",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 219,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:225:116",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 225,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:225:183",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 225,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:225:34",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 225,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/native/QuickProductDialog.tsx:225:372",
+      "file": "src/native/QuickProductDialog.tsx",
+      "line": 225,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
@@ -19579,72 +19579,100 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:24:121",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:28:121",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 24,
+      "line": 28,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:24:4",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:28:4",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 24,
+      "line": 28,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:33:199",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:37:199",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 33,
+      "line": 37,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:33:264",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:37:264",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 33,
+      "line": 37,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:33:396",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:37:396",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 33,
+      "line": 37,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:33:75",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:37:75",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 33,
+      "line": 37,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:38:209",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:42:209",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 38,
+      "line": 42,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:38:278",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:42:278",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 38,
+      "line": 42,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:38:412",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:42:412",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 38,
+      "line": 42,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/receipts/ReceiptBrandingEditor.tsx:38:85",
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:42:85",
       "file": "src/receipts/ReceiptBrandingEditor.tsx",
-      "line": 38,
+      "line": 42,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:48:142",
+      "file": "src/receipts/ReceiptBrandingEditor.tsx",
+      "line": 48,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:48:57",
+      "file": "src/receipts/ReceiptBrandingEditor.tsx",
+      "line": 48,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:49:201",
+      "file": "src/receipts/ReceiptBrandingEditor.tsx",
+      "line": 49,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/receipts/ReceiptBrandingEditor.tsx:49:72",
+      "file": "src/receipts/ReceiptBrandingEditor.tsx",
+      "line": 49,
       "surface": "button",
       "status": "UNREVIEWED"
     },
@@ -20923,84 +20951,84 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:1485",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:1579",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:1579",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:1673",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:1991",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:2085",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:2045",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:2139",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:2242",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:2336",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:2296",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:2390",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:2566",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:2660",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:2640",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:2734",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:2775",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:2869",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:2847",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:2941",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:2944",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:3038",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebAdministrationView.tsx:74:3085",
+      "id": "src/runtime/web/WebAdministrationView.tsx:74:3179",
       "file": "src/runtime/web/WebAdministrationView.tsx",
       "line": 74,
       "surface": "onClick",

@@ -1,13 +1,13 @@
 {
   "schemaVersion": 2,
   "generatedBy": "npm run audit:ui",
-  "sourceDigest": "c3004aacfa5daebc952a271ed2ff42fa56f91c38e5aa094c9485b17ac3bbd59d",
+  "sourceDigest": "4117d57925593cd9cfdb4d9ae0018e159be7117c915b71bcfa458a84d74ff819",
   "scope": "Compact tracked summary; full static signals are a CI artifact and do not imply acceptance",
-  "interactionCount": 3836,
-  "findingCount": 399,
+  "interactionCount": 3840,
+  "findingCount": 401,
   "findingSummary": {
     "custom-overlay-review": 36,
-    "disabled-action-explanation-review": 262,
+    "disabled-action-explanation-review": 264,
     "disabled-action-visibility": 20,
     "excessive-required-fields": 1,
     "form-busy-state-review": 7,

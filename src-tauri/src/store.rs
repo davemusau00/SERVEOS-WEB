@@ -374,6 +374,14 @@ pub fn verify_native_v2_baseline(
         .map_err(error)?
         .as_bytes(),
     );
+    let content: Vec<Value> = {
+        let mut statement=db.prepare("SELECT collection,record_id,version,archived,data FROM native_v2_records ORDER BY collection,record_id").map_err(error)?;
+        let rows=statement.query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,i64>(2)?,r.get::<_,bool>(3)?,r.get::<_,String>(4)?))).map_err(error)?;
+        rows.map(|row|{let(collection,id,version,archived,data)=row.map_err(error)?;
+            Ok(json!({"collection":collection,"id":id,"version":version,"archived":archived,"data":serde_json::from_str::<Value>(&data).map_err(error)?}))
+        }).collect::<Result<Vec<_>>>()?
+    };
+    let content_digest=sha256_hex(cutover::canonical_json(&json!(content)).as_bytes());
 
     Ok(json!({
         "verified": true,
@@ -386,6 +394,7 @@ pub fn verify_native_v2_baseline(
         "recordCount": records,
         "collectionCount": collections,
         "baselineDigest": digest,
+        "contentDigest": content_digest,
         "authorityMode": mode.as_str(),
         "unresolvedLegacyCommands": legacy_pending,
         "installedAt": updated_at,

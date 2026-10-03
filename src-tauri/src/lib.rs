@@ -58,8 +58,16 @@ async fn runtime_v2_verify_baseline(state: State<'_, Runtime>) -> store::Result<
     let policy = store::text(&active.identity, "policyVersion")?.to_string();
     let cursor = active.identity["cursor"].as_i64().ok_or("The server identity did not return a feed cursor")?;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let report = store::verify_native_v2_baseline(&db, &device_id, &business_id, &policy, cursor)?;
+    let (report,connection,prep)={
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        (store::verify_native_v2_baseline(&db, &device_id, &business_id, &policy, cursor)?,
+         (store::meta(&db,"cloud_url")?.ok_or("Cloud URL missing")?,store::meta(&db,"cloud_key")?.ok_or("Cloud key missing")?),
+         store::authority_mode(&db)?==store::AuthorityMode::CutoverPrep)
+    };
+    if prep {
+        let evidence=rpc(&connection.0,&connection.1,Some(&active.access_token),"servos_v2_attest_cutover_baseline",json!({"report":report})).await?;
+        return Ok(json!({"local":report,"server":evidence,"verified":true}));
+    }
     Ok(report)
 }
 
@@ -107,8 +115,14 @@ async fn runtime_resolve_legacy_outbox(state: State<'_,Runtime>, token: String, 
     let (evidence,active,terminal)=authenticated_cutover_evidence(&state,&cutover_id).await?;
     let mut db=state.db.lock().map_err(|e|e.to_string())?;
     store::actor(&db,&token,false)?;
+    if store::authority_mode(&db)?!=store::AuthorityMode::CutoverPrep{return Err("Legacy supersession requires CUTOVER_PREP".into());}
     let manifest=store::cutover::cutover_manifest(&db)?;
-    store::cutover::verify_server_evidence(&evidence,&cutover_id,&terminal,store::text(&active.identity,"businessId")?,manifest["manifestHash"].as_str(),false)?;
+    let proof_key=format!("cutover_verified_manifest:{cutover_id}");
+    let frozen_hash=store::meta(&db,&proof_key)?.unwrap_or_else(||manifest["manifestHash"].as_str().unwrap_or("").to_string());
+    store::cutover::verify_server_evidence(&evidence,&cutover_id,&terminal,store::text(&active.identity,"businessId")?,Some(&frozen_hash),false)?;
+    // Retain the original evidence binding: resolving the outbox changes the
+    // manifest's unresolved-work count, but an interrupted retry stays idempotent.
+    store::set_meta(&db,&proof_key,&frozen_hash)?;
     let resolved=store::supersede_legacy_outbox(&mut db,&cutover_id,true)?;
     Ok(json!({"cutoverId":cutover_id,"resolution":"SUPERSEDED_BY_V2_CUTOVER","resolvedCommands":resolved,"unresolvedLegacyCommands":store::unresolved_legacy_outbox(&db)?,"authorityMode":store::authority_mode(&db)?.as_str()}))
 }

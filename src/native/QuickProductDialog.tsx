@@ -32,7 +32,7 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
   const [code, setCode] = useState('');
   const [codeEdited, setCodeEdited] = useState(false);
   const [barcode, setBarcode] = useState('');
-  const [physical, setPhysical] = useState(!variantOnly);
+  const [physical, setPhysical] = useState(true);
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [packageType, setPackageType] = useState(variantOnly?'Bottle':'Can');

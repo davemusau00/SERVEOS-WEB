@@ -35,8 +35,8 @@ test('CI names every active engine and uploads failure evidence',()=>{
   assert.match(workflow,/\$\{\{ github\.run_attempt \}\}/);
   assert.match(workflow,/native-domain\.log/);
   assert.match(workflow,/if-no-files-found: error/);
-  assert.match(preview,/outputFolder: 'playwright-report'/);
-  assert.match(production,/outputFolder: 'playwright-report'/);
+  assert.match(preview,/outputFolder: 'playwright-report\/preview'/);
+  assert.match(production,/outputFolder: 'playwright-report\/production'/);
   assert.match(candidate,/Same-run CI evidence artifact is missing/);
   assert.match(candidate,/GITHUB_RUN_ATTEMPT/);
   assert.match(candidate,/requiredArtifactsPresent !== true/);

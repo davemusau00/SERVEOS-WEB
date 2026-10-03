@@ -55,12 +55,13 @@ test('POS and customer masters expose authoritative customer account workflows',
   assert.match(view,/Write off/);
 });
 
-test('release gate and docs move installed terminal to schema 13',()=>{
+test('release gate derives the current schema while retaining customer-credit migration',()=>{
   const verify=read('scripts/verify-release-0.2.ps1');
   const builder=read('scripts/build-terminal-installer.ps1');
   const upgrade=read('docs/EXISTING_TERMINAL_UPGRADE.md');
-  assert.match(verify,/013_customer_credit\.sql/);
-  assert.match(verify,/Schema:\s+13/);
-  assert.match(builder,/SQLiteSchema\s*=\s*13/);
-  assert.match(upgrade,/schema 13/i);
+  assert.match(read('src-tauri/src/store.rs'),/013_customer_credit\.sql/);
+  assert.match(verify,/terminal-release-schema\.mjs/);
+  assert.match(verify,/sqliteSchema -ne 15/);
+  assert.match(builder,/SQLiteSchema\s*=\s*\$schemaEvidence.sqliteSchema/);
+  assert.match(upgrade,/schema 15/i);
 });

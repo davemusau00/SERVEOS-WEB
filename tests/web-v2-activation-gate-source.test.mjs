@@ -112,7 +112,7 @@ test('the disposable harness proves the cutover bootstrap boundary',()=>{
     'a malformed manifest hash must be refused',
     'an invalid source terminal must be refused',
     'a refused manifest must not create a cutover',
-    'the cutover allowlist must exclude unsupported collections',
+    'cutover must preserve existing configuration/history while rejecting unknown collections',
     'CUTOVER_PREP must freeze the legacy writer',
     'CUTOVER_PREP must still refuse v2 business writes',
     'an ineligible collection must be refused',

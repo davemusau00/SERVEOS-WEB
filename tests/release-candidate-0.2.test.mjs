@@ -66,10 +66,10 @@ test('0.2.0 release identity and existing-terminal upgrade contract are pinned',
   assert.match(migration,/PRAGMA user_version=13/);
   assert.match(builder,/docs\\EXISTING_TERMINAL_UPGRADE\.md/);
   assert.match(builder,/docs\\RELEASE_0\.2_ACCEPTANCE\.md/);
-  assert.match(builder,/SQLiteSchema\s*=\s*13/);
+  assert.match(builder,/SQLiteSchema\s*=\s*\$schemaEvidence.sqliteSchema/);
   assert.match(builder,/ExistingEnrollmentPreserved\s*=\s*\$true/);
   assert.match(upgrade,/Do not repeat Intake or enrollment/);
-  assert.match(upgrade,/old binary must never be pointed at the already-upgraded schema-12 database/i);
+  assert.match(upgrade,/old binary must never be pointed at the already-upgraded schema-15 database/i);
   assert.match(acceptance,/PhysicalAcceptance/);
 });
 

@@ -8,7 +8,7 @@ This worksheet is the final acceptance record for the installed **ServOS 0.2.0**
 Git commit:
 Version:                 0.2.0
 Application identifier:  ke.servos.business
-SQLite schema:           13
+SQLite schema:           15
 Release folder:
 Installer:
 Installer SHA-256:
@@ -28,7 +28,7 @@ Date:
 - [ ] Identifier is `ke.servos.business`.
 - [ ] Installer SHA-256 matches.
 - [ ] `ExistingEnrollmentPreserved` is true.
-- [ ] Manifest reports SQLite schema 13.
+- [ ] Manifest reports SQLite schema 15.
 - [ ] No database, PIN, service-role key or `.env.local` is packaged.
 
 ## Gate B — existing-terminal migration
@@ -39,7 +39,7 @@ Date:
 - [ ] Intake not repeated.
 - [ ] Terminal ID and device enrollment preserved.
 - [ ] Installation stage remains LIVE.
-- [ ] Database opens at schema 13.
+- [ ] Database opens at schema 15.
 - [ ] SQLite quick_check healthy.
 - [ ] Business record counts reconcile.
 - [ ] Pending outbox preserved.

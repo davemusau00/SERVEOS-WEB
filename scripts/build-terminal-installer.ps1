@@ -127,6 +127,10 @@ if (-not $installer) {
 }
 
 $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
+$schemaJson = & node.exe (Join-Path $Repo 'scripts\terminal-release-schema.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Could not determine terminal schema and canonical migration evidence.' }
+$schemaEvidence = $schemaJson | ConvertFrom-Json
+$signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
 $sidecar = $installer.FullName + '.sha256'
 if (-not (Test-Path $sidecar)) {
     throw "The build completed but its SHA-256 sidecar is missing: $sidecar"
@@ -152,6 +156,9 @@ Copy-Item -LiteralPath (Join-Path $Repo 'scripts\servos-terminal-doctor.ps1') -D
 Copy-Item -LiteralPath (Join-Path $Repo 'scripts\run-terminal-tests.ps1') -Destination $releaseDir
 Copy-Item -LiteralPath (Join-Path $Repo 'docs\EXISTING_TERMINAL_UPGRADE.md') -Destination $releaseDir
 Copy-Item -LiteralPath (Join-Path $Repo 'docs\RELEASE_0.2_ACCEPTANCE.md') -Destination $releaseDir
+Copy-Item -LiteralPath (Join-Path $Repo 'docs\SHARED_V2_CUTOVER_RUNBOOK.md') -Destination $releaseDir
+Copy-Item -LiteralPath (Join-Path $Repo 'docs\TERMINAL_DEPLOYMENT_READINESS.md') -Destination $releaseDir
+$schemaEvidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $releaseDir 'migration-inventory.json') -Encoding UTF8
 
 $manifest = [ordered]@{
     Product = $tauri.productName
@@ -163,11 +170,20 @@ $manifest = [ordered]@{
     BuiltAt = (Get-Date).ToUniversalTime().ToString('o')
     BundleFormat = if ($Msi) { 'msi' } else { 'nsis' }
     TestsSkipped = [bool]$SkipTests
-    SQLiteSchema = 13
-    MigrationCompatibility = 'Additive forward migration through schema 12; old binaries cannot open upgraded databases.'
+    SQLiteSchema = $schemaEvidence.sqliteSchema
+    MigrationCompatibility = 'Forward migration through the recorded schema; never reopen the upgraded database with an older binary.'
+    AuthorityProfile = 'EXISTING_TERMINAL_SHARED_V2_CUTOVER'
+    InitialAuthorityMode = 'PRESERVE_EXISTING; legacy installations start LEGACY_LOCAL'
+    SharedAuthorityActivation = 'PENDING: verified bootstrap, baseline, reconciliation and explicit commissioning'
+    CanonicalMigrations = $schemaEvidence.migrations
+    NativeMigrations = $schemaEvidence.nativeMigrationHashes
+    MigrationSetSha256 = $schemaEvidence.migrationSetSha256
+    MigrationHashEncoding = $schemaEvidence.hashEncoding
+    SigningStatus = $signature.Status.ToString()
+    SigningPublisher = if ($signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { 'UNSIGNED' }
     ExistingEnrollmentPreserved = $true
     PhysicalAcceptance = 'PENDING: requires existing POS and peripherals'
-    HostedAcceptance = 'PENDING: retained Supabase project and approved Remote Manager accounts'
+    HostedAcceptance = 'PENDING: retained Supabase project, real Auth identities, cutover and cross-client convergence'
     WebView2Mode = $tauri.bundle.windows.webviewInstallMode.type
     Installer = $installer.Name
     InstallerSha256 = $actualHash

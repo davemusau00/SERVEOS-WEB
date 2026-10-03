@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { testRoomConcurrency } from '../tests/supabase/concurrency.mjs';
+import { testNativeCutover } from '../tests/supabase/native-cutover.mjs';
 import { baseMigrations, v2Migrations, canonicalMigrations, expansionChain, canonicalNameFor, migrationPath } from './canonical-migrations.mjs';
 
 const container = `servos-policy-test-${randomUUID()}`;
@@ -74,7 +75,10 @@ try {
     run(['exec', '-i', container, 'psql', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1'], readFileSync(file, 'utf8'));
     console.log(`Passed: ${file}`);
   }
-  if (process.argv.includes('--expansion')) await testRoomConcurrency(container);
+  if (process.argv.includes('--expansion')) {
+    testNativeCutover(container);
+    await testRoomConcurrency(container);
+  }
 } finally {
   if (started) run(['stop', container]);
 }

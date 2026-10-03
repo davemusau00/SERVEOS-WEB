@@ -17,12 +17,12 @@ do $$
 declare
   bad integer := 0;
 begin
-  if servos_v2.cutover_collection_allowed('property') then bad := bad + 1; end if;
-  if servos_v2.cutover_collection_allowed('inventoryReceipts') then bad := bad + 1; end if;
-  if servos_v2.cutover_collection_allowed('maintenanceEvents') then bad := bad + 1; end if;
+  if not servos_v2.cutover_collection_allowed('property') then bad := bad + 1; end if;
+  if not servos_v2.cutover_collection_allowed('inventoryReceipts') then bad := bad + 1; end if;
+  if not servos_v2.cutover_collection_allowed('maintenanceEvents') then bad := bad + 1; end if;
   if servos_v2.cutover_collection_allowed('secrets') then bad := bad + 1; end if;
   if bad > 0 then
-    raise exception 'the cutover allowlist must exclude unsupported collections';
+    raise exception 'cutover must preserve existing configuration/history while rejecting unknown collections';
   end if;
   if not servos_v2.cutover_collection_allowed('customers') then
     raise exception 'the cutover allowlist must include core business collections';
@@ -147,7 +147,7 @@ begin
 
   -- An ineligible collection is refused outright.
   begin
-    perform public.servos_v2_import_cutover_page(cut,0,'property',
+    perform public.servos_v2_import_cutover_page(cut,0,'secrets',
       jsonb_build_object('afterId','','records','[]'::jsonb));
     raise exception 'an ineligible collection must be refused';
   exception when others then
