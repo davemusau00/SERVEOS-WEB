@@ -138,6 +138,9 @@ begin
       'stockQuantity',30,'stockMovements',0,'tillCount',0,
       'openTillCashMinor',0,'closedTillCashMinor',0,'creditOutstandingMinor',0,
       'payableOutstandingMinor',0,'receiptTotalMinor',0,'orderTotalMinor',0));
+  manifest:=jsonb_set(manifest,'{collections}',(select jsonb_agg(g||jsonb_build_object('collectionHash',
+    encode(extensions.digest(convert_to((select coalesce(string_agg(r->>'hash','' order by r->>'id' collate "C"),'') from jsonb_array_elements(g->'records') r)||(g->>'activeCount'),'UTF8'),'sha256'),'hex')))
+    from jsonb_array_elements(manifest->'collections') g));
   manifest:=manifest||jsonb_build_object('manifestHash',encode(extensions.digest(convert_to(servos_v2.cutover_canonical_json(manifest-'manifestHash'),'UTF8'),'sha256'),'hex'));
   perform public.servos_v2_begin_cutover(manifest);
   select id into cut from servos_v2.cutovers order by started_at desc limit 1;

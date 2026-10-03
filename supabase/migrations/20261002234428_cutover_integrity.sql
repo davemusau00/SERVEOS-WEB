@@ -356,6 +356,9 @@ begin
        is distinct from (group_entry->>'activeCount')::bigint then raise exception 'VALIDATION_FAILED: manifest active count';end if;
     if (select count(*) from jsonb_array_elements(group_entry->'records') e where (e->>'archived')::boolean)
        is distinct from (group_entry->>'archivedCount')::bigint then raise exception 'VALIDATION_FAILED: manifest archived count';end if;
+    select encode(extensions.digest(convert_to(coalesce(string_agg(e->>'hash','' order by e->>'id' collate "C"),'')||(group_entry->>'activeCount'),'UTF8'),'sha256'),'hex')
+      into actual_hash from jsonb_array_elements(group_entry->'records') e;
+    if group_entry->>'collectionHash' is distinct from actual_hash then raise exception 'MANIFEST_MISMATCH: collection content hash';end if;
     active_total:=active_total+(group_entry->>'activeCount')::bigint;
   end loop;
   if active_total is distinct from (manifest->>'recordCount')::bigint then raise exception 'VALIDATION_FAILED: manifest record count';end if;
@@ -417,7 +420,7 @@ end$$;
 
 create function public.servos_v2_verify_cutover(cutover_id uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare who uuid:=servos_v2.cutover_precheck(); cut servos_v2.cutovers; missing bigint; differences bigint; result jsonb;
+declare who uuid:=servos_v2.cutover_precheck(); cut servos_v2.cutovers; missing bigint; differences bigint; unexpected bigint; result jsonb;
 begin
   select * into cut from servos_v2.cutovers c where c.id=cutover_id for update;
   if not found then raise exception 'VALIDATION_FAILED: unknown cutover';end if;
@@ -428,9 +431,13 @@ begin
     left join servos_v2.records r on r.collection=e.collection and r.id=e.id
     where e.cutover_id=cut.id and (r.id is null or r.version<>e.version or r.archived<>e.archived or r.data is distinct from
       case when servos_v2.cutover_collection_is_history(e.collection) then e.source_data||jsonb_build_object('source','LEGACY_SQLITE_CUTOVER','sourceCutoverId',cut.id::text,'sourceVersion',e.version) else e.source_data end);
-  if missing>0 or differences>0 then
+  select count(*) into unexpected from servos_v2.records r where not exists(
+    select 1 from servos_v2.cutover_record_evidence e where e.cutover_id=cut.id and e.collection=r.collection and e.id=r.id)
+    and not (r.collection='employees' and exists(select 1 from servos_v2.staff_profiles s
+      where s.staff_id=r.id and s.auth_user_id::text=r.data->>'authUserId'));
+  if missing>0 or differences>0 or unexpected>0 then
     update servos_v2.cutovers set status='VERIFYING',verification_hash=null where id=cut.id;
-    return jsonb_build_object('cutoverId',cut.id,'status','VERIFYING','verified',false,'missingRecords',missing,'changedRecords',differences);
+    return jsonb_build_object('cutoverId',cut.id,'status','VERIFYING','verified',false,'missingRecords',missing,'changedRecords',differences,'unexpectedRecords',unexpected);
   end if;
   result:=servos_v2.servos_v2_verify_cutover(cutover_id);
   if result->>'verified'='true' then

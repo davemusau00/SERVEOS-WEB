@@ -17,8 +17,14 @@ select public.servos_v2_set_authority_mode('CUTOVER_PREP','Disposable native cut
 select public.servos_v2_register_device('10000000-0000-4000-8000-000000000001','Disposable fixture','DESKTOP');
 do $$
 declare fixture jsonb:=convert_from(decode('${encoded}','hex'),'UTF8')::jsonb;
-  cut uuid; page jsonb; result jsonb; index integer:=0; tampered jsonb; refused boolean:=false;
+  cut uuid; page jsonb; result jsonb; index integer:=0; tampered jsonb; refused boolean:=false; bad_manifest jsonb;
 begin
+  bad_manifest:=jsonb_set(fixture->'manifest','{collections,0,collectionHash}',to_jsonb(repeat('0',64)));
+  bad_manifest:=bad_manifest||jsonb_build_object('manifestHash',encode(extensions.digest(convert_to(servos_v2.cutover_canonical_json(bad_manifest-'generatedAt'-'manifestHash'),'UTF8'),'sha256'),'hex'));
+  begin perform public.servos_v2_begin_cutover(bad_manifest);
+  exception when others then refused:=sqlerrm like '%collection content hash%';end;
+  if not refused then raise exception 'incorrect collection hash was accepted';end if;
+  refused:=false;
   result:=public.servos_v2_begin_cutover(fixture->'manifest');
   cut:=(result->>'cutoverId')::uuid;
   result:=public.servos_v2_verify_cutover(cut);
@@ -29,6 +35,11 @@ begin
     perform public.servos_v2_import_cutover_page(cut,0,page->>'collection',tampered);
   exception when others then refused:=sqlerrm like '%MANIFEST_MISMATCH%';end;
   if not refused then raise exception 'record content tampering was accepted';end if;
+  refused:=false;
+  tampered:=jsonb_set(page,'{records,0,data,nestedCredential}',jsonb_build_object('password','Synthetic forbidden secret'));
+  begin perform public.servos_v2_import_cutover_page(cut,0,page->>'collection',tampered);
+  exception when others then refused:=sqlerrm like '%credential field%';end;
+  if not refused then raise exception 'nested credential was accepted';end if;
   for page in select value from jsonb_array_elements(fixture->'pages') loop
     result:=public.servos_v2_import_cutover_page(cut,index,page->>'collection',page);
     result:=public.servos_v2_import_cutover_page(cut,index,page->>'collection',page);
@@ -54,6 +65,11 @@ begin
     or not exists(select 1 from servos_v2.customer_credit_discrepancies where id='credit-discrepancy' and variance_minor=-100 and status='OPEN') then raise exception 'financial source indexes were not reconstructed';end if;
   result:=public.servos_v2_verify_cutover(cut);
   if result->>'verified'<>'true' or servos_v2.credit_balance('unicode')<>3000 then raise exception 'repeated verification duplicated financial effects';end if;
+  insert into servos_v2.records(collection,id,version,data) values('customers','unexpected-server-record',1,'{"name":"Unrelated server state"}');
+  result:=public.servos_v2_verify_cutover(cut);
+  if result->>'verified'<>'false' or (result->>'unexpectedRecords')::int<>1 then raise exception 'unmanifested server state did not block cutover';end if;
+  delete from servos_v2.records where collection='customers' and id='unexpected-server-record';
+  perform public.servos_v2_verify_cutover(cut);
   raise notice 'NATIVE_SNAPSHOT:%',jsonb_build_object('deviceId','10000000-0000-4000-8000-000000000001',
     'businessId',(select business_id from servos_v2.control where singleton),'cursor',(select cursor from servos_v2.control where singleton),
     'policyVersion',public.servos_v2_terminal_identity('10000000-0000-4000-8000-000000000001')->>'policyVersion',

@@ -87,13 +87,22 @@ Date:
 - [ ] No mutation before reviewed Apply.
 - [ ] Cancel a test batch.
 
-## Gate D — offline/restart
+## Gate D — authority, offline/restart and recovery
 
-- [ ] Offline launch/trading.
+- [ ] Offline launch preserves the persisted authority and approved cached access policy.
 - [ ] Count draft survives restart.
-- [ ] Local sale works.
+- [ ] A transaction follows the selected authority; offline or expired shared sessions never fall back to legacy writing.
 - [ ] Unsafe close is blocked if local work cannot flush.
 - [ ] Reconnect/sync state is sane.
+- [ ] Interrupted snapshot/import stays incomplete; changed replay/hash and unrelated server records block cutover.
+- [ ] Native baseline identity, counts, content hash, policy and cursor match the authenticated server.
+- [ ] Server requires committed cutover and native evidence before shared activation; native requires server shared evidence.
+- [ ] Terminal/Web transactions converge with matching stock, money, receipt and audit effects.
+- [ ] Full shift, close day and restart pass on the upgraded terminal.
+- [ ] Replacement-terminal checkpoint restore/replay passes without re-enabling a legacy writer.
+- [ ] After shared writes, recovery uses coordinated restore/replay or forward repair.
+- [ ] XP-80T customer/business copies have readable money/logo, correct feed and cutter behavior.
+- [ ] The supplied official QR physically scans from customer paper and is absent from the business copy.
 
 ## Release decision
 
