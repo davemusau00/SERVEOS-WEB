@@ -28,7 +28,7 @@ begin
   result:=public.servos_v2_begin_cutover(fixture->'manifest');
   cut:=(result->>'cutoverId')::uuid;
   result:=public.servos_v2_verify_cutover(cut);
-  if result->>'verified'<>'false' or (result->>'missingRecords')::int<>13 then raise exception 'native fixture must be incomplete before import: %',result;end if;
+  if result->>'verified'<>'false' or (result->>'missingRecords')::int<>14 then raise exception 'native fixture must be incomplete before import: %',result;end if;
   page:=fixture->'pages'->0;
   tampered:=jsonb_set(page,'{records,0,data,name}','"Tampered name with unchanged totals"'::jsonb);
   begin
@@ -65,6 +65,12 @@ begin
     or not exists(select 1 from servos_v2.customer_credit_discrepancies where id='credit-discrepancy' and variance_minor=-100 and status='OPEN') then raise exception 'financial source indexes were not reconstructed';end if;
   result:=public.servos_v2_verify_cutover(cut);
   if result->>'verified'<>'true' or servos_v2.credit_balance('unicode')<>3000 then raise exception 'repeated verification duplicated financial effects';end if;
+  if (result->>'orderSequenceFloor')::bigint<>700 or (select last_value from servos_v2.order_public_number_seq)<700
+    or (select receipt_sequence from servos_v2.control where singleton)<>950 then raise exception 'document counters were reset or source gaps lost: %',result;end if;
+  if (select data->>'orderNumber' from servos_v2.records where collection='orders' and id='closed-order')<>'ORD-000500' then raise exception 'historical order number was rewritten';end if;
+  if not exists(select 1 from servos_v2.records where collection='receiptDocuments' and id='historical-receipt' and archived
+    and data->>'number'='R-000950' and data->'brandingSnapshot'->'footerLines'='["Original immutable footer"]'::jsonb
+    and data->'brandingSnapshot'->'tillQr'->>'source'='Synthetic historical QR fixture') then raise exception 'historical receipt branding or number was rewritten';end if;
   insert into servos_v2.records(collection,id,version,data) values('customers','unexpected-server-record',1,'{"name":"Unrelated server state"}');
   result:=public.servos_v2_verify_cutover(cut);
   if result->>'verified'<>'false' or (result->>'unexpectedRecords')::int<>1 then raise exception 'unmanifested server state did not block cutover';end if;

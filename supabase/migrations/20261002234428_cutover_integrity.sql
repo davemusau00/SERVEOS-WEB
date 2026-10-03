@@ -172,7 +172,7 @@ end$$;
 -- index construction, not command replay: no new payments, journals or stock movements.
 create function servos_v2.cutover_rebuild_state(cutover_id uuid) returns jsonb
 language plpgsql set search_path='' as $$
-declare cut servos_v2.cutovers; row_data record; data jsonb; account text; entry_kind text; stamp timestamptz;
+declare cut servos_v2.cutovers; row_data record; data jsonb; account text; entry_kind text; stamp timestamptz; order_floor bigint; receipt_floor bigint;
 begin
   select * into cut from servos_v2.cutovers c where c.id=cutover_id;
   if exists(select 1 from servos_v2.allocations where state<>'RETURNED') then
@@ -275,7 +275,20 @@ begin
       case when data->>'resolvedAt' is not null then cut.started_by end,(data->>'resolvedAt')::timestamptz)
     on conflict(id) do nothing;
   end loop;
-  return jsonb_build_object('resourcesRebuilt',true,'financialIndexesRebuilt',true);
+  -- Preserve numbering independently of record versions. Deleted/archived
+  -- documents can leave counter gaps, so source counters travel in the manifest.
+  select greatest(coalesce((cut.source_manifest->'documentSequences'->>'order')::bigint,0),
+    coalesce(max(substring(e.source_data->>'orderNumber' from '^ORD-([0-9]+)$')::bigint),0)) into order_floor
+    from servos_v2.cutover_record_evidence e where e.cutover_id=cut.id and e.collection='orders';
+  if order_floor>0 then
+    perform setval('servos_v2.order_public_number_seq',greatest(order_floor,(select last_value from servos_v2.order_public_number_seq)),true);
+  end if;
+  select greatest(coalesce((cut.source_manifest->'documentSequences'->>'receipt')::bigint,0),
+    coalesce(max(substring(e.source_data->>'number' from '([0-9]+)$')::bigint),0)) into receipt_floor
+    from servos_v2.cutover_record_evidence e where e.cutover_id=cut.id and e.collection='receiptDocuments'
+      and (e.source_data->>'number' ~ '^(R-|V2-)[0-9]+$' or e.source_data->>'number' ~ ('^'||cut.source_terminal_id::text||'-[0-9]+$'));
+  update servos_v2.control set receipt_sequence=greatest(receipt_sequence,receipt_floor) where singleton;
+  return jsonb_build_object('resourcesRebuilt',true,'financialIndexesRebuilt',true,'orderSequenceFloor',order_floor,'receiptSequenceFloor',receipt_floor);
 end$$;
 revoke all on function servos_v2.cutover_rebuild_state(uuid) from public,anon,authenticated;
 
@@ -332,6 +345,9 @@ begin
     raise exception 'VALIDATION_FAILED: source terminal id must be a UUID';
   end;
   if jsonb_typeof(manifest->'collections') is distinct from 'array' then raise exception 'VALIDATION_FAILED: manifest collections';end if;
+  if manifest ? 'documentSequences' and (jsonb_typeof(manifest->'documentSequences') is distinct from 'object'
+    or coalesce(manifest->'documentSequences'->>'order','') !~ '^[0-9]+$'
+    or coalesce(manifest->'documentSequences'->>'receipt','') !~ '^[0-9]+$') then raise exception 'VALIDATION_FAILED: document sequence counters';end if;
   if manifest ? 'unsupportedCollections' and (jsonb_typeof(manifest->'unsupportedCollections') is distinct from 'array' or jsonb_array_length(manifest->'unsupportedCollections')>0) then
     raise exception 'VALIDATION_FAILED: source has unsupported collections; map and reconcile them before cutover';
   end if;

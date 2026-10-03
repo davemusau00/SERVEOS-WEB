@@ -357,6 +357,13 @@ pub fn cutover_manifest(db: &Connection) -> Result<Value> {
         .query_row("SELECT COALESCE(MAX(sequence),0) FROM outbox", [], |r| r.get(0))
         .map_err(error)?;
     let audit_count: i64 = db.query_row("SELECT COUNT(*) FROM audit", [], |r| r.get(0)).map_err(error)?;
+    let document_sequence = |key:&str| -> Result<i64> {
+        match meta(db,key)? {
+            None=>Ok(0),
+            Some(value)=>value.parse::<i64>().ok().filter(|value|*value>=0)
+                .ok_or_else(||format!("Invalid document sequence {key}; reconcile it before cutover")),
+        }
+    };
 
     let body = json!({
         "schemaVersion":1,
@@ -366,6 +373,7 @@ pub fn cutover_manifest(db: &Connection) -> Result<Value> {
         "recordCount":record_total,
         "legacyOutboxMaxSequence":legacy_sequence,
         "legacyAuditCount":audit_count,
+        "documentSequences":{"order":document_sequence("order_sequence")?,"receipt":document_sequence("receipt_sequence")?},
         "unresolvedLegacyCommands":unresolved_legacy_outbox(db)?,
         "collections":collections,
         "unsupportedCollections":unsupported_collections,

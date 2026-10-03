@@ -96,6 +96,7 @@ Date:
 - [ ] Reconnect/sync state is sane.
 - [ ] Interrupted snapshot/import stays incomplete; changed replay/hash and unrelated server records block cutover.
 - [ ] Native baseline identity, counts, content hash, policy and cursor match the authenticated server.
+- [ ] New order/receipt numbers advance past preserved source counters and archived documents; historical numbers and branding remain unchanged.
 - [ ] Server requires committed cutover and native evidence before shared activation; native requires server shared evidence.
 - [ ] Terminal/Web transactions converge with matching stock, money, receipt and audit effects.
 - [ ] Full shift, close day and restart pass on the upgraded terminal.

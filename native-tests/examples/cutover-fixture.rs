@@ -17,12 +17,15 @@ fn main() {
         println!("{}",store::verify_native_v2_baseline(&db,device,business,policy,cursor).unwrap());
         return;
     }
+    store::set_meta(&db,"order_sequence","700").unwrap();
+    store::set_meta(&db,"receipt_sequence","900").unwrap();
     let rows=[
         ("customers","unicode",json!({"id":"unicode","name":"Mũsau \"guest\"","nested":{"z":1.0,"a":[0.000001,-0.0,1e20]}}),false),
         ("customers","archived",json!({"id":"archived","name":"Historical Guest"}),true),
         ("stockItems","fractional",json!({"id":"fractional","name":"Measured stock","currentStock":{"main":6.125001,"bar":0.000001}}),false),
         ("tillSessions","closed-till",json!({"id":"closed-till","status":"CLOSED","expectedCashInDrawer":12.34}),false),
-        ("orders","closed-order",json!({"id":"closed-order","state":"COMPLETED","grandTotal":1250.25}),false),
+        ("orders","closed-order",json!({"id":"closed-order","orderNumber":"ORD-000500","state":"COMPLETED","grandTotal":1250.25}),false),
+        ("receiptDocuments","historical-receipt",json!({"id":"historical-receipt","number":"R-000950","orderId":"closed-order","totalMinor":5000,"brandingSnapshot":{"version":7,"footerLines":["Original immutable footer"],"tillQr":{"source":"Synthetic historical QR fixture"}}}),true),
         ("property","property",json!({"id":"property","name":"Existing Property","currency":"KES"}),false),
         ("customerCreditAccounts","credit-account",json!({"id":"credit-account","customerId":"unicode","limitMinor":100000,"status":"HOLD"}),false),
         ("customerCreditEntries","credit-charge",json!({"id":"credit-charge","customerId":"unicode","creditAccountId":"credit-account","kind":"CHARGE","balanceDeltaMinor":5000,"amountMinor":5000,"sourceType":"ORDER","sourceId":"closed-order","actorId":"original-staff","occurredAt":"2026-10-01T12:00:00Z"}),false),
