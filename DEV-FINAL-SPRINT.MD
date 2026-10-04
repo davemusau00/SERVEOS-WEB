@@ -1,5 +1,7 @@
 # ServOS DEV FINAL SPRINT — FRESH TERMINAL INSTALLATION
 
+> Superseded deployment assumption (3 October 2026): the owner now requires an upgrade of an existing Windows 10 terminal with operational data preserved and Terminal/Web on shared v2 authority. Follow `FINAL-SPRINT-FIXES.MD`, `docs/TERMINAL_DEPLOYMENT_READINESS.md` and `docs/SHARED_V2_CUTOVER_RUNBOOK.md`. The historical fresh-install instructions below do not authorize resetting data or repeating Intake.
+
 **Revision:** 2 — 1 October 2026, Africa/Nairobi  
 **Repository:** davemusau00/SERVEOS-WEB  
 **Reviewed baseline:** `d54e62699b47fbd8f3eaf0b57d59810df87f825e` (04:26:13 EAT)  

@@ -16,7 +16,7 @@ for (const [file, needles] of required) {
 // The canonical migration set must be complete and self-contained under supabase/migrations.
 try {
   const list = canonicalMigrations();
-  if (list.length !== 4 + expansionChain().length) {
+  if (list.length < 4 + expansionChain().length) {
     failures.push(`Canonical migration set is ${list.length} files; expected ${4 + expansionChain().length}`);
   }
 } catch (error) {

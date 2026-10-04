@@ -47,6 +47,6 @@ const generated=[
 for(const [file,expected] of generated){
   let actual='';
   try{actual=readFileSync(file,'utf8')}catch{throw new Error(`Missing generated contract artifact: ${file}`)}
-  if(actual!==expected)throw new Error(`Generated contract drift: ${file}`);
+  if(actual.replaceAll('\r\n','\n')!==expected.replaceAll('\r\n','\n'))throw new Error(`Generated contract drift: ${file}`);
 }
 console.log(`Contract checks passed: ${permissions.permissions.length} permissions, ${Object.keys(roles.roles).length} roles, ${operations.operations.length} operations, ${generated.length} generated artifacts.`);

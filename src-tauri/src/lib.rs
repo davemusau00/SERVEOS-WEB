@@ -58,8 +58,16 @@ async fn runtime_v2_verify_baseline(state: State<'_, Runtime>) -> store::Result<
     let policy = store::text(&active.identity, "policyVersion")?.to_string();
     let cursor = active.identity["cursor"].as_i64().ok_or("The server identity did not return a feed cursor")?;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let report = store::verify_native_v2_baseline(&db, &device_id, &business_id, &policy, cursor)?;
+    let (report,connection,prep)={
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        (store::verify_native_v2_baseline(&db, &device_id, &business_id, &policy, cursor)?,
+         (store::meta(&db,"cloud_url")?.ok_or("Cloud URL missing")?,store::meta(&db,"cloud_key")?.ok_or("Cloud key missing")?),
+         store::authority_mode(&db)?==store::AuthorityMode::CutoverPrep)
+    };
+    if prep {
+        let evidence=rpc(&connection.0,&connection.1,Some(&active.access_token),"servos_v2_attest_cutover_baseline",json!({"report":report})).await?;
+        return Ok(json!({"local":report,"server":evidence,"verified":true}));
+    }
     Ok(report)
 }
 
@@ -68,9 +76,8 @@ async fn runtime_v2_verify_baseline(state: State<'_, Runtime>) -> store::Result<
 /// evidence. Entering CUTOVER_PREP freezes legacy business mutation; entering
 /// SHARED_V2 additionally closes local PIN business writes entirely.
 #[tauri::command]
-fn runtime_set_authority_mode(state: State<Runtime>, token: String, mode: String, cutover_id: Option<String>, reason: String) -> store::Result<Value> {
-    let db=state.db.lock().map_err(|e|e.to_string())?;
-    let actor=store::actor(&db,&token,false)?;
+async fn runtime_set_authority_mode(state: State<'_,Runtime>, token: String, mode: String, cutover_id: Option<String>, reason: String) -> store::Result<Value> {
+    let actor={let db=state.db.lock().map_err(|e|e.to_string())?;store::actor(&db,&token,false)?};
     if !store::permissions(&actor.role).contains(&"system.configure"){
         return Err("Permission required: system.configure".into());
     }
@@ -80,6 +87,18 @@ fn runtime_set_authority_mode(state: State<Runtime>, token: String, mode: String
         "SHARED_V2"=>store::AuthorityMode::SharedV2,
         other=>return Err(format!("Unknown business authority mode: {other}")),
     };
+    if next==store::AuthorityMode::SharedV2 {
+        let cutover=cutover_id.as_deref().ok_or("A committed cutover ID is required")?;
+        let (evidence,active,terminal)=authenticated_cutover_evidence(&state,cutover).await?;
+        let db=state.db.lock().map_err(|e|e.to_string())?;
+        store::actor(&db,&token,false)?;
+        store::cutover::verify_server_evidence(&evidence,cutover,&terminal,store::text(&active.identity,"businessId")?,None,true)?;
+        if evidence["authorityMode"]!="SHARED_V2"{return Err("Server shared authority has not been activated".into());}
+        store::reject_unresolved_legacy_outbox(&db,"Activate shared authority")?;
+        store::verify_native_v2_baseline(&db,&terminal,store::text(&active.identity,"businessId")?,store::text(&active.identity,"policyVersion")?,active.identity["cursor"].as_i64().ok_or("Server cursor missing")?)?;
+    }
+    let db=state.db.lock().map_err(|e|e.to_string())?;
+    store::actor(&db,&token,false)?;
     let current=store::set_authority_mode(&db,next,Some(&actor.staff_id),cutover_id.as_deref(),&reason)?;
     Ok(json!({"authorityMode":current.as_str(),"legacyWritesFenced":current.legacy_writes_fenced(),"unresolvedLegacyCommands":store::unresolved_legacy_outbox(&db)?}))
 }
@@ -87,14 +106,34 @@ fn runtime_set_authority_mode(state: State<Runtime>, token: String, mode: String
 /// `server_ready` must reflect a real READY response from the cutover RPC; the
 /// rows are preserved and evidenced, never deleted.
 #[tauri::command]
-fn runtime_resolve_legacy_outbox(state: State<Runtime>, token: String, cutover_id: String, server_ready: bool) -> store::Result<Value> {
-    let mut db=state.db.lock().map_err(|e|e.to_string())?;
-    let actor=store::actor(&db,&token,false)?;
+async fn runtime_resolve_legacy_outbox(state: State<'_,Runtime>, token: String, cutover_id: String, server_ready: bool) -> store::Result<Value> {
+    let actor={let db=state.db.lock().map_err(|e|e.to_string())?;store::actor(&db,&token,false)?};
     if !store::permissions(&actor.role).contains(&"system.configure"){
         return Err("Permission required: system.configure".into());
     }
-    let resolved=store::supersede_legacy_outbox(&mut db,&cutover_id,server_ready)?;
+    if !server_ready{return Err("Server readiness must be verified before resolving legacy work".into());}
+    let (evidence,active,terminal)=authenticated_cutover_evidence(&state,&cutover_id).await?;
+    let mut db=state.db.lock().map_err(|e|e.to_string())?;
+    store::actor(&db,&token,false)?;
+    if store::authority_mode(&db)?!=store::AuthorityMode::CutoverPrep{return Err("Legacy supersession requires CUTOVER_PREP".into());}
+    let manifest=store::cutover::cutover_manifest(&db)?;
+    let proof_key=format!("cutover_verified_manifest:{cutover_id}");
+    let frozen_hash=store::meta(&db,&proof_key)?.unwrap_or_else(||manifest["manifestHash"].as_str().unwrap_or("").to_string());
+    store::cutover::verify_server_evidence(&evidence,&cutover_id,&terminal,store::text(&active.identity,"businessId")?,Some(&frozen_hash),false)?;
+    // Retain the original evidence binding: resolving the outbox changes the
+    // manifest's unresolved-work count, but an interrupted retry stays idempotent.
+    store::set_meta(&db,&proof_key,&frozen_hash)?;
+    let resolved=store::supersede_legacy_outbox(&mut db,&cutover_id,true)?;
     Ok(json!({"cutoverId":cutover_id,"resolution":"SUPERSEDED_BY_V2_CUTOVER","resolvedCommands":resolved,"unresolvedLegacyCommands":store::unresolved_legacy_outbox(&db)?,"authorityMode":store::authority_mode(&db)?.as_str()}))
+}
+
+async fn authenticated_cutover_evidence(state:&Runtime,cutover_id:&str)->store::Result<(Value,OperatorAuth,String)>{
+    if !refresh_operator_auth_inner(state,true).await?{return Err("Sign in online as Admin to verify cutover evidence".into());}
+    let active=state.operator_auth.lock().map_err(|e|e.to_string())?.clone().ok_or("Online operator session is unavailable")?;
+    let (url,key,terminal)={let db=state.db.lock().map_err(|e|e.to_string())?;
+        (store::meta(&db,"cloud_url")?.ok_or("Cloud URL missing")?,store::meta(&db,"cloud_key")?.ok_or("Cloud key missing")?,store::meta(&db,"terminal_id")?.ok_or("Terminal ID missing")?)};
+    let evidence=rpc(&url,&key,Some(&active.access_token),"servos_v2_cutover_status",json!({"cutover_id":cutover_id})).await?;
+    Ok((evidence,active,terminal))
 }
 #[tauri::command]
 fn runtime_status(state: State<Runtime>) -> store::Result<Value> {
@@ -1079,21 +1118,8 @@ fn require_printer_permission(db: &Connection, token: &str, permission: &str) ->
     Ok(actor)
 }
 
-fn execute_printer_job(state: &Runtime, job_id: &str) -> store::Result<Value> {
-    let (policy, payload, order_id) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
-        let row: (String, String, String) = db.query_row(
-            "SELECT profile,payload,order_id FROM receipt_print_jobs WHERE id=?",
-            [job_id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-        ).map_err(|e| e.to_string())?;
-        db.execute("UPDATE receipt_print_jobs SET state='SENDING',message='Sending to printer',updated_at=? WHERE id=?", rusqlite::params![chrono::Utc::now().to_rfc3339(), job_id]).map_err(|e| e.to_string())?;
-        (
-            serde_json::from_str::<Value>(&row.0).map_err(|e| e.to_string())?,
-            serde_json::from_str::<Value>(&row.1).map_err(|e| e.to_string())?,
-            row.2,
-        )
-    };
+fn execute_printer_job(state: &Runtime, job_id: &str, claim: store::ClaimedPrinterJob) -> store::Result<Value> {
+    let store::ClaimedPrinterJob { policy, payload, order_id } = claim;
 
     let result = match printer::PrinterProfile::from_policy(&policy) {
         Ok(profile) => {
@@ -1118,21 +1144,25 @@ fn execute_printer_job(state: &Runtime, job_id: &str) -> store::Result<Value> {
     };
 
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute("UPDATE receipt_print_jobs SET state=?,message=?,updated_at=? WHERE id=?", rusqlite::params![result.0,result.1,chrono::Utc::now().to_rfc3339(),job_id]).map_err(|e| e.to_string())?;
+    store::finish_printer_job(&db, job_id, result.0, &result.1)?;
     Ok(json!({"jobId":job_id,"orderId":order_id,"state":result.0,"message":result.1}))
 }
 
 fn queue_printer_job(state: &Runtime, job_id: String, order_id: String, policy: Value, customer_lines: Vec<String>, business_lines: Vec<String>, thermal_logo: Value, mpesa_till_qr: Value) -> store::Result<Value> {
     let payload = json!({"customerLines":customer_lines,"businessLines":business_lines,"thermalLogo":thermal_logo,"mpesaTillQr":mpesa_till_qr});
-    {
+    let claim = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let existing: Option<(String,String)> = db.query_row("SELECT state,message FROM receipt_print_jobs WHERE id=?", [&job_id], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(|e| e.to_string())?;
         if let Some((state,message)) = existing {
             return Ok(json!({"jobId":job_id,"orderId":order_id,"state":state,"message":message}));
         }
-        db.execute("INSERT INTO receipt_print_jobs(id,order_id,profile,payload,state,message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)", rusqlite::params![job_id,order_id,policy.to_string(),payload.to_string(),"QUEUED","Waiting to send",chrono::Utc::now().to_rfc3339(),chrono::Utc::now().to_rfc3339()]).map_err(|e| e.to_string())?;
-    }
-    execute_printer_job(state, &job_id)
+        let tx = db.unchecked_transaction().map_err(|e|e.to_string())?;
+        tx.execute("INSERT INTO receipt_print_jobs(id,order_id,profile,payload,state,message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)", rusqlite::params![job_id,order_id,policy.to_string(),payload.to_string(),"QUEUED","Waiting to send",chrono::Utc::now().to_rfc3339(),chrono::Utc::now().to_rfc3339()]).map_err(|e| e.to_string())?;
+        let claim = store::claim_printer_job(&tx, &job_id, false)?;
+        tx.commit().map_err(|e|e.to_string())?;
+        claim
+    };
+    execute_printer_job(state, &job_id, claim)
 }
 
 #[tauri::command]
@@ -1338,31 +1368,25 @@ fn runtime_printer_test(state: State<Runtime>, token: String) -> store::Result<V
 
 #[tauri::command]
 fn runtime_printer_retry(state: State<Runtime>, token: String, job_id: String, confirm_duplicate: bool) -> store::Result<Value> {
-    {
+    let claim = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         require_printer_permission(&db, &token, "pos.sell")?;
-        let state: String = db.query_row("SELECT state FROM receipt_print_jobs WHERE id=?", [&job_id], |r| r.get(0)).map_err(|e| e.to_string())?;
-        if state == "DELIVERY_UNCERTAIN" && !confirm_duplicate {
-            return Err("The first send may already have printed. Confirm possible duplicate before retrying".into());
-        }
-        if state != "QUEUED" && state != "DELIVERY_UNCERTAIN" {
-            return Err("This print job is already being sent or has been sent".into());
-        }
-        let claimed = db.execute("UPDATE receipt_print_jobs SET state='SENDING',updated_at=? WHERE id=? AND state=?", rusqlite::params![chrono::Utc::now().to_rfc3339(), job_id, state]).map_err(|e| e.to_string())?;
-        if claimed != 1 { return Err("Another print attempt already claimed this job".into()); }
-    }
-    execute_printer_job(&state, &job_id)
+        store::claim_printer_job(&db, &job_id, confirm_duplicate)?
+    };
+    execute_printer_job(&state, &job_id, claim)
+}
+
+#[tauri::command]
+fn runtime_printer_cancel(state: State<Runtime>, token: String, reason: String, jobs: Vec<store::PrinterJobSelection>) -> store::Result<Value> {
+    let mut db = state.db.lock().map_err(|e|e.to_string())?;
+    store::cancel_printer_jobs(&mut db, &token, &reason, &jobs)
 }
 
 #[tauri::command]
 fn runtime_printer_jobs(state: State<Runtime>, token: String) -> store::Result<Value> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     require_printer_permission(&db, &token, "pos.sell")?;
-    let mut stmt = db.prepare("SELECT id,order_id,state,message,created_at FROM receipt_print_jobs WHERE state!='SENT' ORDER BY created_at DESC LIMIT 50").map_err(|e| e.to_string())?;
-    let rows = stmt.query_map([], |r| Ok(json!({"jobId":r.get::<_,String>(0)?,"orderId":r.get::<_,String>(1)?,"state":r.get::<_,String>(2)?,"message":r.get::<_,String>(3)?,"createdAt":r.get::<_,String>(4)?}))).map_err(|e| e.to_string())?;
-    let mut jobs=Vec::new();
-    for row in rows { jobs.push(row.map_err(|e| e.to_string())?); }
-    Ok(json!(jobs))
+    store::unresolved_printer_jobs(&db)
 }
 
 // SERVOS_PATCH_10_TERMINAL_ACCEPTANCE
@@ -1396,7 +1420,7 @@ fn acceptance_status_value(db:&Connection,current_nonce:&str)->store::Result<Val
     let last_backup=store::meta(db,"last_backup")?;
     let outbox_pending:i64=db.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|r|r.get(0)).map_err(|e|e.to_string())?;
     let open_tills:i64=db.query_row("SELECT COUNT(*) FROM records WHERE collection='tillSessions' AND archived=0 AND json_extract(data,'$.status')='OPEN'",[],|r|r.get(0)).map_err(|e|e.to_string())?;
-    let unresolved_print_jobs:i64=db.query_row("SELECT COUNT(*) FROM receipt_print_jobs WHERE state!='SENT'",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+    let unresolved_print_jobs:i64=store::unresolved_printer_job_count(db)?;
 
     let intake=store::meta(db,"intake_profile")?.and_then(|raw|serde_json::from_str::<Value>(&raw).ok()).unwrap_or_else(||json!({}));
     let printer_expected=intake["printerExpected"].as_bool().unwrap_or(false);
@@ -1636,7 +1660,8 @@ pub fn run() {
             let db = store::open(&path).map_err(std::io::Error::other)?;
             // Sessions never survive process restart.
             db.execute("DELETE FROM sessions", [])?;
-            db.execute_batch("CREATE TABLE IF NOT EXISTS receipt_print_jobs (id TEXT PRIMARY KEY,order_id TEXT NOT NULL,profile TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL); UPDATE receipt_print_jobs SET state='DELIVERY_UNCERTAIN',message='App restarted while the printer send was in progress. Check paper before retrying.' WHERE state='SENDING';")?;
+            db.execute_batch("CREATE TABLE IF NOT EXISTS receipt_print_jobs (id TEXT PRIMARY KEY,order_id TEXT NOT NULL,profile TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);")?;
+            store::recover_printer_jobs(&db).map_err(std::io::Error::other)?;
             app.manage(Runtime {
                 db: Mutex::new(db),
                 path,
@@ -1692,6 +1717,7 @@ pub fn run() {
             runtime_printer_test,
             runtime_printer_acceptance,
             runtime_printer_retry,
+            runtime_printer_cancel,
             runtime_printer_jobs
         ])
         .run(tauri::generate_context!())

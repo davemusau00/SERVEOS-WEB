@@ -123,14 +123,13 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   await addVariant.getByLabel('Product family name').fill('Jameson');
   await addVariant.getByRole('button', {name:'Continue'}).click();
   await addVariant.getByRole('combobox',{name:/Product family/}).selectOption({index:1});
-  await addVariant.getByRole('button', {name:'Continue'}).click();
+  await expect(addVariant.getByRole('combobox',{name:/Product family/})).not.toHaveValue('');
   await addVariant.getByRole('button', {name:'750ml'}).click();
   await addVariant.getByLabel('Whole-container selling price (KES)').fill('1900');
   await addVariant.getByLabel('Tax class').selectOption('A_16');
   await addVariant.getByRole('button', {name:'Continue'}).click();
   await addVariant.getByText('More setup').click();
   await addVariant.getByRole('checkbox', {name:'Track sales against an existing stock item'}).check();
-  await expect(addVariant.getByRole('combobox',{name:/Product family/})).not.toHaveValue('');
   await expect(addVariant.getByLabel('Stock item', {exact:true}).locator('option').nth(1)).toBeDisabled();
 
   await addVariant.getByLabel('Stock item', {exact:true}).selectOption('whisky-750-stock');
@@ -148,7 +147,6 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   await atomicVariant.getByLabel('Product family name').fill('Jameson');
   await atomicVariant.getByRole('button', {name:'Continue'}).click();
   await atomicVariant.getByRole('combobox',{name:/Product family/}).selectOption({index:1});
-  await atomicVariant.getByRole('button', {name:'Continue'}).click();
   await atomicVariant.getByRole('button', {name:'1L'}).click();
   await atomicVariant.getByLabel('Whole-container selling price (KES)').fill('2400');
   await atomicVariant.getByLabel('Tax class').selectOption('A_16');

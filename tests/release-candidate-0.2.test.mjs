@@ -25,7 +25,8 @@ test('the canonical migration set is complete, ordered and free of duplicates', 
   const chain = expansionChain();
   assert.equal(chain.length, 47, 'the reviewed staged v2 chain must keep all 47 migrations');
   const canonical = canonicalMigrations();
-  assert.equal(canonical.length, BASE_MIGRATIONS.length + chain.length);
+  assert.ok(canonical.length >= BASE_MIGRATIONS.length + chain.length);
+  assert.deepEqual(canonical, readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort(), 'CLI and acceptance must apply the same inventory');
   assert.equal(new Set(canonical).size, canonical.length, 'no migration may be applied twice');
   // Base migrations precede the staged v2 chain, which preserves the reviewed order.
   for (const base of BASE_MIGRATIONS) assert.ok(canonical.indexOf(base) < canonical.indexOf(canonicalNameFor('001_protocol.sql')));
@@ -83,10 +84,10 @@ test('0.2.0 release identity and existing-terminal upgrade contract are pinned',
   assert.match(migration,/PRAGMA user_version=13/);
   assert.match(builder,/docs\\EXISTING_TERMINAL_UPGRADE\.md/);
   assert.match(builder,/docs\\RELEASE_0\.2_ACCEPTANCE\.md/);
-  assert.match(builder,/SQLiteSchema\s*=\s*13/);
+  assert.match(builder,/SQLiteSchema\s*=\s*\$schemaEvidence.sqliteSchema/);
   assert.match(builder,/ExistingEnrollmentPreserved\s*=\s*\$true/);
   assert.match(upgrade,/Do not repeat Intake or enrollment/);
-  assert.match(upgrade,/old binary must never be pointed at the already-upgraded schema-12 database/i);
+  assert.match(upgrade,/old binary must never be pointed at the already-upgraded schema-15 database/i);
   assert.match(acceptance,/PhysicalAcceptance/);
 });
 

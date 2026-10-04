@@ -29,13 +29,15 @@ $package = Get-Content -LiteralPath '.\package.json' -Raw | ConvertFrom-Json
 $tauri = Get-Content -LiteralPath '.\src-tauri\tauri.conf.json' -Raw | ConvertFrom-Json
 $cargo = Get-Content -LiteralPath '.\src-tauri\Cargo.toml' -Raw
 $cargoVersion = [regex]::Match($cargo, '(?m)^version\s*=\s*"([^"]+)"').Groups[1].Value
-$migration13 = Get-Content -LiteralPath '.\src-tauri\migrations\013_customer_credit.sql' -Raw
+$schemaJson = & node.exe '.\scripts\terminal-release-schema.mjs'
+if ($LASTEXITCODE -ne 0) { throw 'Could not verify native schema and canonical migration inventory.' }
+$schemaEvidence = $schemaJson | ConvertFrom-Json
 
 if ($package.version -ne '0.2.0') { throw "package.json must be 0.2.0, found $($package.version)" }
 if ($tauri.version -ne '0.2.0') { throw "tauri.conf.json must be 0.2.0, found $($tauri.version)" }
 if ($cargoVersion -ne '0.2.0') { throw "Cargo.toml must be 0.2.0, found $cargoVersion" }
 if ($tauri.identifier -ne 'ke.servos.business') { throw "Application identifier changed: $($tauri.identifier)" }
-if ($migration13 -notmatch 'PRAGMA\s+user_version\s*=\s*13') { throw 'Schema-13 migration does not set PRAGMA user_version=13.' }
+if ($schemaEvidence.sqliteSchema -ne 15) { throw 'Existing-terminal cutover requires schema 15.' }
 
 foreach ($required in @(
     '.\docs\EXISTING_TERMINAL_UPGRADE.md',
@@ -57,26 +59,15 @@ if ($dirty.Count -gt 0) {
 
 Write-Host "Version:    0.2.0"
 Write-Host "Identifier: ke.servos.business"
-Write-Host "Schema:     13"
+Write-Host "Schema:     $($schemaEvidence.sqliteSchema)"
 
 Section 'Whitespace integrity'
 Run 'git.exe' @('diff','--check')
 
 Section 'Full source/browser/native-container verification'
-Run 'npm.cmd' @('run','verify')
-
-Section 'Windows native domain verification'
-Run 'npm.cmd' @('run','test:native')
-
-Section 'Tauri desktop library verification'
-Run 'npm.cmd' @('run','test:desktop')
-
-if (-not $SkipSupabase) {
-    Section 'Disposable staged PostgreSQL verification'
-    Run 'node.exe' @('scripts/test-supabase.mjs','--expansion')
-} else {
-    Write-Warning 'Supabase expansion verification skipped. This is not a complete release gate.'
-}
+if ($SkipSupabase) { throw 'A complete release gate cannot skip disposable Supabase verification.' }
+Run 'npm.cmd' @('run','verify:release')
+Run 'npm.cmd' @('run','test:browser')
 
 Section 'Release-candidate verification complete'
 Write-Host 'Source gates are green. Package/physical acceptance is still required.' -ForegroundColor Green

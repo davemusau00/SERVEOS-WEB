@@ -8,11 +8,11 @@ For an already-enrolled business, deployment is an **upgrade**, not a fresh inst
 2. Build only from a clean committed tree.
 3. Run `scripts/build-terminal-installer.ps1` without `-SkipTests`.
 4. Prefer the default NSIS package for the first accepted 0.2.0 release.
-5. Rehearse schema-12 migration on an isolated copy of existing application data.
+5. Rehearse migration through schema 15 on an isolated copy of existing application data that cannot reach the live project.
 6. Install under the same Windows user and preserve `ke.servos.business` data.
 7. Do not repeat Intake.
 8. Complete `RELEASE_0.2_ACCEPTANCE.md` on the real scanner/printer terminal.
-9. Do not activate staged PostgreSQL/web-v2 authority during this release.
+9. Follow `SHARED_V2_CUTOVER_RUNBOOK.md` for the separately authorized commissioning window. `FINAL-SPRINT-FIXES.MD` governs shared authority; older fresh-install and Native-only release instructions are superseded for this upgrade. Preparation does not authorize production migration or activation.
 
 The release manifest must continue to report physical acceptance as pending until target-device acceptance is actually completed.
 

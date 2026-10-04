@@ -187,20 +187,33 @@ if (-not $SkipTests) {
     Write-Section 'Run frontend, browser and native acceptance checks'
     Invoke-Checked -Command 'npx.cmd' -Arguments @('playwright', 'install', 'chromium')
     Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'lint')
+    Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'contracts:check')
     Invoke-Checked -Command 'npm.cmd' -Arguments @('test')
     Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'test:browser')
+    Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'test:browser:production')
+    Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'test:cloud:base')
+    Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'test:cloud:v2')
+    Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'check:desktop')
     Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'test:native')
     Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'test:desktop')
     Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'docs:check')
     Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'audit:ui')
+    Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'protocol:check')
+    Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'audit:ui:gate')
 } else {
     Write-Warning 'Tests were skipped. This package run is not release verification.'
 }
 
 Write-Section 'Build Windows installer'
+if (-not $SkipTests) {
+    $sourceChanges = @(& git.exe status --porcelain)
+    if ($LASTEXITCODE -ne 0 -or $sourceChanges.Count -gt 0) { throw 'Required checks changed the release source. Commit the reviewed generated files and rebuild from a clean checkout.' }
+}
+$env:VITE_ENABLE_DEMO = 'false'
+$env:VITE_ENABLE_WEB_V2 = 'false'
 $packageStarted = (Get-Date).ToUniversalTime()
 $bundle = if ($Msi) { 'msi' } else { 'nsis' }
-Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'native:build', '--', '--bundles', $bundle)
+Invoke-Checked -Command 'npm.cmd' -Arguments @('run', 'native:build', '--', '--bundles', $bundle, '--', '--locked')
 
 $cargoTargetDirectory = Join-Path $Repo 'src-tauri\target'
 if (-not [string]::IsNullOrWhiteSpace($env:CARGO_TARGET_DIR)) {

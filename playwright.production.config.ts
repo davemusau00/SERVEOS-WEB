@@ -4,11 +4,12 @@ import { defineConfig, devices } from '@playwright/test';
 // tests stay on playwright.config.ts because they intentionally exercise sample data.
 export default defineConfig({
   testDir: './tests/browser',
+  outputDir: './test-results/production',
   testIgnore: ['**/preview.spec.ts'],
   fullyParallel: false,
   workers: 1,
   timeout: 60_000,
-  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
+  reporter: [['list'], ['html', { outputFolder: 'playwright-report/production', open: 'never' }]],
   use: { baseURL: 'http://127.0.0.1:3010', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
     { name: 'pos-terminal', use: { ...devices['Desktop Chrome'], viewport: { width: 1024, height: 600 } } },

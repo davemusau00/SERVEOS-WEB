@@ -22,6 +22,26 @@ fn server_error_detail_is_preserved_and_bounded() {
 }
 
 #[test]
+fn cutover_resolution_requires_matching_authenticated_server_evidence() {
+    let cut="10000000-0000-4000-8000-000000000001";
+    let terminal="20000000-0000-4000-8000-000000000001";
+    let business="30000000-0000-4000-8000-000000000001";
+    let hash="a".repeat(64);
+    let evidence=json!({"cutoverId":cut,"sourceTerminalId":terminal,"businessId":business,
+        "sourceManifestHash":hash,"verificationHash":"b".repeat(64),"status":"READY"});
+    assert!(cutover::verify_server_evidence(&evidence,cut,terminal,business,Some(&hash),false).is_ok());
+    assert!(cutover::verify_server_evidence(&evidence,cut,terminal,business,Some(&hash),true).is_err());
+    for (key,value) in [("status",json!("IMPORTING")),("sourceTerminalId",json!("another-terminal")),
+        ("businessId",json!("another-business")),("cutoverId",json!("another-cutover")),
+        ("sourceManifestHash",json!("c".repeat(64))),("verificationHash",Value::Null)] {
+        let mut wrong=evidence.clone();wrong[key]=value;
+        assert!(cutover::verify_server_evidence(&wrong,cut,terminal,business,Some(&hash),false).is_err(),"{key} must be bound to the cutover");
+    }
+    let mut committed=evidence;committed["status"]=json!("COMMITTED");
+    assert!(cutover::verify_server_evidence(&committed,cut,terminal,business,Some(&hash),true).is_ok());
+}
+
+#[test]
 fn business_authority_mode_is_persistent_forward_only_and_audited() {
     let (dir,db,admin)=setup();
     // A fresh or upgraded installation keeps the pre-cutover behaviour.
@@ -176,7 +196,7 @@ fn cutover_manifest_is_deterministic_secret_free_and_totals_reconcile() {
 
     // Control totals are the numbers an operator reconciles by hand.
     let totals=&manifest["totals"];
-    assert_eq!(totals["stockQuantity"],30,"stock must total 24 main + 6 bar");
+    assert_eq!(totals["stockQuantity"].as_f64(),Some(30.0),"stock must total 24 main + 6 bar");
     let stock=manifest["collections"].as_array().unwrap().iter().find(|c|c["collection"]=="stockItems").unwrap();
     assert_eq!(stock["activeCount"],1);
     assert_eq!(stock["records"][0]["id"],"stock-cola");
@@ -205,7 +225,7 @@ fn cutover_pages_are_stable_bounded_and_allowlisted() {
 
     // Collections outside the allowlist are refused, including the three legacy
     // collections with no canonical v2 read path.
-    for denied in ["property","inventoryReceipts","maintenanceEvents","not_a_collection"]{
+    for denied in ["not_a_collection"]{
         let refused=cutover::cutover_page(&db,denied,"",10).unwrap_err();
         assert!(refused.contains("not eligible for cutover import"),"{} should be refused: {refused}",denied);
     }
@@ -297,6 +317,12 @@ fn v2_baseline_verification_refuses_anything_it_cannot_prove() {
     // The digest is stable for the same content.
     let again=verify_native_v2_baseline(&db,&device,&business,&policy,7).unwrap();
     assert_eq!(again["baselineDigest"],report["baselineDigest"]);
+    assert_eq!(again["contentDigest"],report["contentDigest"]);
+    // A payload change with unchanged IDs/versions must change the attested digest.
+    db.execute("UPDATE native_v2_records SET data=json_set(data,'$.name','Changed') WHERE collection='customers' AND record_id='cust-1'",[]).unwrap();
+    let changed=verify_native_v2_baseline(&db,&device,&business,&policy,7).unwrap();
+    assert_eq!(changed["baselineDigest"],report["baselineDigest"]);
+    assert_ne!(changed["contentDigest"],report["contentDigest"]);
 
     // A changed permission policy invalidates the baseline.
     let drifted=verify_native_v2_baseline(&db,&device,&business,"policy-b",7).unwrap_err();
@@ -2071,4 +2097,78 @@ fn customer_credit_failure_and_archive_rules_preserve_financial_truth() {
     let rec=get(&db,"customers","credit-limit").unwrap();
     let mut archive=cmd("record.archive",json!({"collection":"customers","id":"credit-limit"}));archive.target_version=Some(rec.0);
     assert!(execute(&mut db,&admin.token,archive).is_err());
+}
+
+
+fn printer_fixture(db: &rusqlite::Connection, id: &str, state: &str) -> PrinterJobSelection {
+    db.execute_batch("CREATE TABLE IF NOT EXISTS receipt_print_jobs(id TEXT PRIMARY KEY,order_id TEXT NOT NULL,profile TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)").unwrap();
+    db.execute("INSERT INTO receipt_print_jobs VALUES(?,'PRINTER_TEST','{\"mode\":\"original\"}','{\"customerLines\":[\"original receipt\"]}',?,'original transport error','created','reviewed')",rusqlite::params![id,state]).unwrap();
+    PrinterJobSelection { job_id:id.into(),state:state.into(),updated_at:"reviewed".into() }
+}
+#[test]
+fn printer_cancellation_is_atomic_audited_local_and_persistent() {
+    let (dir,mut db,admin)=setup();
+    let a=printer_fixture(&db,"a","QUEUED"); let b=printer_fixture(&db,"b","DELIVERY_UNCERTAIN");
+    let business_before: (i64,i64,i64,i64) = db.query_row("SELECT (SELECT COUNT(*) FROM records),(SELECT COUNT(*) FROM outbox),(SELECT COUNT(*) FROM commands),(SELECT COUNT(*) FROM records WHERE collection='receiptDocuments')",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap();
+    let result=cancel_printer_jobs(&mut db,&admin.token,"Obsolete printer configuration",&[a.clone(),b.clone()]).unwrap();
+    assert_eq!(result["count"],2); assert_eq!(unresolved_printer_job_count(&db).unwrap(),0);
+    assert_eq!(unresolved_printer_jobs(&db).unwrap(),json!([]));
+    let row:(String,String,String,String,String)=db.query_row("SELECT profile,payload,message,created_at,state FROM receipt_print_jobs WHERE id='b'",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).unwrap();
+    assert_eq!(row,("{\"mode\":\"original\"}".into(),"{\"customerLines\":[\"original receipt\"]}".into(),"original transport error".into(),"created".into(),"CANCELLED".into()));
+    let (actor,payload,stamp):(String,String,String)=db.query_row("SELECT actor_id,payload,occurred_at FROM audit WHERE id=?",[result["auditReference"].as_str().unwrap()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
+    let payload:Value=serde_json::from_str(&payload).unwrap();
+    assert_eq!(actor,admin.staff_id);assert_eq!(stamp,result["cancelledAt"].as_str().unwrap());
+    assert_eq!(payload["reason"],"Obsolete printer configuration");assert_eq!(payload["jobs"][1]["state"],"DELIVERY_UNCERTAIN");assert_eq!(payload["jobs"][1]["updatedAt"],"reviewed");
+    assert!(db.execute("UPDATE audit SET payload='{}' WHERE id=?",[result["auditReference"].as_str().unwrap()]).is_err());
+    assert!(db.execute("DELETE FROM audit WHERE id=?",[result["auditReference"].as_str().unwrap()]).is_err());
+    assert_eq!(business_before,db.query_row("SELECT (SELECT COUNT(*) FROM records),(SELECT COUNT(*) FROM outbox),(SELECT COUNT(*) FROM commands),(SELECT COUNT(*) FROM records WHERE collection='receiptDocuments')",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap());
+    assert!(cancel_printer_jobs(&mut db,&admin.token,"Repeat",&[a]).is_err());
+    assert_eq!(db.query_row("SELECT COUNT(*) FROM audit WHERE operation='printer.cancel'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    drop(db); let db=open(&dir.path().join("test.sqlite")).unwrap();recover_printer_jobs(&db).unwrap();
+    assert!(claim_printer_job(&db,"b",true).is_err());assert_eq!(unresolved_printer_job_count(&db).unwrap(),0);
+}
+#[test]
+fn printer_cancellation_validates_role_session_reason_batch_and_review_tokens() {
+    let (_dir,mut db,admin)=setup();let a=printer_fixture(&db,"a","QUEUED");
+    for role in ["Cashier","Manager"] {
+        db.execute("UPDATE staff SET role=? WHERE id=?",rusqlite::params![role,admin.staff_id]).unwrap();
+        assert!(cancel_printer_jobs(&mut db,&admin.token,"Obsolete",&[a.clone()]).is_err());
+    }
+    db.execute("UPDATE staff SET role='Admin' WHERE id=?",[&admin.staff_id]).unwrap();
+    for reason in ["".to_string(),"  \n".to_string(),"x".repeat(501)] { assert!(cancel_printer_jobs(&mut db,&admin.token,&reason,&[a.clone()]).is_err()); }
+    for jobs in [vec![],vec![a.clone(),a.clone()],vec![a.clone();51]] { assert!(cancel_printer_jobs(&mut db,&admin.token,"Obsolete",&jobs).is_err()); }
+    for state in ["SENDING","SENT","CANCELLED","QUEUED"] {
+        let mut bad=printer_fixture(&db,state,state);if state=="QUEUED" {bad.updated_at="outdated".into();}
+        assert!(cancel_printer_jobs(&mut db,&admin.token,"Obsolete",&[a.clone(),bad]).is_err());
+        assert_eq!(db.query_row("SELECT state FROM receipt_print_jobs WHERE id='a'",[],|r|r.get::<_,String>(0)).unwrap(),"QUEUED");
+    }
+    let mut missing=a.clone();missing.job_id="missing".into();assert!(cancel_printer_jobs(&mut db,&admin.token,"Obsolete",&[a.clone(),missing]).is_err());
+    db.execute("UPDATE sessions SET last_seen=0 WHERE token=?",[&admin.token]).unwrap();
+    assert!(cancel_printer_jobs(&mut db,&admin.token,"Obsolete",&[a]).unwrap_err().contains("SESSION_EXPIRED"));
+}
+#[test]
+fn printer_audit_failure_rolls_back_and_claims_fence_cancellation() {
+    let (_dir,mut db,admin)=setup();let a=printer_fixture(&db,"a","QUEUED");let b=printer_fixture(&db,"b","DELIVERY_UNCERTAIN");
+    db.execute_batch("CREATE TRIGGER fail_printer_audit BEFORE INSERT ON audit WHEN NEW.operation='printer.cancel' BEGIN SELECT RAISE(ABORT,'audit unavailable'); END").unwrap();
+    assert!(cancel_printer_jobs(&mut db,&admin.token,"Obsolete",&[a.clone(),b.clone()]).is_err());
+    assert_eq!(unresolved_printer_job_count(&db).unwrap(),2);
+    assert_eq!(unresolved_printer_jobs(&db).unwrap()[0]["updatedAt"],"reviewed");
+    db.execute_batch("DROP TRIGGER fail_printer_audit").unwrap();
+    cancel_printer_jobs(&mut db,&admin.token,"Obsolete",&[a]).unwrap();
+    assert!(claim_printer_job(&db,"a",true).is_err());assert!(finish_printer_job(&db,"a","SENT","late result").is_err());
+    assert!(claim_printer_job(&db,"b",false).is_err());
+    let claim=claim_printer_job(&db,"b",true).unwrap();assert_eq!(claim.policy["mode"],"original");
+    assert!(cancel_printer_jobs(&mut db,&admin.token,"Obsolete",&[b]).is_err());assert!(claim_printer_job(&db,"b",true).is_err());
+    recover_printer_jobs(&db).unwrap();
+    assert_eq!(unresolved_printer_jobs(&db).unwrap()[0]["state"],"DELIVERY_UNCERTAIN");
+    claim_printer_job(&db,"b",true).unwrap();finish_printer_job(&db,"b","SENT","Sent").unwrap();
+    assert_eq!(unresolved_printer_job_count(&db).unwrap(),0);
+}
+#[test]
+fn printer_unresolved_count_is_not_limited_to_displayed_batch() {
+    let (_dir,db,_admin)=setup();
+    for n in 0..55 {printer_fixture(&db,&format!("job-{n:03}"),"QUEUED");}
+    printer_fixture(&db,"sent","SENT");printer_fixture(&db,"cancelled","CANCELLED");
+    assert_eq!(unresolved_printer_job_count(&db).unwrap(),55);
+    let jobs=unresolved_printer_jobs(&db).unwrap();assert_eq!(jobs.as_array().unwrap().len(),50);assert_eq!(jobs[0]["jobId"],"job-054");
 }

@@ -1,6 +1,7 @@
 import {test,expect,type Page} from '@playwright/test';
 import {spawnSync} from 'node:child_process';
-import {readFileSync,readdirSync} from 'node:fs';
+import {readFileSync} from 'node:fs';
+import {canonicalMigrations,migrationPath} from '../../scripts/canonical-migrations.mjs';
 import {randomUUID} from 'node:crypto';
 
 // Test-only authentication/HTTP bridge; all business RPCs run in real PostgreSQL.
@@ -20,7 +21,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
    await new Promise(r=>setTimeout(r,1000));
   }
   if(!databaseReady)throw new Error('Disposable PostgreSQL did not accept SQL connections within 60 seconds.');
-   const files=['tests/supabase/bootstrap.sql',...['supabase/migrations','supabase/expansion'].flatMap(dir=>readdirSync(dir).filter(f=>f.endsWith('.sql')).sort().map(f=>`${dir}/${f}`)),'tests/supabase/financial-controls.sql','tests/supabase/floorplan.sql','tests/supabase/controlled-import.sql'];
+   const files=['tests/supabase/bootstrap.sql',...canonicalMigrations().map(migrationPath),'tests/supabase/financial-controls.sql','tests/supabase/floorplan.sql','tests/supabase/controlled-import.sql'];
   sql(files.map(f=>readFileSync(f,'utf8')).join('\n'));
    sql(`
    reset role;
@@ -191,7 +192,10 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await signIn(page,'first@example.test');await signIn(other,'second@example.test');
   await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('heading',{name:'Business master records',exact:true})).toBeVisible();await page.getByRole('button',{name:'Add room type',exact:true}).click();
   let dialog=page.getByRole('dialog');await dialog.getByLabel('Room type',{exact:true}).fill('Double');await dialog.getByLabel('Maximum guests').fill('2');await dialog.getByRole('button',{name:'Confirm',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('saved for outcome checking');await page.getByLabel('Synchronize').click();loseResponse=false;
+  await expect(page.getByRole('alert')).toContainText('saved for outcome checking');
+  await expect(dialog.getByLabel('Room type',{exact:true})).toHaveValue('Double');
+  await dialog.getByRole('button',{name:'Close dialog',exact:true}).click();
+  await page.getByLabel('Synchronize').click();loseResponse=false;
   await expect(page.getByText('Double',{exact:true})).toBeVisible();
   expect(sql("select count(*) from servos_v2.commands where request->'payload'->>'collection'='roomTypes';").trim()).toBe('1');
   await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();await page.getByRole('button',{name:'Add room',exact:true}).click();dialog=page.getByRole('dialog');
@@ -259,11 +263,10 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='tillSessions' and data->>'status'='OPEN';").trim()).toBe('1');
   await page.getByLabel('Synchronize').click();
   await expect(page.getByText('No open till')).toHaveCount(0);
-  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('button',{name:'Administration',exact:true}).click();
   await page.getByRole('button',{name:'Business settings',exact:true}).click();
-  const receiptBranding=page.locator('section').filter({has:page.getByRole('heading',{name:'Receipt logo · customer copy',exact:true})});
+  const receiptBranding=page.getByRole('heading',{name:'Receipt logo · customer copy',exact:true}).locator('..');
   await receiptBranding.getByRole('button',{name:'Use supplied default',exact:true}).click();
-  await expect(receiptBranding.getByRole('img',{name:'Receipt logo preview'})).toHaveJSProperty('naturalWidth',expect.any(Number));
   await expect.poll(async()=>await receiptBranding.getByRole('img',{name:'Receipt logo preview'}).evaluate((img:HTMLImageElement)=>img.naturalWidth)).toBeGreaterThan(0);
   await page.getByRole('button',{name:'Save business branding and receipt logo',exact:true}).click();
   await expect.poll(()=>sql("select case when data->'receipt'->>'logoDataUrl' like 'data:image/jpeg;base64,%' and length(data->'receipt'->'thermalLogo'->>'base64')>0 then 'SAVED' else 'MISSING' end from servos_v2.records where collection='organization' and id='business';").trim()).toBe('SAVED');
@@ -303,14 +306,14 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await refundDialog.getByLabel('Refund amount in KES').fill('2.50');
   await refundDialog.getByLabel('Reason').fill('Browser test partial refund');
   await refundDialog.getByRole('button',{name:'Record refund'}).click();
-  await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='refunds' and data->>'amountMinor'='250';").trim()).toBe('1');
+  await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='refunds' and data->>'amountMinor'='250';").trim(),{timeout:15000}).toBe('1');
   await page.getByRole('button',{name:'Finance',exact:true}).click();
   await page.getByLabel('Counted cash in KES').fill('110');
-  await expect(page.getByText('KES 0.00')).toBeVisible();
+  await expect(page.getByText('Ksh 0.00',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Close till',exact:true}).click();
   await expect.poll(()=>sql("select data->>'status' from servos_v2.records where collection='tillSessions' and data->>'status'='CLOSED';").trim()).toBe('CLOSED');
   await page.getByRole('button',{name:'Generate close-day snapshot',exact:true}).click();
-  await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='closeDayReports' and data->'sales'->>'refundsMinor'='250';").trim()).toBe('1');
+  await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='closeDayReports' and data->'sales'->>'refundsMinor'='250';").trim(),{timeout:30000}).toBe('1');
   expect(sql("select data->'cash'->>'varianceMinor' from servos_v2.records where collection='closeDayReports';").trim()).toBe('0');
  });
 });

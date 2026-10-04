@@ -19,14 +19,9 @@ use sha2::{Digest, Sha256};
 
 /// Collections eligible for cutover import.
 ///
-/// This is an explicit allowlist, never a scan of whatever happens to be in the
-/// database. Three legacy collections are intentionally absent because servos_v2
-/// has no canonical read path for them and importing them would create records
-/// the terminal could never see again:
-///
-///   - `inventoryReceipts`  legacy goods-receipt mirror, superseded by `goodsReceipts`
-///   - `maintenanceEvents`   v2 tracks maintenance on `maintenanceOrders`
-///   - `property`            configuration lives in the `organization` collection
+/// This fixed allowlist preserves existing configuration and historical mirrors
+/// under their original identities without replaying business effects. Unknown
+/// collections are reported and block cutover instead of being silently omitted.
 ///
 /// `orders`, `payments`, `receiptDocuments`, `journalEntries`, `stockMovements`,
 /// `folioEntries`, `stayEvents` and `assetEvents` are immutable business history.
@@ -40,14 +35,22 @@ pub const IMPORT_COLLECTIONS: &[&str] = &[
     "stayExtensions", "folios", "folioEntries", "tables", "orders",
     "tillSessions", "payments", "refunds", "receiptDocuments", "mpesaReceipts",
     "journalEntries", "purchaseOrders", "goodsReceipts", "supplierPayables",
-    "maintenanceOrders", "tillPolicy", "hotelServices",
+    "maintenanceOrders", "tillPolicy", "hotelServices", "property",
+    "paymentConfig", "paymentAccounts", "posPolicy", "priceRules", "purchasePackages",
+    "inventoryReceipts", "maintenanceEvents", "cashMovements", "stockCounts",
+    "closeDayReports", "supplierPayments", "mpesaDiscrepancies",
+    "customerCreditAccounts", "customerCreditEntries", "customerCreditReconciliations",
+    "customerCreditDiscrepancies", "recipes", "events", "promoters", "reservations",
+    "waitlist", "housekeeping", "maintenance",
 ];
 
 /// Collections whose records are immutable business history. They are imported
 /// with provenance but must never be re-validated as if newly transacted.
 pub const HISTORY_COLLECTIONS: &[&str] = &[
     "payments", "refunds", "receiptDocuments", "journalEntries", "stockMovements",
-    "folioEntries", "stayEvents", "stayExtensions", "assetEvents",
+    "folioEntries", "stayEvents", "stayExtensions", "assetEvents", "customerCreditEntries",
+    "customerCreditReconciliations", "inventoryReceipts", "maintenanceEvents",
+    "cashMovements", "stockCounts", "closeDayReports", "supplierPayments",
 ];
 
 /// Metadata keys that must never appear in a cutover manifest. The manifest is
@@ -61,6 +64,29 @@ pub const FORBIDDEN_MANIFEST_KEYS: &[&str] = &[
 
 /// Maximum records in one import page. Mirrors the server-side page cap.
 pub const MAX_PAGE_RECORDS: usize = 500;
+
+/// Validate authenticated server evidence before resolving any local work.
+/// The frontend's boolean is never sufficient proof of a successful cutover.
+pub fn verify_server_evidence(evidence: &Value, cutover_id: &str, terminal_id: &str, business_id: &str, manifest_hash: Option<&str>, committed: bool) -> Result<()> {
+    if Uuid::parse_str(cutover_id).is_err()
+        || evidence["cutoverId"].as_str()!=Some(cutover_id)
+        || evidence["sourceTerminalId"].as_str()!=Some(terminal_id)
+        || evidence["businessId"].as_str()!=Some(business_id) {
+        return Err("Server cutover evidence does not match this business, terminal and cutover".into());
+    }
+    let status=evidence["status"].as_str().unwrap_or("");
+    if (committed && status!="COMMITTED") || (!committed && status!="READY" && status!="COMMITTED") {
+        return Err("A verified server cutover is required before resolving local work".into());
+    }
+    let digest=evidence["verificationHash"].as_str().unwrap_or("");
+    if digest.len()!=64 || !digest.bytes().all(|byte|byte.is_ascii_hexdigit()) {
+        return Err("Server cutover verification hash is missing or invalid".into());
+    }
+    if manifest_hash.is_some_and(|hash|evidence["sourceManifestHash"].as_str()!=Some(hash)) {
+        return Err("Server cutover manifest does not match the frozen SQLite source".into());
+    }
+    Ok(())
+}
 /// Serialize a value with object keys sorted, so a content hash does not depend
 /// on the order fields happened to be written in.
 pub fn canonical_json(value: &Value) -> String {
@@ -90,12 +116,35 @@ pub fn canonical_json(value: &Value) -> String {
                 }
                 out.push(']');
             }
+            Value::Number(number) => out.push_str(&canonical_number(&number.to_string())),
             other => out.push_str(&other.to_string()),
         }
     }
     let mut out = String::new();
     write(value, &mut out);
     out
+}
+
+// PostgreSQL jsonb expands scientific notation and preserves decimal scale.
+// Hash numbers as plain decimals without insignificant zeros on both runtimes.
+fn canonical_number(raw:&str)->String {
+    let negative=raw.starts_with('-');
+    let unsigned=raw.trim_start_matches('-');
+    let (mantissa,exponent)=unsigned.split_once(['e','E']).map(|(m,e)|(m,e.parse::<i32>().unwrap_or(0))).unwrap_or((unsigned,0));
+    let decimal=mantissa.find('.').unwrap_or(mantissa.len()) as i32+exponent;
+    let digits=mantissa.replace('.',"");
+    let mut result=if decimal<=0 {
+        format!("0.{}{}","0".repeat((-decimal) as usize),digits)
+    }else if decimal as usize>=digits.len(){
+        format!("{}{}",digits,"0".repeat(decimal as usize-digits.len()))
+    }else{
+        format!("{}.{}",&digits[..decimal as usize],&digits[decimal as usize..])
+    };
+    if result.contains('.') {
+        result=result.trim_end_matches('0').trim_end_matches('.').to_string();
+    }
+    if negative && result!="0"{result.insert(0,'-');}
+    result
 }
 
 /// Content hash of one record, bound to its collection, id and version so a
@@ -148,7 +197,7 @@ pub fn reject_secret_keys(value: &Value) -> Result<()> {
 #[derive(Default)]
 struct Totals {
     payment_by_tender: Vec<(String, i64)>,
-    stock_quantity: i64,
+    stock_quantity: f64,
     stock_movements: i64,
     open_till_minor: i64,
     closed_till_minor: i64,
@@ -181,7 +230,8 @@ impl Totals {
             "stockMovements" => self.stock_movements += 1,
             "tillSessions" => {
                 self.till_count += 1;
-                let expected = minor("expectedCashInDrawer");
+                let expected = data["expectedCashInDrawerMinor"].as_i64().unwrap_or_else(||
+                    (data["expectedCashInDrawer"].as_f64().unwrap_or(0.0)*100.0).round() as i64);
                 match data["status"].as_str() {
                     Some("OPEN") => self.open_till_minor += expected,
                     _ => self.closed_till_minor += expected,
@@ -189,17 +239,18 @@ impl Totals {
             }
             "customerCreditEntries" => {
                 self.credit_entries += 1;
-                self.credit_outstanding_minor += minor("amountMinor");
+                self.credit_outstanding_minor += minor("balanceDeltaMinor");
             }
             "supplierPayables" => {
                 self.payable_outstanding_minor += minor("outstandingMinor").max(0);
             }
             "receiptDocuments" => self.receipt_total_minor += minor("totalMinor"),
-            "orders" => self.order_total_minor += minor("totalMinor").max(0),
+            "orders" => self.order_total_minor += data["grandTotalMinor"].as_i64().or_else(||data["totalMinor"].as_i64())
+                .unwrap_or_else(||(data["grandTotal"].as_f64().unwrap_or(0.0)*100.0).round() as i64).max(0),
             "stockItems" => {
                 if let Some(map) = data["currentStock"].as_object() {
                     for quantity in map.values() {
-                        self.stock_quantity += quantity.as_f64().unwrap_or(0.0).round() as i64;
+                        self.stock_quantity += quantity.as_f64().unwrap_or(0.0);
                     }
                 }
             }
@@ -215,7 +266,7 @@ impl Totals {
         }
         json!({
             "paymentByTender":Value::Object(tenders),
-            "stockQuantity":self.stock_quantity,
+            "stockQuantity":(self.stock_quantity*1_000_000.0).round()/1_000_000.0,
             "stockMovements":self.stock_movements,
             "tillCount":self.till_count,
             "openTillCashMinor":self.open_till_minor,
@@ -243,6 +294,20 @@ pub fn cutover_manifest(db: &Connection) -> Result<Value> {
     }
 
     let mut collections = Vec::new();
+    // A fixed export allowlist must not silently discard unhandled source collections.
+    // Device setup stays local and is preserved by the checkpoint backup.
+    let unsupported_collections: Vec<Value> = {
+        let mut stmt=db.prepare("SELECT collection,COUNT(*) FROM records GROUP BY collection ORDER BY collection").map_err(error)?;
+        let rows=stmt.query_map([],|row|Ok((row.get::<_,String>(0)?,row.get::<_,i64>(1)?))).map_err(error)?;
+        let mut unsupported=Vec::new();
+        for row in rows {
+            let (collection,count)=row.map_err(error)?;
+            if !IMPORT_COLLECTIONS.contains(&collection.as_str()) && !["installationProfile","businessSetup"].contains(&collection.as_str()) {
+                unsupported.push(json!({"collection":collection,"recordCount":count}));
+            }
+        }
+        unsupported
+    };
     let mut totals = Totals::default();
     let mut record_total = 0i64;
 
@@ -292,6 +357,13 @@ pub fn cutover_manifest(db: &Connection) -> Result<Value> {
         .query_row("SELECT COALESCE(MAX(sequence),0) FROM outbox", [], |r| r.get(0))
         .map_err(error)?;
     let audit_count: i64 = db.query_row("SELECT COUNT(*) FROM audit", [], |r| r.get(0)).map_err(error)?;
+    let document_sequence = |key:&str| -> Result<i64> {
+        match meta(db,key)? {
+            None=>Ok(0),
+            Some(value)=>value.parse::<i64>().ok().filter(|value|*value>=0)
+                .ok_or_else(||format!("Invalid document sequence {key}; reconcile it before cutover")),
+        }
+    };
 
     let body = json!({
         "schemaVersion":1,
@@ -301,8 +373,10 @@ pub fn cutover_manifest(db: &Connection) -> Result<Value> {
         "recordCount":record_total,
         "legacyOutboxMaxSequence":legacy_sequence,
         "legacyAuditCount":audit_count,
+        "documentSequences":{"order":document_sequence("order_sequence")?,"receipt":document_sequence("receipt_sequence")?},
         "unresolvedLegacyCommands":unresolved_legacy_outbox(db)?,
         "collections":collections,
+        "unsupportedCollections":unsupported_collections,
         "totals":totals.to_json(),
     });
     reject_secret_keys(&body)?;

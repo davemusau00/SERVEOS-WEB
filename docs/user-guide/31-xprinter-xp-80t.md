@@ -47,3 +47,15 @@ Direct profiles print the customer copy and business record copy as separate rec
 ## Related workflows
 
 Use [Business Setup](04-business-setup.md) to set till policy, [M-Pesa](12-mpesa.md) to reconcile manual receipt codes, and [Close Day](24-close-day.md) to retain transaction and shift records.
+
+## Obsolete print jobs (Admin)
+
+In native POS, open **Clear obsolete print jobs…** in Receipt jobs needing attention. Review the order/test label, state, update time and transport error. Select one job or all displayed eligible jobs (at most 50), enter a reason of 1-500 characters, acknowledge possible prior paper output, then review and confirm cancellation. More jobs may require another refreshed batch.
+
+Only `QUEUED` and `DELIVERY_UNCERTAIN` jobs can be cancelled. A changed job invalidates the entire batch: refresh, review and confirm again. `SENDING` jobs cannot be selected. Saving disables repeat submission; refresh failures are shown and require another successful refresh.
+
+Cancellation stops further ServOS sends. It does not retract Windows spooler work or prove an uncertain receipt never printed. Customers still needing receipts should retain their job or receive a receipt-history reprint after the current printer configuration is corrected. Retry retains the original job's printer profile; receipt-history reprint creates a new job with the current configuration.
+
+Cancelled rows and their original receipt association, payload, profile, error and creation time remain in SQLite. One immutable local audit entry records the Admin, reason, cancellation time and reviewed job states/timestamps. Sales, payments, stock, receipt documents and cloud outbox entries are unaffected. No SQLite migration is added.
+
+After cancellation, open or refresh **Business Admin > Physical terminal acceptance** for fresh counts. Only unresolved jobs count, including jobs beyond the 50 displayed in POS. Cancellation supplies no physical acceptance evidence and does not close the active till; complete normal close-day and printer/scanner/recovery acceptance.

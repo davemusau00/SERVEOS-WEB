@@ -17,12 +17,12 @@ do $$
 declare
   bad integer := 0;
 begin
-  if servos_v2.cutover_collection_allowed('property') then bad := bad + 1; end if;
-  if servos_v2.cutover_collection_allowed('inventoryReceipts') then bad := bad + 1; end if;
-  if servos_v2.cutover_collection_allowed('maintenanceEvents') then bad := bad + 1; end if;
+  if not servos_v2.cutover_collection_allowed('property') then bad := bad + 1; end if;
+  if not servos_v2.cutover_collection_allowed('inventoryReceipts') then bad := bad + 1; end if;
+  if not servos_v2.cutover_collection_allowed('maintenanceEvents') then bad := bad + 1; end if;
   if servos_v2.cutover_collection_allowed('secrets') then bad := bad + 1; end if;
   if bad > 0 then
-    raise exception 'the cutover allowlist must exclude unsupported collections';
+    raise exception 'cutover must preserve existing configuration/history while rejecting unknown collections';
   end if;
   if not servos_v2.cutover_collection_allowed('customers') then
     raise exception 'the cutover allowlist must include core business collections';
@@ -122,15 +122,27 @@ end$$;
 do $$
 declare
   cut uuid;
+  manifest jsonb;
+  stock_data jsonb:=jsonb_build_object('id','cola','name','Cola','currentStock',jsonb_build_object('main',24,'bar',6));
+  payment_data jsonb:=jsonb_build_object('id','pay-1','tenderType','CASH','amountMinor',5000);
 begin
-  perform public.servos_v2_begin_cutover(jsonb_build_object(
+  manifest:=jsonb_build_object(
     'terminalId','10000000-0000-4000-8000-000000000001',
     'manifestHash',repeat('c',64),'sqliteSchemaVersion',15,'recordCount',2,
-    'collections','[]'::jsonb,
+    'collections',jsonb_build_array(
+      jsonb_build_object('collection','stockItems','activeCount',1,'archivedCount',0,'records',jsonb_build_array(
+        jsonb_build_object('id','cola','version',1,'archived',false,'hash',servos_v2.cutover_record_hash('stockItems','cola',1,stock_data)))),
+      jsonb_build_object('collection','payments','activeCount',1,'archivedCount',0,'records',jsonb_build_array(
+        jsonb_build_object('id','pay-1','version',3,'archived',false,'hash',servos_v2.cutover_record_hash('payments','pay-1',3,payment_data))))),
     'totals',jsonb_build_object('paymentByTender',jsonb_build_object('CASH',5000),
       'stockQuantity',30,'stockMovements',0,'tillCount',0,
       'openTillCashMinor',0,'closedTillCashMinor',0,'creditOutstandingMinor',0,
-      'payableOutstandingMinor',0,'receiptTotalMinor',0,'orderTotalMinor',0)));
+      'payableOutstandingMinor',0,'receiptTotalMinor',0,'orderTotalMinor',0));
+  manifest:=jsonb_set(manifest,'{collections}',(select jsonb_agg(g||jsonb_build_object('collectionHash',
+    encode(extensions.digest(convert_to((select coalesce(string_agg(r->>'hash','' order by r->>'id' collate "C"),'') from jsonb_array_elements(g->'records') r)||(g->>'activeCount'),'UTF8'),'sha256'),'hex')))
+    from jsonb_array_elements(manifest->'collections') g));
+  manifest:=manifest||jsonb_build_object('manifestHash',encode(extensions.digest(convert_to(servos_v2.cutover_canonical_json(manifest-'manifestHash'),'UTF8'),'sha256'),'hex'));
+  perform public.servos_v2_begin_cutover(manifest);
   select id into cut from servos_v2.cutovers order by started_at desc limit 1;
   if cut is null then
     raise exception 'cutover was not created';
@@ -138,7 +150,7 @@ begin
 
   -- An ineligible collection is refused outright.
   begin
-    perform public.servos_v2_import_cutover_page(cut,0,'property',
+    perform public.servos_v2_import_cutover_page(cut,0,'secrets',
       jsonb_build_object('afterId','','records','[]'::jsonb));
     raise exception 'an ineligible collection must be refused';
   exception when others then
@@ -158,6 +170,21 @@ declare
   refused boolean := false;
 begin
   select id into cut from servos_v2.cutovers order by started_at desc limit 1;
+
+  -- Missing records can carry zero financial totals; totals alone cannot prove completion.
+  result:=public.servos_v2_verify_cutover(cut);
+  if (result->>'verified')::boolean or (result->>'missingRecords')::int<>2 then
+    raise exception 'incomplete import must not verify: %',result;
+  end if;
+
+  begin
+    perform public.servos_v2_import_cutover_page(cut,10,'customers',jsonb_build_object('afterId','','records',
+      jsonb_build_array(jsonb_build_object('id','unmanifested','version',1,'data',jsonb_build_object('name','Unmanifested')))));
+    raise exception 'unmanifested record was accepted';
+  exception when others then
+    if sqlerrm not like '%MANIFEST_MISMATCH%' then raise;end if;
+  end;
+  if exists(select 1 from servos_v2.records where id='unmanifested') then raise exception 'rejected page was not atomic';end if;
 
   result := public.servos_v2_import_cutover_page(cut,0,'stockItems',
     jsonb_build_object('afterId','','records',jsonb_build_array(

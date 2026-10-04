@@ -374,6 +374,14 @@ pub fn verify_native_v2_baseline(
         .map_err(error)?
         .as_bytes(),
     );
+    let content: Vec<Value> = {
+        let mut statement=db.prepare("SELECT collection,record_id,version,archived,data FROM native_v2_records ORDER BY collection,record_id").map_err(error)?;
+        let rows=statement.query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,i64>(2)?,r.get::<_,bool>(3)?,r.get::<_,String>(4)?))).map_err(error)?;
+        rows.map(|row|{let(collection,id,version,archived,data)=row.map_err(error)?;
+            Ok(json!({"collection":collection,"id":id,"version":version,"archived":archived,"data":serde_json::from_str::<Value>(&data).map_err(error)?}))
+        }).collect::<Result<Vec<_>>>()?
+    };
+    let content_digest=sha256_hex(cutover::canonical_json(&json!(content)).as_bytes());
 
     Ok(json!({
         "verified": true,
@@ -386,6 +394,7 @@ pub fn verify_native_v2_baseline(
         "recordCount": records,
         "collectionCount": collections,
         "baselineDigest": digest,
+        "contentDigest": content_digest,
         "authorityMode": mode.as_str(),
         "unresolvedLegacyCommands": legacy_pending,
         "installedAt": updated_at,
@@ -6064,4 +6073,69 @@ pub fn snapshot(db: &Connection, token: &str) -> Result<Value> {
         "records":records,"pendingCount":pending,"lastSync":meta(db,"last_sync")?,"lastBackup":meta(db,"last_backup")?,"terminalId":meta(db,"terminal_id")?,
         "installationStage":installation_stage(db)?,"actor":{"id":user.staff_id,"name":user.name,"role":user.role,"permissions":permissions(&user.role)}
     }))
+}
+
+
+// Local printer lifecycle operations. No business records or cloud outbox writes.
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PrinterJobSelection {
+    pub job_id: String,
+    pub state: String,
+    pub updated_at: String,
+}
+pub const PRINTER_CANCEL_REASON_MAX: usize = 500;
+pub fn cancel_printer_jobs(db: &mut Connection, token: &str, reason: &str, jobs: &[PrinterJobSelection]) -> Result<Value> {
+    let user = actor(db, token, true)?;
+    if user.role != "Admin" { return Err("Only Admin can cancel obsolete print jobs".into()); }
+    let reason = reason.trim();
+    if reason.is_empty() || reason.chars().count() > PRINTER_CANCEL_REASON_MAX {
+        return Err("Cancellation reason must contain 1-500 characters".into());
+    }
+    if jobs.is_empty() || jobs.len() > 50 { return Err("Select 1-50 print jobs".into()); }
+    let mut unique = std::collections::HashSet::new();
+    if jobs.iter().any(|job| !unique.insert(&job.job_id)) { return Err("Duplicate print job selection".into()); }
+    let tx = db.transaction().map_err(error)?;
+    for job in jobs {
+        let row: Option<(String,String)> = tx.query_row("SELECT state,updated_at FROM receipt_print_jobs WHERE id=?", [&job.job_id], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(error)?;
+        if !matches!(job.state.as_str(), "QUEUED" | "DELIVERY_UNCERTAIN") || row != Some((job.state.clone(),job.updated_at.clone())) {
+            return Err("Stale print job selection. Refresh and review all selected jobs again".into());
+        }
+    }
+    let stamp = Utc::now().to_rfc3339();
+    for job in jobs {
+        let changed = tx.execute("UPDATE receipt_print_jobs SET state='CANCELLED',updated_at=? WHERE id=? AND state=? AND updated_at=?", params![stamp,job.job_id,job.state,job.updated_at]).map_err(error)?;
+        if changed != 1 { return Err("Stale print job selection. Refresh and review again".into()); }
+    }
+    let audit_id = id();
+    tx.execute("INSERT INTO audit(id,command_id,actor_id,operation,occurred_at,payload) VALUES(?,?,?,?,?,?)",params![audit_id,id(),user.staff_id,"printer.cancel",stamp,json!({"reason":reason,"jobs":jobs,"actorRole":user.role}).to_string()]).map_err(error)?;
+    tx.commit().map_err(error)?;
+    Ok(json!({"cancelledIds":jobs.iter().map(|job|&job.job_id).collect::<Vec<_>>(),"count":jobs.len(),"cancelledAt":stamp,"auditReference":audit_id}))
+}
+
+pub struct ClaimedPrinterJob { pub policy: Value, pub payload: Value, pub order_id: String }
+pub fn claim_printer_job(db: &Connection, job_id: &str, confirm_duplicate: bool) -> Result<ClaimedPrinterJob> {
+    let (state,profile,payload,order_id): (String,String,String,String) = db.query_row("SELECT state,profile,payload,order_id FROM receipt_print_jobs WHERE id=?",[job_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(error)?;
+    if state == "DELIVERY_UNCERTAIN" && !confirm_duplicate { return Err("The first send may already have printed. Confirm possible duplicate before retrying".into()); }
+    if !matches!(state.as_str(),"QUEUED"|"DELIVERY_UNCERTAIN") { return Err("This print job cannot be claimed for sending".into()); }
+    let claim = ClaimedPrinterJob { policy: serde_json::from_str(&profile).map_err(error)?, payload: serde_json::from_str(&payload).map_err(error)?, order_id };
+    if db.execute("UPDATE receipt_print_jobs SET state='SENDING',updated_at=? WHERE id=? AND state=?",params![Utc::now().to_rfc3339(),job_id,state]).map_err(error)? != 1 { return Err("Another print attempt already claimed this job".into()); }
+    Ok(claim)
+}
+pub fn finish_printer_job(db: &Connection, job_id: &str, state: &str, message: &str) -> Result<()> {
+    if !matches!(state,"SENT"|"QUEUED"|"DELIVERY_UNCERTAIN") { return Err("Invalid printer transport result".into()); }
+    if db.execute("UPDATE receipt_print_jobs SET state=?,message=?,updated_at=? WHERE id=? AND state='SENDING'",params![state,message,Utc::now().to_rfc3339(),job_id]).map_err(error)? != 1 { return Err("Print job is no longer claimed for sending".into()); }
+    Ok(())
+}
+pub fn unresolved_printer_job_count(db: &Connection) -> Result<i64> {
+    db.query_row("SELECT COUNT(*) FROM receipt_print_jobs WHERE state NOT IN ('SENT','CANCELLED')",[],|r|r.get(0)).map_err(error)
+}
+pub fn unresolved_printer_jobs(db: &Connection) -> Result<Value> {
+    let mut stmt = db.prepare("SELECT id,order_id,state,message,created_at,updated_at FROM receipt_print_jobs WHERE state NOT IN ('SENT','CANCELLED') ORDER BY created_at DESC,id DESC LIMIT 50").map_err(error)?;
+    let rows = stmt.query_map([],|r|Ok(json!({"jobId":r.get::<_,String>(0)?,"orderId":r.get::<_,String>(1)?,"state":r.get::<_,String>(2)?,"message":r.get::<_,String>(3)?,"createdAt":r.get::<_,String>(4)?,"updatedAt":r.get::<_,String>(5)?}))).map_err(error)?;
+    Ok(json!(rows.collect::<std::result::Result<Vec<_>,_>>().map_err(error)?))
+}
+pub fn recover_printer_jobs(db: &Connection) -> Result<()> {
+    db.execute("UPDATE receipt_print_jobs SET state='DELIVERY_UNCERTAIN',message='App restarted while the printer send was in progress. Check paper before retrying.',updated_at=? WHERE state='SENDING'",[Utc::now().to_rfc3339()]).map_err(error)?;
+    Ok(())
 }

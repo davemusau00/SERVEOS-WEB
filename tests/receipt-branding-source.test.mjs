@@ -234,7 +234,7 @@ test('brand asset manifest records exact checked-in source hashes and PNG dimens
     ['public/icons/servos-512.svg', '512 × 512, SVG (`viewBox` 192 × 192)', '66F10EE084BFB858F7933AE51C36022E5A08F379857192E5E516B9BCD52C552F'],
     ['public/icons/servos-maskable.svg', '512 × 512, SVG (`viewBox` 192 × 192)', 'B0867A4ABE32E93358B4F4D2AD5DBC88E086F6B10487CD0F7B039D08DFD620E9'],
   ]) {
-    const actualHash = createHash('sha256').update(readFileSync(file)).digest('hex').toUpperCase();
+    const actualHash = createHash('sha256').update(readFileSync(file, 'utf8').replaceAll('\r\n', '\n')).digest('hex').toUpperCase();
     assert.equal(actualHash, hash, `${file} changed; review and update the asset manifest`);
     assert.ok(manifest.includes(`| \`${file}\` | ${dimensions} |`));
     assert.ok(manifest.includes(hash));

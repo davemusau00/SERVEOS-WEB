@@ -1,5 +1,13 @@
 # Current release state
 
+## 2026-10-03 existing Windows 10 terminal upgrade preparation
+
+The owner's latest deployment decision preserves an existing operational installation and targets shared v2 authority under `FINAL-SPRINT-FIXES.MD`. Earlier fresh-install and Native-only release assumptions are superseded. See `TERMINAL_DEPLOYMENT_READINESS.md` for requirement evidence and `SHARED_V2_CUTOVER_RUNBOOK.md` for the separately authorized commissioning window.
+
+Current local evidence: 207/207 source tests, 94/94 Windows native domain tests, 94/94 Tauri desktop library tests, locked desktop compilation, 34/34 preview browser tests, 52/52 production browser tests, TypeScript/frontend/contracts/docs/protocol checks and disposable base/v2 PostgreSQL suites passed. Cross-runtime fixtures exercise SQLite export into PostgreSQL and server snapshot installation into SQLite with authenticated content attestation. A final gate also rejects unrelated server records outside the source manifest. The installer pipeline must rerun all required gates from the final clean commit; no skipped-check package is accepted.
+
+Actual checkpoint-data rehearsal, live-project migration/Auth/cross-client evidence, XP-80T paper/official QR/scanner/full-shift acceptance, Windows 10 servicing inventory and replacement restore remain pending. No production migration or authority activation was performed. The historical entries below describe earlier verification states and do not supersede this preparation evidence.
+
 ## 2026-10-01 blocker and receipt follow-up — source only
 
 The reported Administration syntax defect is corrected (`previewRows` is an arrow function), and the whole-location inventory SQL fixture now expects one immutable count movement for each nonzero item variance with exact deltas. These fixes have not been compiled or executed.

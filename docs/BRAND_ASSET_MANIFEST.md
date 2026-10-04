@@ -1,6 +1,6 @@
 # Brand asset manifest
 
-Hashes below are SHA-256 of the checked-in source bytes. The source images are preserved; Admin explicitly selects “Use supplied default” or uploads a replacement. Neither business asset silently replaces generic ServOS product identity.
+Hashes below are SHA-256 of the checked-in source bytes. SVG text uses canonical LF line endings so Windows Git checkout conversion does not change its identity; PNG hashes use unmodified binary bytes. The source images are preserved; Admin explicitly selects “Use supplied default” or uploads a replacement. Neither business asset silently replaces generic ServOS product identity.
 
 | Source asset | Source dimensions / format | Purpose and configured use | Derived output | SHA-256 |
 |---|---|---|---|---|
