@@ -121,7 +121,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
   submitInFlight.current=true;setBusy(true);setError('');setNotice('');let activeCommandId='';
   try{
     const unresolvedCommand=(await store.current.queue()).find(item=>item.state==='OUTCOME_UNKNOWN');
-    if(unresolvedCommand){const message='A previous action still has an unknown outcome. Synchronize it to check the original command before starting another action.';setError(message);return {kind:'OUTCOME_UNKNOWN',commandId:unresolvedCommand.id,message}}
+    if(unresolvedCommand&&unresolvedCommand.id!==payload.reviewCommandId){const message='A previous action still has an unknown outcome. Synchronize it to check the original command before starting another action.';setError(message);return {kind:'OUTCOME_UNKNOWN',commandId:unresolvedCommand.id,message}}
     if(editor?.supersedes){const predecessor=(await store.current.queue()).find(item=>item.id===editor.supersedes);if(predecessor?.state==='PENDING_SYNC'||predecessor?.state==='OUTCOME_UNKNOWN'){const message='ServOS is still checking the original command. Synchronize it before submitting a replacement.';setError(message);return {kind:'BLOCKED',message}}if(predecessor?.state==='SYNCHRONIZED'){const message='The original command was confirmed. Its replacement was not submitted.';setEditor(null);setError(message);return {kind:'BLOCKED',message}}}
     if(operation==='roomStay.settings'){
       const roomTypeId=String(payload.roomTypeId||'');
@@ -143,7 +143,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
     const currentPolicyVersion=await store.current.policyVersion();
     if(editor?.draftId&&editor.policyVersion&&currentPolicyVersion!==editor.policyVersion){const message='Business policy changed. The workflow was retained for review and no command was queued.';await retainForReview(['Business policy changed while this workflow was saved. Review the current authorization and submit again.']);setError(message);return {kind:'BLOCKED',message}}
     if(!navigator.onLine){await store.current.saveDraft({id:draftId,operation,collection,targetId:id,editorKind:editor?.title||operation,inputValues:editor?values:{},fields:draftFields,supersedes:editor?.supersedes,payload,expectedVersions:baselines,policyVersion:await store.current.policyVersion(),validationSummary:[],requiresReview:/payment|refund|credit|approval/i.test(operation)});setNotice('Draft saved on this browser. Review and submit when online.');await refresh();setEditor(null);return {kind:'DRAFT_SAVED',draftId}}
-    const command=await store.current.enqueue(operation,payload,baselines,editor?.supersedes);activeCommandId=command.id;setNotice('Saved on this browser; waiting to sync.');await refresh();
+    const command=await store.current.enqueue(operation,payload,baselines,editor?.supersedes,typeof payload.reviewCommandId==='string'?payload.reviewCommandId:undefined);activeCommandId=command.id;setNotice('Saved on this browser; waiting to sync.');await refresh();
    try{await syncRef.current()}catch(e){
     const current=(await store.current.queue()).find(q=>q.id===command.id);
     if(current?.state==='SYNCHRONIZED'){if(editor?.draftId)await store.current.discardDraft(editor.draftId);setEditor(null);setNotice('Saved and confirmed. The shared view is refreshing; do not submit again.');return {kind:'CONFIRMED',commandId:command.id}}

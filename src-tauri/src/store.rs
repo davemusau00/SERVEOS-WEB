@@ -3283,6 +3283,8 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                         ))
                     });
                     if referenced { return Err("This stock item is still referenced by an active product, recipe or modifier".into()); }
+                    if list(&tx,"purchaseOrders")?.iter().any(|record|!["CANCELLED","CLOSED"].contains(&record["data"]["status"].as_str().unwrap_or(""))&&record["data"]["items"].as_array().is_some_and(|lines|lines.iter().any(|line|line["stockItemId"].as_str()==Some(record_id)&&line["quantityReceived"].as_f64().unwrap_or(0.0)<line["quantityOrdered"].as_f64().unwrap_or(0.0)))){return Err("Resolve outstanding purchase order quantities before archiving this stock item".into());}
+
                 }
                 tx.execute(
                     "UPDATE records SET archived=1,version=version+1 WHERE collection=? AND id=?",

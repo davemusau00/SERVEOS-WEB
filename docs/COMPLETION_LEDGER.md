@@ -152,3 +152,7 @@ Baseline and executed checks are recorded in [test evidence](TEST_EVIDENCE.md). 
 | Credit settlement | CASH/M-Pesa/CARD + A/R journal | Receive Payment | native/source gate required |
 | Reconciliation | immutable reconciliation + explicit discrepancies | Customer Accounts | native/source gate required |
 | Close day | credit sales/collections/outstanding | Reports | native/source gate required |
+
+## 2026-10-04 bottle inventory candidate
+
+See [delivery record](BOTTLE_INVENTORY_DELIVERY.md), [verification evidence](BOTTLE_INVENTORY_TEST_EVIDENCE.md), and [accounting design for approval](PROCUREMENT_CORRECTION_ACCOUNTING_DESIGN.md). Native schema 16 and the forward shared migration add reviewed bottle/count/correction contracts while preserving current authority and business data. This is an uncommitted source candidate. It does not supersede the checksums or acceptance of historical release packages. Accounting approval, restored-business-data upgrade rehearsal, hosted rollout, terminal pilot and hardware acceptance remain open.

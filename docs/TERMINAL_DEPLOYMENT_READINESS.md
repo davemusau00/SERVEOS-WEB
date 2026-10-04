@@ -28,3 +28,7 @@ Target: a separate Windows 10 PC with an existing operational ServOS installatio
 Actual terminal checkpoint SQLite backup and Production Health export have not been supplied. Installed version/schema, printer/scanner configuration, Windows servicing status, real project migration/Auth state and physical acceptance are unverified. Keep transactional Web disabled until authorized terminal/server commissioning passes. Do not reset the existing business or repeat Intake to bypass these gates.
 
 Use `SHARED_V2_CUTOVER_RUNBOOK.md`, `EXISTING_TERMINAL_UPGRADE.md` and `RELEASE_0.2_ACCEPTANCE.md` for rehearsal and commissioning. The release manifest must record pending hosted and physical acceptance and actual signing status.
+
+## 2026-10-04 bottle inventory candidate
+
+See [delivery record](BOTTLE_INVENTORY_DELIVERY.md), [verification evidence](BOTTLE_INVENTORY_TEST_EVIDENCE.md), and [accounting design for approval](PROCUREMENT_CORRECTION_ACCOUNTING_DESIGN.md). Native schema 16 and the forward shared migration add reviewed bottle/count/correction contracts while preserving current authority and business data. This is an uncommitted source candidate. It does not supersede the checksums or acceptance of historical release packages. Accounting approval, restored-business-data upgrade rehearsal, hosted rollout, terminal pilot and hardware acceptance remain open.

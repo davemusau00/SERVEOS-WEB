@@ -64,13 +64,14 @@ export class BusinessStore {
       await request(meta.put(command.clientSequence,'sequence'));await request(drafts.delete(id));return command;
     });
   }
-  async enqueue(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion[],supersedes?:string):Promise<BusinessCommandV2>{
+  async enqueue(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion[],supersedes?:string,reviewCommandId?:string):Promise<BusinessCommandV2>{
     this.requireOnline();
     return this.transaction(['queue','meta'],'readwrite',async tx=>{
+      if(reviewCommandId){const existing=await request(tx.objectStore('queue').get(reviewCommandId)) as QueuedCommand|undefined;if(existing){if(existing.command.operation!==operation||JSON.stringify(existing.command.payload)!==JSON.stringify(payload)||JSON.stringify(existing.command.expectedVersions)!==JSON.stringify(expectedVersions))throw new Error('Reviewed command changed; recover its original outcome');return existing.command;}}
       const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
       this.requireOnline();
       if(!Number.isSafeInteger(previous+1))throw new Error('Device sequence exhausted');
-      const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation,...(supersedes?{supersedes}:{}),payload,expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
+      const command:BusinessCommandV2={id:reviewCommandId||crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation,...(supersedes?{supersedes}:{}),payload,expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
       await request(tx.objectStore('queue').add({id:command.id,sequence:command.clientSequence,command,state:'PENDING_SYNC'} satisfies QueuedCommand));
       await request(meta.put(command.clientSequence,'sequence'));return command;
     });

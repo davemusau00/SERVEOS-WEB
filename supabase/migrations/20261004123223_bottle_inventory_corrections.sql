@@ -247,6 +247,10 @@ declare p jsonb:=command->'payload';op text:=command->>'operation';result jsonb;
   if op='stockItem.save' and not (p->'data' ? 'averageUnitCostMinor') then p:=jsonb_set(p,'{data,averageUnitCostMinor}',to_jsonb((p->'data'->>'averageUnitCost')::numeric*100),true);end if;
   command:=jsonb_set(command,'{payload}',p);
  end if;
+ if op='stockItem.archive' then
+  if exists(select 1 from servos_v2.records r where r.collection='products' and not r.archived and (exists(select 1 from jsonb_array_elements(coalesce(r.data->'recipeIngredients','[]')) l where l->>'stockItemId'=p->>'id') or exists(select 1 from jsonb_array_elements(coalesce(r.data->'modifiers','[]')) m cross join lateral jsonb_array_elements(coalesce(m->'ingredientAdjustments','[]')) l where l->>'stockItemId'=p->>'id'))) then raise exception 'INVALID_STATE: active recipe or modifier references this stock';end if;
+  if exists(select 1 from servos_v2.records r cross join lateral jsonb_array_elements(coalesce(r.data->'items','[]')) l where r.collection='purchaseOrders' and not r.archived and coalesce(r.data->>'status','') not in ('CANCELLED','CLOSED') and l->>'stockItemId'=p->>'id' and coalesce((l->>'quantityReceived')::numeric,0)<(l->>'quantityOrdered')::numeric) then raise exception 'INVALID_STATE: resolve outstanding purchase order quantities before archiving stock';end if;
+ end if;
  if op='product.save' then mode:=coalesce(p->'data'->'sellingMode',(select data->'sellingMode' from servos_v2.records where collection='products' and id=p->>'id'));end if;
  if op='inventory.adjust' then
   perform servos_v2.assert_version(command,'stockItems',p->>'stockItemId');before_stock:=servos_v2.read_record('stockItems',p->>'stockItemId');
