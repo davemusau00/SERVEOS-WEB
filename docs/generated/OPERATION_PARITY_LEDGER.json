@@ -1263,7 +1263,7 @@
       "collection": "stockCounts",
       "native": "implemented",
       "backend": "implemented",
-      "web": "missing",
+      "web": "implemented",
       "notes": "Explicit selected scope; canonical forward migration required. Hosted rollout and operator acceptance pending.",
       "v2Routing": "shared",
       "offlineEligibility": "unknown",
@@ -1273,7 +1273,7 @@
       "stockEffect": "unknown",
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for inventory.countSelected across permission, persistence, conflict, and recovery behavior.",
-      "operatorUxStatus": "blocked-by-domain"
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "procurement.reverseUnusedReceipt",
