@@ -4,8 +4,10 @@ import { resolveOperationDependencies } from '../runtime/web/dependencies';
 import { ActionDialog } from './ActionDialog';
 import { buttonClass, fieldClass, primaryButtonClass } from './records';
 
-export function ReceiptCorrectionDialog({ receipt, movement, onClose }: { receipt: any; movement?: boolean; onClose: () => void }) {
-  const runtime = useRuntime();const snapshot = runtime.snapshot!;
+type LinkedCorrectionProps={receipt:any;movement?:boolean;onClose:()=>void};
+export function ReceiptCorrectionDialog(props:LinkedCorrectionProps){const runtime=useRuntime();return <LinkedCorrectionDialog {...props} runtime={runtime}/>;}
+export function LinkedCorrectionDialog({receipt,movement,onClose,runtime}:LinkedCorrectionProps&{runtime:{snapshot:ReturnType<typeof useRuntime>['snapshot'];command:(operation:string,payload:Record<string,unknown>,version?:number,id?:string)=>Promise<unknown>;correctionCommandStatus:(id:string)=>Promise<string>}}) {
+  const snapshot = runtime.snapshot!;
   const operation=movement?'inventory.reverseMovement':'procurement.reverseUnusedReceipt';
   const target=movement?{movementId:receipt.id}:{goodsReceiptId:receipt.id};
   const key=`servos-linked-correction:${snapshot.terminalId}:${snapshot.actor.id}:${receipt.id}`;

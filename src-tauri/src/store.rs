@@ -64,6 +64,9 @@ fn quantity(v: &Value, key: &str) -> Result<f64> {
     }
     Ok(n)
 }
+fn cost_rate(v:&Value,key:&str)->Result<f64>{
+    let rate=v[key].as_f64().filter(|n|n.is_finite()&&*n>=0.0&&*n<=1_000_000_000.0).ok_or("Invalid unit cost rate")?;Ok(rate)
+}
 fn valid_base64(value:&str)->bool{!value.is_empty()&&value.len()%4==0&&base64::engine::general_purpose::STANDARD.decode(value).is_ok()}
 fn normalize_barcode_value(data: &mut Value) -> Result<Option<String>> {
     match data.get("barcode") {
@@ -1019,7 +1022,8 @@ pub fn save_inventory_count_draft(db: &Connection, token: &str, location_id: &st
         let scans=value.as_u64().filter(|count|*count<=1_000_000).ok_or("Count draft scan totals are invalid")?;
         if scans>0 { clean_scans.insert(stock_id.clone(),json!(scans)); }
     }
-    if scan_counts.keys().any(|stock_id|!counts.contains_key(stock_id)) { return Err("Count draft scan totals do not match counted items".into()); }
+    for (stock_id,raw_scans) in scan_counts {if !counts.contains_key(stock_id)&&draft["entries"].get(stock_id).is_some(){let scans=raw_scans.as_u64().filter(|n|*n<=1_000_000).ok_or("Invalid scan total")?;if scans>0{clean_scans.insert(stock_id.clone(),json!(scans));}}}
+    if scan_counts.keys().any(|stock_id|!counts.contains_key(stock_id)&&draft["entries"].get(stock_id).is_none()) { return Err("Count draft scan totals do not match counted items".into()); }
     let unknown=draft.get("unknownScans").and_then(Value::as_array).ok_or("Unknown barcode list is required")?;
     if unknown.len()>500 { return Err("Count draft has too many unrecognized barcodes".into()); }
     let mut clean_unknown=Vec::with_capacity(unknown.len());
@@ -2952,7 +2956,7 @@ fn procurement_receive(tx: &Transaction, user: &Session, cmd: &BusinessCommand, 
                     let (_,mut stock)=get(tx,"stockItems",&stock_id)?;
                     let stock_total=stock["currentStock"].as_object().map(|locations|locations.values().map(|value|value.as_f64().unwrap_or(0.0)).sum::<f64>()).unwrap_or(0.0);
                     let old_cost=stock["averageUnitCost"].as_f64().unwrap_or(0.0);
-                    let next_cost=if stock_total+base_accepted>0.0 { ((stock_total*old_cost+base_accepted*unit_cost)/(stock_total+base_accepted)*1_000_000.0).round()/1_000_000.0 } else { unit_cost };
+                    let next_cost=if stock_total+base_accepted>0.0 { (stock_total*old_cost+line["acceptedValue"].as_f64().unwrap_or(base_accepted*unit_cost))/(stock_total+base_accepted) } else { unit_cost };
                     stock["averageUnitCost"]=json!(next_cost);
                     put(tx,"stockItems",&stock_id,stock,changes)?;
                     let inventory_receipt_id=id();
@@ -3114,7 +3118,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
             let stock_code=text(&stock,"code")?;
             text(&stock,"name")?;
             text(&stock,"baseUnit")?;
-            quantity(&stock,"averageUnitCost")?;
+            cost_rate(&stock,"averageUnitCost")?;
             if !stock["sealedContainerSize"].is_null() {
                 let size=quantity(&stock,"sealedContainerSize")?;
                 if size<=0.0||size>100_000.0||stock["baseUnit"].as_str()!=Some("ml"){return Err("Sealed/open bottle tracking requires a valid ml container size".into());}
@@ -3450,7 +3454,7 @@ pub fn execute_as(db: &mut Connection, user: &Session, cmd: BusinessCommand) -> 
                     }
                 }
                 if collection == "stockItems" {
-                    quantity(&data, "averageUnitCost")?;
+                    cost_rate(&data, "averageUnitCost")?;
                     text(&data, "code")?;
                     text(&data, "baseUnit")?;
                     if !data["scanUnitQuantity"].is_null() && quantity(&data, "scanUnitQuantity")? <= 0.0 {
@@ -4593,6 +4597,7 @@ fn stock_delta_with_cost_and_container(
             let reconstructed=sealed*size+open;
             if sealed<0.0||open<0.0||open>=size+0.000001||(reconstructed-current).abs()>0.001{return Err("Sealed/open stock record is inconsistent with the canonical quantity; reconcile inventory before movement".into());}
             if delta>0.0 {
+                if kind=="PURCHASE_RECEIPT" && (delta/size-(delta/size).round()).abs()>0.000001{return Err("Bottle receipt must contain whole sealed bottles".into());}
                 let added_sealed=(delta/size).floor();
                 sealed+=added_sealed;open+=delta-added_sealed*size;
                 if open>=size-0.000001{let extra=(open/size).floor();sealed+=extra;open-=extra*size;}

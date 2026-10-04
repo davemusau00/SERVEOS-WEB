@@ -1244,7 +1244,7 @@
       "collection": "movementCorrections",
       "native": "implemented",
       "backend": "implemented",
-      "web": "missing",
+      "web": "implemented",
       "notes": "Full linked waste/transfer reversal only with a saved baseline and no later stock/cost changes; otherwise use current balance correction.",
       "v2Routing": "shared",
       "offlineEligibility": "unknown",
@@ -1254,7 +1254,7 @@
       "stockEffect": "unknown",
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for inventory.reverseMovement across permission, persistence, conflict, and recovery behavior.",
-      "operatorUxStatus": "blocked-by-domain"
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "inventory.countSelected",
@@ -1282,7 +1282,7 @@
       "collection": "receiptCorrections",
       "native": "implemented",
       "backend": "implemented",
-      "web": "missing",
+      "web": "implemented",
       "notes": "Exact unused receipt reversal requires immutable baseline snapshots and no downstream activity. Consumed and paid corrections remain gated by accounting design.",
       "v2Routing": "shared",
       "offlineEligibility": "unknown",
@@ -1292,7 +1292,7 @@
       "stockEffect": "unknown",
       "financialEffect": "unknown",
       "acceptanceTest": "Add or maintain acceptance coverage for procurement.reverseUnusedReceipt across permission, persistence, conflict, and recovery behavior.",
-      "operatorUxStatus": "blocked-by-domain"
+      "operatorUxStatus": "unreviewed"
     },
     {
       "operation": "record.reactivate",

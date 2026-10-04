@@ -68,4 +68,16 @@ do $$begin
  if exists(select 1 from servos_v2.records where collection='supplierPayables' and data->>'goodsReceiptId'=(select id from original_receipt) and (data->>'amountDueMinor')::bigint<>0) then raise exception 'Payable not reversed';end if;
 end$$;
 select pg_temp.bottle_command('procurement.reverseUnusedReceipt','receiptCorrections','again',jsonb_build_object('goodsReceiptId',(select id from original_receipt),'reason','Again','confirmedUnusedDuplicate',true),'REJECTED');
+-- A package costs 10,001 minor units for 9,000 ml; retain the invoice total,
+-- a fractional rate and unchanged pre-existing open liquid.
+select pg_temp.bottle_command('stockItem.save','stockItems','rate-stock','{"id":"rate-stock","data":{"name":"Rate test","code":"RATESTOCK","baseUnit":"ml","sealedContainerSize":750,"scanUnitQuantity":750,"averageUnitCostMinor":0,"purchasePackages":[{"id":"case12","name":"12 bottles","baseQuantity":9000,"unitsPerPackage":12,"baseUnit":"ml"}]}}');
+select pg_temp.bottle_command('inventory.adjust','stockItems','rate-stock','{"stockItemId":"rate-stock","locationId":"bottle-main","sealedContainers":0,"openQuantity":300,"countedQty":300,"reason":"Existing open liquid"}');
+select pg_temp.bottle_command('purchaseOrder.create','purchaseOrders','rate-po','{"id":"rate-po","supplierId":"bottle-supplier","items":[{"lineId":"rate-line","stockItemId":"rate-stock","purchasePackageId":"case12","quantityOrdered":1,"unitPriceMinor":10001}]}');
+select pg_temp.bottle_command('purchaseOrder.receive','goodsReceipts','rate-new','{"purchaseOrderId":"rate-po","locationId":"bottle-main","lines":[{"lineId":"rate-line","stockItemId":"rate-stock","quantityDelivered":1,"quantityAccepted":1,"quantityRejected":0}]}');
+do $$declare s jsonb;begin
+ select data into s from servos_v2.records where collection='stockItems' and id='rate-stock';
+ if round((s->>'averageUnitCostMinor')::numeric*9300)<>10001 then raise exception 'Invoice value lost through rounded per-ml rate';end if;
+ if (s->'sealedOpenStock'->'bottle-main'->>'sealedContainers')::numeric<>12 then raise exception 'Receiving did not retain sealed bottles';end if;
+ if (s->'sealedOpenStock'->'bottle-main'->>'openQuantity')::numeric<>300 then raise exception 'Receiving changed existing open liquid';end if;
+end$$;
 rollback;

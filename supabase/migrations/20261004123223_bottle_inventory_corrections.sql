@@ -176,6 +176,7 @@ declare p jsonb:=command->'payload';receipt_key text:=servos_v2.required_text(p,
  perform servos_v2.assert_version(command,'goodsReceipts',receipt_key);
  if exists(select 1 from servos_v2.records where collection='receiptCorrections' and data->>'goodsReceiptId'=receipt_key) then raise exception 'INVALID_STATE: receipt already fully corrected';end if;
  receipt:=servos_v2.read_record('goodsReceipts',receipt_key);snapshot:=servos_v2.read_record('procurementCorrectionBaselines',receipt_key);
+ if snapshot->>'source'='LEGACY_SQLITE_CUTOVER' then raise exception 'INVALID_STATE: imported baseline requires accounting normalization review';end if;
  if exists(select 1 from jsonb_array_elements(receipt->'lines') l where coalesce(l->>'treatment','STOCK')<>'STOCK') then raise exception 'INVALID_STATE: asset and expense corrections require accounting review';end if;
  order_key:=receipt->>'purchaseOrderId';location_key:=receipt->>'locationId';
  perform 1 from servos_v2.records where collection='purchaseOrders' and id=order_key for update;
@@ -213,7 +214,8 @@ declare p jsonb:=command->'payload';movement jsonb;baseline jsonb;stock jsonb;be
  movement:=servos_v2.read_record('stockMovements',servos_v2.required_text(p,'movementId'));
  if p->'confirmedRecordingMistake' is distinct from 'true'::jsonb then raise exception 'VALIDATION_FAILED: confirm that this was a recording mistake';end if;
  if movement->>'movementType' not in ('TRANSFER_OUT','TRANSFER_IN','WASTE') then raise exception 'INVALID_STATE: use the transaction correction workflow';end if;
- original:=movement->>'sourceCommandId';baseline:=servos_v2.read_record('inventoryMovementBaselines',original);stock_key:=baseline->>'stockItemId';
+ original:=movement->>'sourceCommandId';baseline:=servos_v2.read_record('inventoryMovementBaselines',original);
+ if baseline->>'source'='LEGACY_SQLITE_CUTOVER' then raise exception 'INVALID_STATE: imported movement baseline requires review; use current physical correction';end if;stock_key:=baseline->>'stockItemId';
  if exists(select 1 from servos_v2.records where collection='movementCorrections' and data->>'reversesCommandId'=original) then raise exception 'INVALID_STATE: movement already fully reversed';end if;
  perform servos_v2.assert_version(command,'stockItems',stock_key);
  select data into stock from servos_v2.records where collection='stockItems' and id=stock_key and not archived for update;
@@ -305,8 +307,10 @@ alter function servos_v2.can_read_collection(text) rename to can_read_collection
 create function servos_v2.can_read_collection(collection_name text) returns boolean language plpgsql stable set search_path='' as $$
 declare grants text[];begin
  select permissions into grants from servos_v2.members where user_id=auth.uid() and active;
- if collection_name in ('inventoryCorrections','inventoryMovementBaselines','movementCorrections') then return coalesce(grants&&array['*','inventory.view','inventory.adjust'],false);end if;
- if collection_name in ('receiptCorrections','procurementCorrectionBaselines') then return coalesce(grants&&array['*','procurement.view','procurement.pay','accounting.view'],false);end if;
+ if collection_name='inventoryMovementBaselines' then return coalesce(grants&&array['*','inventory.adjust'],false);end if;
+ if collection_name='procurementCorrectionBaselines' then return coalesce(grants&&array['*','procurement.pay','accounting.view'],false);end if;
+ if collection_name in ('inventoryCorrections','movementCorrections') then return coalesce(grants&&array['*','inventory.view','inventory.adjust'],false);end if;
+ if collection_name in ('receiptCorrections') then return coalesce(grants&&array['*','procurement.view','procurement.pay','accounting.view'],false);end if;
  return servos_v2.can_read_collection_before_inventory_corrections(collection_name);
 end$$;
 

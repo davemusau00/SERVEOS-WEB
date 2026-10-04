@@ -33,3 +33,10 @@ test('frozen dependencies include selected stock and location only',()=>{
  const records=[{collection:'stockItems',id:'wine750',version:3},{collection:'stockItems',id:'other',version:8},{collection:'stockLocations',id:'bar',version:2}];
  const pinned=inventory.frozenDependencies(records,['wine750'],'bar');records[0].version=4;assert.equal(pinned[0].version,3);assert.equal(pinned.length,2);
 });
+
+test('physical movement builders validate whole bottles and retain open-liquid quantities',()=>{
+ assert.deepEqual(inventory.movementPayload(stock,'SEALED','12','Receive transfer'),{quantity:9000,disposition:'SEALED',reason:'Receive transfer'});
+ assert.equal(inventory.movementPayload(stock,'OPEN','300','Open transfer').quantity,300);
+ assert.throws(()=>inventory.movementPayload(stock,'SEALED','1.5','Invalid'));
+ assert.equal(inventory.scannedEntry(stock,inventory.emptyCountEntry(),750).open,'');
+});

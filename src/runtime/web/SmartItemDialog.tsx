@@ -63,7 +63,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
   const isSealedContainer = setupKind === 'STOCKED' && (itemType === 'SPIRIT' || itemType === 'WINE');
   const calculation = useMemo(() => {
     try {
-      const pkg = definePurchasePackage({ id: 'preview', name: purchaseName || 'Package', unitsPerPackage, contentsPerSaleUnit: contents, unit, mode, barcode });
+      const pkg = definePurchasePackage({ id: 'preview', name: purchaseName || 'Package', unitsPerPackage, contentsPerSaleUnit: contents, unit, mode });
       const unitCost = costPerCanonicalUnit(Math.round(packageCost * 100), pkg.baseQuantity, baseUnit);
       return { pkg, unitCost, opening: pkg.baseQuantity * openingPackages, sale: canonicalizeMeasurement(saleQuantity, unit, mode).quantity };
     } catch {
@@ -81,7 +81,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
         const stock = stocks.find(item => item.id === line.stockItemId);
         if (!stock) throw new Error('Recipe stock item is no longer available.');
         const averageCostMinor = Number(stock.data.averageUnitCostMinor || 0);
-        if (!Number.isSafeInteger(averageCostMinor)) throw new Error('Recipe stock cost is invalid.');
+        if (!Number.isFinite(averageCostMinor)||averageCostMinor<0) throw new Error('Recipe stock cost is invalid.');
         return { quantity: line.quantity, averageCostMinor };
       }));
     } catch {
@@ -221,7 +221,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
           name: name.trim(),
           code: code.trim(),
           baseUnit,
-          scanUnitQuantity: calculation!.pkg.baseQuantity,
+          scanUnitQuantity: calculation!.pkg.baseQuantity / unitsPerPackage,
           purchasePackages: [calculation!.pkg],
           ...(isSealedContainer ? { sealedContainerSize: calculation!.pkg.baseQuantity / unitsPerPackage } : {}),
           averageUnitCost: calculation!.unitCost / 100,

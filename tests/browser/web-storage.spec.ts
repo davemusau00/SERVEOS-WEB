@@ -3,6 +3,19 @@ import {buildSync} from 'esbuild';
 
 const harness=buildSync({stdin:{contents:"export {BusinessStore} from './src/runtime/web/BusinessStore'; export {synchronizeStore} from './src/runtime/web/sync';",resolveDir:process.cwd()},bundle:true,write:false,format:'iife',globalName:'ServOSQueue',platform:'browser',target:'es2022'}).outputFiles[0].text;
 
+test('reviewed inventory retry across browser connections preserves one sequence and rejects payload changes',async({page})=>{
+  await page.goto('/');await page.addScriptTag({content:harness});
+  const result=await page.evaluate(async()=>{
+    const {BusinessStore}=(window as any).ServOSQueue;
+    const first=await BusinessStore.open('reviewed-count','device','actor');const second=await BusinessStore.open('reviewed-count','device','actor');
+    const payload={locationId:'bar',rows:[{stockItemId:'wine',countedQuantity:6300}]};const versions=[{collection:'stockItems',id:'wine',version:3}];
+    const commands=await Promise.all([first.enqueue('inventory.countSelected',payload,versions,undefined,'stable-review'),second.enqueue('inventory.countSelected',payload,versions,undefined,'stable-review')]);
+    let changed=false;try{await second.enqueue('inventory.countSelected',{...payload,locationId:'other'},versions,undefined,'stable-review')}catch{changed=true;}
+    const queue=await first.queue();first.close();second.close();return {commands,queue,changed};
+  });
+  expect(result.commands[0]).toEqual(result.commands[1]);expect(result.queue).toHaveLength(1);expect(result.queue[0].sequence).toBe(1);expect(result.changed).toBe(true);
+});
+
 test('offline shell reloads without caching business API responses',async({page,context})=>{
   await page.goto('/');
   await page.evaluate(async()=>{await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;await new Promise<void>(resolve=>{if(navigator.serviceWorker.controller){resolve();return}const onChange=()=>{navigator.serviceWorker.removeEventListener('controllerchange',onChange);resolve()};navigator.serviceWorker.addEventListener('controllerchange',onChange);setTimeout(resolve,1000)})});

@@ -12,7 +12,7 @@ async function login(page: Page) {
 test('physical manual draft survives reload and retry keeps reviewed versions and command identity',async({page})=>{
   await page.addInitScript(()=>{
     const state=window as any;
-    const record=(collection:string,id:string,data:any)=>({collection,id,version:1,archived:false,data});
+    const record=(collection:string,id:string,data:any)=>({collection,id,version:1,archived:false,data:{...data,id}});
     const snapshot={terminalId:'bottle-test',installationStage:'LIVE',pendingCount:0,actor:{id:'staff',name:'Operator',role:'Admin',permissions:['business.view','inventory.view','inventory.count','inventory.adjust','help.view','pos.sell']},records:[record('stockLocations','main',{name:'Main Store',code:'MAIN'}),record('stockItems','wine',{name:'Wine',code:'WINE',barcode:'616000001',baseUnit:'ml',sealedContainerSize:750,scanUnitQuantity:750,averageUnitCost:2,currentStock:{main:9000},sealedOpenStock:{main:{sealedContainers:12,openQuantity:0}}})]};
     state.requests=[];
     state.__TAURI_INTERNALS__={invoke:async(command:string,args:any)=>{
@@ -46,6 +46,10 @@ test('physical manual draft survives reload and retry keeps reviewed versions an
   dialog=page.getByRole('dialog',{name:'Full stocktake'});
   await expect(dialog.getByLabel('Sealed bottles for Wine')).toHaveValue('8');
   await expect(dialog.getByLabel('Open ml for Wine')).toHaveValue('300');
+  await dialog.getByRole('button',{name:'Continuous scanner session'}).click();
+  await dialog.getByLabel('Scan a barcode').focus();await page.keyboard.type('616000001',{delay:10});await page.keyboard.press('Enter');
+  await expect(dialog.getByLabel('Sealed bottles for Wine')).toHaveValue('9');
+  await expect(dialog.getByLabel('Open ml for Wine')).toHaveValue('300');
   await dialog.getByRole('button',{name:'Review count',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>(window as any).requests.length)).toBe(0);
   await dialog.getByRole('button',{name:'Confirm Count',exact:true}).click();
@@ -54,6 +58,6 @@ test('physical manual draft survives reload and retry keeps reviewed versions an
   await expect(dialog).toHaveCount(0);
   const requests=await page.evaluate(()=>(window as any).requests);
   expect(requests).toHaveLength(2);expect(requests[1]).toEqual(requests[0]);
-  expect(requests[0].command.payload.rows[0]).toMatchObject({countedQuantity:6300,countedSealedContainers:8,countedOpenQuantity:300});
+  expect(requests[0].command.payload.rows[0]).toMatchObject({countedQuantity:7050,countedSealedContainers:9,countedOpenQuantity:300});
   expect(requests[0].expectedVersions).toEqual(requests[0].command.payload.expectedVersions);
 });

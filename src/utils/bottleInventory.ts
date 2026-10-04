@@ -35,8 +35,8 @@ export function scannedEntry(stock: BottleStock, entry: CountEntry, scanQuantity
   if (size) {
     const bottles = scanQuantity / size;
     if (!Number.isInteger(bottles)) throw new Error('Barcode conversion must represent whole sealed bottles. Review the package size.');
-    const next = { ...entry, sealed: String(parseCount(entry.sealed || '0') + bottles * scans), open: entry.open || '0' };
-    countRow(stock, 0, next);
+    const next = { ...entry, sealed: String(parseCount(entry.sealed || '0') + bottles * scans) };
+    bottleQuantity(parseCount(next.sealed),size,next.open===''?0:parseCount(next.open));
     return next;
   }
   const next = { ...entry, quantity: String(Number((parseCount(entry.quantity || '0') + scanQuantity * scans).toFixed(6))) };
@@ -58,6 +58,15 @@ export function physicalStock(stock: BottleStock, locationId?: string): string {
 export function selectedCountIds(selected: string[], rowIds: string[]) {
   if (!selected.length || selected.length > 5000 || new Set(selected).size !== selected.length || new Set(rowIds).size !== rowIds.length || selected.length !== rowIds.length || selected.some(id => !id.trim() || !rowIds.includes(id))) throw new Error('Quick count rows must exactly match the selected stock items.');
   return [...selected].sort();
+}
+export function movementPayload(stock: BottleStock, disposition: 'SEALED'|'OPEN', entered: string, reason: string) {
+  const size=bottleSize(stock);const amount=parseCount(entered,'Movement quantity');
+  if(amount<=0)throw new Error('Enter a positive movement quantity.');
+  if(!reason.trim()||reason.length>500)throw new Error('Explain this movement in up to 500 characters.');
+  if(!size)return {quantity:amount,reason:reason.trim()};
+  if(disposition==='SEALED'&&!Number.isInteger(amount))throw new Error('Enter whole sealed bottles.');
+  const quantity=disposition==='SEALED'?bottleQuantity(amount,size,0):amount;
+  return {quantity,disposition,reason:reason.trim()};
 }
 export function frozenDependencies(records: Array<RecordVersion & {data?: Record<string,any>}>, stockIds: string[], locationId: string): RecordVersion[] {
   const keys = new Set([`stockLocations:${locationId}`, ...stockIds.map(id => `stockItems:${id}`)]);

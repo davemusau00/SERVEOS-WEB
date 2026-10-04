@@ -44,7 +44,7 @@ test('web operator copy hides implementation terms from the primary workflow', (
 test('web command editors remain available until synchronization is confirmed', () => {
   const app = read('src/runtime/web/WebBusinessApp.tsx');
   const submit = app.slice(app.indexOf('const submit='), app.indexOf('const action=', app.indexOf('const submit=')));
-  assert.match(submit, /const command=await store\.current\.enqueue\(operation,payload,baselines,editor\?\.supersedes\);activeCommandId=command\.id;setNotice\(/);
+  assert.match(submit, /const command=await store\.current\.enqueue\(operation,payload,baselines,editor\?\.supersedes,typeof payload\.reviewCommandId==='string'\?payload\.reviewCommandId:undefined\);activeCommandId=command\.id;setNotice\(/);
   assert.match(submit, /saveDraft\(\{id:draftId,operation,collection,targetId:id/);
   assert.match(submit, /retainForReview\(\[safeError\],command\.id,false\)/);
   assert.match(submit, /setEditor\(currentEditor=>currentEditor\?\{\.\.\.currentEditor,supersedes:command\.id\}/);
@@ -115,8 +115,8 @@ test('reviewed replacement commands carry immutable supersedes correlation', () 
   const migration = read('supabase/expansion/026_command_supersedes.sql');
   const acceptance = read('tests/supabase/expansion.sql');
   assert.match(types, /supersedes\?:string/);
-  assert.match(store, /async enqueue\(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion\[\],supersedes\?:string\)/);
-  assert.match(app, /enqueue\(operation,payload,baselines,editor\?\.supersedes\)/);
+  assert.match(store, /async enqueue\(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion\[\],supersedes\?:string,reviewCommandId\?:string\)/);
+  assert.match(app, /enqueue\(operation,payload,baselines,editor\?\.supersedes,typeof payload\.reviewCommandId==='string'\?payload\.reviewCommandId:undefined\)/);
   assert.match(app, /command\.id;setNotice\('Saved on this browser; waiting to sync\.'/);
   assert.match(migration, /previous\.result->>'status' not in \('CONFLICT','REJECTED'\)/);
   assert.match(acceptance, /supersedes correlation missing/);

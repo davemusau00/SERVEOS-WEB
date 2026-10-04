@@ -486,6 +486,14 @@ fn receipt_reversal_rejects_consumed_and_paid_cases_without_partial_writes() {
     }
 }
 
+
+#[test]
+fn bottle_package_receipt_preserves_invoice_value_fractional_cost_and_open_liquid() {
+    let (_,mut db,s)=setup();run(&mut db,&s,"record.save",json!({"collection":"stockItems","id":"rate-stock","data":{"name":"Rate stock","code":"RATESTOCK","baseUnit":"ml","sealedContainerSize":750,"scanUnitQuantity":750,"averageUnitCost":0,"purchasePackages":[{"id":"case12","name":"12 bottles","baseQuantity":9000,"unitsPerPackage":12,"baseUnit":"ml"}]}}));run(&mut db,&s,"inventory.adjust",json!({"stockItemId":"rate-stock","locationId":"main","sealedContainers":0,"openQuantity":300,"countedQty":300,"reason":"Existing open liquid"}));run(&mut db,&s,"record.save",json!({"collection":"suppliers","id":"supplier","data":{"name":"Supplier","code":"SUP"}}));
+    run(&mut db,&s,"purchaseOrder.create",json!({"supplierId":"supplier","items":[{"stockItemId":"rate-stock","purchasePackageId":"case12","quantityOrdered":1,"unitPrice":100.01}]}));let order=list(&db,"purchaseOrders").unwrap()[0].clone();let key=order["id"].as_str().unwrap();let mut receive=cmd("purchaseOrder.receive",json!({"purchaseOrderId":key,"locationId":"main","lines":[{"lineId":order["data"]["items"][0]["lineId"],"stockItemId":"rate-stock","quantityDelivered":1,"quantityAccepted":1,"quantityRejected":0}]}));receive.target_version=Some(get(&db,"purchaseOrders",key).unwrap().0);execute(&mut db,&s.token,receive).unwrap();let (version,stock)=get(&db,"stockItems","rate-stock").unwrap();assert_eq!(stock["currentStock"]["main"],9300.0);assert_eq!(stock["sealedOpenStock"]["main"]["sealedContainers"],12.0);assert_eq!(stock["sealedOpenStock"]["main"]["openQuantity"],300.0);assert_eq!((stock["averageUnitCost"].as_f64().unwrap()*9300.0*100.0).round(),10001.0);
+    let mut save=cmd("record.save",json!({"collection":"stockItems","id":"rate-stock","data":stock}));save.target_version=Some(version);execute(&mut db,&s.token,save).unwrap();
+}
+
 fn run(db: &mut rusqlite::Connection, s: &Session, op: &str, p: Value) -> Value {
     execute(db, &s.token, cmd(op, p)).unwrap()
 }

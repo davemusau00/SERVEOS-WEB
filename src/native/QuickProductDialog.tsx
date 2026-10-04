@@ -142,9 +142,9 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
   const recipeCosts = recipeIngredients.map(line => {
     const stock = stocks.find(item => item.id === line.stockItemId);
     const unitCost = Number(stock?.averageUnitCost);
-    return { quantity: line.quantity, averageCostMinor: Number.isFinite(unitCost) ? Math.round(unitCost * 100) : Number.NaN };
+    return { quantity: line.quantity, averageCostMinor: Number.isFinite(unitCost) ? unitCost * 100 : Number.NaN };
   });
-  const recipeCostMinor = (() => { try { if(recipeCosts.some(line=>!Number.isSafeInteger(line.averageCostMinor)))return Number.NaN;return calculateRecipeCost(recipeCosts); } catch { return Number.NaN; } })();
+  const recipeCostMinor = (() => { try { if(recipeCosts.some(line=>!Number.isFinite(line.averageCostMinor)||line.averageCostMinor<0))return Number.NaN;return calculateRecipeCost(recipeCosts); } catch { return Number.NaN; } })();
   const recipeUnitCostMinor = kind==='BATCH' ? (()=>{try{return calculateBatchUnitCost(recipeCosts,batchYield)}catch{return Number.NaN}})() : recipeCostMinor;
   const addRecipeIngredient = () => {
     setRecipeInputError('');
@@ -177,8 +177,8 @@ export function QuickProductDialog({ stocks, products, outlets, locations, varia
     };
     if (createStock) {
       const normalizedStockName = stockName.trim() || (physical ? `${familyName.trim() || name.trim()} ${variantLabel}` : name.trim());
-      const packageDefinition=definePurchasePackage({id:crypto.randomUUID(),name:purchasePackageName,unitsPerPackage,contentsPerSaleUnit:kind==='WEIGHT_INGREDIENT'?packageContentsQuantity:stockQuantityPerContainer,unit:kind==='WEIGHT_INGREDIENT'?packageContentsUnit:stockBaseUnit,barcode:barcode.trim(),mode:SMART_ITEM_PRESETS[kind as SmartItemType].mode});
-      void onCreateWithStock({ ...(product?{product}:{}), stockItem: { name: normalizedStockName, code: stockCode.trim()||code.trim(), barcode: barcode.trim(), baseUnit: stockBaseUnit, scanUnitQuantity: packageDefinition.baseQuantity, purchasePackages:[packageDefinition], ...(physical&&stockBaseUnit==='ml'?{sealedContainerSize:Number(wholeContainerQuantity)}:{}), averageUnitCost: Number(averageUnitCost), reorderLevel: 0 }, locationId: stockLocationId, startingQuantity: openingStockQuantity });
+      const packageDefinition=definePurchasePackage({id:crypto.randomUUID(),name:purchasePackageName,unitsPerPackage,contentsPerSaleUnit:kind==='WEIGHT_INGREDIENT'?packageContentsQuantity:stockQuantityPerContainer,unit:kind==='WEIGHT_INGREDIENT'?packageContentsUnit:stockBaseUnit,mode:SMART_ITEM_PRESETS[kind as SmartItemType].mode});
+      void onCreateWithStock({ ...(product?{product}:{}), stockItem: { name: normalizedStockName, code: stockCode.trim()||code.trim(), barcode: barcode.trim(), baseUnit: stockBaseUnit, scanUnitQuantity: stockQuantityPerContainer, purchasePackages:[packageDefinition], ...(physical&&stockBaseUnit==='ml'?{sealedContainerSize:Number(wholeContainerQuantity)}:{}), averageUnitCost: Number(averageUnitCost), reorderLevel: 0 }, locationId: stockLocationId, startingQuantity: openingStockQuantity });
     } else if(product) void onSave(product);
   };
   const physicalValid = !physical || (familyName.trim() && packageType.trim() && Number.isFinite(containerQuantity) && containerQuantity > 0 && Number.isFinite(normalizedSize.quantity) && normalizedSize.quantity > 0 && Number.isFinite(wholeContainerQuantity) && wholeContainerQuantity > 0 && !duplicateVariant);

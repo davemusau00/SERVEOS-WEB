@@ -38,6 +38,7 @@ pub const IMPORT_COLLECTIONS: &[&str] = &[
     "maintenanceOrders", "tillPolicy", "hotelServices", "property",
     "paymentConfig", "paymentAccounts", "posPolicy", "priceRules", "purchasePackages",
     "inventoryReceipts", "maintenanceEvents", "cashMovements", "stockCounts",
+    "inventoryCorrections", "receiptCorrections", "procurementCorrectionBaselines", "inventoryMovementBaselines", "movementCorrections",
     "closeDayReports", "supplierPayments", "mpesaDiscrepancies",
     "customerCreditAccounts", "customerCreditEntries", "customerCreditReconciliations",
     "customerCreditDiscrepancies", "recipes", "events", "promoters", "reservations",
@@ -51,6 +52,7 @@ pub const HISTORY_COLLECTIONS: &[&str] = &[
     "folioEntries", "stayEvents", "stayExtensions", "assetEvents", "customerCreditEntries",
     "customerCreditReconciliations", "inventoryReceipts", "maintenanceEvents",
     "cashMovements", "stockCounts", "closeDayReports", "supplierPayments",
+    "inventoryCorrections", "receiptCorrections", "procurementCorrectionBaselines", "inventoryMovementBaselines", "movementCorrections",
 ];
 
 /// Metadata keys that must never appear in a cutover manifest. The manifest is
