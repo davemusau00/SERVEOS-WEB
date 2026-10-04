@@ -61,3 +61,9 @@ The old binary must never be pointed at the already-upgraded schema-15 database.
 ## Customer credit migration checks
 
 The schema-15 migration chain retains customer-credit financial history introduced in schema 13. After upgrade verify that existing customers, tabs, payments, M-Pesa receipts, folios, journals, receipt documents and scanner-count drafts remain intact. Preserve any existing customer-credit records. Never downgrade a schema-15 database to an older ServOS binary.
+
+## Print queue cancellation upgrade rehearsal
+
+This feature adds no schema migration beyond the recorded release chain. Before installing on the working terminal, restore a verified checkpoint into isolated application data under the same application identity. Keep its cloned identity offline; never sync it concurrently with production. Retain staff credentials, terminal enrollment, business/audit/outbox history and drafts; do not repeat Intake.
+
+On the isolated installed candidate, record individual/batch cancellation, Cashier/Manager denial, stale selection rejection, immutable audit history and persistence after restart. Confirm unresolved counts after opening/refreshing Business Admin. On the actual terminal, physically print a current receipt and a receipt-history reprint using the working configuration, then complete normal till close and existing hardware acceptance. Local tests and installer generation do not establish these installed-terminal results.

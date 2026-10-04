@@ -2,11 +2,12 @@
 import { CreditCard, Flame, Plus, Minus, Search, ShieldAlert, Split, Trash2 } from 'lucide-react';
 import { selectGuideResource } from '../guidance/workflow';
 import { useRuntime } from '../runtime/RuntimeProvider';
-import type { Permission } from '../types/runtime';
+import type { Permission, PrinterJobResult } from '../types/runtime';
 import { recordsOf, money, fieldClass, buttonClass, primaryButtonClass } from './records';
 import { ManagerApprovalDialog } from './ManagerApprovalDialog';
 import { ActionDialog } from './ActionDialog';
 import { NativeReceiptDialog } from './NativeReceiptDialog';
+import { PrinterCancellationDialog } from './PrinterCancellationDialog';
 import { NativeReceiptHistory } from './NativeReceiptHistory';
 import { barcodeEquals, useBarcodeScanner } from '../hooks/useBarcodeScanner';
 
@@ -17,10 +18,11 @@ export function NativePOSView(){
   const [outletId,setOutletId]=useState(outlets[0]?.id||''); const [activeId,setActiveId]=useState(openOrders[0]?.id||''); const active=openOrders.find(o=>o.id===activeId)||openOrders[0];
   const [query,setQuery]=useState(''); const [modal,setModal]=useState<{kind:string;data?:any}|null>(null); const [notice,setNotice]=useState(''); const [scannerTest,setScannerTest]=useState(false); const [lastTestScan,setLastTestScan]=useState('');
   useEffect(()=>{ if(active && ['PAY','SPLIT'].includes(modal?.kind || '')) selectGuideResource('pos.first-sale',{key:'orderId',id:active.id}); },[modal?.kind,active?.id]);
-  const [printerJobs,setPrinterJobs]=useState<any[]>([]);
+  const [printerJobs,setPrinterJobs]=useState<PrinterJobResult[]>([]);
+  const [cancelPrinterOpen,setCancelPrinterOpen]=useState(false);
   const [approval,setApproval]=useState<{permission:Permission;target?:string;run:(token:string)=>Promise<void>}|null>(null);
-  const refreshPrinterJobs=async()=>{try{setPrinterJobs(await runtime.printerJobs())}catch{/* Session expiry is handled by the runtime shell. */}};
-  useEffect(()=>{void refreshPrinterJobs()},[runtime.session?.token]);
+  const refreshPrinterJobs=async()=>{try{setPrinterJobs(await runtime.printerJobs())}catch(e){setPrinterJobs([]);setNotice(`Could not refresh printer jobs: ${String(e)}`);throw e;}};
+  useEffect(()=>{void refreshPrinterJobs().catch(()=>{})},[runtime.session?.token]);
   const visible=useMemo(()=>products.filter(p=>(!outletId||p.outletIds?.includes(outletId)) && [p.name,p.code,p.barcode,p.category].join(' ').toLowerCase().includes(query.toLowerCase())),[products,outletId,query]);
   const run=async(op:string,payload:any={},version?:number)=>{setNotice('');try{await runtime.command(op,payload,version);setNotice('Saved locally.');}catch(e){setNotice(String(e));throw e;}};
   const protectedRun=(permission:Permission,target:string|undefined,fn:(token?:string)=>Promise<void>)=>{if(perms.includes(permission))void fn();else setApproval({permission,target,run:async token=>fn(token)});};
@@ -28,7 +30,7 @@ export function NativePOSView(){
   const createNamedTab=async(input:{name:string;customerId?:string})=>{if(!outletId)return;const r=await runtime.command('order.create',{outletId,...input});setActiveId(r.recordIds.find(Boolean)||'');setModal(null);};
   const createTableOrder=async(table:any)=>{const r=await runtime.command('order.create',{outletId:table.outletId,tableId:table.id,name:`Table ${table.label}`});setActiveId(r.recordIds.find(Boolean)||'');};
   const addProduct=(product:any)=>{if((product.portions?.length||0)>0||(product.modifiers?.length||0)>0)setModal({kind:'CONFIG',data:{product,quantity:1,portionId:product.portions?.[0]?.id||'',modifierIds:[]}});else if(active)void run('order.addItem',{orderId:active.id,productId:product.id,quantity:1});};
-  useBarcodeScanner({enabled:modal===null,allowTabTerminator:true,maxInterKeyDelayMs:150,onScan:barcode=>{
+  useBarcodeScanner({enabled:modal===null&&!cancelPrinterOpen,allowTabTerminator:true,maxInterKeyDelayMs:150,onScan:barcode=>{
     if(scannerTest){setLastTestScan(barcode);setScannerTest(false);setQuery('');setNotice(`Scanner test received ${barcode}. No sale or stock change was made.`);return;}
     const matches=products.filter((p:any)=>(!outletId||p.outletIds?.includes(outletId))&&(barcodeEquals(p.barcode,barcode)||barcodeEquals(p.code,barcode)));
     setQuery('');
@@ -93,7 +95,7 @@ export function NativePOSView(){
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{visible.map(p=><button key={p.id} disabled={!active} onClick={()=>addProduct(p)} className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-left hover:border-amber-500 disabled:opacity-40"><div className="text-xs uppercase text-slate-500">{p.category||p.routeTo}</div><div className="mt-1 font-bold">{p.name}</div><div className="mt-2 text-amber-300">{money(p.price)}</div>{p.favorite&&<div className="mt-2 text-xs text-amber-400">â˜… Favorite</div>}</button>)}</div>
     </section>
     <aside className="min-h-0 overflow-auto border-l border-slate-800 bg-slate-900/70 p-4">
-      {printerJobs.length>0&&<section aria-label="Pending printer jobs" className="mb-4 rounded-xl border border-amber-700/50 bg-amber-950/20 p-3"><h2 className="font-bold text-amber-200">Receipt jobs needing attention</h2><div className="mt-2 space-y-2">{printerJobs.map((job:any)=><div key={job.jobId} className="rounded-lg bg-slate-950 p-2 text-xs"><b>{job.orderId==='PRINTER_TEST'?'Printer test':`Order ${job.orderId}`}: {job.state}</b><p className="mt-1 text-slate-400">{job.message}</p>{job.state==='QUEUED'&&<button className={buttonClass+' mt-2'} onClick={()=>void runtime.retryPrinterJob(job.jobId).then(refreshPrinterJobs).catch(e=>setNotice(String(e)))}>Retry print</button>}{job.state==='DELIVERY_UNCERTAIN'&&<button className={buttonClass+' mt-2'} onClick={()=>void runtime.retryPrinterJob(job.jobId,true).then(refreshPrinterJobs).catch(e=>setNotice(String(e)))}>Reprint (may duplicate)</button>}</div>)}</div></section>}
+      {printerJobs.length>0&&<section aria-label="Pending printer jobs" className="mb-4 rounded-xl border border-amber-700/50 bg-amber-950/20 p-3"><h2 className="font-bold text-amber-200">Receipt jobs needing attention</h2><div className="mt-2 space-y-2">{snapshot.actor.role==='Admin'&&<button type="button" className={buttonClass} onClick={()=>setCancelPrinterOpen(true)}>Clear obsolete print jobs…</button>}{printerJobs.map((job:any)=><div key={job.jobId} className="rounded-lg bg-slate-950 p-2 text-xs"><b>{job.orderId==='PRINTER_TEST'?'Printer test':`Order ${job.orderId}`}: {job.state}</b><p className="mt-1 text-slate-400">{job.message}</p>{job.state==='QUEUED'&&<button className={buttonClass+' mt-2'} onClick={()=>void runtime.retryPrinterJob(job.jobId).then(refreshPrinterJobs).catch(e=>setNotice(String(e)))}>Retry print</button>}{job.state==='DELIVERY_UNCERTAIN'&&<button className={buttonClass+' mt-2'} onClick={()=>void runtime.retryPrinterJob(job.jobId,true).then(refreshPrinterJobs).catch(e=>setNotice(String(e)))}>Reprint (may duplicate)</button>}</div>)}</div></section>}
       <div className="mb-4"><div className="text-xs font-mono text-amber-400">ACTIVE TAB</div><select className={fieldClass} value={active?.id||''} onChange={e=>setActiveId(e.target.value)}><option value="">Select order</option>{openOrders.map(o=><option key={o.id} value={o.id}>{o.tabName||o.orderNumber} · {money(o.grandTotal)}</option>)}</select></div>
       {!active?<div className="rounded-xl border border-dashed border-slate-700 p-8 text-center text-slate-400">Open a quick tab or select an available table.</div>:<>
         <div className="space-y-2">{(active.items||[]).map((item:any)=><div key={item.id} className="rounded-xl border border-slate-800 bg-slate-950 p-3"><div className="flex justify-between gap-3"><div><b>{item.productName}</b><div className="text-xs text-slate-500">{item.portionSnapshot?.name||''}{item.modifiers?.length?` · ${item.modifiers.map((m:any)=>m.name).join(', ')}`:''}</div><div className="text-xs text-slate-500">{item.courseStatus}</div></div><div className="text-right"><b>{money(item.lineTotal)}</b>{item.comped&&<div className="text-xs text-purple-300">COMP</div>}</div></div><div className="mt-2 flex gap-1"><button className={buttonClass} disabled={item.stockFired} onClick={()=>updateItem(item,Number(item.quantity)-1)}><Minus className="h-3 w-3"/></button><span className="px-3 py-2 text-sm">{item.quantity}</span><button className={buttonClass} disabled={item.stockFired} onClick={()=>updateItem(item,Number(item.quantity)+1)}><Plus className="h-3 w-3"/></button><button className={buttonClass} disabled={item.stockFired} onClick={()=>void run('order.addItem',{orderId:active.id,productId:item.productId,quantity:item.quantity,portionId:item.portionSnapshot?.id,modifierIds:(item.modifiers||[]).map((m:any)=>m.id),note:item.note})}>Duplicate</button><button className={buttonClass} disabled={item.stockFired} onClick={()=>void run('order.removeItem',{orderId:active.id,itemId:item.id})}><Trash2 className="h-3 w-3"/></button><button className={buttonClass} onClick={()=>setModal({kind:'COMP',data:item})}>Comp</button></div></div>)}</div>
@@ -107,7 +109,8 @@ export function NativePOSView(){
     {modal?.kind==='PAY'&&active&&<PaymentDialog balance={balance} snapshot={snapshot} onClose={()=>setModal(null)} onPay={finishPayment}/>}
     {modal?.kind==='SPLIT'&&active&&<SplitDialog balance={balance} snapshot={snapshot} onClose={()=>setModal(null)} onPay={finishSplit}/>}
     {modal?.kind==='ROOM_CHARGE'&&active&&<RoomChargeDialog targets={roomChargeTargets} balance={balance} onClose={()=>setModal(null)} onCharge={finishRoomCharge}/>}
-    {modal?.kind==='RECEIPT'&&<NativeReceiptDialog order={modal.data.order} receiptId={modal.data.receiptId} onJobsChanged={()=>void refreshPrinterJobs()} onClose={()=>setModal(null)}/>}
+    {cancelPrinterOpen&&<PrinterCancellationDialog onClose={()=>setCancelPrinterOpen(false)} onChanged={refreshPrinterJobs}/>}
+    {modal?.kind==='RECEIPT'&&<NativeReceiptDialog order={modal.data.order} receiptId={modal.data.receiptId} onJobsChanged={()=>void refreshPrinterJobs().catch(()=>{})} onClose={()=>setModal(null)}/>}
     {modal?.kind==='DISCOUNT'&&active&&<ReasonDialog title="Discount order" extra="percent" onClose={()=>setModal(null)} onSubmit={async v=>protectedRun('order.discount',active.id,async token=>{await run('order.discount',{orderId:active.id,percent:v.percent,reason:v.reason,approvalToken:token});setModal(null);})}/>} 
     {modal?.kind==='COMP'&&active&&<ReasonDialog title={`Comp ${modal.data.productName}`} onClose={()=>setModal(null)} onSubmit={async v=>protectedRun('order.comp',modal.data.id,async token=>{await run('order.compItem',{orderId:active.id,itemId:modal.data.id,reason:v.reason,approvalToken:token});setModal(null);})}/>} 
     {modal?.kind==='VOID'&&active&&<VoidDialog onClose={()=>setModal(null)} onSubmit={async v=>protectedRun('order.void',active.id,async token=>{await run('order.void',{orderId:active.id,...v,approvalToken:token});setModal(null);})}/>} 

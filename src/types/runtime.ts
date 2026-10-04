@@ -160,8 +160,8 @@ export interface TerminalAcceptanceStatus {
   acceptedAt: string | null;
 }
 
-export type PrinterJobState = 'SENT' | 'QUEUED' | 'DELIVERY_UNCERTAIN' | 'SENDING' | 'OS_DIALOG' | 'MANUAL';
-export interface PrinterJobResult { jobId?: string; orderId?: string; state: PrinterJobState; message?: string; createdAt?: string }
+export type PrinterJobState = 'CANCELLED' | 'SENT' | 'QUEUED' | 'DELIVERY_UNCERTAIN' | 'SENDING' | 'OS_DIALOG' | 'MANUAL';
+export interface PrinterJobResult { jobId?: string; orderId?: string; state: PrinterJobState; message?: string; createdAt?: string; updatedAt?: string }
 export interface IntakeBusinessIdentity {
   tradingName: string;
   legalName: string;
@@ -208,3 +208,7 @@ export interface ManagerApproval { token: string; permission: Permission; target
 export interface SyncOperation { sequence: number; commandId: string; operation: string; actorId: string; occurredAt: string; changes: StoredRecord[] }
 export interface SyncBatch { terminalId: string; schemaVersion: 1; operations: SyncOperation[] }
 export interface ManualMpesaInput { code: string; account: string; receivedAmount: number; receivedAt: string; confirmed: boolean; customerId?: string }
+
+export const PRINTER_CANCEL_REASON_MAX = 500;
+export interface PrinterJobSelection { jobId: string; state: 'QUEUED' | 'DELIVERY_UNCERTAIN'; updatedAt: string }
+export interface PrinterCancellationResult { cancelledIds: string[]; count: number; cancelledAt: string; auditReference: string }

@@ -1118,21 +1118,8 @@ fn require_printer_permission(db: &Connection, token: &str, permission: &str) ->
     Ok(actor)
 }
 
-fn execute_printer_job(state: &Runtime, job_id: &str) -> store::Result<Value> {
-    let (policy, payload, order_id) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
-        let row: (String, String, String) = db.query_row(
-            "SELECT profile,payload,order_id FROM receipt_print_jobs WHERE id=?",
-            [job_id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-        ).map_err(|e| e.to_string())?;
-        db.execute("UPDATE receipt_print_jobs SET state='SENDING',message='Sending to printer',updated_at=? WHERE id=?", rusqlite::params![chrono::Utc::now().to_rfc3339(), job_id]).map_err(|e| e.to_string())?;
-        (
-            serde_json::from_str::<Value>(&row.0).map_err(|e| e.to_string())?,
-            serde_json::from_str::<Value>(&row.1).map_err(|e| e.to_string())?,
-            row.2,
-        )
-    };
+fn execute_printer_job(state: &Runtime, job_id: &str, claim: store::ClaimedPrinterJob) -> store::Result<Value> {
+    let store::ClaimedPrinterJob { policy, payload, order_id } = claim;
 
     let result = match printer::PrinterProfile::from_policy(&policy) {
         Ok(profile) => {
@@ -1157,21 +1144,25 @@ fn execute_printer_job(state: &Runtime, job_id: &str) -> store::Result<Value> {
     };
 
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute("UPDATE receipt_print_jobs SET state=?,message=?,updated_at=? WHERE id=?", rusqlite::params![result.0,result.1,chrono::Utc::now().to_rfc3339(),job_id]).map_err(|e| e.to_string())?;
+    store::finish_printer_job(&db, job_id, result.0, &result.1)?;
     Ok(json!({"jobId":job_id,"orderId":order_id,"state":result.0,"message":result.1}))
 }
 
 fn queue_printer_job(state: &Runtime, job_id: String, order_id: String, policy: Value, customer_lines: Vec<String>, business_lines: Vec<String>, thermal_logo: Value, mpesa_till_qr: Value) -> store::Result<Value> {
     let payload = json!({"customerLines":customer_lines,"businessLines":business_lines,"thermalLogo":thermal_logo,"mpesaTillQr":mpesa_till_qr});
-    {
+    let claim = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let existing: Option<(String,String)> = db.query_row("SELECT state,message FROM receipt_print_jobs WHERE id=?", [&job_id], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(|e| e.to_string())?;
         if let Some((state,message)) = existing {
             return Ok(json!({"jobId":job_id,"orderId":order_id,"state":state,"message":message}));
         }
-        db.execute("INSERT INTO receipt_print_jobs(id,order_id,profile,payload,state,message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)", rusqlite::params![job_id,order_id,policy.to_string(),payload.to_string(),"QUEUED","Waiting to send",chrono::Utc::now().to_rfc3339(),chrono::Utc::now().to_rfc3339()]).map_err(|e| e.to_string())?;
-    }
-    execute_printer_job(state, &job_id)
+        let tx = db.unchecked_transaction().map_err(|e|e.to_string())?;
+        tx.execute("INSERT INTO receipt_print_jobs(id,order_id,profile,payload,state,message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)", rusqlite::params![job_id,order_id,policy.to_string(),payload.to_string(),"QUEUED","Waiting to send",chrono::Utc::now().to_rfc3339(),chrono::Utc::now().to_rfc3339()]).map_err(|e| e.to_string())?;
+        let claim = store::claim_printer_job(&tx, &job_id, false)?;
+        tx.commit().map_err(|e|e.to_string())?;
+        claim
+    };
+    execute_printer_job(state, &job_id, claim)
 }
 
 #[tauri::command]
@@ -1377,31 +1368,25 @@ fn runtime_printer_test(state: State<Runtime>, token: String) -> store::Result<V
 
 #[tauri::command]
 fn runtime_printer_retry(state: State<Runtime>, token: String, job_id: String, confirm_duplicate: bool) -> store::Result<Value> {
-    {
+    let claim = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         require_printer_permission(&db, &token, "pos.sell")?;
-        let state: String = db.query_row("SELECT state FROM receipt_print_jobs WHERE id=?", [&job_id], |r| r.get(0)).map_err(|e| e.to_string())?;
-        if state == "DELIVERY_UNCERTAIN" && !confirm_duplicate {
-            return Err("The first send may already have printed. Confirm possible duplicate before retrying".into());
-        }
-        if state != "QUEUED" && state != "DELIVERY_UNCERTAIN" {
-            return Err("This print job is already being sent or has been sent".into());
-        }
-        let claimed = db.execute("UPDATE receipt_print_jobs SET state='SENDING',updated_at=? WHERE id=? AND state=?", rusqlite::params![chrono::Utc::now().to_rfc3339(), job_id, state]).map_err(|e| e.to_string())?;
-        if claimed != 1 { return Err("Another print attempt already claimed this job".into()); }
-    }
-    execute_printer_job(&state, &job_id)
+        store::claim_printer_job(&db, &job_id, confirm_duplicate)?
+    };
+    execute_printer_job(&state, &job_id, claim)
+}
+
+#[tauri::command]
+fn runtime_printer_cancel(state: State<Runtime>, token: String, reason: String, jobs: Vec<store::PrinterJobSelection>) -> store::Result<Value> {
+    let mut db = state.db.lock().map_err(|e|e.to_string())?;
+    store::cancel_printer_jobs(&mut db, &token, &reason, &jobs)
 }
 
 #[tauri::command]
 fn runtime_printer_jobs(state: State<Runtime>, token: String) -> store::Result<Value> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     require_printer_permission(&db, &token, "pos.sell")?;
-    let mut stmt = db.prepare("SELECT id,order_id,state,message,created_at FROM receipt_print_jobs WHERE state!='SENT' ORDER BY created_at DESC LIMIT 50").map_err(|e| e.to_string())?;
-    let rows = stmt.query_map([], |r| Ok(json!({"jobId":r.get::<_,String>(0)?,"orderId":r.get::<_,String>(1)?,"state":r.get::<_,String>(2)?,"message":r.get::<_,String>(3)?,"createdAt":r.get::<_,String>(4)?}))).map_err(|e| e.to_string())?;
-    let mut jobs=Vec::new();
-    for row in rows { jobs.push(row.map_err(|e| e.to_string())?); }
-    Ok(json!(jobs))
+    store::unresolved_printer_jobs(&db)
 }
 
 // SERVOS_PATCH_10_TERMINAL_ACCEPTANCE
@@ -1435,7 +1420,7 @@ fn acceptance_status_value(db:&Connection,current_nonce:&str)->store::Result<Val
     let last_backup=store::meta(db,"last_backup")?;
     let outbox_pending:i64=db.query_row("SELECT COUNT(*) FROM outbox WHERE acknowledged_at IS NULL",[],|r|r.get(0)).map_err(|e|e.to_string())?;
     let open_tills:i64=db.query_row("SELECT COUNT(*) FROM records WHERE collection='tillSessions' AND archived=0 AND json_extract(data,'$.status')='OPEN'",[],|r|r.get(0)).map_err(|e|e.to_string())?;
-    let unresolved_print_jobs:i64=db.query_row("SELECT COUNT(*) FROM receipt_print_jobs WHERE state!='SENT'",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+    let unresolved_print_jobs:i64=store::unresolved_printer_job_count(db)?;
 
     let intake=store::meta(db,"intake_profile")?.and_then(|raw|serde_json::from_str::<Value>(&raw).ok()).unwrap_or_else(||json!({}));
     let printer_expected=intake["printerExpected"].as_bool().unwrap_or(false);
@@ -1675,7 +1660,8 @@ pub fn run() {
             let db = store::open(&path).map_err(std::io::Error::other)?;
             // Sessions never survive process restart.
             db.execute("DELETE FROM sessions", [])?;
-            db.execute_batch("CREATE TABLE IF NOT EXISTS receipt_print_jobs (id TEXT PRIMARY KEY,order_id TEXT NOT NULL,profile TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL); UPDATE receipt_print_jobs SET state='DELIVERY_UNCERTAIN',message='App restarted while the printer send was in progress. Check paper before retrying.' WHERE state='SENDING';")?;
+            db.execute_batch("CREATE TABLE IF NOT EXISTS receipt_print_jobs (id TEXT PRIMARY KEY,order_id TEXT NOT NULL,profile TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);")?;
+            store::recover_printer_jobs(&db).map_err(std::io::Error::other)?;
             app.manage(Runtime {
                 db: Mutex::new(db),
                 path,
@@ -1731,6 +1717,7 @@ pub fn run() {
             runtime_printer_test,
             runtime_printer_acceptance,
             runtime_printer_retry,
+            runtime_printer_cancel,
             runtime_printer_jobs
         ])
         .run(tauri::generate_context!())

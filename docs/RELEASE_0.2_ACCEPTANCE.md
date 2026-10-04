@@ -136,3 +136,16 @@ Notes:
 - [ ] Customer with active credit/debt cannot be archived.
 - [ ] Close-day report includes credit sales, collections and A/R outstanding.
 - [ ] Credit sale receipt shows Customer Account separately from Paid tender.
+
+## Print queue cancellation candidate acceptance
+
+- [ ] Verified checkpoint backup and isolated installed-upgrade rehearsal, retaining identity and history.
+- [ ] Admin cancels one obsolete job and a reviewed batch; transport error/payload/profile/history preserved.
+- [ ] Cashier and Manager requests denied; sending/sent/cancelled jobs rejected.
+- [ ] Stale state/update-time selection rejects the entire batch and requires refreshed review.
+- [ ] Cancellation audit and cancelled state persist after restart; no further retry permitted.
+- [ ] Business Admin refreshed unresolved count excludes cancelled rows and counts beyond displayed 50.
+- [ ] Current receipt and history reprint physically observed with working profile.
+- [ ] Active till closed normally and all existing physical acceptance requirements completed.
+
+These installed-terminal checks remain pending until actual evidence is entered. No production upgrade, migration or authority activation is implied by this candidate.

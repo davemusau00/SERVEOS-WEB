@@ -7,7 +7,7 @@ import { operationByName } from './operationManifest';
 import { resolveOperationDependencies } from './web/dependencies';
 import type { ReceiptResponse, ReceiptSummary } from '../types/receipt';
 import type { ImportApplyPlan, ImportBatchDetail, ImportBatchSummary, StageImportInput } from '../types/imports';
-import type { BusinessCommand, CommandResult, IntakeProfile, ManagerApproval, Permission, PrinterJobResult, ProductionHealthAudit, ReconciliationReport, RuntimeSession, RuntimeSnapshot, RuntimeStatus, TerminalAcceptanceStatus } from '../types/runtime';
+import type { BusinessCommand, CommandResult, IntakeProfile, ManagerApproval, Permission, PrinterJobSelection, PrinterCancellationResult, PrinterJobResult, ProductionHealthAudit, ReconciliationReport, RuntimeSession, RuntimeSnapshot, RuntimeStatus, TerminalAcceptanceStatus } from '../types/runtime';
 
 export interface GuidanceProgress {
   guideId: string;
@@ -74,6 +74,7 @@ interface RuntimeContextValue {
   printReceipt: (input: { orderId: string; receiptId: string; reprint: boolean }) => Promise<PrinterJobResult>;
   testPrinter: () => Promise<PrinterJobResult>;
   retryPrinterJob: (jobId: string, confirmDuplicate?: boolean) => Promise<PrinterJobResult>;
+  cancelPrinterJobs: (reason: string, jobs: PrinterJobSelection[]) => Promise<PrinterCancellationResult>;
   printerJobs: () => Promise<PrinterJobResult[]>;
   clearError: () => void;
 }
@@ -330,6 +331,10 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     if (!session) throw new Error('Unlock the terminal first');
     return invoke<PrinterJobResult>('runtime_printer_retry', { token: session.token, jobId, confirmDuplicate });
   };
+  const cancelPrinterJobs = async (reason: string, jobs: PrinterJobSelection[]) => {
+    if (!session) throw new Error('Sign in first');
+    return invoke<PrinterCancellationResult>('runtime_printer_cancel', { token: session.token, reason, jobs });
+  };
   const printerJobs = async () => {
     if (!session) return [];
     return invoke<PrinterJobResult[]>('runtime_printer_jobs', { token: session.token });
@@ -351,5 +356,5 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     return () => { clearInterval(timer); window.removeEventListener('pointerdown', active); window.removeEventListener('keydown', active); window.removeEventListener('online', resume); window.removeEventListener('servos:local-commit', resume); document.removeEventListener('visibilitychange', resume); };
   }, [session, sync, lock, report]);
 
-  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, installV2Snapshot, syncV2Replica, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
+  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, installV2Snapshot, syncV2Replica, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, cancelPrinterJobs, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
 };
