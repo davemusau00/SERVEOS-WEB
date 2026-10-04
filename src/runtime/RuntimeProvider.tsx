@@ -5,6 +5,8 @@ import { flushLocalWork } from './localWork';
 import { Dialog } from '../design-system/controls';
 import { operationByName } from './operationManifest';
 import { resolveOperationDependencies } from './web/dependencies';
+import type { CountEntry } from '../utils/bottleInventory';
+import type { RecordVersion } from '../types/transactions';
 import type { ReceiptResponse, ReceiptSummary } from '../types/receipt';
 import type { ImportApplyPlan, ImportBatchDetail, ImportBatchSummary, StageImportInput } from '../types/imports';
 import type { BusinessCommand, CommandResult, IntakeProfile, ManagerApproval, Permission, PrinterJobSelection, PrinterCancellationResult, PrinterJobResult, ProductionHealthAudit, ReconciliationReport, RuntimeSession, RuntimeSnapshot, RuntimeStatus, TerminalAcceptanceStatus } from '../types/runtime';
@@ -21,8 +23,14 @@ export interface GuidanceProgress {
 export interface InventoryCountDraft {
   sessionId: string;
   revision: number;
-  baseline: Record<string, { name: string; baseUnit: string; scanUnitQuantity: number; expectedQuantity: number }>;
-  pendingCommand?: { id: string; payload: Record<string, unknown> };
+  baseline: Record<string, { name: string; baseUnit: string; scanUnitQuantity: number; expectedQuantity: number; containerSize?: number | null; consumptionRoutes?: string; version?: number }>;
+  pendingCommand?: { id: string; operation?: string; payload: Record<string, unknown> };
+  entries?: Record<string, CountEntry>;
+  expectedVersions?: RecordVersion[];
+  scope?: 'FULL' | 'SELECTED' | 'CORRECTION';
+  selectedStockItemIds?: string[];
+  reason?: string;
+  sourceRecord?: { collection: string; id: string };
   locationId: string;
   counts: Record<string, number>;
   scanCounts: Record<string, number>;
@@ -52,6 +60,7 @@ interface RuntimeContextValue {
   saveGuidanceProgress: (progress: GuidanceProgress) => Promise<GuidanceProgress>;
   inventoryCountDraft: (locationId: string) => Promise<InventoryCountDraft | null>;
   saveInventoryCountDraft: (locationId: string, draft: InventoryCountDraft) => Promise<InventoryCountDraft>;
+  correctionCommandStatus: (commandId: string) => Promise<string>;
   clearInventoryCountDraft: (locationId: string) => Promise<void>;
   approve: (approverId: string, pin: string, permission: Permission, target?: string) => Promise<ManagerApproval>;
   sync: () => Promise<void>;
@@ -195,7 +204,12 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     const candidateTargetId=[payload.id,payload.recordId,payload.reservationId,payload.stayId,payload.folioId,payload.orderId,payload.paymentId,payload.purchaseOrderId,payload.roomId].find(value=>typeof value==='string'&&value.trim());
     const targetId=typeof candidateTargetId==='string'?candidateTargetId:request.id;
     const dependencies=collection?resolveOperationDependencies(operation,collection,targetId,payload,snapshot?.records||[]):[];
-    const expectedByKey=new Map(dependencies.map(version=>[`${version.collection}:${version.id}`,version]));
+    const expectedByKey=new Map((Array.isArray(payload.expectedVersions)?[]:dependencies).map(version=>[`${version.collection}:${version.id}`,version]));
+    // A reviewed observation must retain its original versions across refresh/retry.
+    if (Array.isArray(payload.expectedVersions)) for (const raw of payload.expectedVersions) {
+      if (!raw || typeof raw !== 'object' || typeof raw.collection !== 'string' || typeof raw.id !== 'string' || !Number.isSafeInteger(raw.version) || raw.version < 0) throw new Error('Invalid reviewed dependency version');
+      expectedByKey.set(`${raw.collection}:${raw.id}`, { collection: raw.collection, id: raw.id, version: raw.version });
+    }
     if(Array.isArray(payload.baseline))for(const raw of payload.baseline){if(raw&&typeof raw==='object'&&typeof raw.id==='string'&&Number.isSafeInteger(raw.version))expectedByKey.set(`${collection}:${raw.id}`,{collection,id:raw.id,version:Number(raw.version)});}
     if(collection&&targetVersion!==undefined)expectedByKey.set(`${collection}:${targetId}`,{collection,id:targetId,version:targetVersion});
     const expectedVersions=[...expectedByKey.values()].sort((left,right)=>left.collection.localeCompare(right.collection)||left.id.localeCompare(right.id));
@@ -227,6 +241,10 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
   const saveInventoryCountDraft = async (locationId: string, draft: InventoryCountDraft) => {
     if (!session) throw new Error('Unlock the terminal first');
     return invoke<InventoryCountDraft>('runtime_save_inventory_count_draft', { token: session.token, locationId, draft });
+  };
+  const correctionCommandStatus = async (commandId: string) => {
+    if (!session) throw new Error('Sign in to review correction outcome');
+    return invoke<string>('runtime_correction_command_status', { token: session.token, commandId });
   };
   const clearInventoryCountDraft = async (locationId: string) => {
     if (!session) throw new Error('Unlock the terminal first');
@@ -356,5 +374,5 @@ export const RuntimeProvider = ({ children }: { children: React.ReactNode }) => 
     return () => { clearInterval(timer); window.removeEventListener('pointerdown', active); window.removeEventListener('keydown', active); window.removeEventListener('online', resume); window.removeEventListener('servos:local-commit', resume); document.removeEventListener('visibilitychange', resume); };
   }, [session, sync, lock, report]);
 
-  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, approve, sync, installV2Snapshot, syncV2Replica, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, cancelPrinterJobs, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
+  return <RuntimeContext.Provider value={{ status, session, snapshot, error, syncing, busy, reloadStatus, saveIntake, completeIntake, reopenIntake, enroll, login, lock, refresh, command, guidanceProgress, saveGuidanceProgress, inventoryCountDraft, saveInventoryCountDraft, clearInventoryCountDraft, correctionCommandStatus, approve, sync, installV2Snapshot, syncV2Replica, backup, healthAudit, acceptanceStatus, acceptanceAction, importBatches, importBatch, stageImport, cancelImport, planImport, importPlan, applyImport, reconcile, receipt, receiptHistory, printReceipt, testPrinter, retryPrinterJob, cancelPrinterJobs, printerJobs, clearError: () => setError('') }}>{children}{closeFailure && <Dialog title="Local work could not be saved" onClose={() => setCloseFailure(null)} footer={<><button type="button" className="px-3 py-2 text-sm text-slate-300" disabled={closeRetrying} onClick={() => setCloseFailure(null)}>Keep working</button><button type="button" className="rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-60" disabled={closeRetrying} onClick={() => void retryClose()}>{closeRetrying ? 'Retrying…' : 'Retry save and close'}</button></>}><p className="text-sm text-slate-200">ServOS could not finish saving local work before closing. Keep the terminal open and retry, or choose Keep working to return to the current session.</p><p className="mt-3 break-words text-xs text-rose-300" role="alert">{closeFailure}</p></Dialog>}</RuntimeContext.Provider>;
 };

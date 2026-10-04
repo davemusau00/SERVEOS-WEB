@@ -129,7 +129,14 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
       const rate=allNightlyRates.find(record=>record.id===ratePlanId);
       if(!roomTypeId||!rate||String(rate.data.roomTypeId||'')!==roomTypeId){const message='Choose a NIGHTLY rate belonging to the selected room type before saving room-stay policy.';setError(message);return {kind:'BLOCKED',message}}
     }
-    const baselines=resolveOperationDependencies(operation,collection,id,payload,records);
+    if(operation==='inventory.reverseMovement'||operation==='inventory.countSelected'||operation==='procurement.reverseUnusedReceipt'||payload.disposition||payload.expectedVersions||(payload.data as Record<string,unknown>|undefined)?.sellingMode||(payload.product as Record<string,unknown>|undefined)?.sellingMode){
+      const capabilities=await rpcRef.current('rpc/servos_v2_inventory_capabilities',{});
+      if(capabilities?.bottleInventoryVersion!==1)return {kind:'BLOCKED',message:'Apply the compatible bottle inventory migration before using this workflow.'};
+    }
+    const dependencies=resolveOperationDependencies(operation,collection,id,payload,records);
+    const pinned=new Map((Array.isArray(payload.expectedVersions)?[]:dependencies).map(version=>[`${version.collection}:${version.id}`,version]));
+    if(Array.isArray(payload.expectedVersions))for(const entry of payload.expectedVersions){if(!entry||typeof entry.collection!=='string'||typeof entry.id!=='string'||!Number.isSafeInteger(entry.version)||entry.version<0)throw new Error('Invalid reviewed baseline');pinned.set(`${entry.collection}:${entry.id}`,entry)}
+    const baselines=[...pinned.values()];
     const draftId=editor?.draftId||crypto.randomUUID();
     const draftFields=editor?.fields.map(field=>({...field,value:values[field.key]||''})) as WorkflowDraftField[]|undefined;
     const retainForReview=async(validationSummary:string[],supersedes?:string,closeEditor=true)=>{await store.current?.saveDraft({id:draftId,operation,collection,targetId:id,editorKind:editor?.title||operation,inputValues:editor?values:{},fields:draftFields,supersedes:supersedes||editor?.supersedes,payload,expectedVersions:baselines,policyVersion:await store.current?.policyVersion(),validationSummary,requiresReview:true});await refresh();if(closeEditor)setEditor(null)};

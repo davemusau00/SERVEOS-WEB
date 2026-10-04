@@ -77,6 +77,7 @@ export function NativeMasterDataView(){
     </div>
     <div className="mb-4 rounded-xl border border-slate-800 bg-slate-900 p-4"><p className="text-sm text-slate-300">{def.description}</p></div>
     <input className={fieldClass+' mb-4'} placeholder={`Search ${def.label.toLowerCase()}…`} value={query} onChange={e=>setQuery(e.target.value)}/>
+    {s.records.filter(record=>record.collection===def.collection&&record.archived).length>0&&<details className="mb-3 rounded-xl border border-slate-700 p-3"><summary>Archived {def.label.toLowerCase()}</summary>{s.records.filter(record=>record.collection===def.collection&&record.archived).map(record=><div key={record.id} className="mt-2 flex justify-between gap-2"><span>{String(record.data.name||record.id)}</span><button className={buttonClass} onClick={()=>void runtime.command('record.reactivate',{collection:def.collection,id:record.id},record.version).then(()=>setNotice('Master restored.')).catch(error=>setNotice(String(error)))}>Restore</button></div>)}</details>}
     {notice&&<p role="status" className="mb-4 rounded-lg bg-slate-900 p-3 text-sm text-slate-200">{notice}</p>}
     <div className="space-y-2">
       {records.map(record=><article key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4">

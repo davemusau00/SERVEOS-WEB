@@ -401,6 +401,91 @@ fn cmd(op: &str, payload: Value) -> BusinessCommand {
         payload,
     }
 }
+
+fn bottle_fixture(db:&mut rusqlite::Connection,s:&Session) {
+    run(db,s,"record.save",json!({"collection":"stockItems","id":"wine750","data":{"name":"Wine 750","code":"WINE750","baseUnit":"ml","sealedContainerSize":750,"scanUnitQuantity":750,"averageUnitCost":0,"currentStock":{}}}));
+    run(db,s,"inventory.adjust",json!({"stockItemId":"wine750","locationId":"main","sealedContainers":12,"openQuantity":0,"countedQty":9000,"reason":"Fixture"}));
+}
+
+#[test]
+fn bottle_counts_and_selected_scope_preserve_omitted_stock_and_replay() {
+    let (_,mut db,s)=setup();bottle_fixture(&mut db,&s);
+    run(&mut db,&s,"record.save",json!({"collection":"stockItems","id":"untouched","data":{"name":"Untouched","code":"UNCHANGED","baseUnit":"piece","averageUnitCost":0}}));
+    let untouched=get(&db,"stockItems","untouched").unwrap();
+    let command=cmd("inventory.countSelected",json!({"locationId":"main","reason":"Quick physical count","selectedStockItemIds":["wine750"],"rows":[{"stockItemId":"wine750","expectedQuantity":9000,"countedQuantity":6300,"countedSealedContainers":8,"countedOpenQuantity":300,"measurementMethod":"EXACT"}]}));
+    let result=execute(&mut db,&s.token,command.clone()).unwrap();assert_eq!(execute(&mut db,&s.token,command).unwrap(),result);
+    let wine=get(&db,"stockItems","wine750").unwrap().1;assert_eq!(wine["currentStock"]["main"],6300.0);assert_eq!(wine["sealedOpenStock"]["main"]["sealedContainers"],8.0);assert_eq!(wine["sealedOpenStock"]["main"]["openQuantity"],300.0);assert_eq!(get(&db,"stockItems","untouched").unwrap(),untouched);
+    assert_eq!(list(&db,"stockCounts").unwrap()[0]["data"]["scope"],"SELECTED");
+    let full=cmd("inventory.countLocation",json!({"locationId":"main","rows":[{"stockItemId":"wine750","expectedQuantity":6300,"countedQuantity":6300,"countedSealedContainers":8,"countedOpenQuantity":300}]}));assert!(execute(&mut db,&s.token,full).unwrap_err().contains("every active"));
+}
+
+#[test]
+fn bottle_count_rejects_invalid_breakdown_stale_versions_and_rolls_back_all_rows() {
+    let (_,mut db,s)=setup();bottle_fixture(&mut db,&s);
+    let version=get(&db,"stockItems","wine750").unwrap().0;
+    let before=list(&db,"stockMovements").unwrap().len();
+    for row in [json!({"stockItemId":"wine750","expectedQuantity":9000,"countedQuantity":9000}),json!({"stockItemId":"wine750","expectedQuantity":9000,"countedQuantity":9750,"countedSealedContainers":12,"countedOpenQuantity":750}),json!({"stockItemId":"wine750","expectedQuantity":9000,"countedQuantity":9375,"countedSealedContainers":12.5,"countedOpenQuantity":0})] {
+        assert!(execute(&mut db,&s.token,cmd("inventory.countLocation",json!({"locationId":"main","rows":[row]}))).is_err());
+    }
+    assert_eq!(get(&db,"stockItems","wine750").unwrap().0,version);assert_eq!(list(&db,"stockMovements").unwrap().len(),before);
+    let command=cmd("inventory.countLocation",json!({"locationId":"main","reason":"Frozen baseline","expectedVersions":[{"collection":"stockItems","id":"wine750","version":version-1}],"rows":[{"stockItemId":"wine750","expectedQuantity":9000,"countedQuantity":9000,"countedSealedContainers":12,"countedOpenQuantity":0}]}));assert!(execute(&mut db,&s.token,command).unwrap_err().contains("CONFLICT"));
+}
+
+#[test]
+fn sealed_transfer_preserves_open_liquid_and_open_transfer_cannot_create_sealed_stock() {
+    let (_,mut db,s)=setup();bottle_fixture(&mut db,&s);
+    run(&mut db,&s,"record.save",json!({"collection":"stockLocations","id":"bar","data":{"name":"Bar","code":"BAR"}}));
+    run(&mut db,&s,"inventory.adjust",json!({"stockItemId":"wine750","locationId":"main","sealedContainers":8,"openQuantity":300,"reason":"Fixture"}));
+    run(&mut db,&s,"inventory.transfer",json!({"stockItemId":"wine750","locationId":"main","toLocationId":"bar","quantity":2250,"disposition":"SEALED","reason":"Three bottles"}));
+    let state=get(&db,"stockItems","wine750").unwrap().1;assert_eq!(state["sealedOpenStock"]["main"]["sealedContainers"],5.0);assert_eq!(state["sealedOpenStock"]["main"]["openQuantity"],300.0);assert_eq!(state["sealedOpenStock"]["bar"]["sealedContainers"],3.0);
+    run(&mut db,&s,"inventory.adjust",json!({"stockItemId":"wine750","locationId":"bar","sealedContainers":3,"openQuantity":600,"reason":"Fixture"}));let before=get(&db,"stockItems","wine750").unwrap();
+    assert!(execute(&mut db,&s.token,cmd("inventory.transfer",json!({"stockItemId":"wine750","locationId":"main","toLocationId":"bar","quantity":200,"disposition":"OPEN","reason":"Unsupported open transfer"}))).unwrap_err().contains("one open"));assert_eq!(get(&db,"stockItems","wine750").unwrap(),before);
+}
+
+#[test]
+fn explicit_bottle_only_configuration_blocks_pours_and_preserves_balance() {
+    let (_,mut db,s)=setup();bottle_fixture(&mut db,&s);let stock=get(&db,"stockItems","wine750").unwrap();
+    let product=json!({"name":"Bottle wine","code":"BOTTLEWINE","category":"GENERAL","price":1000,"routeTo":"BAR","outletIds":["main"],"taxClassId":"A_STANDARD","stockItemId":"wine750","sellingMode":"BOTTLE_ONLY","portionVolume":750,"portions":[{"id":"bottle","name":"Bottle","volume":750,"price":1000,"wholeContainerSale":true}]});
+    run(&mut db,&s,"record.save",json!({"collection":"products","id":"bottle-only","data":product}));assert_eq!(get(&db,"stockItems","wine750").unwrap(),stock);
+    let (version,mut product)=get(&db,"products","bottle-only").unwrap();product["portions"]=json!([{"id":"shot","name":"Shot","volume":30,"price":100}]);let mut save=cmd("record.save",json!({"collection":"products","id":"bottle-only","data":product}));save.target_version=Some(version);assert!(execute(&mut db,&s.token,save).unwrap_err().contains("measured portions"));
+    let order=run(&mut db,&s,"order.create",json!({"name":"Bottle test","outletId":"main"}));let key=order["recordIds"][0].as_str().unwrap().to_string();
+    assert!(execute(&mut db,&s.token,cmd("order.addItem",json!({"orderId":key,"productId":"bottle-only","quantity":0.5}))).is_err());
+    run(&mut db,&s,"order.addItem",json!({"orderId":key,"productId":"bottle-only","quantity":1}));let item=get(&db,"orders",&key).unwrap().1["items"][0].clone();assert_eq!(item["ingredientSnapshot"][0]["wholeContainerSale"],true);
+
+}
+
+#[test]
+fn unused_procurement_reversal_restores_cost_po_payable_and_journal_once() {
+    let (_,mut db,s)=setup();bottle_fixture(&mut db,&s);
+    run(&mut db,&s,"record.save",json!({"collection":"suppliers","id":"wine-supplier","data":{"name":"Supplier","code":"SUP"}}));
+    let created=run(&mut db,&s,"purchaseOrder.create",json!({"supplierId":"wine-supplier","items":[{"stockItemId":"wine750","quantityOrdered":750,"unitPrice":2}]}));
+    let order=list(&db,"purchaseOrders").unwrap().last().unwrap()["id"].as_str().unwrap().to_string();let before_stock=get(&db,"stockItems","wine750").unwrap().1;let before_order=get(&db,"purchaseOrders",&order).unwrap().1;
+    let line=before_order["items"][0]["lineId"].clone();let mut receive=cmd("purchaseOrder.receive",json!({"purchaseOrderId":order,"locationId":"main","lines":[{"lineId":line,"stockItemId":"wine750","quantityDelivered":750,"quantityAccepted":750,"quantityRejected":0}]}));receive.target_version=Some(get(&db,"purchaseOrders",&order).unwrap().0);execute(&mut db,&s.token,receive).unwrap();
+    let receipts=list(&db,"goodsReceipts").unwrap();let receipt=receipts.last().unwrap()["id"].as_str().unwrap().to_string();let original=receipts.last().unwrap()["data"].clone();
+    let correction=cmd("procurement.reverseUnusedReceipt",json!({"goodsReceiptId":receipt,"confirmedUnusedDuplicate":true,"reason":"Duplicate delivery entry"}));let result=execute(&mut db,&s.token,correction.clone()).unwrap();assert_eq!(execute(&mut db,&s.token,correction).unwrap(),result);
+    assert_eq!(get(&db,"stockItems","wine750").unwrap().1,before_stock);assert_eq!(get(&db,"purchaseOrders",&order).unwrap().1,before_order);assert_eq!(get(&db,"goodsReceipts",&receipt).unwrap().1,original);
+    assert_eq!(list(&db,"supplierPayables").unwrap()[0]["data"]["amountDue"],0);assert_eq!(list(&db,"receiptCorrections").unwrap().len(),1);assert_eq!(list(&db,"journalEntries").unwrap().len(),2);
+    assert!(execute(&mut db,&s.token,cmd("procurement.reverseUnusedReceipt",json!({"goodsReceiptId":receipt,"confirmedUnusedDuplicate":true,"reason":"Again"}))).unwrap_err().contains("already"));let _=created;
+}
+
+#[test]
+fn movement_reversal_is_linked_replayable_and_blocked_after_later_activity() {
+    let (_,mut db,s)=setup();bottle_fixture(&mut db,&s);let before=get(&db,"stockItems","wine750").unwrap().1;
+    let waste=cmd("inventory.waste",json!({"stockItemId":"wine750","locationId":"main","quantity":750,"disposition":"SEALED","reason":"Wrong recording"}));let original=waste.id.clone();execute(&mut db,&s.token,waste).unwrap();
+    let movement=list(&db,"stockMovements").unwrap().into_iter().find(|r|r["data"]["sourceId"]==original).unwrap();let payload=json!({"movementId":movement["id"],"confirmedRecordingMistake":true,"reason":"Recorded against wrong item"});
+    let correction=cmd("inventory.reverseMovement",payload.clone());let result=execute(&mut db,&s.token,correction.clone()).unwrap();assert_eq!(execute(&mut db,&s.token,correction).unwrap(),result);assert_eq!(get(&db,"stockItems","wine750").unwrap().1,before);assert_eq!(get(&db,"stockMovements",movement["id"].as_str().unwrap()).unwrap().1,movement["data"]);assert!(execute(&mut db,&s.token,cmd("inventory.reverseMovement",payload)).is_err());
+    let next=cmd("inventory.waste",json!({"stockItemId":"wine750","locationId":"main","quantity":750,"disposition":"SEALED","reason":"Wrong recording again"}));let source=next.id.clone();execute(&mut db,&s.token,next).unwrap();let movement=list(&db,"stockMovements").unwrap().into_iter().find(|r|r["data"]["sourceId"]==source).unwrap();run(&mut db,&s,"inventory.waste",json!({"stockItemId":"wine750","locationId":"main","quantity":750,"disposition":"SEALED","reason":"Actual loss"}));let before=get(&db,"stockItems","wine750").unwrap();assert!(execute(&mut db,&s.token,cmd("inventory.reverseMovement",json!({"movementId":movement["id"],"confirmedRecordingMistake":true,"reason":"Too late"}))).unwrap_err().contains("Later stock"));assert_eq!(get(&db,"stockItems","wine750").unwrap(),before);
+}
+
+#[test]
+fn receipt_reversal_rejects_consumed_and_paid_cases_without_partial_writes() {
+    for paid in [false,true] {
+        let (_,mut db,s)=setup();bottle_fixture(&mut db,&s);run(&mut db,&s,"record.save",json!({"collection":"suppliers","id":"supplier","data":{"name":"Supplier","code":"SUP"}}));run(&mut db,&s,"purchaseOrder.create",json!({"supplierId":"supplier","items":[{"stockItemId":"wine750","quantityOrdered":750,"unitPrice":2}]}));let order=list(&db,"purchaseOrders").unwrap()[0].clone();let key=order["id"].as_str().unwrap();let mut receive=cmd("purchaseOrder.receive",json!({"purchaseOrderId":key,"locationId":"main","lines":[{"lineId":order["data"]["items"][0]["lineId"],"stockItemId":"wine750","quantityDelivered":750,"quantityAccepted":750,"quantityRejected":0}]}));receive.target_version=Some(get(&db,"purchaseOrders",key).unwrap().0);execute(&mut db,&s.token,receive).unwrap();let receipt=list(&db,"goodsReceipts").unwrap()[0].clone();
+        if paid {let payable=list(&db,"supplierPayables").unwrap()[0].clone();db.execute("UPDATE records SET version=version+1,data=json_set(data,'$.paidAmount',100,'$.status','SETTLED') WHERE collection='supplierPayables' AND id=?",[payable["id"].as_str().unwrap()]).unwrap();}else{run(&mut db,&s,"inventory.waste",json!({"stockItemId":"wine750","locationId":"main","quantity":750,"disposition":"SEALED","reason":"Consumed"}));}
+        let stock=get(&db,"stockItems","wine750").unwrap();let journals=list(&db,"journalEntries").unwrap();let result=execute(&mut db,&s.token,cmd("procurement.reverseUnusedReceipt",json!({"goodsReceiptId":receipt["id"],"confirmedUnusedDuplicate":true,"reason":"Unsupported case"})));assert!(result.is_err());assert_eq!(get(&db,"stockItems","wine750").unwrap(),stock);assert_eq!(list(&db,"journalEntries").unwrap(),journals);assert!(list(&db,"receiptCorrections").unwrap().is_empty());
+    }
+}
+
 fn run(db: &mut rusqlite::Connection, s: &Session, op: &str, p: Value) -> Value {
     execute(db, &s.token, cmd(op, p)).unwrap()
 }
@@ -465,7 +550,7 @@ fn inventory_scanner_draft_is_persistent_staff_scoped_and_outside_business_outbo
 }
 
 #[test]
-fn schema_ten_upgrades_to_fifteen_for_scanner_drafts_credit_v2_and_authority_state() {
+fn schema_ten_upgrades_to_sixteen_for_scanner_drafts_credit_v2_and_authority_state() {
     let dir=tempfile::tempdir().unwrap();
     let path=dir.path().join("upgrade.sqlite");
     let db=open(&path).unwrap();
@@ -473,7 +558,7 @@ fn schema_ten_upgrades_to_fifteen_for_scanner_drafts_credit_v2_and_authority_sta
     drop(db);
     let upgraded=open(&path).unwrap();
     let version:i64=upgraded.query_row("PRAGMA user_version",[],|row|row.get(0)).unwrap();
-    assert_eq!(version,15);
+    assert_eq!(version,16);
     assert!(upgraded.query_row("SELECT name FROM sqlite_master WHERE type='table' AND name='inventory_count_drafts'",[],|row|row.get::<_,String>(0)).is_ok());
     // The authority state must arrive on upgrade, and it must default to the
     // pre-cutover mode so an existing installation keeps working unchanged.
@@ -1484,7 +1569,7 @@ fn classified_asset_quantity_requires_whole_units_and_commissioning_is_live_only
 fn terminal_acceptance_evidence_is_local_immutable_and_latest_schema() {
     let (_dir,db,s)=setup();
     let schema:i64=db.query_row("PRAGMA user_version",[],|r|r.get(0)).unwrap();
-    assert_eq!(schema,15);
+    assert_eq!(schema,16);
     let before:(i64,i64,i64)=db.query_row(
         "SELECT (SELECT COUNT(*) FROM records),(SELECT COUNT(*) FROM outbox),(SELECT COUNT(*) FROM commands)",
         [],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))
@@ -2130,7 +2215,7 @@ fn printer_cancellation_is_atomic_audited_local_and_persistent() {
 #[test]
 fn printer_cancellation_validates_role_session_reason_batch_and_review_tokens() {
     let (_dir,mut db,admin)=setup();let a=printer_fixture(&db,"a","QUEUED");
-    for role in ["Cashier","Manager"] {
+    for role in ["Server","Manager"] {
         db.execute("UPDATE staff SET role=? WHERE id=?",rusqlite::params![role,admin.staff_id]).unwrap();
         assert!(cancel_printer_jobs(&mut db,&admin.token,"Obsolete",&[a.clone()]).is_err());
     }

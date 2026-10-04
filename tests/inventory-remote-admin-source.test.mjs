@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 test('native inventory exposes stock health, valuation, filtering and safe movement actions',()=>{
-  const source=readFileSync('src/native/NativeInventoryView.tsx','utf8');
+  const source=readFileSync('src/native/NativeInventoryView.tsx','utf8')+readFileSync('src/native/BottleCountDialog.tsx','utf8');
   assert.match(source,/Stock control/);
   assert.match(source,/Stock value/);
   assert.match(source,/reorderLevel/);
