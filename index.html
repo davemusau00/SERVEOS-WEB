@@ -7,6 +7,7 @@
     <meta name="description" content="Local-first hospitality sales, stock, purchasing, rooms, finance, and business operations." />
     <meta name="theme-color" content="#020617" />
     <meta name="application-name" content="ServOS" />
+    <meta name="color-scheme" content="dark light" />
     <link rel="icon" href="/icons/servos-192.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/servos-192.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -14,8 +15,22 @@
     <meta property="og:description" content="Local-first hospitality sales, stock, purchasing, rooms, finance, and business operations." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('servos.theme');
+          var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
+          document.documentElement.classList.toggle('dark', theme === 'dark');
+          document.documentElement.classList.toggle('light', theme === 'light');
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = 'dark';
+        }
+      })();
+    </script>
   </head>
-  <body class="bg-slate-950 text-slate-100 antialiased font-sans selection:bg-amber-500/20 selection:text-amber-300">
+  <body class="antialiased font-sans selection:bg-amber-500/20 selection:text-amber-300">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
