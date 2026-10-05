@@ -20,11 +20,11 @@ export function Dialog({ title, onClose, children, footer, labelledBy }: { title
     document.addEventListener('keydown', handleKey);
     return () => { document.removeEventListener('keydown', handleKey); previous?.focus(); };
   }, []);
-  return <div className="fixed inset-0 z-[180] grid place-items-center bg-black/70 p-3 sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={headingId} className="flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-white shadow-2xl">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 p-4 sm:px-5"><h2 id={headingId} className="text-lg font-bold">{title}</h2><button type="button" className={ds.button} onClick={onClose} aria-label="Close dialog">Close</button></header>
+  return <div className={ds.dialogOverlay} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <section ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={headingId} className={ds.dialogPanel}>
+      <header className={ds.dialogHeader}><h2 id={headingId} className="text-lg font-bold">{title}</h2><button type="button" className={ds.button} onClick={onClose} aria-label="Close dialog">Close</button></header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
-      {footer && <footer className="sticky bottom-0 flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-800 bg-slate-900 p-3 sm:px-5">{footer}</footer>}
+      {footer && <footer className={ds.dialogFooter}>{footer}</footer>}
     </section>
   </div>;
 }
@@ -46,12 +46,12 @@ export function Drawer({ title, onClose, children }: { title: string; onClose: (
     document.addEventListener('keydown', handleKey);
     return () => { document.removeEventListener('keydown', handleKey); previous?.focus(); };
   }, []);
-  return <div className="fixed inset-0 z-[170] bg-black/60" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><aside ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={generated} className="ml-auto flex h-[100dvh] w-full max-w-xl flex-col border-l border-slate-700 bg-slate-950 text-white"><header className="flex items-center justify-between border-b border-slate-800 p-4"><h2 id={generated} className="font-bold">{title}</h2><button className={ds.button} type="button" onClick={onClose}>Close</button></header><div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div></aside></div>;
+  return <div className={ds.dialogOverlay} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><aside ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={generated} className={ds.drawerPanel}><header className={ds.drawerHeader}><h2 id={generated} className="font-bold">{title}</h2><button className={ds.button} type="button" onClick={onClose}>Close</button></header><div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div></aside></div>;
 }
 
 export function FormField({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) {
   const id = useId();
-  return <label className="block space-y-1.5 text-sm font-medium text-slate-200"><span>{label}</span>{React.isValidElement(children) ? React.cloneElement(children as React.ReactElement<any>, { id, 'aria-describedby': error ? `${id}-error` : hint ? `${id}-hint` : undefined, 'aria-invalid': Boolean(error) }) : children}{error ? <span id={`${id}-error`} role="alert" className="block text-xs text-rose-300">{error}</span> : hint ? <span id={`${id}-hint`} className="block text-xs text-slate-400">{hint}</span> : null}</label>;
+  return <label className={`block space-y-1.5 text-sm font-medium ${ds.fg}`}><span>{label}</span>{React.isValidElement(children) ? React.cloneElement(children as React.ReactElement<any>, { id, 'aria-describedby': error ? `${id}-error` : hint ? `${id}-hint` : undefined, 'aria-invalid': Boolean(error) }) : children}{error ? <span id={`${id}-error`} role="alert" className={`block text-xs ${ds.formError}`}>{error}</span> : hint ? <span id={`${id}-hint`} className={`block text-xs ${ds.fgMuted}`}>{hint}</span> : null}</label>;
 }
 
 export interface SearchComboboxOption { id: string; label: string; description?: string; disabled?: boolean; }
@@ -68,7 +68,7 @@ export function SearchCombobox({ options, value, onValueChange, loading = false,
   };
   return <div className="relative">
     <input {...inputProps} id={inputId} type="search" role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" aria-activedescendant={open && filtered[active] ? `${listId}-${filtered[active].id}` : undefined} disabled={disabled} placeholder={placeholder} value={open ? query : selected?.label || ''} onFocus={() => setOpen(true)} onChange={event => { setQuery(event.target.value); setActive(0); setOpen(true); }} onKeyDown={onKeyDown} className={`${ds.input} ${className}`} />
-    {open && !disabled && <div id={listId} role="listbox" className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-1 shadow-xl">
+    {open && !disabled && <div id={listId} role="listbox" className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-xl">
       {loading && <p role="status" className="p-2 text-sm text-slate-400">Loading…</p>}
       {error && <p role="alert" className="p-2 text-sm text-rose-300">{error}</p>}
       {!loading && !error && filtered.map((option, index) => <button type="button" role="option" aria-selected={option.id === value} aria-disabled={option.disabled || undefined} id={`${listId}-${option.id}`} key={option.id} disabled={option.disabled} className={`block w-full rounded-lg p-2 text-left text-sm ${index === active ? 'bg-slate-800' : ''} ${option.disabled ? 'cursor-not-allowed text-slate-500' : 'text-slate-100'}`} onMouseDown={event => event.preventDefault()} onClick={() => select(option)}><span className="block font-medium">{option.label}</span>{option.description && <span className="block text-xs text-slate-400">{option.description}</span>}</button>)}

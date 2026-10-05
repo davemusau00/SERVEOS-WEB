@@ -3,6 +3,7 @@ import { Barcode, ClipboardCheck, Plus, Truck } from 'lucide-react';
 import { useRuntime } from '../runtime/RuntimeProvider';
 import type { Permission } from '../types/runtime';
 import { barcodeEquals, useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { ReceiptCorrectionDialog } from './ReceiptCorrectionDialog';
 import { SimpleReceiveDelivery } from './SimpleReceiveDelivery';
 import { ActionDialog } from './ActionDialog';
 import { ManagerApprovalDialog } from './ManagerApprovalDialog';
@@ -34,6 +35,7 @@ export function NativeProcurementView({ onOpenCatalog, initialAction = '' }: { o
   useEffect(() => { if (initialAction === 'receive-delivery') setSimpleReceive(true); }, [initialAction]);
   const [section, setSection] = useState<'ORDERS' | 'RECEIPTS' | 'PAYABLES'>('ORDERS');
   const [notice, setNotice] = useState('');
+  const [correctingReceipt,setCorrectingReceipt]=useState<any|null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [classifiedOpen, setClassifiedOpen] = useState(false);
   const [supplierId, setSupplierId] = useState(suppliers[0]?.id || '');
@@ -317,7 +319,7 @@ export function NativeProcurementView({ onOpenCatalog, initialAction = '' }: { o
       {!orders.length && <p className="rounded-xl border border-dashed border-slate-700 p-6 text-slate-400">No purchase orders have been created.</p>}
     </div>}
 
-    {section === 'RECEIPTS' && <div className="space-y-3">{receipts.map((receipt: any) => <article key={receipt.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="font-bold text-emerald-300">{receipt.grnNumber}</h2><p className="text-sm text-slate-300">{receipt.poNumber} · {receipt.supplierName}</p><p className="text-xs text-slate-500">{shortDate(receipt.receivedAt)} · {receipt.receivedByName}</p></div><div className="text-right text-sm">{canViewPayables ? <>Accepted value: {money(receipt.acceptedValue)}<p className="text-xs text-slate-500">{receipt.supplierInvoiceNumber || 'Invoice reference not entered'}</p></> : <span className="text-xs text-slate-500">Posted GRN</span>}</div></div><div className="mt-3 space-y-1 text-sm">{(receipt.lines || []).map((line: any) => <p key={line.lineId || line.stockItemId} className="text-slate-300"><b>{line.treatment || 'STOCK'}</b> · {line.displayName || line.stockItemName}: delivered {line.quantityDelivered}, accepted {line.quantityAccepted}, rejected {line.quantityRejected} {line.unitSymbol}</p>)}</div></article>)}{!receipts.length && <p className="rounded-xl border border-dashed border-slate-700 p-6 text-slate-400">No goods receipts have been posted.</p>}</div>}
+    {section === 'RECEIPTS' && <div className="space-y-3">{receipts.map((receipt: any) => <article key={receipt.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="font-bold text-emerald-300">{receipt.grnNumber}</h2><p className="text-sm text-slate-300">{receipt.poNumber} · {receipt.supplierName}</p><p className="text-xs text-slate-500">{shortDate(receipt.receivedAt)} · {receipt.receivedByName}</p></div><div className="text-right text-sm">{canViewPayables ? <>Accepted value: {money(receipt.acceptedValue)}<p className="text-xs text-slate-500">{receipt.supplierInvoiceNumber || 'Invoice reference not entered'}</p></> : <span className="text-xs text-slate-500">Posted GRN</span>}</div></div><div className="mt-3 space-y-1 text-sm">{(receipt.lines || []).map((line: any) => <p key={line.lineId || line.stockItemId} className="text-slate-300"><b>{line.treatment || 'STOCK'}</b> · {line.displayName || line.stockItemName}: delivered {line.quantityDelivered}, accepted {line.quantityAccepted}, rejected {line.quantityRejected} {line.unitSymbol}</p>)}</div>{canManage&&canPay&&<button className={buttonClass+' mt-3'} onClick={()=>setCorrectingReceipt(receipt)}>Correct mistake</button>}</article>)}{!receipts.length && <p className="rounded-xl border border-dashed border-slate-700 p-6 text-slate-400">No goods receipts have been posted.</p>}</div>}
 
     {section === 'PAYABLES' && canViewPayables && <div className="space-y-3">
       {payables.map((payable: any) => {
@@ -405,6 +407,7 @@ export function NativeProcurementView({ onOpenCatalog, initialAction = '' }: { o
     </ActionDialog>}
 
 
+    {correctingReceipt&&<ReceiptCorrectionDialog receipt={correctingReceipt} onClose={()=>setCorrectingReceipt(null)}/>}
     {approval && <ManagerApprovalDialog permission={approval.permission} target={approval.target} onClose={() => setApproval(null)} onApproved={approval.run} />}
   </div>;
 }

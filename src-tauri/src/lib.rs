@@ -553,6 +553,11 @@ fn runtime_save_inventory_count_draft(state: State<Runtime>, token: String, loca
     store::save_inventory_count_draft(&db, &token, &location_id, draft)
 }
 #[tauri::command]
+fn runtime_correction_command_status(state: State<Runtime>,token:String,command_id:String)->store::Result<String>{
+    let db=state.db.lock().map_err(|e|e.to_string())?;
+    store::correction_command_status(&db,&token,&command_id)
+}
+#[tauri::command]
 fn runtime_clear_inventory_count_draft(state: State<Runtime>, token: String, location_id: String) -> store::Result<()> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     store::clear_inventory_count_draft(&db, &token, &location_id)
@@ -609,6 +614,11 @@ async fn runtime_command(
                 return Err("A previously queued v2 command was just acknowledged. This new action was not sent; review the refreshed business state before retrying.".into());
             }
             let versions=expected_versions.unwrap_or_else(||json!([]));
+            let needs_bottle_contract=command.operation=="inventory.reverseMovement"||command.operation=="inventory.countSelected"||command.operation=="procurement.reverseUnusedReceipt"||command.payload.get("disposition").is_some()||command.payload.get("expectedVersions").is_some()||command.payload["data"].get("sellingMode").is_some()||command.payload["product"].get("sellingMode").is_some();
+            if needs_bottle_contract {
+                let capabilities=rpc(&url,&key,Some(&active.access_token),"servos_v2_inventory_capabilities",json!({})).await.map_err(|_|"This server has not confirmed bottle inventory capabilities. Apply the compatible migration before enabling this workflow.".to_string())?;
+                if capabilities["bottleInventoryVersion"]!=1 {return Err("Unsupported bottle inventory server version; nothing was submitted".into());}
+            }
             let envelope={
                 let mut db=state.db.lock().map_err(|e|e.to_string())?;
                 store::queue_native_v2_command(&mut db,&terminal,&business_id,store::text(&active.identity,"actorId")?,&command,&versions)?
@@ -1695,6 +1705,7 @@ pub fn run() {
             runtime_inventory_count_draft,
             runtime_save_inventory_count_draft,
             runtime_clear_inventory_count_draft,
+            runtime_correction_command_status,
             runtime_command,
             runtime_manager_approve,
             runtime_enroll,

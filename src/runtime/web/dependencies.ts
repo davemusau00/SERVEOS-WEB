@@ -70,6 +70,27 @@ export function resolveOperationDependencies(operation: string, collection: stri
     if (openTill && operation !== 'till.open') add('tillSessions', openTill.id);
   }
   if (operation === 'order.create') add('tables', payload.tableId);
+  if (operation === 'inventory.countSelected') {
+    add('stockLocations', payload.locationId);
+    if (Array.isArray(payload.selectedStockItemIds)) for (const stockId of payload.selectedStockItemIds) add('stockItems', stockId);
+  }
+  if (operation === 'inventory.reverseMovement') {
+    add('stockMovements',payload.movementId);
+    const movement=byKey.get(key('stockMovements',String(payload.movementId||'')))?.data;
+    const source=movement?.sourceCommandId || movement?.sourceId;
+    add('inventoryMovementBaselines',source);
+    add('stockItems',movement?.stockItemId);
+  }
+  if (operation === 'procurement.reverseUnusedReceipt') {
+    add('goodsReceipts',payload.goodsReceiptId);
+    const receipt=byKey.get(key('goodsReceipts',String(payload.goodsReceiptId||'')))?.data;
+    add('purchaseOrders',receipt?.purchaseOrderId);
+    add('procurementCorrectionBaselines',payload.goodsReceiptId);
+    const baseline=byKey.get(key('procurementCorrectionBaselines',String(payload.goodsReceiptId||'')))?.data;
+    if(Array.isArray(baseline?.stockSnapshots))for(const raw of baseline.stockSnapshots)add('stockItems',(raw as Record<string,unknown>).stockItemId);
+    if(Array.isArray(baseline?.payables))for(const raw of baseline.payables)add('supplierPayables',(raw as Record<string,unknown>).id);
+  }
+  if (operation.startsWith('inventory.')) { add('stockItems',payload.stockItemId);add('stockLocations',payload.locationId);add('stockLocations',payload.toLocationId); }
   if (operation === 'inventory.countLocation') {
     add('stockLocations', payload.locationId);
     for (const record of records) if (record.collection === 'stockItems' && !record.archived) add('stockItems', record.id);

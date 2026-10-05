@@ -38,7 +38,7 @@ Review each stock item across the configured locations. Current stock is derived
 
 For a purchase order, select the saved supplier package. Order and receive whole package counts at the price per package. A package scan on that PO adds one package (not the package's contents as PO quantity); the posted receipt converts accepted packages to base stock quantity and unit cost. If accepted quantity exceeds the remaining approved PO balance, a manager approval token is required. The separate physical-count scanner always adds base quantity.
 
-If a scan is unknown, an operator with `inventory.adjust` may assign it inline to the correct stock master. Assignment only adds a barcode alias; it does not change quantity. Rescan the assigned code to count its stock quantity. Duplicate matches must be resolved in Catalog, and removing an unknown scan explicitly excludes it from the count. Do not compensate by scanning a different item or by treating a package count as a base-unit count.
+Resolve an unknown or ambiguous scan in Catalog after saving the draft. Assignment only changes barcode configuration; it does not change quantity. Rescan the assigned code to count its stock quantity. Duplicate matches must be resolved in Catalog, and removing an unknown scan explicitly excludes it from the count. Do not compensate by scanning a different item or by treating a package count as a base-unit count.
 
 ## What ServOS records
 
@@ -53,3 +53,15 @@ For eligible stock tracked in millilitres, configure a sealed-container size (fo
 
 When correcting this stock, enter sealed bottles and open millilitres separately and provide a reason. During a Web location count, count sealed bottles and the liquid in the open bottle separately; ServOS calculates the canonical millilitre total, and the staged count command checks both values against it before changing stock. Transfers also preserve location-level sealed/open state; a destination that cannot represent the incoming open amount is blocked rather than having liquid silently mislabeled. These source workflows have not yet passed final acceptance; migration, browser, packaged-terminal and hosted evidence remain open.
 
+
+## Bottle counting and corrections (2026-10-04 candidate)
+
+Use **Count stock** for every active item in a Storage Place, or **Quick count** to select exact items before starting. Search only changes what is displayed. Blank means uncounted; enter explicit zero for none. For configured ml stock, enter whole sealed bottles and remaining open ml below one bottle's capacity. Fraction buttons show ml and mark the measurement estimated. Bottle and case scans increase sealed count without changing open liquid. Unknown/ambiguous scans must be resolved before posting.
+
+Manual and scanner inputs save automatically in the same staff/location draft. Reopen to resume; review before **Confirm Count**. Stock or consumption-configuration changes require an explicit recount. An interrupted reviewed command retains its original ID and versions; retry recovers that command. Do not create another count to work around an unresolved command.
+
+Use **Correct balance** on the stock detail, or from count/movement history to retain a source link. Enter the current physical balance, a reason, then review before confirmation. Earlier records remain immutable. A mistaken waste/transfer recording may use **Correct mistake ? Reverse recording** only when there is no later stock/cost activity and the goods have not actually moved or been wasted. If blocked, correct the current physical balance instead.
+
+In Catalog, review the explicit selling method. Whole-bottle-only stock requires a valid whole sale, no measured/recipe/modifier routes and physically resolved open stock. Existing mixed behavior is preserved when no method is set. Stock value continues to use canonical units.
+
+In Procurement receipt history, **Correct mistake** supports exact unused duplicate reversal with a recorded baseline. Consumed, matched or paid cases remain disabled pending accounting approval. Refunds and stock return are separate actions; manual corrections never initiate an M-PESA/card payout. These are candidate workflows; installed-terminal and hardware acceptance remains pending.

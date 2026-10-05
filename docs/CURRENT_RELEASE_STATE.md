@@ -214,3 +214,7 @@ Native unlock now supports individual Supabase Auth sign-in paired with the exis
 The installed terminal now includes authoritative customer tabs and Accounts Receivable under SQLite schema 13. A POS tab may be linked to a reusable customer, settled partly by normal tender and then charged to an active customer credit account. Credit charges complete the order without pretending receivables are cash. Later Cash/M-Pesa/Card settlements reduce A/R, with M-Pesa reusing the existing statement reconciliation workflow. Customer credit ledger entries and reconciliation snapshots are immutable.
 
 The staged PostgreSQL/web-v2 authority remains disabled for this terminal release.
+
+## 2026-10-04 bottle inventory candidate
+
+See [delivery record](BOTTLE_INVENTORY_DELIVERY.md), [verification evidence](BOTTLE_INVENTORY_TEST_EVIDENCE.md), and [accounting design for approval](PROCUREMENT_CORRECTION_ACCOUNTING_DESIGN.md). Native schema 16 and the forward shared migration add reviewed bottle/count/correction contracts while preserving current authority and business data. This is an uncommitted source candidate. It does not supersede the checksums or acceptance of historical release packages. Accounting approval, restored-business-data upgrade rehearsal, hosted rollout, terminal pilot and hardware acceptance remain open.

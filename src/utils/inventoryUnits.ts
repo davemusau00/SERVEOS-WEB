@@ -72,7 +72,7 @@ export function calculateRecipeCost(ingredients: Array<{ quantity: number; avera
   return ingredients.reduce((total, ingredient) => {
     finiteNonNegative(ingredient.quantity, 'Ingredient quantity');
     if (ingredient.quantity <= 0) throw new Error('Ingredient quantity must be greater than zero.');
-    if (!Number.isSafeInteger(ingredient.averageCostMinor) || ingredient.averageCostMinor < 0) throw new Error('Ingredient cost must be a non-negative amount in minor currency units.');
+    if (!Number.isFinite(ingredient.averageCostMinor) || ingredient.averageCostMinor < 0) throw new Error('Ingredient cost must be a non-negative amount in minor currency units.');
     const next = total + ingredient.quantity * ingredient.averageCostMinor;
     if (!Number.isFinite(next) || next > Number.MAX_SAFE_INTEGER) throw new Error('Calculated recipe cost is outside the supported range.');
     return next;

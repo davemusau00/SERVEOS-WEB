@@ -46,6 +46,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
   const [openingPackages, setOpeningPackages] = useState(0);
   const [saleQuantity, setSaleQuantity] = useState(1);
   const [wholeContainerPrice, setWholeContainerPrice] = useState(0);
+  const [sellingMode,setSellingMode]=useState<'BOTTLE_ONLY'|'BOTTLE_AND_PORTIONS'>('BOTTLE_AND_PORTIONS');
   const [barcode, setBarcode] = useState('');
   const [recipeIngredients, setRecipeIngredients] = useState<RecipeLine[]>([]);
   const [recipeYield, setRecipeYield] = useState(10);
@@ -62,7 +63,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
   const isSealedContainer = setupKind === 'STOCKED' && (itemType === 'SPIRIT' || itemType === 'WINE');
   const calculation = useMemo(() => {
     try {
-      const pkg = definePurchasePackage({ id: 'preview', name: purchaseName || 'Package', unitsPerPackage, contentsPerSaleUnit: contents, unit, mode, barcode });
+      const pkg = definePurchasePackage({ id: 'preview', name: purchaseName || 'Package', unitsPerPackage, contentsPerSaleUnit: contents, unit, mode });
       const unitCost = costPerCanonicalUnit(Math.round(packageCost * 100), pkg.baseQuantity, baseUnit);
       return { pkg, unitCost, opening: pkg.baseQuantity * openingPackages, sale: canonicalizeMeasurement(saleQuantity, unit, mode).quantity };
     } catch {
@@ -80,7 +81,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
         const stock = stocks.find(item => item.id === line.stockItemId);
         if (!stock) throw new Error('Recipe stock item is no longer available.');
         const averageCostMinor = Number(stock.data.averageUnitCostMinor || 0);
-        if (!Number.isSafeInteger(averageCostMinor)) throw new Error('Recipe stock cost is invalid.');
+        if (!Number.isFinite(averageCostMinor)||averageCostMinor<0) throw new Error('Recipe stock cost is invalid.');
         return { quantity: line.quantity, averageCostMinor };
       }));
     } catch {
@@ -125,9 +126,10 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
       favorite: false,
       barcode: barcode.trim(),
       portionVolume: isSealedContainer && calculation ? calculation.pkg.baseQuantity / unitsPerPackage : calculation?.sale || 1,
+      ...(isSealedContainer?{sellingMode}:{}),
       portions: isSealedContainer && calculation ? [
-        { id: 'serving', name: itemType === 'WINE' ? 'Glass' : 'Pour', volume: calculation.sale, priceMinor: Math.round(Number(price) * 100) },
-        ...(wholeContainerPrice > 0 ? [{ id: 'whole-container', name: 'Whole bottle', volume: calculation.pkg.baseQuantity / unitsPerPackage, priceMinor: Math.round(wholeContainerPrice * 100), wholeContainerSale: true }] : []),
+        ...(sellingMode==='BOTTLE_ONLY'?[]:[{ id: 'serving', name: itemType === 'WINE' ? 'Glass' : 'Pour', volume: calculation.sale, priceMinor: Math.round(Number(price) * 100) }]),
+        ...(sellingMode==='BOTTLE_ONLY'?[{id:'whole-container',name:'Whole bottle',volume:calculation.pkg.baseQuantity/unitsPerPackage,priceMinor:Math.round(Number(price)*100),wholeContainerSale:true}]:wholeContainerPrice > 0 ? [{ id: 'whole-container', name: 'Whole bottle', volume: calculation.pkg.baseQuantity / unitsPerPackage, priceMinor: Math.round(wholeContainerPrice * 100), wholeContainerSale: true }] : []),
       ] : [{ id: 'each', name: mode === 'VOLUME' ? 'Each serving' : 'Each', volume: calculation?.sale || 1, priceMinor: Math.round(Number(price) * 100) }],
       recipeIngredients: [] as RecipeLine[],
       modifiers: [],
@@ -219,7 +221,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
           name: name.trim(),
           code: code.trim(),
           baseUnit,
-          scanUnitQuantity: calculation!.pkg.baseQuantity,
+          scanUnitQuantity: calculation!.pkg.baseQuantity / unitsPerPackage,
           purchasePackages: [calculation!.pkg],
           ...(isSealedContainer ? { sealedContainerSize: calculation!.pkg.baseQuantity / unitsPerPackage } : {}),
           averageUnitCost: calculation!.unitCost / 100,
@@ -307,7 +309,8 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
           </select>
         </label>
         <label className="block text-sm">{itemType === 'SPIRIT' ? 'Pour price' : itemType === 'WINE' ? 'Glass price' : 'Selling price'} (KES)<input className={input} type="number" min="0" step="0.01" value={price} onChange={event => setPrice(Number(event.target.value))}/></label>
-        {isSealedContainer && <label className="block text-sm">Whole bottle price (KES, optional)<input className={input} type="number" min="0" step="0.01" value={wholeContainerPrice} onChange={event => setWholeContainerPrice(Number(event.target.value))}/><span className="text-xs text-slate-400">Add a separate POS price for selling a sealed bottle; measured pours open bottles as needed.</span></label>}
+        {isSealedContainer&&<label className="block text-sm">Selling method<select className={input} value={sellingMode} onChange={event=>setSellingMode(event.target.value as typeof sellingMode)}><option value="BOTTLE_ONLY">Sealed bottles only</option><option value="BOTTLE_AND_PORTIONS">Bottles and measured portions</option></select></label>}
+        {isSealedContainer && sellingMode==='BOTTLE_AND_PORTIONS' && <label className="block text-sm">Whole bottle price (KES, optional)<input className={input} type="number" min="0" step="0.01" value={wholeContainerPrice} onChange={event => setWholeContainerPrice(Number(event.target.value))}/><span className="text-xs text-slate-400">Add a separate POS price for selling a sealed bottle; measured pours open bottles as needed.</span></label>}
         <label className="block text-sm">Category<input className={input} value={category} onChange={event => setCategory(event.target.value)}/></label>
         <label className="block text-sm">Preparation station<select className={input} value={routeTo} onChange={event => setRouteTo(event.target.value)}><option>BAR</option><option>KITCHEN</option><option>SERVICE</option></select></label>
         {(setupKind === 'RECIPE' || setupKind === 'BATCH') && <section className="space-y-3 rounded-lg border border-slate-700 p-3">
@@ -345,7 +348,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
         <label className="block text-sm">Purchase price per {purchaseName || 'package'} (KES)<input className={input} type="number" min="0" step="0.01" value={packageCost} onChange={event => setPackageCost(Number(event.target.value))}/></label>
         <label className="block text-sm">Opening packages on hand<input className={input} type="number" min="0" step="1" value={openingPackages} onChange={event => setOpeningPackages(Number(event.target.value))}/></label>
         <label className="block text-sm">Storage place<select className={input} value={locationId} onChange={event => setLocationId(event.target.value)}><option value="">Choose storage place</option>{locations.map(location => <option key={location.id} value={location.id}>{String(location.data.name || location.id)}</option>)}</select></label>
-        {setupKind === 'STOCKED' && <label className="block text-sm">{isSealedContainer ? 'Pour or glass size (ml)' : 'Stock quantity used for each sale'}<input className={input} type="number" min="0.000001" step="any" value={saleQuantity} onChange={event => setSaleQuantity(Number(event.target.value))}/></label>}
+        {setupKind === 'STOCKED' && !(isSealedContainer&&sellingMode==='BOTTLE_ONLY') && <label className="block text-sm">{isSealedContainer ? 'Pour or glass size (ml)' : 'Stock quantity used for each sale'}<input className={input} type="number" min="0.000001" step="any" value={saleQuantity} onChange={event => setSaleQuantity(Number(event.target.value))}/></label>}
         {calculation && <div className="rounded-lg bg-slate-950 p-3 text-sm">One {purchaseName || 'package'} = {calculation.pkg.baseQuantity.toLocaleString()} {baseUnit} - opening stock {calculation.opening.toLocaleString()} {baseUnit} - cost {cash(calculation.unitCost / 100)} per {baseUnit}</div>}
       </div>}
       {step === 2 && setupKind === 'RECIPE' && <div className="space-y-2 rounded-lg border border-slate-700 p-4 text-sm"><h3 className="font-bold">Recipe check</h3><p>{recipeIngredients.length} ingredient(s) will be deducted for each sale.</p><p>Estimated cost per sale: {Number.isFinite(recipeCostMinor) ? cash(recipeCostMinor / 100) : 'Unavailable until valid ingredient costs are loaded.'}</p><p className="text-xs text-slate-400">The product is saved with its recipe and has no separate linked stock balance.</p></div>}

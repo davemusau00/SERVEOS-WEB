@@ -99,6 +99,7 @@ export interface RecipeModifier {
 }
 
 export interface ProductSellable {
+  sellingMode?: 'BOTTLE_ONLY' | 'BOTTLE_AND_PORTIONS';
   id: string;
   code: string;
   /** Physical retail barcode, stored as text so leading zeroes are preserved. */
