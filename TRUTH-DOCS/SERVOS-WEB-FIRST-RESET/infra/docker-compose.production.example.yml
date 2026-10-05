@@ -1,0 +1,61 @@
+# ServOS same-VPS production architecture example.
+# Host Nginx serves the PWA and proxies the API. Pin tested image digests in production.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [serveos_private]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ghcr.io/davemusau00/serveos-api:${SERVEOS_VERSION}
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-3101}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [serveos_private]
+
+  worker:
+    image: ghcr.io/davemusau00/serveos-api:${SERVEOS_VERSION}
+    command: ["node", "dist/worker.js"]
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [serveos_private]
+
+  # Architectural placeholder. Implement an audited backup command that encrypts
+  # and sends backups to an OFF-VPS destination. Never rely on this volume alone.
+  backup:
+    image: postgres:17-alpine
+    restart: "no"
+    profiles: ["manual-backup"]
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [serveos_private]
+    volumes:
+      - ./backups:/backups
+
+networks:
+  serveos_private:
+    name: serveos_private
+
+volumes:
+  postgres_data:
+    name: serveos_postgres_data
