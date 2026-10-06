@@ -11,6 +11,7 @@
 
 ## Implemented slice
 
+- Added an authenticated catalog bootstrap projection endpoint and API client call for products, recipes, stock/package masters, locations, and outlets. This is a scoped first projection only; ordered change-feed rebuild and current snapshot sync replacement remain pending.
 - Added relational products, stock masters, package units, recipe ingredients, locations, location balances, and movement schema. Added online-only `product.save`, `stockItem.save`, and `catalog.createWithOpeningStock` handlers with expected-version checks, same-business reference validation, duplicate code/barcode checks, and atomic product/recipe/package/opening movement writes. This is API groundwork only; the browser UI remains on its Supabase adapter until login, projections, and migration are ready.
 - Added an isolated Node API command kernel with envelope validation, permission enforcement, offline-grant enforcement, canonical payload hashing, idempotent command replay, expected-version checks, audit event, and ordered change cursor.
 - Added PostgreSQL schema and migration runner for sessions, enrolled devices, permissions, expected versions, command outcomes, audit, ordered changes, offline grants, relational catalog, and asynchronous jobs.
@@ -30,9 +31,9 @@
 
 - Generated-file policy decision.
 - API staff login/session issuance and its current UI integration; the challenge/device enrollment protocol exists but still requires an API-authenticated session that the current Supabase login does not issue.
-- Domain handlers must update `business_entity_versions` in the same business transaction; the generic increment primitive exists but only catalog creation uses it.
+- Domain handlers must update `business_entity_versions` in the same business transaction; version increments now cover catalog products and stock masters, while complete cross-aggregate version semantics and existing-record updates still need review.
 - Shared API/client contract generation, authenticated bootstrap/change-feed/SSE, and PWA API transport migration. Current browser synchronization still uses Supabase and snapshot bootstrap.
-- Complete operation payload parity and tests for product/stock commands, including bottle/package units, batch yields, and opening movements; map API catalog projections into the PWA.
+- Complete operation payload parity and tests for product/stock commands, including bottle/package units, batch yields, and opening movements; connect projections to the PWA once API staff login and migration are ready.
 - API image validation and isolated staging deployment. Docker/PostgreSQL are unavailable in this environment; no live DB migration was run.
 - Actual off-VPS encrypted backup and restore verification.
 - Business domain migrations, document spooler/Print Bridge, one-time data migration, pilot, production cutover, and Tauri retirement.

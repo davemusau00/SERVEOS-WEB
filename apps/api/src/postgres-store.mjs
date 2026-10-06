@@ -55,6 +55,24 @@ export class PostgresStore {
     return rows;
   }
 
+  async catalogProjection(businessId) {
+    const [productsResult,stockResult,locationsResult,outletsResult] = await Promise.all([
+      this.pool.query(`SELECT p.id,p.name,p.code,p.price_minor AS "priceMinor",p.category,p.route_to AS "routeTo",p.stock_item_id AS "stockItemId",p.barcode,p.favorite,p.tax_class_id AS "taxClassId",p.inventory_type AS "inventoryType",p.recipe_yield AS "recipeYield",p.portion_volume AS "portionVolume",p.selling_mode AS "sellingMode",p.portions,p.outlet_ids AS "outletIds",p.version FROM products p WHERE p.business_id=$1 AND p.archived_at IS NULL ORDER BY p.name,p.id`,[businessId]),
+      this.pool.query(`SELECT s.id,s.name,s.code,s.base_unit AS "baseUnit",s.barcode,s.barcode_aliases AS "barcodeAliases",s.scan_unit_quantity AS "scanUnitQuantity",s.reorder_level AS "reorderLevel",s.average_unit_cost_minor AS "averageUnitCostMinor",s.sealed_container_size AS "sealedContainerSize",s.version,COALESCE(jsonb_agg(jsonb_build_object('id',p.id,'name',p.name,'baseQuantity',p.base_quantity,'unitCostMinor',p.unit_cost_minor,'barcode',p.barcode) ORDER BY p.sort_order) FILTER (WHERE p.id IS NOT NULL),'[]'::jsonb) AS "purchasePackages" FROM stock_items s LEFT JOIN stock_purchase_packages p ON p.business_id=s.business_id AND p.stock_item_id=s.id WHERE s.business_id=$1 AND s.archived_at IS NULL GROUP BY s.business_id,s.id ORDER BY s.name,s.id`,[businessId]),
+      this.pool.query(`SELECT id,name,version FROM stock_locations WHERE business_id=$1 AND archived_at IS NULL ORDER BY name,id`,[businessId]),
+      this.pool.query(`SELECT id,name,default_stock_location_id AS "defaultStockLocationId",version FROM business_outlets WHERE business_id=$1 AND archived_at IS NULL ORDER BY name,id`,[businessId]),
+    ]);
+    const recipes = await this.pool.query(`SELECT product_id AS "productId",stock_item_id AS "stockItemId",quantity,unit FROM product_recipe_ingredients WHERE business_id=$1 ORDER BY product_id,stock_item_id`,[businessId]);
+    const ingredientsByProduct = new Map();
+    for(const ingredient of recipes.rows){const list=ingredientsByProduct.get(ingredient.productId)||[];list.push({...ingredient,quantity:Number(ingredient.quantity)});ingredientsByProduct.set(ingredient.productId,list);}
+    return {
+      products:productsResult.rows.map(row=>({collection:'products',id:row.id,version:Number(row.version),data:{...row,priceMinor:Number(row.priceMinor),recipeIngredients:ingredientsByProduct.get(row.id)||[]}})),
+      stockItems:stockResult.rows.map(row=>({collection:'stockItems',id:row.id,version:Number(row.version),data:{...row,scanUnitQuantity:Number(row.scanUnitQuantity),reorderLevel:Number(row.reorderLevel),averageUnitCostMinor:Number(row.averageUnitCostMinor),sealedContainerSize:row.sealedContainerSize===null?undefined:Number(row.sealedContainerSize),purchasePackages:row.purchasePackages.map(pack=>({...pack,baseQuantity:Number(pack.baseQuantity),unitCostMinor:Number(pack.unitCostMinor)}))}})),
+      stockLocations:locationsResult.rows.map(row=>({collection:'stockLocations',id:row.id,version:Number(row.version),data:{name:row.name}})),
+      outlets:outletsResult.rows.map(row=>({collection:'outlets',id:row.id,version:Number(row.version),data:{name:row.name,defaultStockLocationId:row.defaultStockLocationId}})),
+    };
+  }
+
   async authenticateSession(tokenHash, deviceId, now = new Date()) {
     const {rows} = await this.pool.query(`
       SELECT s.business_id AS "businessId", s.staff_id AS "staffId", d.id AS "deviceId",

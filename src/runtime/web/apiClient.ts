@@ -2,6 +2,7 @@ export interface ApiCommandEnvelope {commandId:string;name:string;payload:Record
 export interface ApiCommandOutcome {kind:'CONFIRMED';commandId:string;cursor:number;result:unknown}
 export interface ApiChangePage {protocolVersion:1;fromCursor:number;toCursor:number;highWater:number;hasMore:boolean;changes:Array<{cursor:number;commandId:string;changeType:string;projection:unknown;occurredAt:string}>}
 export interface ApiCatalogItem {id:string;categoryId:string|null;name:string;sku:string|null;basePriceMinor:number;currency:string;trackInventory:boolean;version:number;createdAt:string}
+export interface ApiCatalogBootstrap {protocolVersion:number;cursor:number;projections:Record<string,Array<{collection:string;id:string;version:number;data:Record<string,unknown>}>>}
 
 export class ApiHttpError extends Error {
  constructor(readonly status:number,readonly code:string,message:string,readonly details?:unknown){super(message);this.name='ApiHttpError'}
@@ -34,6 +35,7 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
   commandStatus(commandId:string){return request<ApiCommandOutcome>(`/v1/commands/${encodeURIComponent(commandId)}`)},
   changes(after:number,limit=200){return request<ApiChangePage>(`/v1/sync/changes?after=${encodeURIComponent(after)}&limit=${encodeURIComponent(limit)}`)},
   catalogItems(search=''){return request<{items:ApiCatalogItem[]}>(`/v1/catalog/items?search=${encodeURIComponent(search)}`)},
+  bootstrapCatalog(){return request<ApiCatalogBootstrap>('/v1/bootstrap/catalog')},
   enrollmentChallenge(){return request<{challengeId:string;challenge:string;issuedAt:string;expiresAt:string}>('/v1/devices/enrollment-challenges',{method:'POST'},false)},
   enrollDevice(body:{challengeId:string;deviceId:string;publicKey:JsonWebKey;signature:string}){return request<{deviceId:string;businessId:string;createdAt:string}>('/v1/devices/enroll',{method:'POST',body:JSON.stringify(body)},false)},
  };
