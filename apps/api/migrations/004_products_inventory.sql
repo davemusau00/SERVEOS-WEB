@@ -26,9 +26,9 @@ CREATE TABLE IF NOT EXISTS stock_purchase_packages (
   stock_item_id uuid NOT NULL,
   id uuid NOT NULL,
   name text NOT NULL CHECK (length(btrim(name)) BETWEEN 1 AND 100),
-  quantity numeric(18,6) NOT NULL CHECK (quantity > 0),
-  unit_cost_minor bigint NOT NULL CHECK (unit_cost_minor >= 0),
   barcode text,
+  base_quantity numeric(18,6) NOT NULL CHECK (base_quantity > 0),
+  unit_cost_minor bigint NOT NULL CHECK (unit_cost_minor >= 0),
   sort_order integer NOT NULL DEFAULT 0,
   PRIMARY KEY (business_id, stock_item_id, id),
   FOREIGN KEY (business_id, stock_item_id) REFERENCES stock_items(business_id, id) ON DELETE CASCADE
@@ -47,7 +47,11 @@ CREATE TABLE IF NOT EXISTS products (
   favorite boolean NOT NULL DEFAULT false,
   tax_class_id text NOT NULL DEFAULT '',
   recipe boolean NOT NULL DEFAULT false,
+  inventory_type text NOT NULL DEFAULT 'STANDARD',
   recipe_yield integer CHECK (recipe_yield IS NULL OR recipe_yield > 0),
+  portion_volume numeric(18,6),
+  selling_mode text,
+  portions jsonb NOT NULL DEFAULT '[]'::jsonb,
   version bigint NOT NULL CHECK (version > 0),
   archived_at timestamptz,
   created_by uuid NOT NULL,
@@ -92,6 +96,17 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   occurred_at timestamptz NOT NULL,
   PRIMARY KEY (business_id, id),
   UNIQUE (business_id, source_command_id),
+  FOREIGN KEY (business_id, stock_item_id) REFERENCES stock_items(business_id, id),
+  FOREIGN KEY (business_id, location_id) REFERENCES stock_locations(business_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS inventory_location_balances (
+  business_id uuid NOT NULL,
+  stock_item_id uuid NOT NULL,
+  location_id uuid NOT NULL,
+  quantity numeric(18,6) NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  version bigint NOT NULL DEFAULT 1 CHECK (version > 0),
+  PRIMARY KEY (business_id, stock_item_id, location_id),
   FOREIGN KEY (business_id, stock_item_id) REFERENCES stock_items(business_id, id),
   FOREIGN KEY (business_id, location_id) REFERENCES stock_locations(business_id, id)
 );

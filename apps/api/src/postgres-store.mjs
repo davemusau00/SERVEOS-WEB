@@ -242,6 +242,16 @@ class PostgresTransaction {
     return rows[0] ?? null;
   }
 
+  async findStockBarcode(businessId, barcode, exceptStockId = null) {
+    const {rows} = await this.client.query(`
+      SELECT id FROM stock_items WHERE business_id=$1 AND lower(barcode)=lower($2) AND archived_at IS NULL AND ($3::uuid IS NULL OR id<>$3)
+      UNION ALL
+      SELECT stock_item_id AS id FROM stock_purchase_packages WHERE business_id=$1 AND lower(barcode)=lower($2) AND ($3::uuid IS NULL OR stock_item_id<>$3)
+      LIMIT 1
+    `, [businessId,barcode,exceptStockId]);
+    return rows[0] ?? null;
+  }
+
   async requireStockItems(businessId, ids) {
     if (!ids.length) return true;
     const {rows} = await this.client.query(
@@ -262,20 +272,21 @@ class PostgresTransaction {
     `, [item.businessId,item.id,item.name,item.code,item.baseUnit,item.barcode,item.barcodeAliases,item.scanUnitQuantity,item.reorderLevel,item.averageUnitCostMinor,item.sealedContainerSize,item.version,item.staffId]);
     await this.client.query('DELETE FROM stock_purchase_packages WHERE business_id=$1 AND stock_item_id=$2', [item.businessId,item.id]);
     for (const [index, pack] of item.purchasePackages.entries()) await this.client.query(`
-      INSERT INTO stock_purchase_packages (business_id,stock_item_id,id,name,quantity,unit_cost_minor,barcode,sort_order)
+      INSERT INTO stock_purchase_packages (business_id,stock_item_id,id,name,base_quantity,unit_cost_minor,barcode,sort_order)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-    `, [item.businessId,item.id,pack.id,pack.name,pack.quantity,pack.unitCostMinor,pack.barcode,index]);
+    `, [item.businessId,item.id,pack.id,pack.name,pack.baseQuantity ?? pack.quantity,pack.unitCostMinor,pack.barcode,index]);
   }
 
   async saveProduct(product) {
     await this.client.query(`
-      INSERT INTO products (business_id,id,name,code,price_minor,category,route_to,stock_item_id,barcode,favorite,tax_class_id,recipe,recipe_yield,version,created_by,updated_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
+      INSERT INTO products (business_id,id,name,code,price_minor,category,route_to,stock_item_id,barcode,favorite,tax_class_id,recipe,inventory_type,recipe_yield,portion_volume,selling_mode,portions,version,created_by,updated_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$19)
       ON CONFLICT (business_id,id) DO UPDATE SET name=EXCLUDED.name, code=EXCLUDED.code, price_minor=EXCLUDED.price_minor,
         category=EXCLUDED.category, route_to=EXCLUDED.route_to, stock_item_id=EXCLUDED.stock_item_id, barcode=EXCLUDED.barcode,
-        favorite=EXCLUDED.favorite,tax_class_id=EXCLUDED.tax_class_id,recipe=EXCLUDED.recipe,recipe_yield=EXCLUDED.recipe_yield,version=EXCLUDED.version,
+        favorite=EXCLUDED.favorite,tax_class_id=EXCLUDED.tax_class_id,recipe=EXCLUDED.recipe,inventory_type=EXCLUDED.inventory_type,recipe_yield=EXCLUDED.recipe_yield,
+        portion_volume=EXCLUDED.portion_volume,selling_mode=EXCLUDED.selling_mode,portions=EXCLUDED.portions,version=EXCLUDED.version,
         updated_by=EXCLUDED.updated_by,updated_at=now()
-    `, [product.businessId,product.id,product.name,product.code,product.priceMinor,product.category,product.routeTo,product.stockItemId,product.barcode,product.favorite,product.taxClassId,product.recipe,product.recipeYield,product.version,product.staffId]);
+    `, [product.businessId,product.id,product.name,product.code,product.priceMinor,product.category,product.routeTo,product.stockItemId,product.barcode,product.favorite,product.taxClassId,product.recipe,product.inventoryType,product.recipeYield,product.portionVolume,product.sellingMode,JSON.stringify(product.portions),product.version,product.staffId]);
     await this.client.query('DELETE FROM product_recipe_ingredients WHERE business_id=$1 AND product_id=$2', [product.businessId,product.id]);
     for (const ingredient of product.recipeIngredients) await this.client.query(`
       INSERT INTO product_recipe_ingredients (business_id,product_id,stock_item_id,quantity,unit) VALUES ($1,$2,$3,$4,$5)
@@ -287,6 +298,14 @@ class PostgresTransaction {
       INSERT INTO inventory_movements (business_id,id,stock_item_id,location_id,quantity_delta,reason,source_command_id,staff_id,occurred_at)
       VALUES ($1,$2,$3,$4,$5,'OPENING_BALANCE',$6,$7,$8)
     `, [businessId,id,stockItemId,locationId,quantity,commandId,staffId,at]);
+  }
+
+  async upsertInventoryBalance({businessId,stockItemId,locationId,quantityDelta}) {
+    await this.client.query(`
+      INSERT INTO inventory_location_balances (business_id,stock_item_id,location_id,quantity,version)
+      VALUES ($1,$2,$3,$4,1)
+      ON CONFLICT (business_id,stock_item_id,location_id) DO UPDATE SET quantity=inventory_location_balances.quantity+EXCLUDED.quantity,version=inventory_location_balances.version+1
+    `,[businessId,stockItemId,locationId,quantityDelta]);
   }
 
   async findCatalogSku(businessId, sku) {

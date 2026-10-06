@@ -42,12 +42,14 @@ const stockItemSave = async ({tx, command, actor, at}) => {
   if (!Array.isArray(packages)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Purchase packages must be a list.');
   const normalizedPackages = packages.map((pack, index) => {
     if (!pack || typeof pack !== 'object' || Array.isArray(pack)) throw new ApiProblem(400, 'VALIDATION_FAILED', `Purchase package ${index + 1} is malformed.`);
-    return {id: uuid(pack.id) ? pack.id : randomUUID(), name: text(pack.name, 'Package name', 100), quantity: safeQuantity(pack.quantity ?? pack.baseQuantity, 'Package quantity'), unitCostMinor: pack.unitCostMinor ?? 0, barcode: optionalText(pack.barcode)};
+    return {id: uuid(pack.id) ? pack.id : randomUUID(), name: text(pack.name ?? pack.label ?? `Package ${index + 1}`, 'Package name', 100), baseQuantity: safeQuantity(pack.baseQuantity ?? pack.quantity, 'Package quantity'), unitCostMinor: pack.unitCostMinor ?? (Number.isFinite(pack.unitCost) ? Math.round(pack.unitCost * 100) : 0), barcode: optionalText(pack.barcode)};
   });
   if (normalizedPackages.some(pack => !Number.isSafeInteger(pack.unitCostMinor) || pack.unitCostMinor < 0)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Package cost must be a non-negative integer in minor currency units.');
   const sealedContainerSize = data.sealedContainerSize === undefined ? null : safeQuantity(data.sealedContainerSize, 'Sealed container size');
   await duplicateCheck(tx, 'stock_items', actor.businessId, code, barcode, id);
-  for (const pack of normalizedPackages) if (pack.barcode && await tx.findBusinessBarcode('stock_items', actor.businessId, pack.barcode, id)) throw new ApiProblem(409, 'DUPLICATE_REFERENCE', 'A purchase package barcode is already assigned to another stock item.');
+  const packageBarcodes = normalizedPackages.map(pack => pack.barcode?.toLowerCase()).filter(Boolean);
+  if (new Set(packageBarcodes).size !== packageBarcodes.length || barcode && packageBarcodes.includes(barcode.toLowerCase())) throw new ApiProblem(400,'VALIDATION_FAILED','Stock and package barcodes must be unique within the item.');
+  for (const packBarcode of packageBarcodes) if (await tx.findStockBarcode(actor.businessId, packBarcode, id)) throw new ApiProblem(409, 'DUPLICATE_REFERENCE', 'A purchase package barcode is already assigned to another stock item.');
   const version = await tx.bumpEntityVersion(actor.businessId, 'stockItems', id, expected);
   await tx.saveStockItem({businessId:actor.businessId,staffId:actor.staffId,id,name,code,baseUnit,barcode,barcodeAliases:normalizedAliases,scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages:normalizedPackages,version});
   return {collection:'stockItems',id,version,data:{name,code,baseUnit,barcode,barcodeAliases:normalizedAliases,scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages:normalizedPackages,updatedAt:at.toISOString()}};
@@ -59,7 +61,7 @@ const productSave = async ({tx, command, actor, at}) => {
   const expected = expectedVersion(command, 'products', id);
   const name = text(data.name, 'Name');
   const code = text(data.code, 'Code', 80);
-  const priceMinor = data.priceMinor;
+  const priceMinor = data.priceMinor ?? (Number.isFinite(data.price) ? Math.round(data.price * 100) : undefined);
   if (!Number.isSafeInteger(priceMinor) || priceMinor < 0) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Price must be a non-negative integer in minor currency units.');
   const category = text(data.category ?? 'GENERAL', 'Category', 80);
   const routeTo = text(data.routeTo ?? 'BAR', 'Service area', 40).toUpperCase();
@@ -85,15 +87,23 @@ const productSave = async ({tx, command, actor, at}) => {
   const version = await tx.bumpEntityVersion(actor.businessId, 'products', id, expected);
   const recipeYield = data.recipeYield === undefined ? null : data.recipeYield;
   if (recipeYield !== null && (!Number.isSafeInteger(recipeYield) || recipeYield < 1 || recipeYield > 100000)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Recipe yield must be a whole number from 1 to 100000.');
-  await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,recipe:recipeIngredients.length > 0,recipeYield,recipeIngredients,version});
-  return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,recipeIngredients,recipeYield,updatedAt:at.toISOString()}};
+  const inventoryType = typeof data.inventoryType === 'string' ? data.inventoryType : 'STANDARD';
+  if (!['STANDARD','STOCKED','RECIPE','BATCH','WINE','SPIRIT','COUNT','WEIGHT'].includes(inventoryType)) throw new ApiProblem(400,'VALIDATION_FAILED','Product inventory type is unsupported.');
+  const portionVolume = data.portionVolume === undefined ? null : safeQuantity(data.portionVolume,'Portion volume');
+  const sellingMode = typeof data.sellingMode === 'string' ? data.sellingMode : null;
+  if (sellingMode && !['SERVING_AND_BOTTLE','BOTTLE_ONLY'].includes(sellingMode)) throw new ApiProblem(400,'VALIDATION_FAILED','Selling mode is unsupported.');
+  const portions = data.portions ?? [];
+  if (!Array.isArray(portions) || portions.some(portion => !portion || typeof portion !== 'object' || typeof portion.id !== 'string' || typeof portion.name !== 'string' || !Number.isSafeInteger(portion.priceMinor) || portion.priceMinor < 0 || !Number.isFinite(portion.volume) || portion.volume <= 0)) throw new ApiProblem(400,'VALIDATION_FAILED','Product portions are malformed.');
+  await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,recipe:recipeIngredients.length > 0,inventoryType,recipeYield,portionVolume,sellingMode,portions,recipeIngredients,version});
+  return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeIngredients,recipeYield,portionVolume,sellingMode,portions,updatedAt:at.toISOString()}};
 };
 
 const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   const {id, stockItem: stock, product, locationId, startingQuantity = 0, openingMovementId} = command.payload;
-  if (!uuid(id) || !stock || typeof stock !== 'object' || !uuid(stock.id) || !uuid(locationId)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Opening stock setup requires valid stock item and location IDs.');
+  const stockId = stock?.id ?? id;
+  if (!uuid(id) || !stock || typeof stock !== 'object' || !uuid(stockId) || !uuid(locationId)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Opening stock setup requires valid stock item and location IDs.');
   if (!await tx.requireStockLocation(actor.businessId, locationId)) throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'The selected stock location is missing or archived.');
-  const stockExpected = expectedVersion(command, 'stockItems', stock.id);
+  const stockExpected = expectedVersion(command, 'stockItems', stockId);
   if (stockExpected !== 0) throw new ApiProblem(400, 'VALIDATION_FAILED', 'A new stock item must include expected version 0.');
   const name = text(stock.name, 'Stock name');
   const code = text(stock.code, 'Stock code', 80);
@@ -106,16 +116,21 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   const sealedContainerSize = stock.sealedContainerSize === undefined ? null : safeQuantity(stock.sealedContainerSize, 'Sealed container size');
   const packs = stock.purchasePackages ?? [];
   if (!Array.isArray(packs)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Purchase packages must be a list.');
-  const purchasePackages = packs.map((pack, index) => ({id:uuid(pack?.id)?pack.id:randomUUID(),name:text(pack?.name ?? pack?.label ?? `Package ${index+1}`,'Package name',100),quantity:safeQuantity(pack?.quantity ?? pack?.baseQuantity,'Package quantity'),unitCostMinor:Number.isSafeInteger(pack?.unitCostMinor)?pack.unitCostMinor:Number.isFinite(pack?.unitCost)?Math.round(pack.unitCost*100):0,barcode:optionalText(pack?.barcode)}));
+  const purchasePackages = packs.map((pack, index) => ({id:uuid(pack?.id)?pack.id:randomUUID(),name:text(pack?.name ?? pack?.label ?? `Package ${index+1}`,'Package name',100),baseQuantity:safeQuantity(pack?.baseQuantity ?? pack?.quantity,'Package quantity'),unitCostMinor:Number.isSafeInteger(pack?.unitCostMinor)?pack.unitCostMinor:Number.isFinite(pack?.unitCost)?Math.round(pack.unitCost*100):0,barcode:optionalText(pack?.barcode)}));
   if (purchasePackages.some(pack => pack.unitCostMinor < 0)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Package cost must be non-negative.');
-  await duplicateCheck(tx, 'stock_items', actor.businessId, code, barcode, stock.id);
-  const stockVersion = await tx.bumpEntityVersion(actor.businessId, 'stockItems', stock.id, 0);
-  await tx.saveStockItem({businessId:actor.businessId,staffId:actor.staffId,id:stock.id,name,code,baseUnit,barcode,barcodeAliases:[],scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages,version:stockVersion});
+  await duplicateCheck(tx, 'stock_items', actor.businessId, code, barcode, stockId);
+  const packageBarcodes = purchasePackages.map(pack=>pack.barcode?.toLowerCase()).filter(Boolean);
+  if(new Set(packageBarcodes).size!==packageBarcodes.length||barcode&&packageBarcodes.includes(barcode.toLowerCase()))throw new ApiProblem(400,'VALIDATION_FAILED','Stock and package barcodes must be unique within the item.');
+  for(const packageBarcode of packageBarcodes)if(await tx.findStockBarcode(actor.businessId,packageBarcode,stockId))throw new ApiProblem(409,'DUPLICATE_REFERENCE','A package barcode is already assigned to another stock item.');
+  const stockVersion = await tx.bumpEntityVersion(actor.businessId, 'stockItems', stockId, 0);
+  await tx.saveStockItem({businessId:actor.businessId,staffId:actor.staffId,id:stockId,name,code,baseUnit,barcode,barcodeAliases:[],scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages,version:stockVersion});
   let productResult = null;
   if (product && typeof product === 'object') {
-    const productId = product.id;
-    const productData = {...product, stockItemId: product.stockItemId ?? (product.inventoryType === 'BATCH' ? stock.id : null)};
-    const productCommand = {...command,payload:{id:productId,data:productData},expectedVersions:{...command.expectedVersions,[`products:${productId}`]:0}};
+    const productId = product.id ?? `${id}:product`;
+    const productData = {...product, stockItemId: product.stockItemId || (product.inventoryType === 'BATCH' ? stockId : null)};
+    if (!uuid(productId)) throw new ApiProblem(400,'VALIDATION_FAILED','Product ID must be a UUID.');
+    const normalizedProductData = {...productData, priceMinor:productData.priceMinor ?? (Number.isFinite(productData.price)?Math.round(productData.price*100):undefined),portionVolume:productData.portionVolume,sellingMode:productData.sellingMode,portions:productData.portions,inventoryType:productData.inventoryType};
+    const productCommand = {...command,payload:{id:productId,data:normalizedProductData},expectedVersions:{...command.expectedVersions,[`products:${productId}`]:0}};
     productResult = await productSave({tx,command:productCommand,actor,at});
   }
   if (startingQuantity !== 0) {
@@ -124,9 +139,10 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
     const movementVersion = expectedVersion(command,'stockMovements',movementId);
     if (movementVersion !== 0) throw new ApiProblem(400,'VALIDATION_FAILED','Opening movement must include expected version 0.');
     await tx.bumpEntityVersion(actor.businessId,'stockMovements',movementId,0);
-    await tx.createOpeningStockMovement({businessId:actor.businessId,id:movementId,stockItemId:stock.id,locationId,quantity,commandId:command.commandId,staffId:actor.staffId,at});
+    await tx.createOpeningStockMovement({businessId:actor.businessId,id:movementId,stockItemId:stockId,locationId,quantity,commandId:command.commandId,staffId:actor.staffId,at});
+    await tx.upsertInventoryBalance({businessId:actor.businessId,stockItemId:stockId,locationId,quantityDelta:quantity});
   }
-  return {collection:'stockItems',id:stock.id,version:stockVersion,data:{name,code,baseUnit,barcode,scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages},product:productResult,openingQuantity:startingQuantity};
+  return {collection:'stockItems',id:stockId,version:stockVersion,data:{name,code,baseUnit,barcode,scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages},product:productResult,openingQuantity:startingQuantity};
 };
 
 export const catalogCommandRegistry = new Map([
@@ -156,7 +172,7 @@ export const catalogCommandRegistry = new Map([
       if (categoryId !== null && !await tx.requireCatalogCategory(actor.businessId, categoryId)) {
         throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'The selected category no longer exists or is archived.');
       }
-      const expected = command.expectedVersions[`catalog_items:${itemId}`];
+      const expected = command.expectedVersions[`catalogItems:${itemId}`] ?? command.expectedVersions[`catalog_items:${itemId}`];
       if (expected !== 0) throw new ApiProblem(400, 'VALIDATION_FAILED', 'A new item command must include expected version 0 for its item ID.');
       if (sku && await tx.findCatalogSku(actor.businessId, sku.trim())) {
         throw new ApiProblem(409, 'DUPLICATE_REFERENCE', 'That SKU is already assigned to an active item.');

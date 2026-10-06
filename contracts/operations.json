@@ -1,6 +1,6 @@
 {
   "contractVersion": 2,
-  "status": "transitional-id-registry",
+  "status": "transitional-id-registry-api-slice-defined",
   "operations": [
     "business.identity",
     "business.settings.save",
