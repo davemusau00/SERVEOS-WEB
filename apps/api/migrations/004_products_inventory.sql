@@ -122,7 +122,6 @@ CREATE TABLE IF NOT EXISTS business_outlets (
   PRIMARY KEY (business_id,id),
   FOREIGN KEY (business_id,default_stock_location_id) REFERENCES stock_locations(business_id,id)
 );
-ALTER TABLE products ADD COLUMN IF NOT EXISTS outlet_ids uuid[] NOT NULL DEFAULT '{}';
 
 CREATE TABLE IF NOT EXISTS product_outlets (
   business_id uuid NOT NULL,
@@ -132,3 +131,5 @@ CREATE TABLE IF NOT EXISTS product_outlets (
   FOREIGN KEY (business_id,product_id) REFERENCES products(business_id,id) ON DELETE CASCADE,
   FOREIGN KEY (business_id,outlet_id) REFERENCES business_outlets(business_id,id)
 );
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS outlet_ids uuid[] NOT NULL DEFAULT '{}';

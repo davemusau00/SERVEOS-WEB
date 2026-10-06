@@ -140,12 +140,12 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   }
   if (startingQuantity !== 0) {
     if(!Number.isSafeInteger(locationExpected)||locationExpected<1)throw new ApiProblem(409,'RESOURCE_CONFLICT','The stock location must have a current version before opening stock can be posted.');
-    if(locationExpected<1)throw new ApiProblem(409,'RESOURCE_CONFLICT','The stock location must have a current version before opening stock can be posted.');
     const quantity = safeQuantity(startingQuantity,'Opening quantity');
     const movementId = uuid(openingMovementId) ? openingMovementId : randomUUID();
     const movementVersion = expectedVersion(command,'stockMovements',movementId);
     if (movementVersion !== 0) throw new ApiProblem(400,'VALIDATION_FAILED','Opening movement must include expected version 0.');
     await tx.bumpEntityVersion(actor.businessId,'stockMovements',movementId,0);
+    await tx.assertExpectedVersions(actor.businessId,{[`stockLocations:${locationId}`]:locationExpected});
     await tx.createOpeningStockMovement({businessId:actor.businessId,id:movementId,stockItemId:stockId,locationId,quantity,commandId:command.commandId,staffId:actor.staffId,at});
     await tx.upsertInventoryBalance({businessId:actor.businessId,stockItemId:stockId,locationId,quantityDelta:quantity});
   }
