@@ -4,6 +4,8 @@ import {cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rm
 import path from 'node:path';
 
 const root = process.cwd();
+const worktree = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {cwd: root, encoding: 'utf8'});
+if (worktree.trim()) throw new Error('Package a PWA release only from a clean, committed worktree.');
 const releaseId = process.env.SERVEOS_VERSION || execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], {cwd: root, encoding: 'utf8'}).trim();
 if (!/^[a-f0-9]{7,40}$/.test(releaseId)) throw new Error('SERVEOS_VERSION must be a Git SHA (7 to 40 hexadecimal characters).');
 const source = path.join(root, 'dist');

@@ -49,6 +49,20 @@ Nginx directly serves `current`.
 
 Versioned assets get long immutable cache headers. `index.html`, service worker and release metadata must use update-safe cache rules.
 
+The build packager writes an immutable local release directory and a SHA-256 manifest. On a controlled Linux build host:
+
+```sh
+export SERVEOS_VERSION="$(git rev-parse --short=12 HEAD)"
+npm ci
+npm run build
+npm run release:pwa:package
+rsync -a "release/web/$SERVEOS_VERSION/" "deploy@serveos-vps:/tmp/serveos-web-$SERVEOS_VERSION/"
+scp TRUTH-DOCS/SERVOS-WEB-FIRST-RESET/infra/vps/activate-web-release.sh deploy@serveos-vps:/tmp/activate-web-release.sh
+ssh serveos-vps "sudo sh /tmp/activate-web-release.sh '$SERVEOS_VERSION' '/tmp/serveos-web-$SERVEOS_VERSION'"
+```
+
+The VPS script validates the release ID and every artifact hash, installs into a new immutable directory, then atomically switches `current`. To roll back, invoke the same script with a previously installed release ID and no artifact-directory argument. Do not overwrite release directories.
+
 ## 5. Backend containers
 
 Initial Compose services:

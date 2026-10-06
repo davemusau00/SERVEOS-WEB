@@ -14,6 +14,7 @@ manifest_name=release-manifest.json
 
 verify_release() {
   directory=$1
+  [ -z "$(find "$directory" -type l -print -quit)" ] || { echo "Release cannot contain symbolic links." >&2; exit 1; }
   manifest="$directory/$manifest_name"
   [ -f "$directory/index.html" ] && [ -f "$directory/sw.js" ] && [ -f "$manifest" ] || { echo "Release is incomplete." >&2; exit 1; }
   manifest_id=$(jq -er '.releaseId' "$manifest")
