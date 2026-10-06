@@ -244,7 +244,7 @@ class PostgresTransaction {
 
   async findStockBarcode(businessId, barcode, exceptStockId = null) {
     const {rows} = await this.client.query(`
-      SELECT id FROM stock_items WHERE business_id=$1 AND (lower(barcode)=lower($2) OR lower(code)=lower($2) OR $2=ANY(barcode_aliases)) AND archived_at IS NULL AND ($3::uuid IS NULL OR id<>$3)
+      SELECT id FROM stock_items WHERE business_id=$1 AND (lower(barcode)=lower($2) OR lower(code)=lower($2) OR lower($2)=ANY(barcode_aliases)) AND archived_at IS NULL AND ($3::uuid IS NULL OR id<>$3)
       UNION ALL
       SELECT stock_item_id AS id FROM stock_purchase_packages WHERE business_id=$1 AND lower(barcode)=lower($2) AND ($3::uuid IS NULL OR stock_item_id<>$3)
       LIMIT 1
