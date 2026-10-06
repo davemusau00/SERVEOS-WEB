@@ -99,6 +99,28 @@ export class PostgresStore {
     return rows[0] ?? null;
   }
 
+  async authenticatePassword({loginName,password,at,hashPassword,verifyPassword,sessionId,tokenHash,expiresAt}) {
+    return this.transaction(async tx=>{
+      const {rows}=await tx.client.query(`SELECT business_id AS "businessId",staff_id AS "staffId",display_name AS "displayName",credential_hash AS "credentialHash",failed_login_count AS "failedLoginCount",locked_until AS "lockedUntil" FROM api_staff_profiles WHERE lower(login_name)=lower($1) AND active FOR UPDATE`,[loginName]);
+      const staff=rows[0];
+      // Do equivalent work for unknown usernames to reduce account enumeration timing differences.
+      const valid=staff&&!staff.lockedUntil&&await verifyPassword(password,staff.credentialHash);
+      if(!valid){
+        if(staff){const failures=Number(staff.failedLoginCount)+1;await tx.client.query('UPDATE api_staff_profiles SET failed_login_count=$3,locked_until=$4,updated_at=$5 WHERE business_id=$1 AND staff_id=$2',[staff.businessId,staff.staffId,failures,failures>=5?new Date(at.getTime()+15*60_000):null,at]);}
+        return null;
+      }
+      await tx.client.query('UPDATE api_staff_profiles SET failed_login_count=0,locked_until=NULL,updated_at=$3 WHERE business_id=$1 AND staff_id=$2',[staff.businessId,staff.staffId,at]);
+      await tx.client.query('INSERT INTO api_staff_sessions(id,business_id,staff_id,token_hash,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6)',[sessionId,staff.businessId,staff.staffId,tokenHash,at,expiresAt]);
+      const {rows:permissions}=await tx.client.query('SELECT permission FROM api_staff_permissions WHERE business_id=$1 AND staff_id=$2 ORDER BY permission',[staff.businessId,staff.staffId]);
+      return {sessionId,businessId:staff.businessId,staffId:staff.staffId,displayName:staff.displayName,permissions:permissions.map(row=>row.permission),expiresAt:expiresAt.toISOString()};
+    });
+  }
+
+  async revokeSession(tokenHash,at=new Date()) {
+    const {rowCount}=await this.pool.query('UPDATE api_staff_sessions SET revoked_at=$2 WHERE token_hash=$1 AND revoked_at IS NULL',[tokenHash,at]);
+    return rowCount>0;
+  }
+
   async issueDeviceEnrollmentChallenge({challengeId, challenge, businessId, staffId, issuedAt, expiresAt}) {
     const {rows: recent} = await this.pool.query(`
       SELECT count(*)::int AS count FROM api_device_enrollment_challenges

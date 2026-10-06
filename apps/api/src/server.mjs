@@ -2,7 +2,8 @@ import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
 import {PostgresStore} from './postgres-store.mjs';
-import {createHash, createPublicKey, randomBytes, randomUUID, verify as verifySignature} from 'node:crypto';
+import {createHash, createPublicKey, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual, verify as verifySignature} from 'node:crypto';
+import {promisify} from 'node:util';
 import {catalogCommandRegistry} from './catalog-commands.mjs';
 import {readConfig} from './config.mjs';
 
@@ -10,6 +11,13 @@ const json = (res, status, value) => {
   res.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
   res.end(JSON.stringify(value));
 };
+const scrypt=promisify(scryptCallback);
+async function hashPassword(password){const salt=randomBytes(16);const derived=await scrypt(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024});return `scrypt$16384$8$1$${salt.toString('base64url')}$${Buffer.from(derived).toString('base64url')}`;}
+async function verifyPassword(password,encoded){
+  const [scheme,nRaw,rRaw,pRaw,saltRaw,hashRaw]=String(encoded||'').split('$');
+  if(scheme!=='scrypt'||nRaw!=='16384'||rRaw!=='8'||pRaw!=='1'||!saltRaw||!hashRaw)return false;
+  try{const expected=Buffer.from(hashRaw,'base64url');const actual=Buffer.from(await scrypt(password,Buffer.from(saltRaw,'base64url'),expected.length,{N:16384,r:8,p:1,maxmem:64*1024*1024}));return actual.length===expected.length&&timingSafeEqual(actual,expected)}catch{return false}
+}
 
 async function readJson(req) {
   let body = '';
@@ -62,6 +70,18 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const {rows} = await store.pool.query("SELECT to_regclass('public.api_schema_migrations') IS NOT NULL AS ready");
         if (!rows[0]?.ready) return json(res, 503, {status: 'not_ready', reason: 'database_migrations_pending'});
         return json(res, 200, {status: 'ready'});
+      }
+      if(req.method==='POST'&&url.pathname==='/v1/auth/login'){
+        const input=await readJson(req);const loginName=typeof input.loginName==='string'?input.loginName.trim():'';const password=typeof input.password==='string'?input.password:'';
+        if(!loginName||loginName.length>200||password.length<8||password.length>1024)throw new ApiProblem(400,'VALIDATION_FAILED','Enter a valid staff login and password.');
+        const now=new Date();const token=randomBytes(32).toString('base64url');const result=await store.authenticatePassword({loginName,password,at:now,hashPassword,verifyPassword,sessionId:randomUUID(),tokenHash:createHash('sha256').update(token).digest('hex'),expiresAt:new Date(now.getTime()+12*60*60_000)});
+        if(!result)throw new ApiProblem(401,'AUTH_INVALID','The staff login or password is not valid.');
+        return json(res,200,{accessToken:token,...result});
+      }
+      if(req.method==='POST'&&url.pathname==='/v1/auth/logout'){
+        const authorization=req.headers.authorization;if(typeof authorization!=='string'||!authorization.startsWith('Bearer '))throw new ApiProblem(401,'AUTH_REQUIRED','A staff session is required.');
+        const revoked=await store.revokeSession(createHash('sha256').update(authorization.slice(7)).digest('hex'));
+        return json(res,200,{revoked});
       }
       if (req.method === 'POST' && url.pathname === '/v1/devices/enrollment-challenges') {
         const actor = await authenticateStaffSession(req, store);
