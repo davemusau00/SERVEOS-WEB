@@ -142,7 +142,7 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
       if(authMode==='API'){
         const apiOrigin=import.meta.env.VITE_API_URL;if(!apiOrigin)throw new Error('The ServOS API origin is not configured for this PWA release.');
         const next=await signInAndEnrollApiDevice({apiOrigin,loginName:email.trim(),password,newPassword:newPassword||undefined});
-        const opened=await openApiBusinessStore(next);setApiSession(next);setApiStore(opened);setPassword('');setNewPassword('');return;
+        try{const opened=await openApiBusinessStore(next);setApiSession(next);setApiStore(opened);setPassword('');setNewPassword('');return}catch(error){await next.signOut().catch(()=>undefined);throw error}
       }
       if (!url || !key) throw new Error('The business server is not configured for this build.');
       const res = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: key, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });

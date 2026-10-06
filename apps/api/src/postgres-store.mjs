@@ -472,7 +472,7 @@ class PostgresTransaction {
       UPDATE offline_grants
       SET used_commands = used_commands + 1
       WHERE id = $1 AND business_id = $2 AND device_id = $3 AND staff_id = $4
-        AND revoked_at IS NULL AND expires_at > $5
+        AND policy_version = 1 AND revoked_at IS NULL AND expires_at > $5
         AND used_commands < max_commands AND $6 = ANY(allowed_commands)
       RETURNING id
     `, [grantId, businessId, deviceId, staffId, at, commandName]);
