@@ -55,6 +55,16 @@ const stockItemSave = async ({tx, command, actor, at}) => {
   return {collection:'stockItems',id,version,data:{name,code,baseUnit,barcode,barcodeAliases:normalizedAliases,scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages:normalizedPackages,updatedAt:at.toISOString()}};
 };
 
+const stockLocationSave=async({tx,command,actor})=>{
+  const {id,data}=command.payload;
+  if(!uuid(id)||!data||typeof data!=='object'||Array.isArray(data))throw new ApiProblem(400,'VALIDATION_FAILED','Stock location payload is malformed.');
+  const name=text(data.name,'Location name',120);const code=text(data.code||id,'Location code',80).toUpperCase();const type=text(data.type||'STORE','Location type',20).toUpperCase();
+  if(!['STORE','FRIDGE','BAR','KITCHEN','OTHER'].includes(type))throw new ApiProblem(400,'VALIDATION_FAILED','Location type is unsupported.');
+  const version=await tx.bumpEntityVersion(actor.businessId,'stockLocations',id,expectedVersion(command,'stockLocations',id));
+  await tx.saveStockLocation({businessId:actor.businessId,id,name,code,type,version});
+  return {collection:'stockLocations',id,version,data:{name,code,type},archived:false};
+};
+
 const productSave = async ({tx, command, actor, at}) => {
   const {id, data} = command.payload;
   if (!uuid(id) || !data || typeof data !== 'object' || Array.isArray(data)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Product payload is malformed.');
@@ -154,6 +164,7 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
 
 export const catalogCommandRegistry = new Map([
   ['stockItem.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:stockItemSave}],
+  ['stockLocation.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:stockLocationSave}],
   ['product.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:productSave}],
   ['catalog.createWithOpeningStock', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:catalogCreateWithOpeningStock}],
   ['catalog.item.create', {
@@ -199,7 +210,7 @@ export const catalogCommandRegistry = new Map([
         createdAt: at.toISOString(),
       };
       await tx.insertCatalogItem(item);
-      return item;
+      return {collection:'catalogItems',id:item.id,version:item.version,data:{categoryId:item.categoryId,name:item.name,sku:item.sku,basePriceMinor:item.basePriceMinor,currency:item.currency,trackInventory:item.trackInventory,createdAt:item.createdAt},archived:false};
     },
   }],
 ]);

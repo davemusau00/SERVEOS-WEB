@@ -47,19 +47,20 @@ export class PostgresStore {
   }
 
   async changesAfter(businessId, after, limit) {
-    const {rows: highWaterRows} = await this.pool.query(
-      'SELECT cursor FROM business_change_cursors WHERE business_id = $1', [businessId],
-    );
-    const highWater = Number(highWaterRows[0]?.cursor ?? 0);
     const {rows} = await this.pool.query(`
-      SELECT cursor, command_id AS "commandId", change_type AS "changeType", projection, occurred_at AS "occurredAt"
-      FROM business_changes
-      WHERE business_id = $1 AND cursor > $2
-      ORDER BY cursor
-      LIMIT $3
+      WITH high_water AS MATERIALIZED (
+        SELECT COALESCE((SELECT cursor FROM business_change_cursors WHERE business_id = $1),0)::bigint AS cursor
+      ), page AS MATERIALIZED (
+        SELECT cursor, command_id AS "commandId", change_type AS "changeType", projection, occurred_at AS "occurredAt"
+        FROM business_changes WHERE business_id = $1 AND cursor > $2 ORDER BY cursor LIMIT $3
+      )
+      SELECT page.*, high_water.cursor AS "highWater" FROM high_water
+      LEFT JOIN page ON true ORDER BY page.cursor NULLS LAST
     `, [businessId, after, limit + 1]);
-    const hasMore = rows.length > limit;
-    const changes = rows.slice(0, limit).map(row => {
+    const highWater=Number(rows[0]?.highWater??0);
+    const available=rows.filter(row=>row.cursor!==null);
+    const hasMore = available.length > limit;
+    const changes = available.slice(0, limit).map(row => {
       const projection=typeof row.projection==='string'?JSON.parse(row.projection):row.projection;
       return {...projection,sequence:Number(row.cursor),commandId:row.commandId,occurredAt:row.occurredAt};
     });
@@ -79,22 +80,32 @@ export class PostgresStore {
     return rows;
   }
 
-  async catalogProjection(businessId) {
+  async catalogProjection(businessId, db=this.pool) {
     const [productsResult,stockResult,locationsResult,outletsResult] = await Promise.all([
-      this.pool.query(`SELECT p.id,p.name,p.code,p.price_minor AS "priceMinor",p.category,p.route_to AS "routeTo",p.stock_item_id AS "stockItemId",p.barcode,p.favorite,p.tax_class_id AS "taxClassId",p.inventory_type AS "inventoryType",p.recipe_yield AS "recipeYield",p.portion_volume AS "portionVolume",p.selling_mode AS "sellingMode",p.portions,p.outlet_ids AS "outletIds",p.version FROM products p WHERE p.business_id=$1 AND p.archived_at IS NULL ORDER BY p.name,p.id`,[businessId]),
-      this.pool.query(`SELECT s.id,s.name,s.code,s.base_unit AS "baseUnit",s.barcode,s.barcode_aliases AS "barcodeAliases",s.scan_unit_quantity AS "scanUnitQuantity",s.reorder_level AS "reorderLevel",s.average_unit_cost_minor AS "averageUnitCostMinor",s.sealed_container_size AS "sealedContainerSize",s.version,COALESCE(jsonb_agg(jsonb_build_object('id',p.id,'name',p.name,'baseQuantity',p.base_quantity,'unitCostMinor',p.unit_cost_minor,'barcode',p.barcode) ORDER BY p.sort_order) FILTER (WHERE p.id IS NOT NULL),'[]'::jsonb) AS "purchasePackages" FROM stock_items s LEFT JOIN stock_purchase_packages p ON p.business_id=s.business_id AND p.stock_item_id=s.id WHERE s.business_id=$1 AND s.archived_at IS NULL GROUP BY s.business_id,s.id ORDER BY s.name,s.id`,[businessId]),
-      this.pool.query(`SELECT id,name,version FROM stock_locations WHERE business_id=$1 AND archived_at IS NULL ORDER BY name,id`,[businessId]),
-      this.pool.query(`SELECT id,name,default_stock_location_id AS "defaultStockLocationId",version FROM business_outlets WHERE business_id=$1 AND archived_at IS NULL ORDER BY name,id`,[businessId]),
+      db.query(`SELECT p.id,p.name,p.code,p.price_minor AS "priceMinor",p.category,p.route_to AS "routeTo",p.stock_item_id AS "stockItemId",p.barcode,p.favorite,p.tax_class_id AS "taxClassId",p.inventory_type AS "inventoryType",p.recipe_yield AS "recipeYield",p.portion_volume AS "portionVolume",p.selling_mode AS "sellingMode",p.portions,p.outlet_ids AS "outletIds",p.version FROM products p WHERE p.business_id=$1 AND p.archived_at IS NULL ORDER BY p.name,p.id`,[businessId]),
+      db.query(`SELECT s.id,s.name,s.code,s.base_unit AS "baseUnit",s.barcode,s.barcode_aliases AS "barcodeAliases",s.scan_unit_quantity AS "scanUnitQuantity",s.reorder_level AS "reorderLevel",s.average_unit_cost_minor AS "averageUnitCostMinor",s.sealed_container_size AS "sealedContainerSize",s.version,COALESCE(jsonb_agg(jsonb_build_object('id',p.id,'name',p.name,'baseQuantity',p.base_quantity,'unitCostMinor',p.unit_cost_minor,'barcode',p.barcode) ORDER BY p.sort_order) FILTER (WHERE p.id IS NOT NULL),'[]'::jsonb) AS "purchasePackages" FROM stock_items s LEFT JOIN stock_purchase_packages p ON p.business_id=s.business_id AND p.stock_item_id=s.id WHERE s.business_id=$1 AND s.archived_at IS NULL GROUP BY s.business_id,s.id ORDER BY s.name,s.id`,[businessId]),
+      db.query(`SELECT id,name,code,location_type AS type,version FROM stock_locations WHERE business_id=$1 AND archived_at IS NULL ORDER BY name,id`,[businessId]),
+      db.query(`SELECT id,name,default_stock_location_id AS "defaultStockLocationId",version FROM business_outlets WHERE business_id=$1 AND archived_at IS NULL ORDER BY name,id`,[businessId]),
     ]);
-    const recipes = await this.pool.query(`SELECT product_id AS "productId",stock_item_id AS "stockItemId",quantity,unit FROM product_recipe_ingredients WHERE business_id=$1 ORDER BY product_id,stock_item_id`,[businessId]);
+    const recipes = await db.query(`SELECT product_id AS "productId",stock_item_id AS "stockItemId",quantity,unit FROM product_recipe_ingredients WHERE business_id=$1 ORDER BY product_id,stock_item_id`,[businessId]);
     const ingredientsByProduct = new Map();
     for(const ingredient of recipes.rows){const list=ingredientsByProduct.get(ingredient.productId)||[];list.push({...ingredient,quantity:Number(ingredient.quantity)});ingredientsByProduct.set(ingredient.productId,list);}
     return [
       ...productsResult.rows.map(row=>({collection:'products',id:row.id,version:Number(row.version),data:{...row,priceMinor:Number(row.priceMinor),recipeIngredients:ingredientsByProduct.get(row.id)||[]},archived:false})),
       ...stockResult.rows.map(row=>({collection:'stockItems',id:row.id,version:Number(row.version),data:{...row,scanUnitQuantity:Number(row.scanUnitQuantity),reorderLevel:Number(row.reorderLevel),averageUnitCostMinor:Number(row.averageUnitCostMinor),sealedContainerSize:row.sealedContainerSize===null?undefined:Number(row.sealedContainerSize),purchasePackages:row.purchasePackages.map(pack=>({...pack,baseQuantity:Number(pack.baseQuantity),unitCostMinor:Number(pack.unitCostMinor)}))},archived:false})),
-      ...locationsResult.rows.map(row=>({collection:'stockLocations',id:row.id,version:Number(row.version),data:{name:row.name},archived:false})),
+      ...locationsResult.rows.map(row=>({collection:'stockLocations',id:row.id,version:Number(row.version),data:{name:row.name,code:row.code,type:row.type},archived:false})),
       ...outletsResult.rows.map(row=>({collection:'outlets',id:row.id,version:Number(row.version),data:{name:row.name,defaultStockLocationId:row.defaultStockLocationId},archived:false})),
     ];
+  }
+
+  async catalogBootstrap(businessId){
+    const client=await this.pool.connect();
+    try{
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      const {rows}=await client.query('SELECT cursor FROM business_change_cursors WHERE business_id=$1',[businessId]);
+      const records=await this.catalogProjection(businessId,client);
+      await client.query('COMMIT');return {cursor:Number(rows[0]?.cursor??0),records};
+    }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
   }
 
   async authenticateSession(tokenHash, deviceId, now = new Date()) {
@@ -150,6 +161,16 @@ export class PostgresStore {
     await this.transaction(async tx=>{for(const bucketHash of bucketHashes){await tx.client.query(`INSERT INTO api_auth_attempts(bucket_hash,attempt_count,window_started_at,blocked_until) VALUES($1,1,$2,NULL) ON CONFLICT(bucket_hash) DO UPDATE SET attempt_count=CASE WHEN api_auth_attempts.window_started_at<$2-interval '15 minutes' THEN 1 ELSE api_auth_attempts.attempt_count+1 END,window_started_at=CASE WHEN api_auth_attempts.window_started_at<$2-interval '15 minutes' THEN $2 ELSE api_auth_attempts.window_started_at END,blocked_until=CASE WHEN (CASE WHEN api_auth_attempts.window_started_at<$2-interval '15 minutes' THEN 1 ELSE api_auth_attempts.attempt_count+1 END)>=20 THEN $2+interval '15 minutes' ELSE NULL END`,[bucketHash,at]);}});
   }
   async clearLoginFailures(bucketHashes){await this.pool.query('DELETE FROM api_auth_attempts WHERE bucket_hash=ANY($1::char(64)[])',[bucketHashes]);}
+
+  async issueOfflineGrant({grantId,businessId,deviceId,staffId,allowedCommands,maxCommands,issuedAt,expiresAt,policyVersion,keyVersion,scope}){
+    await this.transaction(async tx=>{
+      await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`offline-grant:${businessId}:${deviceId}:${staffId}`]);
+      const {rows}=await tx.client.query('SELECT count(*)::int AS count FROM offline_grants WHERE business_id=$1 AND device_id=$2 AND staff_id=$3 AND issued_at>$4',[businessId,deviceId,staffId,new Date(issuedAt.getTime()-60*60_000)]);
+      if(rows[0].count>=6){const error=new Error('Too many offline grants were issued for this device.');error.status=429;error.code='RATE_LIMITED';throw error}
+      await tx.client.query(`INSERT INTO offline_grants(id,business_id,device_id,staff_id,allowed_commands,max_commands,issued_at,expires_at,policy_version,key_version,scope)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)`,[grantId,businessId,deviceId,staffId,allowedCommands,maxCommands,issuedAt,expiresAt,policyVersion,keyVersion,JSON.stringify(scope)]);
+    });
+  }
 
   async createInitialAdmin({setupSecretHash,expectedSetupSecretHash,businessId,businessName,staffId,loginName,displayName,credentialHash,permissions,at}) {
     if(setupSecretHash!==expectedSetupSecretHash)return false;
@@ -325,6 +346,11 @@ class PostgresTransaction {
       [businessId, locationId],
     );
     return rows.length > 0;
+  }
+
+  async saveStockLocation({businessId,id,name,code,type,version}){
+    await this.client.query(`INSERT INTO stock_locations(business_id,id,name,code,location_type,version) VALUES($1,$2,$3,$4,$5,$6)
+      ON CONFLICT(business_id,id) DO UPDATE SET name=EXCLUDED.name,code=EXCLUDED.code,location_type=EXCLUDED.location_type,version=EXCLUDED.version,archived_at=NULL`,[businessId,id,name,code,type,version]);
   }
 
   async findBusinessCode(table, businessId, code, exceptId = null) {

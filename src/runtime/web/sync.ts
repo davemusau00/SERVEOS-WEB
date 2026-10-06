@@ -1,13 +1,25 @@
 import type {BusinessCommandV2,ChangePage,TransactionResult} from '../../types/transactions';
 import {BusinessStore} from './BusinessStore';
-import {createServOSApiClient} from './apiClient';
+import {ApiHttpError,ApiOutcomeUnknown,createServOSApiClient,type ApiCommandOutcome} from './apiClient';
 
 export interface CloudTransport {execute(command:BusinessCommandV2):Promise<TransactionResult>;pull(cursor:number):Promise<ChangePage>}
 
 export function createApiTransport(client:ReturnType<typeof createServOSApiClient>):CloudTransport{
  return {
   async execute(command){
-   const outcome=await client.submitCommand({commandId:command.id,name:command.operation,payload:command.payload,expectedVersions:Object.fromEntries(command.expectedVersions.map(item=>[`${item.collection}:${item.id}`,item.version])),...(command.offlineGrantId?{offlineGrantId:command.offlineGrantId}:{})});
+   let outcome:ApiCommandOutcome|undefined;
+   try{
+    const status=await client.commandStatus(command.id);
+    if(status.outcome&&(status.status==='CONFIRMED'||status.status==='REJECTED'||status.status==='CONFLICT'))outcome=status.outcome;
+    else if(status.status==='RECEIVED'||status.status==='PROCESSING'){
+     for(let attempt=0;attempt<6;attempt++){
+      await new Promise(resolve=>setTimeout(resolve,500));const current=await client.commandStatus(command.id);
+      if(current.outcome&&(current.status==='CONFIRMED'||current.status==='REJECTED'||current.status==='CONFLICT')){outcome=current.outcome;break}
+     }
+     if(!outcome)throw new ApiOutcomeUnknown(command.id);
+    }
+   }catch(error){if(!(error instanceof ApiHttpError&&error.status===404))throw error}
+   outcome??=await client.submitCommand({commandId:command.id,name:command.operation,payload:command.payload,expectedVersions:Object.fromEntries(command.expectedVersions.map(item=>[`${item.collection}:${item.id}`,item.version])),...(command.offlineGrantId?{offlineGrantId:command.offlineGrantId}:{})});
    if(outcome.kind==='CONFIRMED')return {commandId:command.id,status:'SYNCHRONIZED',recordVersions:[],serverSequence:outcome.cursor};
    return {commandId:command.id,status:outcome.kind==='CONFLICT'?'CONFLICT':'REJECTED',recordVersions:[],error:outcome.error||{code:outcome.kind,message:'The API did not confirm this command.',retryable:false}};
   },
@@ -23,10 +35,10 @@ export function subscribeSyncUpdates(scope:string,deviceId:string,actorId:string
 }
 export async function synchronizeStore(store:BusinessStore,transport:CloudTransport):Promise<void>{
   if(!navigator.locks)throw new Error('This browser cannot safely coordinate device synchronization');
-  const channel=typeof BroadcastChannel==='undefined'?undefined:new BroadcastChannel(syncChannel(store.scope,store.deviceId,store.actorId));
+  const channel=typeof BroadcastChannel==='undefined'?undefined:new BroadcastChannel(`${syncChannel(store.scope,store.deviceId,store.actorId)}:${store.commandAuthority}`);
   const publish=(type:SyncUpdate['type'])=>channel?.postMessage({type,at:new Date().toISOString()});
   try{
-   await navigator.locks.request(`servos-v2-sync:${store.scope}:${store.deviceId}:${store.actorId}`,async()=>{
+   await navigator.locks.request(`servos-v2-sync:${store.scope}:${store.deviceId}:${store.actorId}:${store.commandAuthority}`,async()=>{
     publish('SYNC_STARTED');
     const pending=(await store.queue()).filter(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN');
     for(const row of pending){

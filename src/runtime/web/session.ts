@@ -1,6 +1,7 @@
 import { BusinessStore } from './BusinessStore';
 import type { RecordVersion } from '../../types/transactions';
 import {getOrCreateWebDeviceIdentity} from './deviceIdentity';
+import {createServOSApiClient} from './apiClient';
 
 export type WebLifecycleStage='INTAKE'|'SETUP'|'READY_FOR_GO_LIVE'|'LIVE';
 export interface WebReadinessCheck {id:string;label:string;complete:boolean}
@@ -42,4 +43,12 @@ export async function loadAuthorizedSnapshot(store:BusinessStore,rpc:Rpc,session
       }while(true);
     }catch(error){if(!String(error).includes('SNAPSHOT_CHANGED')||attempt===2)throw error}
   }
+}
+
+/** Install the API's records[] bootstrap into the same IndexedDB projection consumed by PWA workflows. */
+export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnType<typeof createServOSApiClient>,policyVersion='api-catalog-v1'){
+  const bootstrap=await client.bootstrapCatalog();
+  if(bootstrap.protocolVersion!==1||!Number.isSafeInteger(bootstrap.cursor)||bootstrap.cursor<0)throw new Error('API catalog bootstrap is invalid');
+  await store.replaceSnapshot(bootstrap.records,bootstrap.cursor,policyVersion);
+  return {cursor:bootstrap.cursor,records:bootstrap.records.length,policyVersion};
 }

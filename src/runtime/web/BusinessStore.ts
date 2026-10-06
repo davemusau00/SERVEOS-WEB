@@ -11,6 +11,7 @@ export interface LocalBusinessDocument {id:string;type:string;documentNumber:str
 export type LocalPrintState='QUEUED'|'SENDING'|'SENT_TO_SPOOLER'|'DELIVERY_UNCERTAIN'|'FAILED'|'CANCELLED';
 export interface LocalPrintJob {id:string;documentId:string;printerRole:string;copies:number;state:LocalPrintState;createdAt:string;updatedAt:string;attempt:number;errorCode?:string}
 export interface OfflineGrantEnvelope {grantId:string;businessId:string;deviceId:string;staffId:string;issuedAt:string;expiresAt:string;policyVersion:number;allowedCommands:string[];maxCommands:number;usedCommands?:number;keyVersion:string;signature:string;scope?:Record<string,unknown>}
+export type CommandAuthority='SUPABASE'|'API';
 const request=<T>(value:IDBRequest<T>)=>new Promise<T>((resolve,reject)=>{value.onsuccess=()=>resolve(value.result);value.onerror=()=>reject(value.error||new Error('Storage request failed'))});
 const stableJson=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(stableJson).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${stableJson((value as Record<string,unknown>)[key])}`).join(',')}}`;
 const sensitiveKey=/password|secret|token|credential|pin/i;
@@ -19,10 +20,11 @@ export const redactSensitiveData=(value:unknown):unknown=>Array.isArray(value)?v
 
 /** Staged v2 store. Enqueuing master edits does not claim an offline sale commit. */
 export class BusinessStore {
-  private constructor(private db:IDBDatabase,readonly scope:string,readonly deviceId:string,readonly actorId:string){}
-  static async open(scope:string,deviceId:string,actorId:string,serverSequence=0):Promise<BusinessStore>{
+  private constructor(private db:IDBDatabase,readonly scope:string,readonly deviceId:string,readonly actorId:string,readonly commandAuthority:CommandAuthority){}
+  static async open(scope:string,deviceId:string,actorId:string,serverSequence=0,commandAuthority:CommandAuthority='SUPABASE'):Promise<BusinessStore>{
     if(!scope||!deviceId||!actorId||!Number.isSafeInteger(serverSequence)||serverSequence<0)throw new Error('Valid business, device, actor and sequence are required');
-    const opening=indexedDB.open(`servos-v2:${scope}:${deviceId}:${actorId}`,3);
+    const databaseName=commandAuthority==='API'?`servos-api-v1:${scope}:${deviceId}:${actorId}`:`servos-v2:${scope}:${deviceId}:${actorId}`;
+    const opening=indexedDB.open(databaseName,3);
     opening.onupgradeneeded=()=>{
       const db=opening.result;
       if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta');
@@ -34,7 +36,8 @@ export class BusinessStore {
       if(!db.objectStoreNames.contains('printJobs')){const jobs=db.createObjectStore('printJobs',{keyPath:'id'});jobs.createIndex('state','state',{unique:false});jobs.createIndex('createdAt','createdAt',{unique:false});}
     };
     const db=await request(opening);db.onversionchange=()=>db.close();
-    const store=new BusinessStore(db,scope,deviceId,actorId);
+    if(!['SUPABASE','API'].includes(commandAuthority)){db.close();throw new Error('Unsupported command authority')}
+    const store=new BusinessStore(db,scope,deviceId,actorId,commandAuthority);
     try{await store.transaction(['meta','queue'],'readwrite',async tx=>{
       const saved=await request(tx.objectStore('meta').get('sequence')) as number|undefined;
       if(saved===undefined)await request(tx.objectStore('meta').put(serverSequence,'sequence'));
@@ -59,6 +62,7 @@ export class BusinessStore {
   async resumeDraft(id:string):Promise<WorkflowDraft|undefined>{return this.transaction(['drafts'],'readonly',tx=>request(tx.objectStore('drafts').get(id)))}
   async discardDraft(id:string):Promise<void>{await this.transaction(['drafts'],'readwrite',async tx=>{await request(tx.objectStore('drafts').delete(id))})}
   async promoteDraftToCommand(id:string):Promise<BusinessCommandV2>{
+    if(typeof navigator!=='undefined'&&!navigator.onLine&&this.commandAuthority!=='API')throw new Error('Offline command execution is available only in an API-authorized workspace. Save the workflow as a draft and reconnect.');
     return this.transaction(['drafts','queue','meta','offlineGrants'],'readwrite',async tx=>{
       const drafts=tx.objectStore('drafts');const draft=await request(drafts.get(id)) as WorkflowDraft|undefined;
       if(!draft)throw new Error('Draft is no longer available; refresh saved work before submitting.');
@@ -71,6 +75,7 @@ export class BusinessStore {
     });
   }
   async enqueue(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion[],supersedes?:string,reviewCommandId?:string):Promise<BusinessCommandV2>{
+    if(typeof navigator!=='undefined'&&!navigator.onLine&&this.commandAuthority!=='API')throw new Error('Offline command execution is available only in an API-authorized workspace. Save the workflow as a draft and reconnect.');
     return this.transaction(['queue','meta','offlineGrants'],'readwrite',async tx=>{
       if(reviewCommandId){const existing=await request(tx.objectStore('queue').get(reviewCommandId)) as QueuedCommand|undefined;if(existing){if(existing.command.operation!==operation||JSON.stringify(existing.command.payload)!==JSON.stringify(payload)||JSON.stringify(existing.command.expectedVersions)!==JSON.stringify(expectedVersions))throw new Error('Reviewed command changed; recover its original outcome');return existing.command;}}
       const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
@@ -141,6 +146,10 @@ export class BusinessStore {
     if(Date.parse(grant.expiresAt)<=Date.now()||Date.parse(grant.issuedAt)>Date.now()||!Number.isSafeInteger(grant.maxCommands)||grant.maxCommands<1||grant.maxCommands>100||!Array.isArray(grant.allowedCommands)||!grant.allowedCommands.length||new Set(grant.allowedCommands).size!==grant.allowedCommands.length)throw new Error('Offline grant is expired or invalid');
     if(!(await verify(grant)))throw new Error('Offline grant signature could not be verified');
     await this.transaction(['offlineGrants'],'readwrite',async tx=>{await request(tx.objectStore('offlineGrants').put(grant))});
+  }
+  async hasOfflineAuthorization(operation:string):Promise<boolean>{
+    if(this.commandAuthority!=='API')return false;
+    const grants=await this.offlineGrants();const now=Date.now();return grants.some(grant=>grant.businessId===this.scope&&grant.deviceId===this.deviceId&&grant.staffId===this.actorId&&Date.parse(grant.issuedAt)<=now&&Date.parse(grant.expiresAt)>now&&grant.allowedCommands.includes(operation)&&(grant.usedCommands||0)<grant.maxCommands);
   }
   async offlineGrants():Promise<OfflineGrantEnvelope[]>{return this.transaction(['offlineGrants'],'readonly',tx=>request(tx.objectStore('offlineGrants').getAll()))}
   private async consumeLocalGrant(tx:IDBTransaction,operation:string):Promise<string>{

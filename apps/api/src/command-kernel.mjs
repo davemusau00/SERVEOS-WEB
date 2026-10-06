@@ -74,9 +74,8 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
     throw error;
   };
   if(!definition)return terminalFailure(new ApiProblem(404,'UNKNOWN_COMMAND','This command is not available on this API version.'));
-  if(!actor.permissions?.includes(definition.permission))return terminalFailure(new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to perform this action.'));
+  if(!actor.permissions?.includes('*')&&!actor.permissions?.includes(definition.permission))return terminalFailure(new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to perform this action.'));
   if(definition.offlinePolicy==='ONLINE_ONLY'&&command.offlineGrantId)return terminalFailure(new ApiProblem(403,'OFFLINE_NOT_ALLOWED','This action must be performed while connected.'));
-  if(definition.offlinePolicy==='GRANTED_ONLY'&&!command.offlineGrantId)return terminalFailure(new ApiProblem(403,'OFFLINE_GRANT_REQUIRED','An active offline grant is required for this action.'));
   await db.setCommandProcessing?.(actor.businessId,command.commandId,now());
   try {
     return await db.transaction(async tx => {
@@ -125,7 +124,7 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
       at: now(),
     });
     await tx.insertAudit({businessId: actor.businessId, commandId: command.commandId, name: command.name, actor, at: now(),eventType:'CONFIRMED'});
-    const records=Array.isArray(result.records)?result.records:result.collection&&result.id&&result.version? [{collection:result.collection,id:result.id,version:result.version,data:result.data??{},archived:false}]:[];
+    const records=[];const collectRecords=value=>{if(Array.isArray(value)){for(const item of value)collectRecords(item);return}if(!value||typeof value!=='object')return;const candidate=value;if(typeof candidate.collection==='string'&&typeof candidate.id==='string'&&Number.isSafeInteger(candidate.version)&&candidate.data&&typeof candidate.data==='object'){records.push({collection:candidate.collection,id:candidate.id,version:candidate.version,data:candidate.data,archived:candidate.archived===true});return}if(Array.isArray(candidate.records))collectRecords(candidate.records);for(const [key,item] of Object.entries(candidate))if(key!=='records')collectRecords(item)};collectRecords(result);
     await tx.insertChange({businessId: actor.businessId, cursor, commandId: command.commandId, name: command.name, result:{sequence:cursor,commandId:command.commandId,actorId:actor.staffId,deviceId:actor.deviceId,occurredAt:now().toISOString(),records}, at: now()});
     return outcome;
     });

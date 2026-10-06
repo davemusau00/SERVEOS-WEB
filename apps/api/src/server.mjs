@@ -2,7 +2,7 @@ import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
 import {PostgresStore} from './postgres-store.mjs';
-import {createHash, createPublicKey, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual, verify as verifySignature} from 'node:crypto';
+import {createHash, createPrivateKey, createPublicKey, randomBytes, randomUUID, scrypt as scryptCallback, sign as signBytes, timingSafeEqual, verify as verifySignature} from 'node:crypto';
 import {promisify} from 'node:util';
 import {catalogCommandRegistry} from './catalog-commands.mjs';
 import {readConfig} from './config.mjs';
@@ -14,6 +14,7 @@ const json = (res, status, value) => {
 const scrypt=promisify(scryptCallback);
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const dummyCredentialHash='scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+const stableJson=value=>value===null||typeof value!=='object'?JSON.stringify(value):Array.isArray(value)?`[${value.map(stableJson).join(',')}]`:`{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
 async function hashPassword(password){const salt=randomBytes(16);const derived=await scrypt(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024});return `scrypt$16384$8$1$${salt.toString('base64url')}$${Buffer.from(derived).toString('base64url')}`;}
 async function verifyPassword(password,encoded){
   const [scheme,nRaw,rRaw,pRaw,saltRaw,hashRaw]=String(encoded||'').split('$');
@@ -125,7 +126,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if (req.method === 'POST' && url.pathname === '/v1/devices/enrollment-challenges') {
         const actor = await authenticateUnenrolledStaffSession(req, store);
         if(actor.mustChangePassword)throw new ApiProblem(403,'PASSWORD_CHANGE_REQUIRED','Change the initial password before enrolling this device.');
-        if (!actor.permissions?.includes('devices.manage')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll devices.');
+        if (!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll this device.');
         const issuedAt = new Date();
         const challengeId = randomUUID();
         const challenge = randomBytes(32).toString('hex');
@@ -134,7 +135,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if (req.method === 'POST' && url.pathname === '/v1/devices/enroll') {
         const actor = await authenticateUnenrolledStaffSession(req, store);
         if(actor.mustChangePassword)throw new ApiProblem(403,'PASSWORD_CHANGE_REQUIRED','Change the initial password before enrolling this device.');
-        if (!actor.permissions?.includes('devices.manage')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll devices.');
+        if (!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll this device.');
         const input = await readJson(req);
         const {challengeId, deviceId, publicKey, signature} = input;
         const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -150,6 +151,23 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         if (!valid) throw new ApiProblem(401, 'DEVICE_PROOF_INVALID', 'Device key proof could not be verified.');
         const enrolled = await store.enrollDevice({challengeId, businessId: actor.businessId, staffId: actor.staffId, deviceId, publicKey, sessionId:actor.sessionId, at: new Date()});
         return json(res, 201, {deviceId: enrolled.id, businessId: enrolled.businessId, createdAt: enrolled.createdAt});
+      }
+      if(req.method==='POST'&&url.pathname==='/v1/offline-grants'){
+        const actor=await authenticate(req);
+        if(!actor.permissions?.includes('catalog.manage'))throw new ApiProblem(403,'PERMISSION_DENIED','Catalog management permission is required for these offline operations.');
+        if(!process.env.OFFLINE_GRANT_PRIVATE_JWK)throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing is not configured.');
+        let privateJwk;try{privateJwk=JSON.parse(process.env.OFFLINE_GRANT_PRIVATE_JWK)}catch{throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing is not configured.')}
+        if(privateJwk.kty!=='EC'||privateJwk.crv!=='P-256'||typeof privateJwk.d!=='string')throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing key is invalid.');
+        const input=await readJson(req);const requested=input.allowedCommands;
+        const eligible=[...registry].filter(([,definition])=>definition.offlinePolicy==='GRANTED_ONLY'&&(actor.permissions.includes('*')||actor.permissions.includes(definition.permission))).map(([name])=>name);
+        const allowedCommands=requested===undefined?eligible:requested;
+        if(!Array.isArray(allowedCommands)||!allowedCommands.length||allowedCommands.some(name=>!eligible.includes(name))||new Set(allowedCommands).size!==allowedCommands.length)throw new ApiProblem(400,'VALIDATION_FAILED','Choose one or more supported offline operations.');
+        const maxCommands=input.maxCommands??10;const durationMinutes=input.durationMinutes??60;
+        if(!Number.isInteger(maxCommands)||maxCommands<1||maxCommands>20||!Number.isInteger(durationMinutes)||durationMinutes<1||durationMinutes>120)throw new ApiProblem(400,'VALIDATION_FAILED','Offline grant limits exceed policy.');
+        const issuedAt=new Date();const expiresAt=new Date(issuedAt.getTime()+durationMinutes*60_000);const grant={grantId:randomUUID(),businessId:actor.businessId,deviceId:actor.deviceId,staffId:actor.staffId,issuedAt:issuedAt.toISOString(),expiresAt:expiresAt.toISOString(),policyVersion:1,allowedCommands,maxCommands,keyVersion:process.env.OFFLINE_GRANT_KEY_VERSION||'offline-2026-10',scope:{}};
+        const signature=signBytes('sha256',Buffer.from(stableJson(grant)),{key:createPrivateKey({key:privateJwk,format:'jwk'}),dsaEncoding:'ieee-p1363'}).toString('base64url');
+        await store.issueOfflineGrant({...grant,issuedAt,expiresAt,signature});
+        return json(res,201,{...grant,signature});
       }
       if (req.method === 'GET' && url.pathname === '/v1/sync/changes') {
         const actor = await authenticate(req);
@@ -202,8 +220,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if (req.method === 'GET' && url.pathname === '/v1/bootstrap/catalog') {
         const actor = await authenticate(req);
         if (!actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view catalog data.');
-        const cursorRows=await store.pool.query('SELECT cursor FROM business_change_cursors WHERE business_id=$1',[actor.businessId]);
-        return json(res,200,{protocolVersion:1,cursor:Number(cursorRows.rows[0]?.cursor??0),records:await store.catalogProjection(actor.businessId)});
+        return json(res,200,{protocolVersion:1,...await store.catalogBootstrap(actor.businessId)});
       }
       if (req.method === 'POST' && url.pathname === '/v1/commands') {
         const actor = await authenticate(req);

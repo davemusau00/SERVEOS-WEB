@@ -25,14 +25,18 @@
 - Added a one-use, five-minute API device-enrollment challenge signed by the PWA key and a client enrollment helper; issuance and completion both require device-management permission and challenge issuance is rate-limited.
 - Added PWA IndexedDB stores for verified offline grants, immutable hashed BusinessDocument snapshots, and durable print-job state; added local-storage diagnostics and sync status broadcasts across tabs.
 - Added ECDSA grant-signature verification, an authenticated SSE change-invalidation endpoint, API runtime configuration validation, and worker lease renewal/expiry fencing.
-- Added a typed PWA API client for in-memory bearer access, device-scoped requests, command/status/change/catalog calls, enrollment calls, and unknown-outcome marking on lost command responses. The current workspace adapter is still Supabase-backed.
+- Added a typed PWA API client for in-memory bearer access, device-scoped requests, command/status/change/catalog calls, enrollment calls, and command-status recovery after response loss. The existing Web sign-in screen now offers a separate API catalog pilot login that issues API staff sessions, rotates required initial passwords, enrolls the browser key, bootstraps catalog records, and uses an API-only IndexedDB database and transport. The broader production Web workspace remains Supabase-backed pending domain parity.
+- Added durable API command lifecycle states (`RECEIVED`, `PROCESSING`, `CONFIRMED`, `REJECTED`, `CONFLICT`), full request and terminal error storage, failure audit events, and command-status recovery before an outcome-unknown PWA command is resubmitted. Legacy committed rows migrate as `CONFIRMED`.
+- Converged API bootstrap and change polling on the PWA `records[]` projection shape. Catalog bootstrap reads its records and high-water cursor in one repeatable-read transaction; change pages return the same event shape and cursor metadata.
+- Added signed, short-lived, bounded API offline grants for explicitly grant-capable catalog edits, server-side grant quota/replay accounting, atomic local quota reservation with API-authority PWA command enqueue, offline queue admission, and API status polling on reconnect. This is limited to `product.save`, `stockItem.save`, and `stockLocation.save`; POS, payment, inventory movement, procurement, and hospitality workflows remain online or draft-only until their API handlers exist.
+- Added an API-native login/password-change/device-enrollment coordinator and an API catalog bootstrap installer for the existing PWA IndexedDB stores. These are integration primitives; the production Web sign-in and workspace still use Supabase and do not yet call this coordinator or API transport.
 
 ## Still pending
 
 - Generated-file policy decision.
-- API staff login/session issuance and its current UI integration; the challenge/device enrollment protocol exists but still requires an API-authenticated session that the current Supabase login does not issue.
+- Expand the API pilot into the production Web workspace only as domain handlers and projections replace each Supabase workflow. The existing standard Web sign-in and business workspace still use Supabase; the new API entry is limited to catalog operations.
 - Domain handlers must update `business_entity_versions` in the same business transaction; version increments now cover catalog products and stock masters, while complete cross-aggregate version semantics and existing-record updates still need review.
-- Shared API/client contract generation, authenticated bootstrap/change-feed/SSE, and PWA API transport migration. Current browser synchronization still uses Supabase and snapshot bootstrap.
+- Shared API/client contract generation, broad authenticated bootstrap/change-feed/SSE coverage, and PWA API transport activation. Current browser synchronization still uses Supabase and snapshot bootstrap.
 - Complete operation payload parity and tests for product/stock commands, including bottle/package units, batch yields, and opening movements; connect projections to the PWA once API staff login and migration are ready.
 - API image validation and isolated staging deployment. Docker/PostgreSQL are unavailable in this environment; no live DB migration was run.
 - Actual off-VPS encrypted backup and restore verification.
@@ -44,6 +48,7 @@
 - Before the latest edits, the production build succeeded, the existing JavaScript suite passed 216/216, the native Rust/domain suite passed 106/106, and the API suite passed 13/13. Those results do not cover later edits.
 - The user requested that further tests be deferred until the end of the development sprint. Continue implementation without running test commands; perform the full planned verification matrix at sprint end.
 - Current development edits to migration 004 and its handlers are intentionally unverified because the sprint test gate is deferred. Do not treat this source slice as accepted or production-ready.
+- The current architectural-blocker implementation edits are also intentionally unverified; no tests, build, typecheck, migration, or database command has been run after them. Revisit API signing-key provisioning and migration 007 in the deferred sprint-end verification.
 - Docker Desktop and `psql` are unavailable in this environment. PostgreSQL migrations, container startup, real transaction concurrency, and staging deployment remain unverified.
 
 Production use is not enabled by this slice. See roadmap phases 0–17 and gate production activation on their evidence.

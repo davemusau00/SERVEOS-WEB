@@ -50,5 +50,6 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
   bootstrapCatalog(){return request<ApiCatalogBootstrap>('/v1/bootstrap/catalog')},
   enrollmentChallenge(){return request<{challengeId:string;challenge:string;issuedAt:string;expiresAt:string}>('/v1/devices/enrollment-challenges',{method:'POST'},false)},
   enrollDevice(body:{challengeId:string;deviceId:string;publicKey:JsonWebKey;signature:string}){return request<{deviceId:string;businessId:string;createdAt:string}>('/v1/devices/enroll',{method:'POST',body:JSON.stringify(body)},false)},
+  issueOfflineGrant(input:{allowedCommands?:string[];maxCommands?:number;durationMinutes?:number}){return request<import('./BusinessStore').OfflineGrantEnvelope>('/v1/offline-grants',{method:'POST',body:JSON.stringify(input)})},
  };
 }

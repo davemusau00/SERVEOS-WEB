@@ -4,6 +4,9 @@ import { RemoteAccountAccess, remoteAuthCall, takeAccountLink } from './RemoteAc
 import { WebBusinessApp } from './web/WebBusinessApp';
 import type { WebSession } from './web/session';
 import { Drawer } from '../design-system/controls';
+import {signInAndEnrollApiDevice,openApiBusinessStore,type ApiAuthenticatedDeviceSession} from './web/apiAuth';
+import {ApiCatalogPilot} from './web/ApiCatalogPilot';
+import {BusinessStore} from './web/BusinessStore';
 
 interface Auth { access_token: string; refresh_token: string; expires_in: number }
 interface RecordRow { collection: string; id: string; version: number; data: Record<string, any>; archived: boolean }
@@ -78,6 +81,7 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
   const [accountNotice, setAccountNotice] = useState('');
   const [auth, setAuth] = useState<Auth | null>(null); const authRef = useRef<Auth | null>(null); const expires = useRef(0);
   const [cloudSession,setCloudSession]=useState<WebSession|null>(null);
+  const [apiSession,setApiSession]=useState<ApiAuthenticatedDeviceSession|null>(null);const [apiStore,setApiStore]=useState<BusinessStore|null>(null);const [authMode,setAuthMode]=useState<'REMOTE'|'API'>('REMOTE');const [newPassword,setNewPassword]=useState('');
   const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [collection, setCollection] = useState('orders'); const [offset, setOffset] = useState(0); const [rows, setRows] = useState<RecordRow[]>([]);
   const [requests, setRequests] = useState<any[]>([]); const [lastSeen, setLastSeen] = useState<string | null>(null);
@@ -87,6 +91,7 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
   const generation = useRef(0);
   const clearSession = () => { generation.current++;  authRef.current = null; setAuth(null); setCloudSession(null); setRows([]); setRequests([]); setSelected(null); setLastSeen(null); };
   const signOut = async () => { setBusy(true); try { if(authRef.current) await remoteAuthCall(url,key,'logout?scope=global',undefined,authRef.current.access_token); clearSession(); setError(''); } catch(cause) { setError(String(cause)); } finally {setBusy(false);} };
+  const signOutApi=async()=>{setBusy(true);try{await apiSession?.signOut();setApiStore(current=>{current?.close();return null});setApiSession(null);setPassword('');setNewPassword('');setError('')}catch(cause){setError(String(cause))}finally{setBusy(false)}};
   const recover = async () => { if(!email.trim()) { setError('Enter your account email first.'); return; } setBusy(true); setError(''); try { await remoteAuthCall(url,key,`recover?redirect_to=${encodeURIComponent(window.location.origin + window.location.pathname)}`,{email:email.trim()}); setAccountNotice('If this address has an account, recovery instructions have been sent.'); } catch(cause) { setError(String(cause)); } finally {setBusy(false);} };
   const request = async (path: string, body?: unknown) => {
     if (!authRef.current) throw new Error('Sign in first');
@@ -130,9 +135,15 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
   const activeCollection = collections.find(item => item.id === collection);
 
   if(accountLink) return <RemoteAccountAccess url={url} publishableKey={key} link={accountLink} onDone={()=>setAccountLink(null)}/>;
+  if(apiSession&&apiStore)return <ApiCatalogPilot auth={apiSession} store={apiStore} onSignOut={()=>void signOutApi()}/>;
   if (!auth) return <div className="min-h-screen bg-slate-950 text-white grid place-items-center p-5"><form className="w-full max-w-md space-y-4 rounded-3xl border border-slate-800 bg-slate-900 p-7 shadow-2xl" onSubmit={async e => {
     e.preventDefault(); setBusy(true); setError('');
     try {
+      if(authMode==='API'){
+        const apiOrigin=import.meta.env.VITE_API_URL;if(!apiOrigin)throw new Error('The ServOS API origin is not configured for this PWA release.');
+        const next=await signInAndEnrollApiDevice({apiOrigin,loginName:email.trim(),password,newPassword:newPassword||undefined});
+        const opened=await openApiBusinessStore(next);setApiSession(next);setApiStore(opened);setPassword('');setNewPassword('');return;
+      }
       if (!url || !key) throw new Error('The business server is not configured for this build.');
       const res = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: key, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
       if (!res.ok) throw new Error('Sign-in failed');
@@ -147,12 +158,14 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
       setCloudSession(null);setPassword(''); saveAuth(next);
     } catch(e) {setError(String(e));} finally {setBusy(false);}
   }}>
-    <div><div className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-400">ServOS Remote</div><h1 className="mt-2 text-3xl font-black">Business control</h1><p className="mt-2 text-sm text-slate-400">Secure remote visibility and constrained management for your ServOS business.</p></div>
-    <label className="block text-sm">Email<input required type="email" autoComplete="username" className={`${field} mt-1 w-full`} value={email} onChange={e => setEmail(e.target.value)} /></label>
+    <div><div className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-400">ServOS Remote</div><h1 className="mt-2 text-3xl font-black">Business control</h1><p className="mt-2 text-sm text-slate-400">{authMode==='API'?'Sign in to the ServOS API catalog pilot.':'Secure remote visibility and constrained management for your ServOS business.'}</p></div>
+    <div className="flex gap-2"><button type="button" className={`${button} ${authMode==='REMOTE'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('REMOTE');setError('')}}>Remote</button><button type="button" className={`${button} ${authMode==='API'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('API');setError('')}}>API catalog pilot</button></div>
+    <label className="block text-sm">{authMode==='API'?'Staff login':'Email'}<input required type={authMode==='API'?'text':'email'} autoComplete="username" className={`${field} mt-1 w-full`} value={email} onChange={e => setEmail(e.target.value)} /></label>
     <label className="block text-sm">Password<input required type="password" autoComplete="current-password" className={`${field} mt-1 w-full`} value={password} onChange={e => setPassword(e.target.value)} /></label>
+    {authMode==='API'&&<label className="block text-sm">New password, if account setup requires it<input type="password" autoComplete="new-password" minLength={12} className={`${field} mt-1 w-full`} value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label>}
     {error && <p role="alert" className="rounded-xl border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}
     {accountNotice&&<p role="status" className="text-sm text-emerald-200">{accountNotice}</p>}
-    <button type="button" disabled={busy} className="text-sm text-amber-200 underline" onClick={()=>void recover()}>Forgot password?</button>
+    {authMode==='REMOTE'&&<button type="button" disabled={busy} className="text-sm text-amber-200 underline" onClick={()=>void recover()}>Forgot password?</button>}
     <div className="flex gap-2"><button disabled={busy} className={primary}>{busy?'Signing in…':'Sign in'}</button><button type="button" className={button} onClick={onBack}>Back</button></div>
   </form></div>;
 
