@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 
 const MAX_COMMAND_BYTES = 256 * 1024;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export class ApiProblem extends Error {
   constructor(status, code, message) {
@@ -15,7 +16,7 @@ const isObject = value => value !== null && typeof value === 'object' && !Array.
 export function validateCommandEnvelope(input) {
   if (!isObject(input)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Command must be an object.');
   const {commandId, name, payload, expectedVersions = {}, offlineGrantId} = input;
-  if (typeof commandId !== 'string' || !/^[0-9a-f-]{36}$/i.test(commandId)) {
+  if (typeof commandId !== 'string' || !UUID.test(commandId)) {
     throw new ApiProblem(400, 'VALIDATION_FAILED', 'commandId must be a UUID.');
   }
   if (typeof name !== 'string' || !/^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/.test(name)) {
@@ -26,7 +27,7 @@ export function validateCommandEnvelope(input) {
   }
   const bytes = Buffer.byteLength(JSON.stringify(input));
   if (bytes > MAX_COMMAND_BYTES) throw new ApiProblem(413, 'PAYLOAD_TOO_LARGE', 'Command payload exceeds the allowed size.');
-  if (offlineGrantId !== undefined && (typeof offlineGrantId !== 'string' || !/^[0-9a-f-]{36}$/i.test(offlineGrantId))) {
+  if (offlineGrantId !== undefined && (typeof offlineGrantId !== 'string' || !UUID.test(offlineGrantId))) {
     throw new ApiProblem(400, 'VALIDATION_FAILED', 'offlineGrantId must be a UUID.');
   }
   const command = {commandId, name, payload, expectedVersions};

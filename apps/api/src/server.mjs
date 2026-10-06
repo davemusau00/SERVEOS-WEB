@@ -49,12 +49,24 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         await store.pool.query('SELECT 1');
         return json(res, 200, {status: 'ready'});
       }
+      if (req.method === 'GET' && url.pathname === '/v1/sync/changes') {
+        const actor = await authenticate(req);
+        const afterRaw = url.searchParams.get('after') ?? '0';
+        const limitRaw = url.searchParams.get('limit') ?? '200';
+        if (!/^\d+$/.test(afterRaw) || !/^\d+$/.test(limitRaw)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'after and limit must be whole numbers.');
+        const after = Number(afterRaw);
+        const limit = Number(limitRaw);
+        if (!Number.isSafeInteger(after) || !Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+          throw new ApiProblem(400, 'VALIDATION_FAILED', 'Cursor must be non-negative and limit must be between 1 and 500.');
+        }
+        return json(res, 200, {protocolVersion: 1, ...(await store.changesAfter(actor.businessId, after, limit))});
+      }
       if (req.method === 'POST' && url.pathname === '/v1/commands') {
         const actor = await authenticate(req);
         const outcome = await executeCommand({db: store, command: await readJson(req), actor, registry});
         return json(res, 200, outcome);
       }
-      const match = req.method === 'GET' && url.pathname.match(/^\/v1\/commands\/([0-9a-f-]{36})$/i);
+      const match = req.method === 'GET' && url.pathname.match(/^\/v1\/commands\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i);
       if (match) {
         const actor = await authenticate(req);
         const outcome = await store.commandStatus(actor.businessId, match[1]);

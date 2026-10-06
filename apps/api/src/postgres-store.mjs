@@ -25,6 +25,23 @@ export class PostgresStore {
     return rows[0]?.outcome ?? null;
   }
 
+  async changesAfter(businessId, after, limit) {
+    const {rows: highWaterRows} = await this.pool.query(
+      'SELECT cursor FROM business_change_cursors WHERE business_id = $1', [businessId],
+    );
+    const highWater = Number(highWaterRows[0]?.cursor ?? 0);
+    const {rows} = await this.pool.query(`
+      SELECT cursor, command_id AS "commandId", change_type AS "changeType", projection, occurred_at AS "occurredAt"
+      FROM business_changes
+      WHERE business_id = $1 AND cursor > $2
+      ORDER BY cursor
+      LIMIT $3
+    `, [businessId, after, limit + 1]);
+    const hasMore = rows.length > limit;
+    const changes = rows.slice(0, limit).map(row => ({...row, cursor: Number(row.cursor)}));
+    return {fromCursor: after, toCursor: changes.at(-1)?.cursor ?? after, highWater, hasMore, changes};
+  }
+
   async authenticateSession(tokenHash, deviceId, now = new Date()) {
     const {rows} = await this.pool.query(`
       SELECT s.business_id AS "businessId", s.staff_id AS "staffId", d.id AS "deviceId",
@@ -69,6 +86,10 @@ class PostgresTransaction {
       }
       const entityType = key.slice(0, separator);
       const entityId = key.slice(separator + 1);
+      await this.client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`entity:${businessId}:${entityType}:${entityId}`],
+      );
       const {rows} = await this.client.query(
         'SELECT version FROM business_entity_versions WHERE business_id = $1 AND entity_type = $2 AND entity_id = $3 FOR UPDATE',
         [businessId, entityType, entityId],
@@ -82,6 +103,32 @@ class PostgresTransaction {
         throw error;
       }
     }
+  }
+
+  async bumpEntityVersion(businessId, entityType, entityId, expectedVersion) {
+    await this.client.query(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      [`entity:${businessId}:${entityType}:${entityId}`],
+    );
+    const {rows} = await this.client.query(
+      'SELECT version FROM business_entity_versions WHERE business_id = $1 AND entity_type = $2 AND entity_id = $3 FOR UPDATE',
+      [businessId, entityType, entityId],
+    );
+    const current = rows.length ? Number(rows[0].version) : 0;
+    if (expectedVersion !== undefined && current !== expectedVersion) {
+      const error = new Error('A resource changed after this workflow was reviewed. Refresh it and try again.');
+      error.status = 409;
+      error.code = 'VERSION_CONFLICT';
+      error.details = {entityType, entityId, expectedVersion, currentVersion: current};
+      throw error;
+    }
+    const next = current + 1;
+    await this.client.query(`
+      INSERT INTO business_entity_versions (business_id, entity_type, entity_id, version)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (business_id, entity_type, entity_id) DO UPDATE SET version = EXCLUDED.version
+    `, [businessId, entityType, entityId, next]);
+    return next;
   }
 
   async consumeOfflineGrant({grantId, businessId, deviceId, staffId, commandName, commandId, at}) {
