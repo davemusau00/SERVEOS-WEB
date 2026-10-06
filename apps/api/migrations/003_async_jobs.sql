@@ -13,7 +13,10 @@ CREATE TABLE IF NOT EXISTS async_jobs (
   created_at timestamptz NOT NULL DEFAULT now(),
   started_at timestamptz,
   finished_at timestamptz,
-  CHECK ((state = 'PROCESSING') = (lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL))
+  CHECK (
+    (state = 'PROCESSING' AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL)
+    OR (state <> 'PROCESSING' AND lease_owner IS NULL AND lease_expires_at IS NULL)
+  )
 );
 
 CREATE INDEX IF NOT EXISTS async_jobs_claim_idx

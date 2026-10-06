@@ -1,4 +1,5 @@
 import {pathToFileURL} from 'node:url';
+import {randomUUID} from 'node:crypto';
 
 export async function claimJob(pool, workerId, handlers, now = new Date()) {
   const supported = [...handlers.keys()];
@@ -70,7 +71,7 @@ async function main() {
   const controller = new AbortController();
   const stop = () => controller.abort();
   process.on('SIGTERM', stop); process.on('SIGINT', stop);
-  const workerId = process.env.WORKER_ID || crypto.randomUUID();
+  const workerId = process.env.WORKER_ID || randomUUID();
   // Add typed handlers as their owning domain modules are implemented.
   const handlers = new Map();
   console.log(JSON.stringify({event: 'worker_started', workerId, supportedJobTypes: []}));
