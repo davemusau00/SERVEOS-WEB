@@ -3,6 +3,7 @@ import {pathToFileURL} from 'node:url';
 import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
 import {PostgresStore} from './postgres-store.mjs';
 import {createHash} from 'node:crypto';
+import {catalogCommandRegistry} from './catalog-commands.mjs';
 
 const json = (res, status, value) => {
   res.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
@@ -61,6 +62,15 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         }
         return json(res, 200, {protocolVersion: 1, ...(await store.changesAfter(actor.businessId, after, limit))});
       }
+      if (req.method === 'GET' && url.pathname === '/v1/catalog/items') {
+        const actor = await authenticate(req);
+        if (!actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) {
+          throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to view the catalog.');
+        }
+        const search = (url.searchParams.get('search') ?? '').trim();
+        if (search.length > 100) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Search text is too long.');
+        return json(res, 200, {items: await store.listCatalogItems(actor.businessId, search)});
+      }
       if (req.method === 'POST' && url.pathname === '/v1/commands') {
         const actor = await authenticate(req);
         const outcome = await executeCommand({db: store, command: await readJson(req), actor, registry});
@@ -89,7 +99,7 @@ async function main() {
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
-  const server = createApiServer({store, authenticate: req => authenticateSession(req, store)});
+  const server = createApiServer({store, registry: catalogCommandRegistry, authenticate: req => authenticateSession(req, store)});
   const port = Number(process.env.PORT ?? 3000);
   server.listen(port, process.env.HOST ?? '0.0.0.0', () => console.log(JSON.stringify({event: 'api_started', port})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });

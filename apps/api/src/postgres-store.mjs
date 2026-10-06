@@ -42,6 +42,19 @@ export class PostgresStore {
     return {fromCursor: after, toCursor: changes.at(-1)?.cursor ?? after, highWater, hasMore, changes};
   }
 
+  async listCatalogItems(businessId, search = '') {
+    const {rows} = await this.pool.query(`
+      SELECT id, category_id AS "categoryId", name, sku, base_price_minor AS "basePriceMinor",
+             currency, track_inventory AS "trackInventory", version, created_at AS "createdAt"
+      FROM catalog_items
+      WHERE business_id = $1 AND archived_at IS NULL
+        AND ($2 = '' OR name ILIKE '%' || $2 || '%' OR sku ILIKE '%' || $2 || '%')
+      ORDER BY name, id
+      LIMIT 500
+    `, [businessId, search]);
+    return rows;
+  }
+
   async authenticateSession(tokenHash, deviceId, now = new Date()) {
     const {rows} = await this.pool.query(`
       SELECT s.business_id AS "businessId", s.staff_id AS "staffId", d.id AS "deviceId",
@@ -129,6 +142,22 @@ class PostgresTransaction {
       ON CONFLICT (business_id, entity_type, entity_id) DO UPDATE SET version = EXCLUDED.version
     `, [businessId, entityType, entityId, next]);
     return next;
+  }
+
+  async insertCatalogItem(item) {
+    await this.client.query(`
+      INSERT INTO catalog_items
+        (business_id, id, category_id, name, sku, base_price_minor, currency, track_inventory, version, created_by, updated_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+    `, [item.businessId, item.id, item.categoryId, item.name, item.sku, item.basePriceMinor, item.currency, item.trackInventory, item.version, item.staffId]);
+  }
+
+  async findCatalogSku(businessId, sku) {
+    const {rows} = await this.client.query(
+      'SELECT id FROM catalog_items WHERE business_id = $1 AND lower(sku) = lower($2) AND archived_at IS NULL',
+      [businessId, sku],
+    );
+    return rows[0] ?? null;
   }
 
   async consumeOfflineGrant({grantId, businessId, deviceId, staffId, commandName, commandId, at}) {

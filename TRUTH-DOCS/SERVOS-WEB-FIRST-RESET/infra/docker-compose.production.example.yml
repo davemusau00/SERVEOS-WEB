@@ -18,7 +18,9 @@ services:
       retries: 10
 
   api:
-    image: ghcr.io/davemusau00/serveos-api:${SERVEOS_VERSION}
+    build:
+      context: ../../../apps/api
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
     ports:
@@ -27,6 +29,7 @@ services:
       postgres:
         condition: service_healthy
     networks: [serveos_private]
+    command: ["sh", "-c", "npm run migrate && npm start"]
 
   worker:
     image: ghcr.io/davemusau00/serveos-api:${SERVEOS_VERSION}

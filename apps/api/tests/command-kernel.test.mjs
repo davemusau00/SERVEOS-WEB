@@ -53,6 +53,14 @@ test('rejects command ID reuse with a different payload', async () => {
   await assert.rejects(() => executeCommand({db, command: {...command, payload: {name: 'Coffee'}}, actor, registry}), {code: 'COMMAND_ID_REUSED'});
 });
 
+test('idempotency hash treats object key order as the same request', async () => {
+  const db = memoryStore();
+  const first = {...command, payload: {name: 'Tea', price: 100}};
+  const replay = {...command, payload: {price: 100, name: 'Tea'}};
+  const saved = await executeCommand({db, command: first, actor, registry});
+  assert.deepEqual(await executeCommand({db, command: replay, actor, registry}), saved);
+});
+
 test('enforces permission and offline grant policy before invoking a handler', async () => {
   const db = memoryStore();
   await assert.rejects(() => executeCommand({db, command, actor: {...actor, permissions: []}, registry}), {code: 'PERMISSION_DENIED'});

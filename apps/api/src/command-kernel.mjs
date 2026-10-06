@@ -2,6 +2,11 @@ import {createHash} from 'node:crypto';
 
 const MAX_COMMAND_BYTES = 256 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const stableJson = value => value === null || typeof value !== 'object'
+  ? JSON.stringify(value)
+  : Array.isArray(value)
+    ? `[${value.map(stableJson).join(',')}]`
+    : `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
 
 export class ApiProblem extends Error {
   constructor(status, code, message) {
@@ -36,7 +41,7 @@ export function validateCommandEnvelope(input) {
 }
 
 export function commandHash(command) {
-  return createHash('sha256').update(JSON.stringify({
+  return createHash('sha256').update(stableJson({
     name: command.name,
     payload: command.payload,
     expectedVersions: command.expectedVersions,
