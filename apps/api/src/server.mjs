@@ -153,7 +153,9 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       const status = Number.isInteger(error.status) ? error.status : error.code === '23505' ? 409 : error.code === '22P02' ? 400 : 500;
       const code = error.code === '23505' ? 'DUPLICATE_REFERENCE' : error.code === '22P02' ? 'VALIDATION_FAILED' : error.code ?? 'INTERNAL_ERROR';
       if (status >= 500) console.error(JSON.stringify({event: 'request_error', code, errorType: error.constructor?.name ?? 'Error'}));
-      return json(res, status, {error: {code, message: status >= 500 ? 'The request could not be completed.' : error.message, ...(error.details ? {details: error.details} : {})}});
+      const safeDatabaseError = error.code === '23505' || error.code === '22P02';
+      const message = status >= 500 ? 'The request could not be completed.' : safeDatabaseError ? 'A submitted value conflicts with the current data.' : error.message;
+      return json(res, status, {error: {code, message, ...(error.details ? {details: error.details} : {})}});
     }
   });
 }

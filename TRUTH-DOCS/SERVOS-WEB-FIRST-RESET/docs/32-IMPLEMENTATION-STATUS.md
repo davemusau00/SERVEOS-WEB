@@ -18,13 +18,14 @@
 - Added the first relational business handler, online-only `catalog.item.create`, with version-0 creation guard, normalized input, duplicate-SKU protection, and command/audit/change evidence.
 - Added PostgreSQL job claiming with leases and retry backoff. No job handlers are registered, so the worker cannot claim or fabricate business work.
 - PWA device IDs now migrate from localStorage into IndexedDB alongside a non-exportable WebCrypto P-256 key. The existing Supabase registration adapter remains until the API enrollment handshake is implemented.
+- Added a one-use, five-minute API device-enrollment challenge signed by the PWA key and a client enrollment helper; challenge issuance is permission-gated and rate-limited.
 - Added PWA IndexedDB stores for verified offline grants, immutable hashed BusinessDocument snapshots, and durable print-job state; added local-storage diagnostics and sync status broadcasts across tabs.
 - Added ECDSA grant-signature verification, an authenticated SSE change-invalidation endpoint, API runtime configuration validation, and worker lease renewal/expiry fencing.
 
 ## Still pending
 
 - Generated-file policy decision.
-- Authentication/device enrollment/session issuance administration flows and key lifecycle. The API verifies seeded/issued credentials but does not yet provide the staff login or enrollment UI/API.
+- API staff login/session issuance and its current UI integration; the challenge/device enrollment protocol exists but still requires an API-authenticated session that the current Supabase login does not issue.
 - Domain handlers must update `business_entity_versions` in the same business transaction; the generic increment primitive exists but only catalog creation uses it.
 - Shared API/client contract generation, authenticated bootstrap/change-feed/SSE, and PWA API transport migration. Current browser synchronization still uses Supabase and snapshot bootstrap.
 - Map existing Web `product.save`/`stockItem.save` contracts and catalog projections into the new API; the first `catalog.item.create` path is not yet wired to the operator UI.
