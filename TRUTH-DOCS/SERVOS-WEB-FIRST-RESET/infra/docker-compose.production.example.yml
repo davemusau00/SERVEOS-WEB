@@ -50,16 +50,22 @@ services:
   # Architectural placeholder. Implement an audited backup command that encrypts
   # and sends backups to an OFF-VPS destination. Never rely on this volume alone.
   backup:
-    image: postgres:17-alpine
+    build:
+      context: ../../../apps/backup
+      dockerfile: Dockerfile
     restart: "no"
     profiles: ["manual-backup"]
     env_file: .env
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
     networks: [serveos_private]
-    volumes:
-      - ./backups:/backups
 
 networks:
   serveos_private:
