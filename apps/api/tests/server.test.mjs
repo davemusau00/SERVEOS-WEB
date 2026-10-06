@@ -12,10 +12,10 @@ test('session authentication hashes bearer token and ignores caller identity hea
   let received;
   const store = {authenticateSession: async (...args) => { received = args; return {businessId: 'business', staffId: 'staff', deviceId: 'device', permissions: ['pos.sell']}; }};
   const token = 'a'.repeat(48);
-  const actor = await authenticateSession({headers: {authorization: `Bearer ${token}`, 'x-serveos-device-id': 'device'}}, store);
+  const actor = await authenticateSession({headers: {authorization: `Bearer ${token}`, 'x-serveos-device-id': '123e4567-e89b-42d3-a456-426614174003'}}, store);
   assert.equal(received[0], createHash('sha256').update(token).digest('hex'));
   assert.equal(actor.businessId, 'business');
-  await assert.rejects(() => authenticateSession({headers: {'x-serveos-business-id': 'attacker', 'x-serveos-staff-id': 'attacker', 'x-serveos-device-id': 'device'}}, store), {code: 'AUTH_REQUIRED'});
+  await assert.rejects(() => authenticateSession({headers: {'x-serveos-business-id': 'attacker', 'x-serveos-staff-id': 'attacker', 'x-serveos-device-id': '123e4567-e89b-42d3-a456-426614174003'}}, store), {code: 'AUTH_REQUIRED'});
 });
 
 test('health routes are public and command routes require session authentication', async t => {
@@ -23,7 +23,7 @@ test('health routes are public and command routes require session authentication
   const store = {pool, commandStatus: async () => null, changesAfter: async (_businessId, after, limit) => ({fromCursor: after, toCursor: after, highWater: 0, hasMore: false, changes: [], limit})};
   const server = createApiServer({store, origin: 'https://serveos.example', authenticate: async req => {
     if (req.headers.authorization !== 'Bearer valid-session') throw Object.assign(new Error('Sign in required.'), {status: 401, code: 'AUTH_REQUIRED'});
-    return {businessId: 'business', staffId: 'staff', deviceId: 'device', permissions: []};
+    return {businessId: 'business', staffId: 'staff', deviceId: '123e4567-e89b-42d3-a456-426614174003', permissions: []};
   }});
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -32,10 +32,10 @@ test('health routes are public and command routes require session authentication
   const base = `http://127.0.0.1:${address.port}`;
   assert.equal((await fetch(`${base}/health/live`)).status, 200);
   assert.equal((await fetch(`${base}/health/ready`)).status, 200);
-  const changes = await fetch(`${base}/v1/sync/changes?after=0&limit=40`, {headers: {authorization: 'Bearer valid-session', 'x-serveos-device-id': 'device'}});
+  const changes = await fetch(`${base}/v1/sync/changes?after=0&limit=40`, {headers: {authorization: 'Bearer valid-session', 'x-serveos-device-id': '123e4567-e89b-42d3-a456-426614174003'}});
   assert.equal(changes.status, 200);
   assert.equal((await changes.json()).protocolVersion, 1);
-  const invalidLimit = await fetch(`${base}/v1/sync/changes?after=0&limit=501`, {headers: {authorization: 'Bearer valid-session', 'x-serveos-device-id': 'device'}});
+  const invalidLimit = await fetch(`${base}/v1/sync/changes?after=0&limit=501`, {headers: {authorization: 'Bearer valid-session', 'x-serveos-device-id': '123e4567-e89b-42d3-a456-426614174003'}});
   assert.equal(invalidLimit.status, 400);
   const unauthorized = await fetch(`${base}/v1/commands/${crypto.randomUUID()}`, {headers: {
     'x-serveos-business-id': 'attacker', 'x-serveos-staff-id': 'attacker', 'x-serveos-device-id': 'device', 'x-serveos-permissions': '*',

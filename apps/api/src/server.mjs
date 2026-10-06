@@ -23,7 +23,8 @@ async function readJson(req) {
 export async function authenticateSession(req, store, now = new Date()) {
   const authorization = req.headers.authorization;
   const deviceId = req.headers['x-serveos-device-id'];
-  if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ') || typeof deviceId !== 'string') {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ') || typeof deviceId !== 'string' || !uuid.test(deviceId)) {
     throw new ApiProblem(401, 'AUTH_REQUIRED', 'A valid staff session and enrolled device are required.');
   }
   const token = authorization.slice(7);
@@ -61,7 +62,9 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         if (!Number.isSafeInteger(after) || !Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
           throw new ApiProblem(400, 'VALIDATION_FAILED', 'Cursor must be non-negative and limit must be between 1 and 500.');
         }
-        return json(res, 200, {protocolVersion: 1, ...(await store.changesAfter(actor.businessId, after, limit))});
+        const page = await store.changesAfter(actor.businessId, after, limit);
+        if (after > page.highWater) throw new ApiProblem(409, 'CURSOR_AHEAD', 'The requested cursor is ahead of this business change feed.');
+        return json(res, 200, {protocolVersion: 1, ...page});
       }
       if (req.method === 'GET' && url.pathname === '/v1/catalog/items') {
         const actor = await authenticate(req);

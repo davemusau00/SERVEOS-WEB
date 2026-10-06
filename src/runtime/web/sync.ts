@@ -2,9 +2,20 @@ import type {BusinessCommandV2,ChangePage,TransactionResult} from '../../types/t
 import {BusinessStore} from './BusinessStore';
 
 export interface CloudTransport {execute(command:BusinessCommandV2):Promise<TransactionResult>;pull(cursor:number):Promise<ChangePage>}
+export type SyncUpdate={type:'SYNC_STARTED'|'SYNC_FINISHED'|'SYNC_FAILED';at:string};
+const syncChannel=(scope:string,deviceId:string,actorId:string)=>`servos-v2-sync:${scope}:${deviceId}:${actorId}:updates`;
+export function subscribeSyncUpdates(scope:string,deviceId:string,actorId:string,onUpdate:(update:SyncUpdate)=>void){
+ if(typeof BroadcastChannel==='undefined')return()=>{};
+ const channel=new BroadcastChannel(syncChannel(scope,deviceId,actorId));channel.onmessage=event=>{if(event.data&&['SYNC_STARTED','SYNC_FINISHED','SYNC_FAILED'].includes(event.data.type))onUpdate(event.data as SyncUpdate)};
+ return()=>channel.close();
+}
 export async function synchronizeStore(store:BusinessStore,transport:CloudTransport):Promise<void>{
   if(!navigator.locks)throw new Error('This browser cannot safely coordinate device synchronization');
-  await navigator.locks.request(`servos-v2-sync:${store.scope}:${store.deviceId}:${store.actorId}`,async()=>{
+  const channel=typeof BroadcastChannel==='undefined'?undefined:new BroadcastChannel(syncChannel(store.scope,store.deviceId,store.actorId));
+  const publish=(type:SyncUpdate['type'])=>channel?.postMessage({type,at:new Date().toISOString()});
+  try{
+   await navigator.locks.request(`servos-v2-sync:${store.scope}:${store.deviceId}:${store.actorId}`,async()=>{
+    publish('SYNC_STARTED');
     const pending=(await store.queue()).filter(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN');
     for(const row of pending){
       await store.markOutcomeUnknown(row.id);
@@ -15,9 +26,11 @@ export async function synchronizeStore(store:BusinessStore,transport:CloudTransp
     for(let pages=0;pages<100;pages++){
       const cursor=await store.cursor();const page=await transport.pull(cursor);
       if(page.hasMore&&page.cursor<=cursor)throw new Error('Change feed made no progress');
-      await store.applyPage(page);if(!page.hasMore)return;
+      await store.applyPage(page);if(!page.hasMore){publish('SYNC_FINISHED');return}
     }
-  });
+    throw new Error('Change feed exceeded the per-cycle page limit');
+   });
+  }catch(error){publish('SYNC_FAILED');throw error}finally{channel?.close()}
 }
 
 export function createCloudTransport(url:string,publishableKey:string,accessToken:()=>Promise<string>):CloudTransport{

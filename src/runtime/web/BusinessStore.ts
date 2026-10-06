@@ -7,7 +7,12 @@ export interface WorkflowDraft {
   editorKind:string; inputValues:Record<string,string>; payload:Record<string,unknown>; expectedVersions:RecordVersion[]; fields?:WorkflowDraftField[];
   supersedes?:string; policyVersion?:string; validationSummary:string[]; requiresReview:boolean; createdAt:string; updatedAt:string;
 }
+export interface LocalBusinessDocument {id:string;type:string;documentNumber:string;layoutVersion:number;hash:string;snapshot:Record<string,unknown>;issuedAt:string}
+export type LocalPrintState='QUEUED'|'SENDING'|'SENT_TO_SPOOLER'|'DELIVERY_UNCERTAIN'|'FAILED'|'CANCELLED';
+export interface LocalPrintJob {id:string;documentId:string;printerRole:string;copies:number;state:LocalPrintState;createdAt:string;updatedAt:string;attempt:number;errorCode?:string}
+export interface OfflineGrantEnvelope {grantId:string;businessId:string;deviceId:string;staffId:string;issuedAt:string;expiresAt:string;policyVersion:number;allowedCommands:string[];maxCommands:number;keyVersion:string;signature:string;scope?:Record<string,unknown>}
 const request=<T>(value:IDBRequest<T>)=>new Promise<T>((resolve,reject)=>{value.onsuccess=()=>resolve(value.result);value.onerror=()=>reject(value.error||new Error('Storage request failed'))});
+const stableJson=(value:unknown):string=>value===null||typeof value!=='object'?JSON.stringify(value):Array.isArray(value)?`[${value.map(stableJson).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${stableJson((value as Record<string,unknown>)[key])}`).join(',')}}`;
 const sensitiveKey=/password|secret|token|credential|pin/i;
 const safeDraftText=(value:string)=>value.replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi,'Bearer [redacted]').replace(/\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,'[redacted token]');
 export const redactSensitiveData=(value:unknown):unknown=>Array.isArray(value)?value.map(redactSensitiveData):value&&typeof value==='object'?Object.fromEntries(Object.entries(value as Record<string,unknown>).filter(([name])=>!sensitiveKey.test(name)).map(([name,item])=>[name,redactSensitiveData(item)])):typeof value==='string'?safeDraftText(value):value;
@@ -17,13 +22,16 @@ export class BusinessStore {
   private constructor(private db:IDBDatabase,readonly scope:string,readonly deviceId:string,readonly actorId:string){}
   static async open(scope:string,deviceId:string,actorId:string,serverSequence=0):Promise<BusinessStore>{
     if(!scope||!deviceId||!actorId||!Number.isSafeInteger(serverSequence)||serverSequence<0)throw new Error('Valid business, device, actor and sequence are required');
-    const opening=indexedDB.open(`servos-v2:${scope}:${deviceId}:${actorId}`,2);
+    const opening=indexedDB.open(`servos-v2:${scope}:${deviceId}:${actorId}`,3);
     opening.onupgradeneeded=()=>{
       const db=opening.result;
       if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta');
       if(!db.objectStoreNames.contains('queue')){const queue=db.createObjectStore('queue',{keyPath:'id'});queue.createIndex('sequence','sequence',{unique:true});}
       if(!db.objectStoreNames.contains('records'))db.createObjectStore('records',{keyPath:['collection','id']});
       if(!db.objectStoreNames.contains('drafts'))db.createObjectStore('drafts',{keyPath:'id'});
+      if(!db.objectStoreNames.contains('offlineGrants'))db.createObjectStore('offlineGrants',{keyPath:'grantId'});
+      if(!db.objectStoreNames.contains('documents'))db.createObjectStore('documents',{keyPath:'id'});
+      if(!db.objectStoreNames.contains('printJobs')){const jobs=db.createObjectStore('printJobs',{keyPath:'id'});jobs.createIndex('state','state',{unique:false});jobs.createIndex('createdAt','createdAt',{unique:false});}
     };
     const db=await request(opening);db.onversionchange=()=>db.close();
     const store=new BusinessStore(db,scope,deviceId,actorId);
@@ -131,4 +139,47 @@ export class BusinessStore {
   }
   async records():Promise<Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>>{return this.transaction(['records'],'readonly',tx=>request(tx.objectStore('records').getAll()))}
   async hasPending():Promise<boolean>{return (await this.queue()).some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN')}
+  async saveVerifiedOfflineGrant(grant:OfflineGrantEnvelope,verify:(grant:OfflineGrantEnvelope)=>Promise<boolean>):Promise<void>{
+    if(grant.businessId!==this.scope||grant.deviceId!==this.deviceId||grant.staffId!==this.actorId)throw new Error('Offline grant is scoped to a different business, device, or staff member');
+    if(Date.parse(grant.expiresAt)<=Date.now()||Date.parse(grant.issuedAt)>Date.now()||!Number.isSafeInteger(grant.maxCommands)||grant.maxCommands<1)throw new Error('Offline grant is expired or invalid');
+    if(!(await verify(grant)))throw new Error('Offline grant signature could not be verified');
+    await this.transaction(['offlineGrants'],'readwrite',async tx=>{await request(tx.objectStore('offlineGrants').put(grant))});
+  }
+  async offlineGrants():Promise<OfflineGrantEnvelope[]>{return this.transaction(['offlineGrants'],'readonly',tx=>request(tx.objectStore('offlineGrants').getAll()))}
+  async saveBusinessDocument(document:LocalBusinessDocument):Promise<void>{
+    if(!document.id||!document.type||!document.documentNumber||!Number.isSafeInteger(document.layoutVersion)||document.layoutVersion<1||!document.hash||!document.issuedAt)throw new Error('Business document snapshot is incomplete');
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(stableJson({id:document.id,type:document.type,documentNumber:document.documentNumber,layoutVersion:document.layoutVersion,snapshot:document.snapshot,issuedAt:document.issuedAt})));
+    const actualHash=[...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+    if(document.hash!==actualHash)throw new Error('Business document hash does not match its immutable snapshot');
+    await this.transaction(['documents'],'readwrite',async tx=>{
+      const documents=tx.objectStore('documents');const existing=await request(documents.get(document.id)) as LocalBusinessDocument|undefined;
+      if(existing&&(existing.hash!==document.hash||existing.layoutVersion!==document.layoutVersion||stableJson(existing.snapshot)!==stableJson(document.snapshot)))throw new Error('Issued business documents are immutable');
+      if(!existing)await request(documents.add(document));
+    });
+  }
+  async businessDocuments():Promise<LocalBusinessDocument[]>{return this.transaction(['documents'],'readonly',tx=>request(tx.objectStore('documents').getAll()))}
+  async enqueuePrintJob(job:Omit<LocalPrintJob,'state'|'createdAt'|'updatedAt'|'attempt'>):Promise<LocalPrintJob>{
+    if(!job.id||!job.documentId||!job.printerRole||!Number.isSafeInteger(job.copies)||job.copies<1||job.copies>5)throw new Error('Print job request is invalid');
+    return this.transaction(['printJobs','documents'],'readwrite',async tx=>{
+      if(!await request(tx.objectStore('documents').get(job.documentId)))throw new Error('Print job must reference an issued BusinessDocument');
+      const jobs=tx.objectStore('printJobs');const old=await request(jobs.get(job.id)) as LocalPrintJob|undefined;
+      if(old){if(old.documentId!==job.documentId||old.printerRole!==job.printerRole||old.copies!==job.copies)throw new Error('Print job ID is already bound to a different document request');return old;}
+      const now=new Date().toISOString();const next:LocalPrintJob={...job,state:'QUEUED',createdAt:now,updatedAt:now,attempt:0};await request(jobs.add(next));return next;
+    });
+  }
+  async transitionPrintJob(id:string,state:LocalPrintState,confirmedPossibleDuplicate=false,errorCode?:string):Promise<LocalPrintJob>{
+    return this.transaction(['printJobs'],'readwrite',async tx=>{
+      const jobs=tx.objectStore('printJobs');const current=await request(jobs.get(id)) as LocalPrintJob|undefined;if(!current)throw new Error('Print job was not found');
+      const allowed:Record<LocalPrintState,LocalPrintState[]>={QUEUED:['SENDING','CANCELLED'],SENDING:['SENT_TO_SPOOLER','DELIVERY_UNCERTAIN','FAILED'],SENT_TO_SPOOLER:[],DELIVERY_UNCERTAIN:['SENDING','CANCELLED'],FAILED:['SENDING','CANCELLED'],CANCELLED:[]};
+      if(!allowed[current.state].includes(state))throw new Error(`Invalid print transition ${current.state} to ${state}`);
+      if(current.state==='DELIVERY_UNCERTAIN'&&state==='SENDING'&&!confirmedPossibleDuplicate)throw new Error('Confirm the document may already have printed before retrying');
+      const next={...current,state,updatedAt:new Date().toISOString(),attempt:current.attempt+(state==='SENDING'?1:0),...(errorCode?{errorCode}:{})};await request(jobs.put(next));return next;
+    });
+  }
+  async printJobs():Promise<LocalPrintJob[]>{return this.transaction(['printJobs'],'readonly',tx=>request(tx.objectStore('printJobs').getAll()))}
+  async storageDiagnostics(){
+    const estimate=await navigator.storage?.estimate?.().catch(()=>undefined);const persisted=await navigator.storage?.persisted?.().catch(()=>false)??false;
+    const [queue,grants,jobs,documents]=await Promise.all([this.queue(),this.offlineGrants(),this.printJobs(),this.businessDocuments()]);
+    return {persisted,usageBytes:estimate?.usage??null,quotaBytes:estimate?.quota??null,pendingCommands:queue.filter(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN').length,unknownCommands:queue.filter(row=>row.state==='OUTCOME_UNKNOWN').length,offlineGrants:grants.filter(grant=>Date.parse(grant.expiresAt)>Date.now()).length,pendingPrintJobs:jobs.filter(job=>['QUEUED','SENDING','DELIVERY_UNCERTAIN'].includes(job.state)).length,documents:documents.length};
+  }
 }
