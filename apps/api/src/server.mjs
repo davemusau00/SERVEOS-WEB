@@ -13,6 +13,7 @@ const json = (res, status, value) => {
 };
 const scrypt=promisify(scryptCallback);
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const dummyCredentialHash='scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 async function hashPassword(password){const salt=randomBytes(16);const derived=await scrypt(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024});return `scrypt$16384$8$1$${salt.toString('base64url')}$${Buffer.from(derived).toString('base64url')}`;}
 async function verifyPassword(password,encoded){
   const [scheme,nRaw,rRaw,pRaw,saltRaw,hashRaw]=String(encoded||'').split('$');
@@ -53,6 +54,15 @@ async function authenticateStaffSession(req, store, now = new Date()) {
   return actor;
 }
 
+async function authenticateUnenrolledStaffSession(req,store,now=new Date()){
+  const authorization=req.headers.authorization;
+  if(typeof authorization!=='string'||!authorization.startsWith('Bearer '))throw new ApiProblem(401,'AUTH_REQUIRED','A staff session is required.');
+  const token=authorization.slice(7);if(token.length<32||token.length>4096)throw new ApiProblem(401,'AUTH_REQUIRED','A staff session is required.');
+  const actor=await store.authenticateStaffSession(createHash('sha256').update(token).digest('hex'),now);
+  if(!actor||actor.deviceId)throw new ApiProblem(401,'AUTH_REQUIRED','An unbound staff session is required for device enrollment.');
+  return actor;
+}
+
 export function createApiServer({store, registry = new Map(), authenticate, origin = process.env.WEB_ORIGIN}) {
   if (typeof authenticate !== 'function') throw new Error('An explicit session authenticator is required.');
   return createServer(async (req, res) => {
@@ -75,8 +85,11 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if(req.method==='POST'&&url.pathname==='/v1/auth/login'){
         const input=await readJson(req);const loginName=typeof input.loginName==='string'?input.loginName.trim():'';const password=typeof input.password==='string'?input.password:'';
         if(!loginName||loginName.length>200||password.length<8||password.length>1024)throw new ApiProblem(400,'VALIDATION_FAILED','Enter a valid staff login and password.');
-        const now=new Date();const token=randomBytes(32).toString('base64url');const result=await store.authenticatePassword({loginName,password,at:now,hashPassword,verifyPassword,sessionId:randomUUID(),tokenHash:createHash('sha256').update(token).digest('hex'),expiresAt:new Date(now.getTime()+12*60*60_000)});
-        if(!result)throw new ApiProblem(401,'AUTH_INVALID','The staff login or password is not valid.');
+        const now=new Date();const ip=String(req.socket.remoteAddress||'unknown');const buckets=[loginName.toLowerCase(),ip].map(value=>createHash('sha256').update(value).digest('hex'));
+        if(!await store.checkLoginThrottle(buckets,now))throw new ApiProblem(429,'RATE_LIMITED','Too many sign-in attempts. Try again later.');
+        const token=randomBytes(32).toString('base64url');const result=await store.authenticatePassword({loginName,password,at:now,verifyPassword,sessionId:randomUUID(),tokenHash:createHash('sha256').update(token).digest('hex'),expiresAt:new Date(now.getTime()+12*60*60_000)});
+        if(!result){await verifyPassword(password,dummyCredentialHash);await store.recordLoginFailure(buckets,now);throw new ApiProblem(401,'AUTH_INVALID','The staff login or password is not valid.');}
+        await store.clearLoginFailures(buckets);
         return json(res,200,{accessToken:token,...result});
       }
       if(req.method==='POST'&&url.pathname==='/v1/setup/initial-admin'){
@@ -97,8 +110,21 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const revoked=await store.revokeSession(createHash('sha256').update(authorization.slice(7)).digest('hex'));
         return json(res,200,{revoked});
       }
+      if(req.method==='POST'&&url.pathname==='/v1/auth/password'){
+        const actor=await authenticateStaffSession(req,store);const input=await readJson(req);
+        if(typeof input.currentPassword!=='string'||typeof input.newPassword!=='string'||input.newPassword.length<12||input.newPassword.length>1024)throw new ApiProblem(400,'VALIDATION_FAILED','The new password must contain at least 12 characters.');
+        const profile=await store.staffCredential(actor.businessId,actor.staffId);
+        if(!profile||!await verifyPassword(input.currentPassword,profile.credentialHash))throw new ApiProblem(401,'AUTH_INVALID','The current password is not valid.');
+        await store.updateCredential(actor.businessId,actor.staffId,await hashPassword(input.newPassword),new Date());
+        return json(res,200,{changed:true});
+      }
+      if(req.method==='GET'&&url.pathname==='/v1/auth/session'){
+        const actor=await authenticateStaffSession(req,store);const profile=await store.staffCredential(actor.businessId,actor.staffId);
+        return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,displayName:profile?.displayName,permissions:actor.permissions,mustChangePassword:profile?.mustChangePassword===true});
+      }
       if (req.method === 'POST' && url.pathname === '/v1/devices/enrollment-challenges') {
-        const actor = await authenticateStaffSession(req, store);
+        const actor = await authenticateUnenrolledStaffSession(req, store);
+        if(actor.mustChangePassword)throw new ApiProblem(403,'PASSWORD_CHANGE_REQUIRED','Change the initial password before enrolling this device.');
         if (!actor.permissions?.includes('devices.manage')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll devices.');
         const issuedAt = new Date();
         const challengeId = randomUUID();
@@ -106,7 +132,8 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         return json(res, 201, await store.issueDeviceEnrollmentChallenge({challengeId, challenge, businessId: actor.businessId, staffId: actor.staffId, issuedAt, expiresAt: new Date(issuedAt.getTime() + 5 * 60_000)}));
       }
       if (req.method === 'POST' && url.pathname === '/v1/devices/enroll') {
-        const actor = await authenticateStaffSession(req, store);
+        const actor = await authenticateUnenrolledStaffSession(req, store);
+        if(actor.mustChangePassword)throw new ApiProblem(403,'PASSWORD_CHANGE_REQUIRED','Change the initial password before enrolling this device.');
         if (!actor.permissions?.includes('devices.manage')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll devices.');
         const input = await readJson(req);
         const {challengeId, deviceId, publicKey, signature} = input;
@@ -121,7 +148,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         try { valid = verifySignature('sha256', Buffer.from(signed), {key: createPublicKey({key: publicKey, format: 'jwk'}), dsaEncoding: 'ieee-p1363'}, Buffer.from(signature, 'base64url')); }
         catch { valid = false; }
         if (!valid) throw new ApiProblem(401, 'DEVICE_PROOF_INVALID', 'Device key proof could not be verified.');
-        const enrolled = await store.enrollDevice({challengeId, businessId: actor.businessId, staffId: actor.staffId, deviceId, publicKey, at: new Date()});
+        const enrolled = await store.enrollDevice({challengeId, businessId: actor.businessId, staffId: actor.staffId, deviceId, publicKey, sessionId:actor.sessionId, at: new Date()});
         return json(res, 201, {deviceId: enrolled.id, businessId: enrolled.businessId, createdAt: enrolled.createdAt});
       }
       if (req.method === 'GET' && url.pathname === '/v1/sync/changes') {

@@ -80,7 +80,8 @@ export class PostgresStore {
       FROM api_staff_sessions s
       JOIN api_enrolled_devices d ON d.business_id = s.business_id AND d.staff_id = s.staff_id AND d.id = $2
       LEFT JOIN api_staff_permissions p ON p.business_id = s.business_id AND p.staff_id = s.staff_id
-      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $3
+      JOIN api_staff_profiles f ON f.business_id=s.business_id AND f.staff_id=s.staff_id AND f.active AND NOT f.must_change_password
+      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $3 AND s.device_id=d.id
         AND d.revoked_at IS NULL
       GROUP BY s.business_id, s.staff_id, d.id
     `, [tokenHash, deviceId, now]);
@@ -89,12 +90,14 @@ export class PostgresStore {
 
   async authenticateStaffSession(tokenHash, now = new Date()) {
     const {rows} = await this.pool.query(`
-      SELECT s.business_id AS "businessId", s.staff_id AS "staffId",
+      SELECT s.business_id AS "businessId", s.staff_id AS "staffId",s.id AS "sessionId",d.id AS "deviceId",f.must_change_password AS "mustChangePassword",
              COALESCE(array_agg(p.permission) FILTER (WHERE p.permission IS NOT NULL), '{}') AS permissions
       FROM api_staff_sessions s
+      JOIN api_staff_profiles f ON f.business_id=s.business_id AND f.staff_id=s.staff_id AND f.active
+      LEFT JOIN api_enrolled_devices d ON d.business_id=s.business_id AND d.id=s.device_id AND d.revoked_at IS NULL
       LEFT JOIN api_staff_permissions p ON p.business_id = s.business_id AND p.staff_id = s.staff_id
       WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $2
-      GROUP BY s.business_id, s.staff_id
+      GROUP BY s.business_id, s.staff_id,s.id,d.id,f.must_change_password
     `, [tokenHash, now]);
     return rows[0] ?? null;
   }
@@ -110,11 +113,19 @@ export class PostgresStore {
         return null;
       }
       await tx.client.query('UPDATE api_staff_profiles SET failed_login_count=0,locked_until=NULL,updated_at=$3 WHERE business_id=$1 AND staff_id=$2',[staff.businessId,staff.staffId,at]);
-      await tx.client.query('INSERT INTO api_staff_sessions(id,business_id,staff_id,token_hash,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6)',[sessionId,staff.businessId,staff.staffId,tokenHash,at,expiresAt]);
+      await tx.client.query('INSERT INTO api_staff_sessions(id,business_id,staff_id,token_hash,created_at,expires_at,device_id) VALUES($1,$2,$3,$4,$5,$6,NULL)',[sessionId,staff.businessId,staff.staffId,tokenHash,at,expiresAt]);
       const {rows:permissions}=await tx.client.query('SELECT permission FROM api_staff_permissions WHERE business_id=$1 AND staff_id=$2 ORDER BY permission',[staff.businessId,staff.staffId]);
       return {sessionId,businessId:staff.businessId,staffId:staff.staffId,displayName:staff.displayName,permissions:permissions.map(row=>row.permission),expiresAt:expiresAt.toISOString(),mustChangePassword:staff.mustChangePassword};
     });
   }
+
+  async checkLoginThrottle(bucketHashes,at){
+    const {rows}=await this.pool.query('SELECT bucket_hash FROM api_auth_attempts WHERE bucket_hash=ANY($1::char(64)[]) AND blocked_until>$2',[bucketHashes,at]);return rows.length===0;
+  }
+  async recordLoginFailure(bucketHashes,at){
+    await this.transaction(async tx=>{for(const bucketHash of bucketHashes){await tx.client.query(`INSERT INTO api_auth_attempts(bucket_hash,attempt_count,window_started_at,blocked_until) VALUES($1,1,$2,NULL) ON CONFLICT(bucket_hash) DO UPDATE SET attempt_count=CASE WHEN api_auth_attempts.window_started_at<$2-interval '15 minutes' THEN 1 ELSE api_auth_attempts.attempt_count+1 END,window_started_at=CASE WHEN api_auth_attempts.window_started_at<$2-interval '15 minutes' THEN $2 ELSE api_auth_attempts.window_started_at END,blocked_until=CASE WHEN (CASE WHEN api_auth_attempts.window_started_at<$2-interval '15 minutes' THEN 1 ELSE api_auth_attempts.attempt_count+1 END)>=20 THEN $2+interval '15 minutes' ELSE NULL END`,[bucketHash,at]);}});
+  }
+  async clearLoginFailures(bucketHashes){await this.pool.query('DELETE FROM api_auth_attempts WHERE bucket_hash=ANY($1::char(64)[])',[bucketHashes]);}
 
   async createInitialAdmin({setupSecretHash,expectedSetupSecretHash,businessId,businessName,staffId,loginName,displayName,credentialHash,permissions,at}) {
     if(setupSecretHash!==expectedSetupSecretHash)return false;
@@ -132,6 +143,14 @@ export class PostgresStore {
   async changePassword({businessId,staffId,currentHash,newHash,at}) {
     const {rows}=await this.pool.query('UPDATE api_staff_profiles SET credential_hash=$4,must_change_password=false,failed_login_count=0,locked_until=NULL,updated_at=$5 WHERE business_id=$1 AND staff_id=$2 AND credential_hash=$3 RETURNING staff_id',[businessId,staffId,currentHash,newHash,at]);
     return rows.length>0;
+  }
+
+  async staffCredential(businessId,staffId){
+    const {rows}=await this.pool.query('SELECT display_name AS "displayName",credential_hash AS "credentialHash",must_change_password AS "mustChangePassword" FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2 AND active',[businessId,staffId]);return rows[0]??null;
+  }
+
+  async updateCredential(businessId,staffId,credentialHash,at){
+    await this.pool.query('UPDATE api_staff_profiles SET credential_hash=$3,must_change_password=false,failed_login_count=0,locked_until=NULL,updated_at=$4 WHERE business_id=$1 AND staff_id=$2',[businessId,staffId,credentialHash,at]);
   }
 
   async revokeSession(tokenHash,at=new Date()) {

@@ -3,6 +3,7 @@ export interface ApiCommandOutcome {kind:'CONFIRMED';commandId:string;cursor:num
 export interface ApiChangePage {protocolVersion:1;fromCursor:number;toCursor:number;highWater:number;hasMore:boolean;changes:Array<{cursor:number;commandId:string;changeType:string;projection:unknown;occurredAt:string}>}
 export interface ApiCatalogItem {id:string;categoryId:string|null;name:string;sku:string|null;basePriceMinor:number;currency:string;trackInventory:boolean;version:number;createdAt:string}
 export interface ApiCatalogBootstrap {protocolVersion:number;cursor:number;projections:Record<string,Array<{collection:string;id:string;version:number;data:Record<string,unknown>}>>}
+export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
 
 export class ApiHttpError extends Error {
  constructor(readonly status:number,readonly code:string,message:string,readonly details?:unknown){super(message);this.name='ApiHttpError'}
@@ -28,6 +29,17 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
   return body as T;
  };
  return {
+  async login(loginName:string,password:string):Promise<ApiStaffLogin>{
+   const response=await fetcher(new URL('/v1/auth/login',url),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({loginName,password}),cache:'no-store',signal:AbortSignal.timeout(20000)});
+   const body=await response.json();if(!response.ok){const problem=body?.error;throw new ApiHttpError(response.status,problem?.code||'AUTH_INVALID',problem?.message||'Sign-in failed.')}return body as ApiStaffLogin;
+  },
+  async initialAdminSetup(input:{businessId:string;staffId:string;businessName:string;displayName:string;loginName:string;password:string},setupSecret:string){
+   const response=await fetcher(new URL('/v1/setup/initial-admin',url),{method:'POST',headers:{'content-type':'application/json','x-serveos-setup-secret':setupSecret},body:JSON.stringify(input),cache:'no-store',signal:AbortSignal.timeout(20000)});
+   if(!response.ok){const body=await response.json().catch(()=>({}));throw new ApiHttpError(response.status,body?.error?.code||'SETUP_FAILED',body?.error?.message||'Initial setup failed.')}return response.json() as Promise<{created:true}>;
+  },
+  passwordChange(currentPassword:string,newPassword:string){return request<{changed:boolean}>('/v1/auth/password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})},false)},
+  authSession(){return request<{businessId:string;staffId:string;displayName:string;permissions:string[];mustChangePassword:boolean}>('/v1/auth/session')},
+  logout(){return request<{revoked:boolean}>('/v1/auth/logout',{method:'POST'},false)},
   async submitCommand(command:ApiCommandEnvelope):Promise<ApiCommandOutcome>{
    try{return await request<ApiCommandOutcome>('/v1/commands',{method:'POST',body:JSON.stringify(command)})}
    catch(error){if(error instanceof ApiHttpError&&error.status<500)throw error;throw new ApiOutcomeUnknown(command.commandId)}

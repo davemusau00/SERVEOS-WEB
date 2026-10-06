@@ -17,6 +17,13 @@ CREATE TABLE IF NOT EXISTS api_staff_profiles (
 
 CREATE INDEX IF NOT EXISTS api_staff_profiles_login_idx ON api_staff_profiles(lower(login_name)) WHERE active;
 
+CREATE TABLE IF NOT EXISTS api_auth_attempts (
+  bucket_hash char(64) PRIMARY KEY,
+  attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  window_started_at timestamptz NOT NULL,
+  blocked_until timestamptz
+);
+
 ALTER TABLE api_staff_sessions
   ADD CONSTRAINT api_staff_sessions_staff_fk
   FOREIGN KEY (business_id,staff_id) REFERENCES api_staff_profiles(business_id,staff_id);
