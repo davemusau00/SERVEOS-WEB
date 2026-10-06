@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS products (
   favorite boolean NOT NULL DEFAULT false,
   tax_class_id text NOT NULL DEFAULT '',
   recipe boolean NOT NULL DEFAULT false,
+  recipe_yield integer CHECK (recipe_yield IS NULL OR recipe_yield > 0),
   version bigint NOT NULL CHECK (version > 0),
   archived_at timestamptz,
   created_by uuid NOT NULL,

@@ -1,4 +1,5 @@
 import {ApiProblem} from './command-kernel.mjs';
+import {randomUUID} from 'node:crypto';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const uuid = value => typeof value === 'string' && uuidPattern.test(value);
@@ -78,18 +79,60 @@ const productSave = async ({tx, command, actor, at}) => {
     ingredientById.set(ingredient.stockItemId, {stockItemId:ingredient.stockItemId,quantity:safeQuantity(ingredient.quantity,'Recipe quantity'),unit:typeof ingredient.unit === 'string' ? ingredient.unit.trim().slice(0,40) : ''});
   }
   const recipeIngredients = [...ingredientById.values()];
-  if (stockItemId && recipeIngredients.length) throw new ApiProblem(400, 'VALIDATION_FAILED', 'A product cannot use both a linked stock item and recipe ingredients.');
   const ids = [...recipeIngredients.map(item => item.stockItemId), ...(stockItemId ? [stockItemId] : [])];
   if (!await tx.requireStockItems(actor.businessId, ids)) throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'A referenced stock item is missing or archived.');
   await duplicateCheck(tx, 'products', actor.businessId, code, barcode, id);
   const version = await tx.bumpEntityVersion(actor.businessId, 'products', id, expected);
-  await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,recipe:recipeIngredients.length > 0,recipeIngredients,version});
-  return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,recipeIngredients,updatedAt:at.toISOString()}};
+  const recipeYield = data.recipeYield === undefined ? null : data.recipeYield;
+  if (recipeYield !== null && (!Number.isSafeInteger(recipeYield) || recipeYield < 1 || recipeYield > 100000)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Recipe yield must be a whole number from 1 to 100000.');
+  await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,recipe:recipeIngredients.length > 0,recipeYield,recipeIngredients,version});
+  return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,recipeIngredients,recipeYield,updatedAt:at.toISOString()}};
+};
+
+const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
+  const {id, stockItem: stock, product, locationId, startingQuantity = 0, openingMovementId} = command.payload;
+  if (!uuid(id) || !stock || typeof stock !== 'object' || !uuid(stock.id) || !uuid(locationId)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Opening stock setup requires valid stock item and location IDs.');
+  if (!await tx.requireStockLocation(actor.businessId, locationId)) throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'The selected stock location is missing or archived.');
+  const stockExpected = expectedVersion(command, 'stockItems', stock.id);
+  if (stockExpected !== 0) throw new ApiProblem(400, 'VALIDATION_FAILED', 'A new stock item must include expected version 0.');
+  const name = text(stock.name, 'Stock name');
+  const code = text(stock.code, 'Stock code', 80);
+  const barcode = optionalText(stock.barcode);
+  const baseUnit = text(stock.baseUnit, 'Base unit', 40);
+  const scanUnitQuantity = safeQuantity(stock.scanUnitQuantity ?? 1, 'Scan unit quantity');
+  const reorderLevel = safeQuantity(stock.reorderLevel ?? 0, 'Reorder level', {allowZero:true});
+  const averageUnitCostMinor = stock.averageUnitCostMinor ?? (Number.isFinite(stock.averageUnitCost) ? Math.round(stock.averageUnitCost * 100) : 0);
+  if (!Number.isSafeInteger(averageUnitCostMinor) || averageUnitCostMinor < 0) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Average unit cost must be a non-negative integer.');
+  const sealedContainerSize = stock.sealedContainerSize === undefined ? null : safeQuantity(stock.sealedContainerSize, 'Sealed container size');
+  const packs = stock.purchasePackages ?? [];
+  if (!Array.isArray(packs)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Purchase packages must be a list.');
+  const purchasePackages = packs.map((pack, index) => ({id:uuid(pack?.id)?pack.id:randomUUID(),name:text(pack?.name ?? pack?.label ?? `Package ${index+1}`,'Package name',100),quantity:safeQuantity(pack?.quantity ?? pack?.baseQuantity,'Package quantity'),unitCostMinor:Number.isSafeInteger(pack?.unitCostMinor)?pack.unitCostMinor:Number.isFinite(pack?.unitCost)?Math.round(pack.unitCost*100):0,barcode:optionalText(pack?.barcode)}));
+  if (purchasePackages.some(pack => pack.unitCostMinor < 0)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Package cost must be non-negative.');
+  await duplicateCheck(tx, 'stock_items', actor.businessId, code, barcode, stock.id);
+  const stockVersion = await tx.bumpEntityVersion(actor.businessId, 'stockItems', stock.id, 0);
+  await tx.saveStockItem({businessId:actor.businessId,staffId:actor.staffId,id:stock.id,name,code,baseUnit,barcode,barcodeAliases:[],scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages,version:stockVersion});
+  let productResult = null;
+  if (product && typeof product === 'object') {
+    const productId = product.id;
+    const productData = {...product, stockItemId: product.stockItemId ?? (product.inventoryType === 'BATCH' ? stock.id : null)};
+    const productCommand = {...command,payload:{id:productId,data:productData},expectedVersions:{...command.expectedVersions,[`products:${productId}`]:0}};
+    productResult = await productSave({tx,command:productCommand,actor,at});
+  }
+  if (startingQuantity !== 0) {
+    const quantity = safeQuantity(startingQuantity,'Opening quantity');
+    const movementId = uuid(openingMovementId) ? openingMovementId : randomUUID();
+    const movementVersion = expectedVersion(command,'stockMovements',movementId);
+    if (movementVersion !== 0) throw new ApiProblem(400,'VALIDATION_FAILED','Opening movement must include expected version 0.');
+    await tx.bumpEntityVersion(actor.businessId,'stockMovements',movementId,0);
+    await tx.createOpeningStockMovement({businessId:actor.businessId,id:movementId,stockItemId:stock.id,locationId,quantity,commandId:command.commandId,staffId:actor.staffId,at});
+  }
+  return {collection:'stockItems',id:stock.id,version:stockVersion,data:{name,code,baseUnit,barcode,scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages},product:productResult,openingQuantity:startingQuantity};
 };
 
 export const catalogCommandRegistry = new Map([
-  ['stockItem.save', {permission:'inventory.catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:stockItemSave}],
+  ['stockItem.save', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:stockItemSave}],
   ['product.save', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:productSave}],
+  ['catalog.createWithOpeningStock', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:catalogCreateWithOpeningStock}],
   ['catalog.item.create', {
     permission: 'catalog.manage',
     offlinePolicy: 'ONLINE_ONLY',

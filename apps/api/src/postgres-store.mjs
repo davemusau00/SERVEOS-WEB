@@ -269,13 +269,13 @@ class PostgresTransaction {
 
   async saveProduct(product) {
     await this.client.query(`
-      INSERT INTO products (business_id,id,name,code,price_minor,category,route_to,stock_item_id,barcode,favorite,tax_class_id,recipe,version,created_by,updated_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)
+      INSERT INTO products (business_id,id,name,code,price_minor,category,route_to,stock_item_id,barcode,favorite,tax_class_id,recipe,recipe_yield,version,created_by,updated_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
       ON CONFLICT (business_id,id) DO UPDATE SET name=EXCLUDED.name, code=EXCLUDED.code, price_minor=EXCLUDED.price_minor,
         category=EXCLUDED.category, route_to=EXCLUDED.route_to, stock_item_id=EXCLUDED.stock_item_id, barcode=EXCLUDED.barcode,
-        favorite=EXCLUDED.favorite,tax_class_id=EXCLUDED.tax_class_id,recipe=EXCLUDED.recipe,version=EXCLUDED.version,
+        favorite=EXCLUDED.favorite,tax_class_id=EXCLUDED.tax_class_id,recipe=EXCLUDED.recipe,recipe_yield=EXCLUDED.recipe_yield,version=EXCLUDED.version,
         updated_by=EXCLUDED.updated_by,updated_at=now()
-    `, [product.businessId,product.id,product.name,product.code,product.priceMinor,product.category,product.routeTo,product.stockItemId,product.barcode,product.favorite,product.taxClassId,product.recipe,product.version,product.staffId]);
+    `, [product.businessId,product.id,product.name,product.code,product.priceMinor,product.category,product.routeTo,product.stockItemId,product.barcode,product.favorite,product.taxClassId,product.recipe,product.recipeYield,product.version,product.staffId]);
     await this.client.query('DELETE FROM product_recipe_ingredients WHERE business_id=$1 AND product_id=$2', [product.businessId,product.id]);
     for (const ingredient of product.recipeIngredients) await this.client.query(`
       INSERT INTO product_recipe_ingredients (business_id,product_id,stock_item_id,quantity,unit) VALUES ($1,$2,$3,$4,$5)
