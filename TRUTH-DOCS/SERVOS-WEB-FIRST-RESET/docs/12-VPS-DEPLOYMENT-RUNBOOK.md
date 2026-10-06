@@ -152,6 +152,14 @@ Prefer expand/contract migrations so application rollback is possible.
 
 Run database backup process on VPS but send encrypted copies to an independent destination. Same-VPS-only backups do not satisfy disaster recovery.
 
+The repository's manual backup container streams PostgreSQL's custom-format dump through `age` encryption to the configured rclone remote without writing a plaintext dump to disk. Configure the remote credentials and public age recipient in the deployment environment, then run:
+
+```sh
+docker compose --profile manual-backup run --rm backup
+```
+
+The container verifies that a non-empty encrypted object exists remotely. This proves upload completion, not recoverability. Before launch, retrieve a selected object using the separately protected age identity and restore it into an isolated PostgreSQL instance; record the dump timestamp, object, schema version, restored row/control checks and duration. Never test restoration against the live database.
+
 ## 13. Firewall
 
 Public:
