@@ -39,7 +39,8 @@ export class PostgresStore {
 
   async finalizeCommandFailure({businessId,commandId,name,actor,status,error,at}){
     return this.transaction(async tx=>{
-      await tx.client.query(`UPDATE api_commands SET status=$3,error=$4::jsonb,outcome=$5::jsonb,updated_at=$6 WHERE business_id=$1 AND command_id=$2 AND status IN ('RECEIVED','PROCESSING')`,[businessId,commandId,status,JSON.stringify(error),JSON.stringify({kind:status,commandId,error}),at]);
+      const {rowCount}=await tx.client.query(`UPDATE api_commands SET status=$3,error=$4::jsonb,outcome=$5::jsonb,updated_at=$6 WHERE business_id=$1 AND command_id=$2 AND status IN ('RECEIVED','PROCESSING')`,[businessId,commandId,status,JSON.stringify(error),JSON.stringify({kind:status,commandId,error}),at]);
+      if(rowCount!==1){const saved=await tx.getCommand(businessId,commandId);return saved?.outcome;}
       await tx.insertAudit({businessId,commandId,name,actor,at,eventType:status});
       const saved=await tx.getCommand(businessId,commandId);return saved?.outcome;
     });
@@ -58,8 +59,11 @@ export class PostgresStore {
       LIMIT $3
     `, [businessId, after, limit + 1]);
     const hasMore = rows.length > limit;
-    const changes = rows.slice(0, limit).map(row => ({...row, cursor: Number(row.cursor)}));
-    return {fromCursor: after, toCursor: changes.at(-1)?.cursor ?? after, highWater, hasMore, changes};
+    const changes = rows.slice(0, limit).map(row => {
+      const projection=typeof row.projection==='string'?JSON.parse(row.projection):row.projection;
+      return {...projection,sequence:Number(row.cursor),commandId:row.commandId,occurredAt:row.occurredAt};
+    });
+    return {cursor:changes.at(-1)?.sequence??after,highWater,hasMore,changes};
   }
 
   async listCatalogItems(businessId, search = '') {
@@ -238,7 +242,7 @@ class PostgresTransaction {
 
   async getCommand(businessId, commandId) {
     const {rows} = await this.client.query(
-      'SELECT payload_hash AS "payloadHash", outcome FROM api_commands WHERE business_id = $1 AND command_id = $2 FOR UPDATE',
+      'SELECT payload_hash AS "payloadHash",status,outcome,error FROM api_commands WHERE business_id = $1 AND command_id = $2 FOR UPDATE',
       [businessId, commandId],
     );
     return rows[0] ?? null;
@@ -462,18 +466,16 @@ class PostgresTransaction {
     return Number(rows[0].cursor);
   }
 
-  async insertCommand({businessId, commandId, name, payloadHash, actor, outcome, at}) {
-    await this.client.query(`
-      INSERT INTO api_commands (business_id, command_id, command_name, payload_hash, staff_id, device_id, outcome, committed_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
-    `, [businessId, commandId, name, payloadHash, actor.staffId, actor.deviceId, JSON.stringify(outcome), at]);
+  async updateCommandOutcome({businessId,commandId,payloadHash,outcome,at}) {
+    const {rowCount}=await this.client.query(`UPDATE api_commands SET status='CONFIRMED',outcome=$3::jsonb,error=NULL,committed_at=$4,updated_at=$4 WHERE business_id=$1 AND command_id=$2 AND status='PROCESSING' AND payload_hash=$5`,[businessId,commandId,JSON.stringify(outcome),at,payloadHash]);
+    if(rowCount!==1)throw new Error('Command lifecycle changed before confirmation.');
   }
 
-  async insertAudit({businessId, commandId, name, actor, at}) {
+  async insertAudit({businessId, commandId, name, actor, at,eventType='COMMAND'}) {
     await this.client.query(`
       INSERT INTO business_audit_events (business_id, command_id, event_type, staff_id, device_id, occurred_at)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [businessId, commandId, name, actor.staffId, actor.deviceId, at]);
+    `, [businessId, commandId, eventType==='COMMAND'?name:eventType, actor.staffId, actor.deviceId, at]);
   }
 
   async insertChange({businessId, cursor, commandId, name, result, at}) {

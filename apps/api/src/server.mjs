@@ -179,7 +179,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
           try {
             const page = await store.changesAfter(actor.businessId, cursor, 100);
             if (page.changes.length) {
-              cursor = page.toCursor;
+              cursor = page.cursor;
               res.write(`event: changes\ndata: ${JSON.stringify({cursor})}\n\n`);
             }
           } catch {
@@ -214,7 +214,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if (match) {
         const actor = await authenticate(req);
         const outcome = await store.commandStatus(actor.businessId, match[1]);
-        return outcome ? json(res, 200, outcome) : json(res, 404, {error: {code: 'COMMAND_NOT_FOUND', message: 'No committed result exists for this command.'}});
+        return outcome ? json(res, 200, {commandId:match[1],status:outcome.status,outcome:outcome.outcome,error:outcome.error,receivedAt:outcome.receivedAt,updatedAt:outcome.updatedAt}) : json(res, 404, {error: {code: 'COMMAND_NOT_FOUND', message: 'No command with this ID exists.'}});
       }
       return json(res, 404, {error: {code: 'NOT_FOUND', message: 'Route not found.'}});
     } catch (error) {
