@@ -73,6 +73,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if (req.method === 'POST' && url.pathname === '/v1/devices/enroll') {
         const actor = await authenticateStaffSession(req, store);
+        if (!actor.permissions?.includes('devices.manage')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll devices.');
         const input = await readJson(req);
         const {challengeId, deviceId, publicKey, signature} = input;
         const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

@@ -11,6 +11,8 @@ ALTER TABLE api_enrolled_devices
   ADD CONSTRAINT api_enrolled_devices_business_fk FOREIGN KEY (business_id) REFERENCES businesses(id);
 ALTER TABLE api_staff_permissions
   ADD CONSTRAINT api_staff_permissions_business_fk FOREIGN KEY (business_id) REFERENCES businesses(id);
+ALTER TABLE api_device_enrollment_challenges
+  ADD CONSTRAINT api_device_enrollment_challenges_business_fk FOREIGN KEY (business_id) REFERENCES businesses(id);
 
 CREATE TABLE IF NOT EXISTS catalog_categories (
   business_id uuid NOT NULL REFERENCES businesses(id),
