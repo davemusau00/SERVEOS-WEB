@@ -14,8 +14,8 @@ export async function claimJob(pool, workerId, handlers, now = new Date()) {
         AND ((state = 'PENDING' AND available_at <= $2)
           OR (state = 'PROCESSING' AND lease_expires_at <= $2))
       ORDER BY available_at, created_at
-      FOR UPDATE SKIP LOCKED
       LIMIT 1
+      FOR UPDATE SKIP LOCKED
     `, [supported, now]);
     if (!rows.length) { await client.query('COMMIT'); return null; }
     const job = rows[0];
@@ -44,13 +44,29 @@ export async function runWorker({pool, handlers, workerId, pollMs = 1000, signal
       await new Promise(resolve => setTimeout(resolve, pollMs));
       continue;
     }
+    const jobController = new AbortController();
+    const stopWithWorker = () => jobController.abort();
+    signal?.addEventListener('abort', stopWithWorker, {once: true});
+    let leaseAlive = true;
+    const heartbeat = setInterval(async () => {
+      try {
+        const renewed = await pool.query(`
+          UPDATE async_jobs SET lease_expires_at = now() + interval '60 seconds'
+          WHERE id = $1 AND state = 'PROCESSING' AND lease_owner = $2 AND lease_expires_at > now()
+          RETURNING id
+        `, [job.id, workerId]);
+        if (!renewed.rows.length) { leaseAlive = false; jobController.abort(); }
+      } catch { leaseAlive = false; jobController.abort(); }
+    }, 20_000);
     try {
-      await handlers.get(job.jobType)(job.payload, {jobId: job.id, attempt: job.attempts});
+      await handlers.get(job.jobType)(job.payload, {jobId: job.id, attempt: job.attempts, signal: jobController.signal});
+      if (!leaseAlive) continue;
       await pool.query(`
         UPDATE async_jobs SET state = 'SUCCEEDED', finished_at = now(), lease_owner = NULL, lease_expires_at = NULL
         WHERE id = $1 AND state = 'PROCESSING' AND lease_owner = $2
       `, [job.id, workerId]);
     } catch {
+      if (!leaseAlive) continue;
       const terminal = job.attempts >= job.maxAttempts;
       const delaySeconds = Math.min(3600, 5 * (2 ** Math.min(job.attempts - 1, 9)));
       await pool.query(`
@@ -60,6 +76,9 @@ export async function runWorker({pool, handlers, workerId, pollMs = 1000, signal
             last_error_code = 'HANDLER_FAILED', lease_owner = NULL, lease_expires_at = NULL
         WHERE id = $1 AND state = 'PROCESSING' AND lease_owner = $2
       `, [job.id, workerId, terminal ? 'FAILED' : 'PENDING', delaySeconds]);
+    } finally {
+      clearInterval(heartbeat);
+      signal?.removeEventListener('abort', stopWithWorker);
     }
   }
 }
@@ -80,5 +99,5 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(error => { console.error(JSON.stringify({event: 'worker_start_failed', message: error.message})); process.exit(1); });
+  main().catch(error => { console.error(JSON.stringify({event: 'worker_start_failed', errorType: error.constructor?.name ?? 'Error'})); process.exit(1); });
 }

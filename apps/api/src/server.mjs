@@ -4,6 +4,7 @@ import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
 import {PostgresStore} from './postgres-store.mjs';
 import {createHash} from 'node:crypto';
 import {catalogCommandRegistry} from './catalog-commands.mjs';
+import {readConfig} from './config.mjs';
 
 const json = (res, status, value) => {
   res.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
@@ -66,6 +67,31 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         if (after > page.highWater) throw new ApiProblem(409, 'CURSOR_AHEAD', 'The requested cursor is ahead of this business change feed.');
         return json(res, 200, {protocolVersion: 1, ...page});
       }
+      if (req.method === 'GET' && url.pathname === '/v1/sync/stream') {
+        const actor = await authenticate(req);
+        const afterRaw = url.searchParams.get('after') ?? '0';
+        if (!/^\d+$/.test(afterRaw) || !Number.isSafeInteger(Number(afterRaw))) throw new ApiProblem(400, 'VALIDATION_FAILED', 'after must be a non-negative whole number.');
+        let cursor = Number(afterRaw);
+        const initial = await store.changesAfter(actor.businessId, cursor, 1);
+        if (cursor > initial.highWater) throw new ApiProblem(409, 'CURSOR_AHEAD', 'The requested cursor is ahead of this business change feed.');
+        res.writeHead(200, {'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no', ...(req.headers.origin && origin ? {'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true', vary: 'Origin'} : {})});
+        res.write(': connected\n\n');
+        const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 20_000);
+        const poll = setInterval(async () => {
+          try {
+            const page = await store.changesAfter(actor.businessId, cursor, 100);
+            if (page.changes.length) {
+              cursor = page.toCursor;
+              res.write(`event: changes\ndata: ${JSON.stringify({cursor})}\n\n`);
+            }
+          } catch {
+            res.write('event: unavailable\ndata: {}\n\n');
+            res.end();
+          }
+        }, 2_000);
+        res.on('close', () => { clearInterval(heartbeat); clearInterval(poll); });
+        return;
+      }
       if (req.method === 'GET' && url.pathname === '/v1/catalog/items') {
         const actor = await authenticate(req);
         if (!actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) {
@@ -90,27 +116,26 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
     } catch (error) {
       const status = Number.isInteger(error.status) ? error.status : 500;
       const code = error.code ?? 'INTERNAL_ERROR';
-      if (status >= 500) console.error(JSON.stringify({event: 'request_error', code, message: error.message}));
+      if (status >= 500) console.error(JSON.stringify({event: 'request_error', code, errorType: error.constructor?.name ?? 'Error'}));
       return json(res, status, {error: {code, message: status >= 500 ? 'The request could not be completed.' : error.message, ...(error.details ? {details: error.details} : {})}});
     }
   });
 }
 
 async function main() {
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
+  const config = readConfig();
   const {Pool} = await import('pg');
-  const pool = new Pool({connectionString: process.env.DATABASE_URL, max: Number(process.env.DB_POOL_SIZE ?? 10)});
+  const pool = new Pool({connectionString: config.databaseUrl, max: config.poolMax});
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
-  const server = createApiServer({store, registry: catalogCommandRegistry, authenticate: req => authenticateSession(req, store)});
-  const port = Number(process.env.PORT ?? 3000);
-  server.listen(port, process.env.HOST ?? '0.0.0.0', () => console.log(JSON.stringify({event: 'api_started', port})));
+  const server = createApiServer({store, registry: catalogCommandRegistry, authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
+  server.listen(config.port, config.host, () => console.log(JSON.stringify({event: 'api_started', port: config.port, environment: config.nodeEnv, logLevel: config.logLevel})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(error => { console.error(JSON.stringify({event: 'startup_failed', message: error.message})); process.exit(1); });
+  main().catch(error => { console.error(JSON.stringify({event: 'startup_failed', errorType: error.constructor?.name ?? 'Error'})); process.exit(1); });
 }
