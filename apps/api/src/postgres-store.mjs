@@ -216,6 +216,79 @@ class PostgresTransaction {
     `, [item.businessId, item.id, item.categoryId, item.name, item.sku, item.basePriceMinor, item.currency, item.trackInventory, item.version, item.staffId]);
   }
 
+  async requireStockLocation(businessId, locationId) {
+    const {rows} = await this.client.query(
+      'SELECT 1 FROM stock_locations WHERE business_id = $1 AND id = $2 AND archived_at IS NULL FOR SHARE',
+      [businessId, locationId],
+    );
+    return rows.length > 0;
+  }
+
+  async findBusinessCode(table, businessId, code, exceptId = null) {
+    if (!['products', 'stock_items'].includes(table)) throw new Error('Unsupported code lookup table.');
+    const {rows} = await this.client.query(
+      `SELECT id FROM ${table} WHERE business_id = $1 AND lower(code) = lower($2) AND archived_at IS NULL AND ($3::uuid IS NULL OR id <> $3) LIMIT 1`,
+      [businessId, code, exceptId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async findBusinessBarcode(table, businessId, barcode, exceptId = null) {
+    if (!['products', 'stock_items'].includes(table)) throw new Error('Unsupported barcode lookup table.');
+    const {rows} = await this.client.query(
+      `SELECT id FROM ${table} WHERE business_id = $1 AND lower(barcode) = lower($2) AND archived_at IS NULL AND ($3::uuid IS NULL OR id <> $3) LIMIT 1`,
+      [businessId, barcode, exceptId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async requireStockItems(businessId, ids) {
+    if (!ids.length) return true;
+    const {rows} = await this.client.query(
+      'SELECT id FROM stock_items WHERE business_id = $1 AND id = ANY($2::uuid[]) AND archived_at IS NULL FOR SHARE',
+      [businessId, ids],
+    );
+    return rows.length === new Set(ids).size;
+  }
+
+  async saveStockItem(item) {
+    await this.client.query(`
+      INSERT INTO stock_items (business_id,id,name,code,base_unit,barcode,barcode_aliases,scan_unit_quantity,reorder_level,average_unit_cost_minor,sealed_container_size,version,created_by,updated_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13)
+      ON CONFLICT (business_id,id) DO UPDATE SET name=EXCLUDED.name, code=EXCLUDED.code, base_unit=EXCLUDED.base_unit,
+        barcode=EXCLUDED.barcode, barcode_aliases=EXCLUDED.barcode_aliases, scan_unit_quantity=EXCLUDED.scan_unit_quantity,
+        reorder_level=EXCLUDED.reorder_level, average_unit_cost_minor=EXCLUDED.average_unit_cost_minor,
+        sealed_container_size=EXCLUDED.sealed_container_size, version=EXCLUDED.version, updated_by=EXCLUDED.updated_by, updated_at=now()
+    `, [item.businessId,item.id,item.name,item.code,item.baseUnit,item.barcode,item.barcodeAliases,item.scanUnitQuantity,item.reorderLevel,item.averageUnitCostMinor,item.sealedContainerSize,item.version,item.staffId]);
+    await this.client.query('DELETE FROM stock_purchase_packages WHERE business_id=$1 AND stock_item_id=$2', [item.businessId,item.id]);
+    for (const [index, pack] of item.purchasePackages.entries()) await this.client.query(`
+      INSERT INTO stock_purchase_packages (business_id,stock_item_id,id,name,quantity,unit_cost_minor,barcode,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    `, [item.businessId,item.id,pack.id,pack.name,pack.quantity,pack.unitCostMinor,pack.barcode,index]);
+  }
+
+  async saveProduct(product) {
+    await this.client.query(`
+      INSERT INTO products (business_id,id,name,code,price_minor,category,route_to,stock_item_id,barcode,favorite,tax_class_id,recipe,version,created_by,updated_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)
+      ON CONFLICT (business_id,id) DO UPDATE SET name=EXCLUDED.name, code=EXCLUDED.code, price_minor=EXCLUDED.price_minor,
+        category=EXCLUDED.category, route_to=EXCLUDED.route_to, stock_item_id=EXCLUDED.stock_item_id, barcode=EXCLUDED.barcode,
+        favorite=EXCLUDED.favorite,tax_class_id=EXCLUDED.tax_class_id,recipe=EXCLUDED.recipe,version=EXCLUDED.version,
+        updated_by=EXCLUDED.updated_by,updated_at=now()
+    `, [product.businessId,product.id,product.name,product.code,product.priceMinor,product.category,product.routeTo,product.stockItemId,product.barcode,product.favorite,product.taxClassId,product.recipe,product.version,product.staffId]);
+    await this.client.query('DELETE FROM product_recipe_ingredients WHERE business_id=$1 AND product_id=$2', [product.businessId,product.id]);
+    for (const ingredient of product.recipeIngredients) await this.client.query(`
+      INSERT INTO product_recipe_ingredients (business_id,product_id,stock_item_id,quantity,unit) VALUES ($1,$2,$3,$4,$5)
+    `, [product.businessId,product.id,ingredient.stockItemId,ingredient.quantity,ingredient.unit]);
+  }
+
+  async createOpeningStockMovement({businessId, id, stockItemId, locationId, quantity, commandId, staffId, at}) {
+    await this.client.query(`
+      INSERT INTO inventory_movements (business_id,id,stock_item_id,location_id,quantity_delta,reason,source_command_id,staff_id,occurred_at)
+      VALUES ($1,$2,$3,$4,$5,'OPENING_BALANCE',$6,$7,$8)
+    `, [businessId,id,stockItemId,locationId,quantity,commandId,staffId,at]);
+  }
+
   async findCatalogSku(businessId, sku) {
     const {rows} = await this.client.query(
       'SELECT id FROM catalog_items WHERE business_id = $1 AND lower(sku) = lower($2) AND archived_at IS NULL',
