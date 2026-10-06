@@ -158,7 +158,7 @@ The repository's manual backup container streams PostgreSQL's custom-format dump
 docker compose --profile manual-backup run --rm backup
 ```
 
-The container verifies that a non-empty encrypted object exists remotely. This proves upload completion, not recoverability. Before launch, retrieve a selected object using the separately protected age identity and restore it into an isolated PostgreSQL instance; record the dump timestamp, object, schema version, restored row/control checks and duration. Never test restoration against the live database.
+The container verifies that a non-empty encrypted object exists remotely and applies the configured age-in-days retention to that dedicated backup prefix. This proves upload completion, not recoverability. Before launch, retrieve a selected object using the separately protected age identity and restore it into an isolated PostgreSQL instance; record the dump timestamp, object, schema version, restored row/control checks and duration. Never test restoration against the live database.
 
 ## 13. Firewall
 
