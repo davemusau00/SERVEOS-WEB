@@ -244,7 +244,7 @@ class PostgresTransaction {
 
   async findStockBarcode(businessId, barcode, exceptStockId = null) {
     const {rows} = await this.client.query(`
-      SELECT id FROM stock_items WHERE business_id=$1 AND lower(barcode)=lower($2) AND archived_at IS NULL AND ($3::uuid IS NULL OR id<>$3)
+      SELECT id FROM stock_items WHERE business_id=$1 AND (lower(barcode)=lower($2) OR lower(code)=lower($2) OR $2=ANY(barcode_aliases)) AND archived_at IS NULL AND ($3::uuid IS NULL OR id<>$3)
       UNION ALL
       SELECT stock_item_id AS id FROM stock_purchase_packages WHERE business_id=$1 AND lower(barcode)=lower($2) AND ($3::uuid IS NULL OR stock_item_id<>$3)
       LIMIT 1
@@ -259,6 +259,12 @@ class PostgresTransaction {
       [businessId, ids],
     );
     return rows.length === new Set(ids).size;
+  }
+
+  async requireOutlets(businessId, ids) {
+    if(!ids.length)return true;
+    const {rows}=await this.client.query('SELECT id FROM business_outlets WHERE business_id=$1 AND id=ANY($2::uuid[]) AND archived_at IS NULL FOR SHARE',[businessId,ids]);
+    return rows.length===new Set(ids).size;
   }
 
   async saveStockItem(item) {
@@ -279,18 +285,20 @@ class PostgresTransaction {
 
   async saveProduct(product) {
     await this.client.query(`
-      INSERT INTO products (business_id,id,name,code,price_minor,category,route_to,stock_item_id,barcode,favorite,tax_class_id,recipe,inventory_type,recipe_yield,portion_volume,selling_mode,portions,version,created_by,updated_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$19)
+      INSERT INTO products (business_id,id,name,code,price_minor,category,route_to,stock_item_id,barcode,favorite,tax_class_id,recipe,inventory_type,recipe_yield,portion_volume,selling_mode,portions,outlet_ids,version,created_by,updated_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::uuid[],$19,$20,$20)
       ON CONFLICT (business_id,id) DO UPDATE SET name=EXCLUDED.name, code=EXCLUDED.code, price_minor=EXCLUDED.price_minor,
         category=EXCLUDED.category, route_to=EXCLUDED.route_to, stock_item_id=EXCLUDED.stock_item_id, barcode=EXCLUDED.barcode,
         favorite=EXCLUDED.favorite,tax_class_id=EXCLUDED.tax_class_id,recipe=EXCLUDED.recipe,inventory_type=EXCLUDED.inventory_type,recipe_yield=EXCLUDED.recipe_yield,
-        portion_volume=EXCLUDED.portion_volume,selling_mode=EXCLUDED.selling_mode,portions=EXCLUDED.portions,version=EXCLUDED.version,
+        portion_volume=EXCLUDED.portion_volume,selling_mode=EXCLUDED.selling_mode,portions=EXCLUDED.portions,outlet_ids=EXCLUDED.outlet_ids,version=EXCLUDED.version,
         updated_by=EXCLUDED.updated_by,updated_at=now()
-    `, [product.businessId,product.id,product.name,product.code,product.priceMinor,product.category,product.routeTo,product.stockItemId,product.barcode,product.favorite,product.taxClassId,product.recipe,product.inventoryType,product.recipeYield,product.portionVolume,product.sellingMode,JSON.stringify(product.portions),product.version,product.staffId]);
+    `, [product.businessId,product.id,product.name,product.code,product.priceMinor,product.category,product.routeTo,product.stockItemId,product.barcode,product.favorite,product.taxClassId,product.recipe,product.inventoryType,product.recipeYield,product.portionVolume,product.sellingMode,JSON.stringify(product.portions),product.outletIds,product.version,product.staffId]);
     await this.client.query('DELETE FROM product_recipe_ingredients WHERE business_id=$1 AND product_id=$2', [product.businessId,product.id]);
     for (const ingredient of product.recipeIngredients) await this.client.query(`
       INSERT INTO product_recipe_ingredients (business_id,product_id,stock_item_id,quantity,unit) VALUES ($1,$2,$3,$4,$5)
     `, [product.businessId,product.id,ingredient.stockItemId,ingredient.quantity,ingredient.unit]);
+    await this.client.query('DELETE FROM product_outlets WHERE business_id=$1 AND product_id=$2',[product.businessId,product.id]);
+    for(const outletId of product.outletIds)await this.client.query('INSERT INTO product_outlets (business_id,product_id,outlet_id) VALUES ($1,$2,$3)',[product.businessId,product.id,outletId]);
   }
 
   async createOpeningStockMovement({businessId, id, stockItemId, locationId, quantity, commandId, staffId, at}) {

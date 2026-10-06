@@ -29,11 +29,13 @@ export function resolveOperationDependencies(operation: string, collection: stri
     const stockId = typeof stock?.id === 'string' && stock.id.trim() ? stock.id : id;
     add('stockItems', stockId);
     add('stockLocations', payload.locationId);
+    if (payload.openingMovementId) add('stockMovements',payload.openingMovementId);
     if (product) {
       add('products', typeof product.id === 'string' && product.id.trim() ? product.id : `${id}:product`);
       if (Array.isArray(product.recipeIngredients)) {
         for (const ingredient of product.recipeIngredients) if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
       }
+      if (Array.isArray(product.outletIds)) for (const outletId of product.outletIds) add('outlets', outletId);
       if (Array.isArray(product.outletIds)) for (const outletId of product.outletIds) add('outlets', outletId);
     }
     const opening = Number(payload.startingQuantity);
@@ -46,6 +48,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
         if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
       }
     }
+    if (Array.isArray(productData?.outletIds)) for (const outletId of productData.outletIds) add('outlets', outletId);
     if (Array.isArray(productData?.outletIds)) for (const outletId of productData.outletIds) add('outlets', outletId);
   }
   if (operation === 'roomStay.settings') add('property', 'property');

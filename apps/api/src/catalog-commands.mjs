@@ -30,6 +30,8 @@ const stockItemSave = async ({tx, command, actor, at}) => {
   const code = text(data.code, 'Code', 80);
   const baseUnit = text(data.baseUnit, 'Base unit', 40);
   const barcode = optionalText(data.barcode);
+  const outletIds=data.outletIds??[];
+  if(!Array.isArray(outletIds)||outletIds.some(outletId=>!uuid(outletId))||new Set(outletIds).size!==outletIds.length)throw new ApiProblem(400,'VALIDATION_FAILED','Service areas must be unique valid IDs.');
   const scanUnitQuantity = safeQuantity(data.scanUnitQuantity ?? 1, 'Scan unit quantity');
   const reorderLevel = safeQuantity(data.reorderLevel ?? 0, 'Reorder level', {allowZero: true});
   const averageUnitCostMinor = data.averageUnitCostMinor ?? 0;
@@ -83,6 +85,7 @@ const productSave = async ({tx, command, actor, at}) => {
   const recipeIngredients = [...ingredientById.values()];
   const ids = [...recipeIngredients.map(item => item.stockItemId), ...(stockItemId ? [stockItemId] : [])];
   if (!await tx.requireStockItems(actor.businessId, ids)) throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'A referenced stock item is missing or archived.');
+  if(!await tx.requireOutlets(actor.businessId,outletIds))throw new ApiProblem(409,'RESOURCE_CONFLICT','A selected service area is missing or archived.');
   await duplicateCheck(tx, 'products', actor.businessId, code, barcode, id);
   const version = await tx.bumpEntityVersion(actor.businessId, 'products', id, expected);
   const recipeYield = data.recipeYield === undefined ? null : data.recipeYield;
@@ -94,8 +97,8 @@ const productSave = async ({tx, command, actor, at}) => {
   if (sellingMode && !['SERVING_AND_BOTTLE','BOTTLE_ONLY'].includes(sellingMode)) throw new ApiProblem(400,'VALIDATION_FAILED','Selling mode is unsupported.');
   const portions = data.portions ?? [];
   if (!Array.isArray(portions) || portions.some(portion => !portion || typeof portion !== 'object' || typeof portion.id !== 'string' || typeof portion.name !== 'string' || !Number.isSafeInteger(portion.priceMinor) || portion.priceMinor < 0 || !Number.isFinite(portion.volume) || portion.volume <= 0)) throw new ApiProblem(400,'VALIDATION_FAILED','Product portions are malformed.');
-  await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,recipe:recipeIngredients.length > 0,inventoryType,recipeYield,portionVolume,sellingMode,portions,recipeIngredients,version});
-  return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeIngredients,recipeYield,portionVolume,sellingMode,portions,updatedAt:at.toISOString()}};
+  await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeYield,portionVolume,sellingMode,portions,outletIds,recipe:recipeIngredients.length > 0,recipeIngredients,version});
+  return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeIngredients,recipeYield,portionVolume,sellingMode,portions,outletIds,updatedAt:at.toISOString()}};
 };
 
 const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
@@ -105,6 +108,7 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   if (!await tx.requireStockLocation(actor.businessId, locationId)) throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'The selected stock location is missing or archived.');
   const stockExpected = expectedVersion(command, 'stockItems', stockId);
   if (stockExpected !== 0) throw new ApiProblem(400, 'VALIDATION_FAILED', 'A new stock item must include expected version 0.');
+  const locationExpected = expectedVersion(command,'stockLocations',locationId);
   const locationExpected = expectedVersion(command,'stockLocations',locationId);
   if(locationExpected<1)throw new ApiProblem(409,'RESOURCE_CONFLICT','The stock location must have a current version before opening stock can be posted.');
   const name = text(stock.name, 'Stock name');
@@ -136,13 +140,13 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
     productResult = await productSave({tx,command:productCommand,actor,at});
   }
   if (startingQuantity !== 0) {
+    if(locationExpected<1)throw new ApiProblem(409,'RESOURCE_CONFLICT','The stock location must have a current version before opening stock can be posted.');
     const quantity = safeQuantity(startingQuantity,'Opening quantity');
     const movementId = uuid(openingMovementId) ? openingMovementId : randomUUID();
     const movementVersion = expectedVersion(command,'stockMovements',movementId);
     if (movementVersion !== 0) throw new ApiProblem(400,'VALIDATION_FAILED','Opening movement must include expected version 0.');
     await tx.bumpEntityVersion(actor.businessId,'stockMovements',movementId,0);
     await tx.bumpEntityVersion(actor.businessId,'stockLocations',locationId,locationExpected);
-    for(const ingredient of product?.recipeIngredients||[])if(ingredient&&uuid(ingredient.stockItemId))expectedVersion(command,'stockItems',ingredient.stockItemId);
     await tx.createOpeningStockMovement({businessId:actor.businessId,id:movementId,stockItemId:stockId,locationId,quantity,commandId:command.commandId,staffId:actor.staffId,at});
     await tx.upsertInventoryBalance({businessId:actor.businessId,stockItemId:stockId,locationId,quantityDelta:quantity});
   }

@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS stock_purchase_packages (
   PRIMARY KEY (business_id, stock_item_id, id),
   FOREIGN KEY (business_id, stock_item_id) REFERENCES stock_items(business_id, id) ON DELETE CASCADE
 );
+CREATE UNIQUE INDEX IF NOT EXISTS stock_package_barcode_uq ON stock_purchase_packages(business_id, lower(barcode)) WHERE barcode IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS products (
   business_id uuid NOT NULL REFERENCES businesses(id),
@@ -109,4 +110,25 @@ CREATE TABLE IF NOT EXISTS inventory_location_balances (
   PRIMARY KEY (business_id, stock_item_id, location_id),
   FOREIGN KEY (business_id, stock_item_id) REFERENCES stock_items(business_id, id),
   FOREIGN KEY (business_id, location_id) REFERENCES stock_locations(business_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS business_outlets (
+  business_id uuid NOT NULL REFERENCES businesses(id),
+  id uuid NOT NULL,
+  name text NOT NULL CHECK (length(btrim(name)) BETWEEN 1 AND 120),
+  default_stock_location_id uuid,
+  version bigint NOT NULL CHECK (version > 0),
+  archived_at timestamptz,
+  PRIMARY KEY (business_id,id),
+  FOREIGN KEY (business_id,default_stock_location_id) REFERENCES stock_locations(business_id,id)
+);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS outlet_ids uuid[] NOT NULL DEFAULT '{}';
+
+CREATE TABLE IF NOT EXISTS product_outlets (
+  business_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  outlet_id uuid NOT NULL,
+  PRIMARY KEY (business_id,product_id,outlet_id),
+  FOREIGN KEY (business_id,product_id) REFERENCES products(business_id,id) ON DELETE CASCADE,
+  FOREIGN KEY (business_id,outlet_id) REFERENCES business_outlets(business_id,id)
 );
