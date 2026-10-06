@@ -59,20 +59,24 @@ export function normalizeActor(actor) {
 export async function executeCommand({db, command: input, actor: actorInput, registry, now = () => new Date()}) {
   const command = validateCommandEnvelope(input);
   const actor = normalizeActor(actorInput);
-  const definition = registry.get(command.name);
-  if (!definition) throw new ApiProblem(404, 'UNKNOWN_COMMAND', 'This command is not available on this API version.');
-
-  if (!actor.permissions?.includes(definition.permission)) {
-    throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to perform this action.');
-  }
-  if (definition.offlinePolicy === 'ONLINE_ONLY' && command.offlineGrantId) {
-    throw new ApiProblem(403, 'OFFLINE_NOT_ALLOWED', 'This action must be performed while connected.');
-  }
-  if (definition.offlinePolicy === 'GRANTED_ONLY' && !command.offlineGrantId) {
-    throw new ApiProblem(403, 'OFFLINE_GRANT_REQUIRED', 'An active offline grant is required for this action.');
-  }
-
   const hash = commandHash(command);
+  const definition = registry.get(command.name);
+  const received = typeof db.persistCommandReceived === 'function'
+    ? await db.persistCommandReceived({businessId:actor.businessId,commandId:command.commandId,name:command.name,payloadHash:hash,actor,request:command,at:now()})
+    : null;
+  if(received?.payloadHash&&received.payloadHash!==hash)throw new ApiProblem(409,'COMMAND_ID_REUSED','This command ID was already used with a different payload.');
+  if(received?.outcome&&(received.status==='CONFIRMED'||received.status==='REJECTED'||received.status==='CONFLICT'))return received.outcome;
+  const terminalFailure=async error=>{
+    const status=error.status===409||error.code==='VERSION_CONFLICT'?'CONFLICT':'REJECTED';
+    const safe={code:error.code||'COMMAND_REJECTED',message:error.status>=500?'The request could not be completed.':error.message,retryable:error.status>=500};
+    if(typeof db.finalizeCommandFailure==='function')return db.finalizeCommandFailure({businessId:actor.businessId,commandId:command.commandId,name:command.name,actor,status,error:safe,at:now()});
+    throw error;
+  };
+  if(!definition)return terminalFailure(new ApiProblem(404,'UNKNOWN_COMMAND','This command is not available on this API version.'));
+  if(!actor.permissions?.includes(definition.permission))return terminalFailure(new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to perform this action.'));
+  if(definition.offlinePolicy==='ONLINE_ONLY'&&command.offlineGrantId)return terminalFailure(new ApiProblem(403,'OFFLINE_NOT_ALLOWED','This action must be performed while connected.'));
+  if(definition.offlinePolicy==='GRANTED_ONLY'&&!command.offlineGrantId)return terminalFailure(new ApiProblem(403,'OFFLINE_GRANT_REQUIRED','An active offline grant is required for this action.'));
+  await db.setCommandProcessing?.(actor.businessId,command.commandId,now());
   try {
     return await db.transaction(async tx => {
     const existing = await tx.getCommand(actor.businessId, command.commandId);
@@ -110,7 +114,7 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
     const result = await definition.handler({tx, command, actor, at: now()});
     const cursor = await tx.nextChangeCursor(actor.businessId);
     const outcome = {kind: 'CONFIRMED', commandId: command.commandId, result, cursor};
-    await tx.insertCommand({
+    await tx.updateCommandOutcome({
       businessId: actor.businessId,
       commandId: command.commandId,
       name: command.name,
@@ -119,12 +123,13 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
       outcome,
       at: now(),
     });
-    await tx.insertAudit({businessId: actor.businessId, commandId: command.commandId, name: command.name, actor, at: now()});
-    await tx.insertChange({businessId: actor.businessId, cursor, commandId: command.commandId, name: command.name, result, at: now()});
+    await tx.insertAudit({businessId: actor.businessId, commandId: command.commandId, name: command.name, actor, at: now(),eventType:'CONFIRMED'});
+    const records=Array.isArray(result.records)?result.records:result.collection&&result.id&&result.version? [{collection:result.collection,id:result.id,version:result.version,data:result.data??{},archived:false}]:[];
+    await tx.insertChange({businessId: actor.businessId, cursor, commandId: command.commandId, name: command.name, result:{sequence:cursor,commandId:command.commandId,actorId:actor.staffId,deviceId:actor.deviceId,occurredAt:now().toISOString(),records}, at: now()});
     return outcome;
     });
   } catch (error) {
-    if (error?.code === '23505') throw new ApiProblem(409, 'DUPLICATE_REFERENCE', 'A record with one of these identifiers already exists.');
-    throw error;
+    const normalized=error?.code==='23505'?new ApiProblem(409,'DUPLICATE_REFERENCE','A record with one of these identifiers already exists.'):error;
+    return terminalFailure(normalized);
   }
 }
