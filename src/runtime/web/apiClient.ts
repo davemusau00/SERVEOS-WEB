@@ -1,6 +1,6 @@
 export interface ApiCommandEnvelope {commandId:string;name:string;payload:Record<string,unknown>;expectedVersions:Record<string,number>;offlineGrantId?:string}
-export interface ApiCommandOutcome {kind:'CONFIRMED';commandId:string;cursor:number;result:unknown}
-export interface ApiChangePage {protocolVersion:1;fromCursor:number;toCursor:number;highWater:number;hasMore:boolean;changes:Array<{cursor:number;commandId:string;changeType:string;projection:unknown;occurredAt:string}>}
+export interface ApiCommandOutcome {kind:'CONFIRMED'|'REJECTED'|'CONFLICT';commandId:string;cursor?:number;result?:unknown;error?:{code:string;message:string;retryable:boolean}}
+export interface ApiChangePage {protocolVersion:1;cursor:number;highWater:number;hasMore:boolean;changes:Array<{sequence:number;commandId:string;actorId?:string;deviceId?:string;occurredAt:string;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}>}
 export interface ApiCatalogItem {id:string;categoryId:string|null;name:string;sku:string|null;basePriceMinor:number;currency:string;trackInventory:boolean;version:number;createdAt:string}
 export interface ApiCatalogBootstrap {protocolVersion:number;cursor:number;projections:Record<string,Array<{collection:string;id:string;version:number;data:Record<string,unknown>}>>}
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
@@ -44,7 +44,7 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
    try{return await request<ApiCommandOutcome>('/v1/commands',{method:'POST',body:JSON.stringify(command)})}
    catch(error){if(error instanceof ApiHttpError&&error.status<500)throw error;throw new ApiOutcomeUnknown(command.commandId)}
   },
-  commandStatus(commandId:string){return request<ApiCommandOutcome>(`/v1/commands/${encodeURIComponent(commandId)}`)},
+  commandStatus(commandId:string){return request<{commandId:string;status:'RECEIVED'|'PROCESSING'|'CONFIRMED'|'REJECTED'|'CONFLICT';outcome?:ApiCommandOutcome;error?:ApiCommandOutcome['error']}>(`/v1/commands/${encodeURIComponent(commandId)}`)},
   changes(after:number,limit=200){return request<ApiChangePage>(`/v1/sync/changes?after=${encodeURIComponent(after)}&limit=${encodeURIComponent(limit)}`)},
   catalogItems(search=''){return request<{items:ApiCatalogItem[]}>(`/v1/catalog/items?search=${encodeURIComponent(search)}`)},
   bootstrapCatalog(){return request<ApiCatalogBootstrap>('/v1/bootstrap/catalog')},

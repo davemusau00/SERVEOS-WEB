@@ -1,7 +1,19 @@
 import type {BusinessCommandV2,ChangePage,TransactionResult} from '../../types/transactions';
 import {BusinessStore} from './BusinessStore';
+import {createServOSApiClient} from './apiClient';
 
 export interface CloudTransport {execute(command:BusinessCommandV2):Promise<TransactionResult>;pull(cursor:number):Promise<ChangePage>}
+
+export function createApiTransport(client:ReturnType<typeof createServOSApiClient>):CloudTransport{
+ return {
+  async execute(command){
+   const outcome=await client.submitCommand({commandId:command.id,name:command.operation,payload:command.payload,expectedVersions:Object.fromEntries(command.expectedVersions.map(item=>[`${item.collection}:${item.id}`,item.version]))});
+   if(outcome.kind==='CONFIRMED')return {commandId:command.id,status:'SYNCHRONIZED',recordVersions:[],serverSequence:outcome.cursor};
+   return {commandId:command.id,status:outcome.kind==='CONFLICT'?'CONFLICT':'REJECTED',recordVersions:[],error:outcome.error||{code:outcome.kind,message:'The API did not confirm this command.',retryable:false}};
+  },
+  pull(cursor){return client.changes(cursor,200)}
+ };
+}
 export type SyncUpdate={type:'SYNC_STARTED'|'SYNC_FINISHED'|'SYNC_FAILED';at:string};
 const syncChannel=(scope:string,deviceId:string,actorId:string)=>`servos-v2-sync:${scope}:${deviceId}:${actorId}:updates`;
 export function subscribeSyncUpdates(scope:string,deviceId:string,actorId:string,onUpdate:(update:SyncUpdate)=>void){

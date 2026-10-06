@@ -21,7 +21,7 @@ export interface TransactionResult {
   commandId:string; status:TransactionState; serverSequence?:number; recordVersions:RecordVersion[]; auditReference?:string;
   error?:{code:string;message:string;retryable:boolean};
 }
-export interface ChangePage { cursor:number; hasMore:boolean; changes:Array<{sequence:number;commandId:string;actorId?:string;deviceId?:string;occurredAt:string;records:Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>}> }
+export interface ChangePage { cursor:number; hasMore:boolean; highWater?:number; changes:Array<{sequence:number;commandId:string;actorId?:string;deviceId?:string;occurredAt:string;records:Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>}> }
 export interface OfflineGrant {
   id:string; deviceId:string; actorId:string; policyVersion:number; notBefore:string; expiresAt:string;
   permissions:string[]; allocations:Array<AllocationReference & {kind:'STOCK'|'ROOM'|'ORDER'|'TABLE'|'FOLIO'|'CREDIT'|'POINTS'|'TICKET'|'ASSET';resourceId:string;remaining:number;startsAt?:string;endsAt?:string}>;

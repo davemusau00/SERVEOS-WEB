@@ -82,14 +82,14 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
     const existing = await tx.getCommand(actor.businessId, command.commandId);
     if (existing) {
       if (existing.payloadHash !== hash) throw new ApiProblem(409, 'COMMAND_ID_REUSED', 'This command ID was already used with a different payload.');
-      return existing.outcome;
+      if(existing.outcome)return existing.outcome;
     }
 
     if (typeof tx.lockCommandKey === 'function') await tx.lockCommandKey(actor.businessId, command.commandId);
     const afterLock = await tx.getCommand(actor.businessId, command.commandId);
     if (afterLock) {
       if (afterLock.payloadHash !== hash) throw new ApiProblem(409, 'COMMAND_ID_REUSED', 'This command ID was already used with a different payload.');
-      return afterLock.outcome;
+      if(afterLock.outcome)return afterLock.outcome;
     }
 
     if (Object.keys(command.expectedVersions).length) {
