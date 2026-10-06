@@ -13,14 +13,16 @@
 
 - Added an isolated Node API command kernel with envelope validation, permission enforcement, offline-grant enforcement, payload hashing, idempotent command replay, expected transaction boundary, audit event, and ordered change cursor.
 - Added PostgreSQL schema for command outcomes, audit, ordered changes, and bounded offline grants.
-- Added health/readiness, command submission, and command-status routes. Authentication is injected at the server boundary; deployment is blocked until a production session/device authenticator replaces the local header adapter.
+- Added health/readiness, command submission, and command-status routes. The production path hashes bearer tokens and resolves live session, enrolled device and permissions from PostgreSQL; callers cannot assert identity or permissions with headers.
+- Added expected-version validation under PostgreSQL row locks. Missing rows have version zero; mismatches return a stable conflict with current/expected version details.
 - Commands have no business handlers by default. Unregistered commands return an error; no business success is fabricated.
 - Added focused tests for envelope validation, transactional write intent, idempotent replay, payload mismatch, permission denial, and grant requirement.
 
 ## Still pending
 
 - Reproducible baseline build/test execution and generated-file policy decision.
-- Production authentication/device enrollment and expected-version enforcement in domain handlers.
+- Authentication/device enrollment/session issuance administration flows and key lifecycle. The API verifies seeded/issued credentials but does not yet provide the staff login or enrollment UI/API.
+- Domain handlers must update `business_entity_versions` in the same business transaction; the initial kernel only validates the table.
 - Shared API/client contract generation, bootstrap/change-feed/SSE, and PWA IndexedDB outbox migration.
 - API image/build, isolated staging deployment, actual off-VPS encrypted backup and restore verification.
 - Business domain migrations, document spooler/Print Bridge, one-time data migration, pilot, production cutover, and Tauri retirement.

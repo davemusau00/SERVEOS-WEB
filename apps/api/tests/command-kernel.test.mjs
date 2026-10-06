@@ -13,6 +13,7 @@ function memoryStore() {
   const tx = {
     getCommand: async (businessId, commandId) => commands.get(`${businessId}:${commandId}`) ?? null,
     consumeOfflineGrant: async () => { throw new Error('not expected'); },
+    assertExpectedVersions: async () => {},
     nextChangeCursor: async () => ++cursor,
     insertCommand: async entry => { commands.set(`${entry.businessId}:${entry.commandId}`, {payloadHash: entry.payloadHash, outcome: entry.outcome}); writes.push('command'); },
     insertAudit: async () => writes.push('audit'),
@@ -57,4 +58,27 @@ test('enforces permission and offline grant policy before invoking a handler', a
   await assert.rejects(() => executeCommand({db, command, actor: {...actor, permissions: []}, registry}), {code: 'PERMISSION_DENIED'});
   const offline = new Map([['catalog.item.create', {...registry.get('catalog.item.create'), offlinePolicy: 'GRANTED_ONLY'}]]);
   await assert.rejects(() => executeCommand({db, command, actor, registry: offline}), {code: 'OFFLINE_GRANT_REQUIRED'});
+});
+
+test('checks expected versions before the domain handler runs', async () => {
+  const db = memoryStore();
+  let checked = false;
+  db.transaction = work => work({
+    ...{
+      getCommand: async () => null,
+      lockCommandKey: async () => {},
+      nextChangeCursor: async () => 1,
+      insertCommand: async () => {},
+      insertAudit: async () => {},
+      insertChange: async () => {},
+      consumeOfflineGrant: async () => {},
+    },
+    assertExpectedVersions: async (_businessId, versions) => { checked = versions['items:tea'] === 3; },
+  });
+  const commandWithVersion = {...command, expectedVersions: {'items:tea': 3}};
+  let handled = false;
+  const versioned = new Map([['catalog.item.create', {permission: 'catalog.create', offlinePolicy: 'ONLINE_ONLY', handler: async () => { handled = true; return {}; }}]]);
+  await executeCommand({db, command: commandWithVersion, actor, registry: versioned});
+  assert.equal(checked, true);
+  assert.equal(handled, true);
 });

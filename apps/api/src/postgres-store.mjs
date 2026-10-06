@@ -24,6 +24,20 @@ export class PostgresStore {
     );
     return rows[0]?.outcome ?? null;
   }
+
+  async authenticateSession(tokenHash, deviceId, now = new Date()) {
+    const {rows} = await this.pool.query(`
+      SELECT s.business_id AS "businessId", s.staff_id AS "staffId", d.id AS "deviceId",
+             COALESCE(array_agg(p.permission) FILTER (WHERE p.permission IS NOT NULL), '{}') AS permissions
+      FROM api_staff_sessions s
+      JOIN api_enrolled_devices d ON d.business_id = s.business_id AND d.staff_id = s.staff_id AND d.id = $2
+      LEFT JOIN api_staff_permissions p ON p.business_id = s.business_id AND p.staff_id = s.staff_id
+      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $3
+        AND d.revoked_at IS NULL
+      GROUP BY s.business_id, s.staff_id, d.id
+    `, [tokenHash, deviceId, now]);
+    return rows[0] ?? null;
+  }
 }
 
 class PostgresTransaction {
@@ -42,6 +56,32 @@ class PostgresTransaction {
       'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
       [`${businessId}:${commandId}`],
     );
+  }
+
+  async assertExpectedVersions(businessId, expectedVersions) {
+    for (const [key, expected] of Object.entries(expectedVersions).sort(([a], [b]) => a.localeCompare(b))) {
+      const separator = key.indexOf(':');
+      if (separator <= 0 || separator === key.length - 1 || !Number.isSafeInteger(expected) || expected < 0) {
+        const error = new Error(`Invalid expected version entry: ${key}`);
+        error.status = 400;
+        error.code = 'VALIDATION_FAILED';
+        throw error;
+      }
+      const entityType = key.slice(0, separator);
+      const entityId = key.slice(separator + 1);
+      const {rows} = await this.client.query(
+        'SELECT version FROM business_entity_versions WHERE business_id = $1 AND entity_type = $2 AND entity_id = $3 FOR UPDATE',
+        [businessId, entityType, entityId],
+      );
+      const actual = rows.length ? Number(rows[0].version) : 0;
+      if (actual !== expected) {
+        const error = new Error('A resource changed after this workflow was reviewed. Refresh it and try again.');
+        error.status = 409;
+        error.code = 'VERSION_CONFLICT';
+        error.details = {entityType, entityId, expectedVersion: expected, currentVersion: actual};
+        throw error;
+      }
+    }
   }
 
   async consumeOfflineGrant({grantId, businessId, deviceId, staffId, commandName, commandId, at}) {

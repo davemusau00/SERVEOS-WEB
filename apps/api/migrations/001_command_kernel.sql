@@ -10,6 +10,43 @@ CREATE TABLE IF NOT EXISTS api_commands (
   PRIMARY KEY (business_id, command_id)
 );
 
+-- Session tokens are random bearer credentials; only their SHA-256 hashes are stored.
+CREATE TABLE IF NOT EXISTS api_staff_sessions (
+  id uuid PRIMARY KEY,
+  business_id uuid NOT NULL,
+  staff_id uuid NOT NULL,
+  token_hash char(64) NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL,
+  revoked_at timestamptz,
+  CHECK (expires_at > created_at)
+);
+
+CREATE TABLE IF NOT EXISTS api_enrolled_devices (
+  id uuid NOT NULL,
+  business_id uuid NOT NULL,
+  staff_id uuid NOT NULL,
+  public_key text NOT NULL,
+  created_at timestamptz NOT NULL,
+  revoked_at timestamptz,
+  PRIMARY KEY (business_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS api_staff_permissions (
+  business_id uuid NOT NULL,
+  staff_id uuid NOT NULL,
+  permission text NOT NULL,
+  PRIMARY KEY (business_id, staff_id, permission)
+);
+
+CREATE TABLE IF NOT EXISTS business_entity_versions (
+  business_id uuid NOT NULL,
+  entity_type text NOT NULL,
+  entity_id text NOT NULL,
+  version bigint NOT NULL CHECK (version > 0),
+  PRIMARY KEY (business_id, entity_type, entity_id)
+);
+
 CREATE TABLE IF NOT EXISTS business_audit_events (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   business_id uuid NOT NULL,

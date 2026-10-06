@@ -81,6 +81,13 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
       return afterLock.outcome;
     }
 
+    if (Object.keys(command.expectedVersions).length) {
+      if (typeof tx.assertExpectedVersions !== 'function') {
+        throw new ApiProblem(500, 'VERSION_CHECK_UNAVAILABLE', 'This API cannot safely validate resource versions.');
+      }
+      await tx.assertExpectedVersions(actor.businessId, command.expectedVersions);
+    }
+
     if (command.offlineGrantId) {
       await tx.consumeOfflineGrant({
         grantId: command.offlineGrantId,

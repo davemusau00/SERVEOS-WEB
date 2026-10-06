@@ -2,6 +2,7 @@ import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
 import {PostgresStore} from './postgres-store.mjs';
+import {createHash} from 'node:crypto';
 
 const json = (res, status, value) => {
   res.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
@@ -18,20 +19,25 @@ async function readJson(req) {
   catch { throw new ApiProblem(400, 'VALIDATION_FAILED', 'Request body must be valid JSON.'); }
 }
 
-function actorFromRequest(req) {
-  const businessId = req.headers['x-serveos-business-id'];
-  const staffId = req.headers['x-serveos-staff-id'];
+export async function authenticateSession(req, store, now = new Date()) {
+  const authorization = req.headers.authorization;
   const deviceId = req.headers['x-serveos-device-id'];
-  const permissions = String(req.headers['x-serveos-permissions'] ?? '').split(',').filter(Boolean);
-  return normalizeActor({businessId, staffId, deviceId, permissions});
+  if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ') || typeof deviceId !== 'string') {
+    throw new ApiProblem(401, 'AUTH_REQUIRED', 'A valid staff session and enrolled device are required.');
+  }
+  const token = authorization.slice(7);
+  if (token.length < 32 || token.length > 4096) throw new ApiProblem(401, 'AUTH_REQUIRED', 'A valid staff session and enrolled device are required.');
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  return normalizeActor(await store.authenticateSession(tokenHash, deviceId, now));
 }
 
-export function createApiServer({store, registry = new Map(), authenticate = actorFromRequest, origin = process.env.WEB_ORIGIN}) {
+export function createApiServer({store, registry = new Map(), authenticate, origin = process.env.WEB_ORIGIN}) {
+  if (typeof authenticate !== 'function') throw new Error('An explicit session authenticator is required.');
   return createServer(async (req, res) => {
     try {
       if (req.method === 'OPTIONS') {
         if (!origin || req.headers.origin !== origin) return json(res, 403, {error: {code: 'ORIGIN_DENIED', message: 'Origin is not allowed.'}});
-        res.writeHead(204, {'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-credentials': 'true', vary: 'Origin'});
+        res.writeHead(204, {'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type, authorization, x-serveos-device-id', 'access-control-allow-credentials': 'true', vary: 'Origin'});
         return res.end();
       }
       if (req.headers.origin && origin && req.headers.origin !== origin) return json(res, 403, {error: {code: 'ORIGIN_DENIED', message: 'Origin is not allowed.'}});
@@ -59,7 +65,7 @@ export function createApiServer({store, registry = new Map(), authenticate = act
       const status = Number.isInteger(error.status) ? error.status : 500;
       const code = error.code ?? 'INTERNAL_ERROR';
       if (status >= 500) console.error(JSON.stringify({event: 'request_error', code, message: error.message}));
-      return json(res, status, {error: {code, message: status >= 500 ? 'The request could not be completed.' : error.message}});
+      return json(res, status, {error: {code, message: status >= 500 ? 'The request could not be completed.' : error.message, ...(error.details ? {details: error.details} : {})}});
     }
   });
 }
@@ -70,7 +76,8 @@ async function main() {
   const pool = new Pool({connectionString: process.env.DATABASE_URL, max: Number(process.env.DB_POOL_SIZE ?? 10)});
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
-  const server = createApiServer({store: new PostgresStore(pool)});
+  const store = new PostgresStore(pool);
+  const server = createApiServer({store, authenticate: req => authenticateSession(req, store)});
   const port = Number(process.env.PORT ?? 3000);
   server.listen(port, process.env.HOST ?? '0.0.0.0', () => console.log(JSON.stringify({event: 'api_started', port})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
