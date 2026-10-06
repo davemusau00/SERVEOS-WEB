@@ -160,6 +160,14 @@ class PostgresTransaction {
     return rows[0] ?? null;
   }
 
+  async requireCatalogCategory(businessId, categoryId) {
+    const {rows} = await this.client.query(
+      'SELECT 1 FROM catalog_categories WHERE business_id = $1 AND id = $2 AND archived_at IS NULL FOR SHARE',
+      [businessId, categoryId],
+    );
+    return rows.length > 0;
+  }
+
   async consumeOfflineGrant({grantId, businessId, deviceId, staffId, commandName, commandId, at}) {
     const {rows} = await this.client.query(`
       UPDATE offline_grants

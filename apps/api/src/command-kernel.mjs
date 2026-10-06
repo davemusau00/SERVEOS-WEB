@@ -73,7 +73,8 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
   }
 
   const hash = commandHash(command);
-  return db.transaction(async tx => {
+  try {
+    return await db.transaction(async tx => {
     const existing = await tx.getCommand(actor.businessId, command.commandId);
     if (existing) {
       if (existing.payloadHash !== hash) throw new ApiProblem(409, 'COMMAND_ID_REUSED', 'This command ID was already used with a different payload.');
@@ -121,5 +122,9 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
     await tx.insertAudit({businessId: actor.businessId, commandId: command.commandId, name: command.name, actor, at: now()});
     await tx.insertChange({businessId: actor.businessId, cursor, commandId: command.commandId, name: command.name, result, at: now()});
     return outcome;
-  });
+    });
+  } catch (error) {
+    if (error?.code === '23505') throw new ApiProblem(409, 'DUPLICATE_REFERENCE', 'A record with one of these identifiers already exists.');
+    throw error;
+  }
 }
