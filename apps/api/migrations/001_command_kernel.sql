@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS api_staff_sessions (
   created_at timestamptz NOT NULL,
   expires_at timestamptz NOT NULL,
   revoked_at timestamptz,
+  device_id uuid,
   CHECK (expires_at > created_at)
 );
 

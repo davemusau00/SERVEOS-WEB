@@ -12,6 +12,7 @@ const json = (res, status, value) => {
   res.end(JSON.stringify(value));
 };
 const scrypt=promisify(scryptCallback);
+const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 async function hashPassword(password){const salt=randomBytes(16);const derived=await scrypt(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024});return `scrypt$16384$8$1$${salt.toString('base64url')}$${Buffer.from(derived).toString('base64url')}`;}
 async function verifyPassword(password,encoded){
   const [scheme,nRaw,rRaw,pRaw,saltRaw,hashRaw]=String(encoded||'').split('$');
@@ -77,6 +78,19 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const now=new Date();const token=randomBytes(32).toString('base64url');const result=await store.authenticatePassword({loginName,password,at:now,hashPassword,verifyPassword,sessionId:randomUUID(),tokenHash:createHash('sha256').update(token).digest('hex'),expiresAt:new Date(now.getTime()+12*60*60_000)});
         if(!result)throw new ApiProblem(401,'AUTH_INVALID','The staff login or password is not valid.');
         return json(res,200,{accessToken:token,...result});
+      }
+      if(req.method==='POST'&&url.pathname==='/v1/setup/initial-admin'){
+        const setupSecret=req.headers['x-serveos-setup-secret'];
+        if(typeof setupSecret!=='string'||!process.env.INITIAL_ADMIN_SETUP_SECRET)throw new ApiProblem(404,'NOT_FOUND','Setup is not available.');
+        const input=await readJson(req);const businessId=input.businessId;const staffId=input.staffId;const businessName=typeof input.businessName==='string'?input.businessName.trim():'';const displayName=typeof input.displayName==='string'?input.displayName.trim():'';const loginName=typeof input.loginName==='string'?input.loginName.trim():'';const password=typeof input.password==='string'?input.password:'';
+        if(!uuidPattern.test(String(businessId))||!uuidPattern.test(String(staffId))||!businessName||businessName.length>200||!displayName||displayName.length>200||!loginName||loginName.length>200||password.length<12||password.length>1024)throw new ApiProblem(400,'VALIDATION_FAILED','Initial Admin details are incomplete or invalid.');
+        const secretHash=createHash('sha256').update(setupSecret).digest('hex');const expectedSetupSecretHash=createHash('sha256').update(process.env.INITIAL_ADMIN_SETUP_SECRET).digest('hex');
+        const {timingSafeEqual:constantTimeEqual}=await import('node:crypto');
+        if(!constantTimeEqual(Buffer.from(secretHash,'hex'),Buffer.from(expectedSetupSecretHash,'hex')))throw new ApiProblem(404,'NOT_FOUND','Setup is not available.');
+        const credentialHash=await hashPassword(password);const permissions=['*','business.view','business.configure','catalog.view','catalog.manage','inventory.view','inventory.adjust','devices.manage','devices.register','records.view','staff.view','staff.create','staff.update','staff.deactivate','staff.reset_pin','staff.change_role','pos.sell','payment.record','till.view','till.open','till.close','procurement.view','procurement.manage','procurement.receive','rooms.view','rooms.manage','reports.view','audit.view','system.configure'];
+        const created=await store.createInitialAdmin({setupSecretHash:secretHash,expectedSetupSecretHash,businessId,businessName,staffId,loginName,displayName,credentialHash,permissions,at:new Date()});
+        if(!created)throw new ApiProblem(409,'SETUP_CLOSED','Initial setup has already been completed.');
+        return json(res,201,{created:true});
       }
       if(req.method==='POST'&&url.pathname==='/v1/auth/logout'){
         const authorization=req.headers.authorization;if(typeof authorization!=='string'||!authorization.startsWith('Bearer '))throw new ApiProblem(401,'AUTH_REQUIRED','A staff session is required.');

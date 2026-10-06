@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS api_staff_profiles (
   display_name text NOT NULL,
   role text NOT NULL,
   credential_hash text NOT NULL,
+  must_change_password boolean NOT NULL DEFAULT true,
   active boolean NOT NULL DEFAULT true,
   failed_login_count integer NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
   locked_until timestamptz,
@@ -19,6 +20,10 @@ CREATE INDEX IF NOT EXISTS api_staff_profiles_login_idx ON api_staff_profiles(lo
 ALTER TABLE api_staff_sessions
   ADD CONSTRAINT api_staff_sessions_staff_fk
   FOREIGN KEY (business_id,staff_id) REFERENCES api_staff_profiles(business_id,staff_id);
+
+ALTER TABLE api_staff_sessions
+  ADD CONSTRAINT api_staff_sessions_device_fk
+  FOREIGN KEY (business_id,device_id) REFERENCES api_enrolled_devices(business_id,id);
 
 ALTER TABLE api_staff_permissions
   ADD CONSTRAINT api_staff_permissions_staff_fk

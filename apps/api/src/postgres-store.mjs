@@ -99,9 +99,9 @@ export class PostgresStore {
     return rows[0] ?? null;
   }
 
-  async authenticatePassword({loginName,password,at,hashPassword,verifyPassword,sessionId,tokenHash,expiresAt}) {
+  async authenticatePassword({loginName,password,at,verifyPassword,sessionId,tokenHash,expiresAt}) {
     return this.transaction(async tx=>{
-      const {rows}=await tx.client.query(`SELECT business_id AS "businessId",staff_id AS "staffId",display_name AS "displayName",credential_hash AS "credentialHash",failed_login_count AS "failedLoginCount",locked_until AS "lockedUntil" FROM api_staff_profiles WHERE lower(login_name)=lower($1) AND active FOR UPDATE`,[loginName]);
+      const {rows}=await tx.client.query(`SELECT business_id AS "businessId",staff_id AS "staffId",display_name AS "displayName",credential_hash AS "credentialHash",failed_login_count AS "failedLoginCount",locked_until AS "lockedUntil",must_change_password AS "mustChangePassword" FROM api_staff_profiles WHERE lower(login_name)=lower($1) AND active FOR UPDATE`,[loginName]);
       const staff=rows[0];
       // Do equivalent work for unknown usernames to reduce account enumeration timing differences.
       const valid=staff&&!staff.lockedUntil&&await verifyPassword(password,staff.credentialHash);
@@ -112,8 +112,26 @@ export class PostgresStore {
       await tx.client.query('UPDATE api_staff_profiles SET failed_login_count=0,locked_until=NULL,updated_at=$3 WHERE business_id=$1 AND staff_id=$2',[staff.businessId,staff.staffId,at]);
       await tx.client.query('INSERT INTO api_staff_sessions(id,business_id,staff_id,token_hash,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6)',[sessionId,staff.businessId,staff.staffId,tokenHash,at,expiresAt]);
       const {rows:permissions}=await tx.client.query('SELECT permission FROM api_staff_permissions WHERE business_id=$1 AND staff_id=$2 ORDER BY permission',[staff.businessId,staff.staffId]);
-      return {sessionId,businessId:staff.businessId,staffId:staff.staffId,displayName:staff.displayName,permissions:permissions.map(row=>row.permission),expiresAt:expiresAt.toISOString()};
+      return {sessionId,businessId:staff.businessId,staffId:staff.staffId,displayName:staff.displayName,permissions:permissions.map(row=>row.permission),expiresAt:expiresAt.toISOString(),mustChangePassword:staff.mustChangePassword};
     });
+  }
+
+  async createInitialAdmin({setupSecretHash,expectedSetupSecretHash,businessId,businessName,staffId,loginName,displayName,credentialHash,permissions,at}) {
+    if(setupSecretHash!==expectedSetupSecretHash)return false;
+    return this.transaction(async tx=>{
+      await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['serveos:initial-admin']);
+      const {rows}=await tx.client.query('SELECT count(*)::int AS count FROM api_staff_profiles');
+      if(rows[0].count!==0)return false;
+      await tx.client.query('INSERT INTO businesses(id,name) VALUES($1,$2)',[businessId,businessName]);
+      await tx.client.query('INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password,created_at,updated_at) VALUES($1,$2,$3,$4,\'Admin\',$5,true,$6,$6)',[businessId,staffId,loginName,displayName,credentialHash,at]);
+      for(const permission of permissions)await tx.client.query('INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,$3)',[businessId,staffId,permission]);
+      return true;
+    });
+  }
+
+  async changePassword({businessId,staffId,currentHash,newHash,at}) {
+    const {rows}=await this.pool.query('UPDATE api_staff_profiles SET credential_hash=$4,must_change_password=false,failed_login_count=0,locked_until=NULL,updated_at=$5 WHERE business_id=$1 AND staff_id=$2 AND credential_hash=$3 RETURNING staff_id',[businessId,staffId,currentHash,newHash,at]);
+    return rows.length>0;
   }
 
   async revokeSession(tokenHash,at=new Date()) {
@@ -149,7 +167,7 @@ export class PostgresStore {
     return rows[0] ?? null;
   }
 
-  async enrollDevice({challengeId, businessId, staffId, deviceId, publicKey, at}) {
+  async enrollDevice({challengeId, businessId, staffId, deviceId, publicKey, sessionId, at}) {
     return this.transaction(async tx => {
       const {rows} = await tx.client.query(`
         SELECT challenge, expires_at AS "expiresAt", consumed_at AS "consumedAt"
@@ -168,6 +186,8 @@ export class PostgresStore {
         INSERT INTO api_enrolled_devices (id, business_id, staff_id, public_key, created_at)
         VALUES ($1, $2, $3, $4::jsonb, $5)
       `, [deviceId, businessId, staffId, JSON.stringify(publicKey), at]);
+      const {rowCount}=await tx.client.query('UPDATE api_staff_sessions SET device_id=$2 WHERE id=$1 AND business_id=$3 AND staff_id=$4 AND device_id IS NULL AND revoked_at IS NULL AND expires_at>$5',[sessionId,deviceId,businessId,staffId,at]);
+      if(rowCount!==1){const error=new Error('The API session could not be bound to this device.');error.status=409;error.code='SESSION_BINDING_FAILED';throw error;}
       await tx.client.query('UPDATE api_device_enrollment_challenges SET consumed_at = $2 WHERE id = $1', [challengeId, at]);
       return {id: deviceId, businessId, staffId, publicKey, createdAt: at.toISOString()};
     });
