@@ -25,12 +25,12 @@ export class PostgresStore {
     return rows[0] ?? null;
   }
 
-  async persistCommandReceived({businessId,commandId,name,payloadHash,actor,request,at}){
+  async persistCommandReceived({businessId,commandId,name,payloadHash,actor,at}){
     return this.transaction(async tx=>{
       await tx.lockCommandKey(businessId,commandId);
       const existing=await tx.getCommand(businessId,commandId);
       if(existing)return existing;
-      const {rows}=await tx.client.query(`INSERT INTO api_commands(business_id,command_id,command_name,payload_hash,staff_id,device_id,status,request,received_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,'RECEIVED',$7::jsonb,$8,$8) RETURNING status,outcome,error,payload_hash AS "payloadHash"`,[businessId,commandId,name,payloadHash,actor.staffId,actor.deviceId,JSON.stringify(request),at]);
+      const {rows}=await tx.client.query(`INSERT INTO api_commands(business_id,command_id,command_name,payload_hash,staff_id,device_id,status,received_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$7) RETURNING status,outcome,error,payload_hash AS "payloadHash"`,[businessId,commandId,name,payloadHash,actor.staffId,actor.deviceId,at]);
       return rows[0];
     });
   }
@@ -162,13 +162,13 @@ export class PostgresStore {
   }
   async clearLoginFailures(bucketHashes){await this.pool.query('DELETE FROM api_auth_attempts WHERE bucket_hash=ANY($1::char(64)[])',[bucketHashes]);}
 
-  async issueOfflineGrant({grantId,businessId,deviceId,staffId,allowedCommands,maxCommands,issuedAt,expiresAt,policyVersion,keyVersion,scope}){
+  async issueOfflineGrant({grantId,businessId,deviceId,staffId,allowedCommands,maxCommands,issuedAt,expiresAt,policyVersion,keyVersion,signature,scope}){
     await this.transaction(async tx=>{
       await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`offline-grant:${businessId}:${deviceId}:${staffId}`]);
       const {rows}=await tx.client.query('SELECT count(*)::int AS count FROM offline_grants WHERE business_id=$1 AND device_id=$2 AND staff_id=$3 AND issued_at>$4',[businessId,deviceId,staffId,new Date(issuedAt.getTime()-60*60_000)]);
       if(rows[0].count>=6){const error=new Error('Too many offline grants were issued for this device.');error.status=429;error.code='RATE_LIMITED';throw error}
-      await tx.client.query(`INSERT INTO offline_grants(id,business_id,device_id,staff_id,allowed_commands,max_commands,issued_at,expires_at,policy_version,key_version,scope)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)`,[grantId,businessId,deviceId,staffId,allowedCommands,maxCommands,issuedAt,expiresAt,policyVersion,keyVersion,JSON.stringify(scope)]);
+      await tx.client.query(`INSERT INTO offline_grants(id,business_id,device_id,staff_id,allowed_commands,max_commands,issued_at,expires_at,policy_version,key_version,signature,scope)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)`,[grantId,businessId,deviceId,staffId,allowedCommands,maxCommands,issuedAt,expiresAt,policyVersion,keyVersion,signature,JSON.stringify(scope)]);
     });
   }
 
@@ -246,10 +246,16 @@ export class PostgresStore {
         error.code = 'ENROLLMENT_CHALLENGE_INVALID';
         throw error;
       }
-      await tx.client.query(`
+      const {rows:deviceRows}=await tx.client.query(`
         INSERT INTO api_enrolled_devices (id, business_id, staff_id, public_key, created_at)
         VALUES ($1, $2, $3, $4::jsonb, $5)
+        ON CONFLICT (business_id,id) DO UPDATE SET public_key=EXCLUDED.public_key
+          WHERE api_enrolled_devices.staff_id=EXCLUDED.staff_id
+            AND api_enrolled_devices.public_key=EXCLUDED.public_key
+            AND api_enrolled_devices.revoked_at IS NULL
+        RETURNING id
       `, [deviceId, businessId, staffId, JSON.stringify(publicKey), at]);
+      if(!deviceRows.length){const error=new Error('This device ID is already enrolled to another identity or has been revoked.');error.status=409;error.code='DEVICE_ID_UNAVAILABLE';throw error;}
       const {rowCount}=await tx.client.query('UPDATE api_staff_sessions SET device_id=$2 WHERE id=$1 AND business_id=$3 AND staff_id=$4 AND device_id IS NULL AND revoked_at IS NULL AND expires_at>$5',[sessionId,deviceId,businessId,staffId,at]);
       if(rowCount!==1){const error=new Error('The API session could not be bound to this device.');error.status=409;error.code='SESSION_BINDING_FAILED';throw error;}
       await tx.client.query('UPDATE api_device_enrollment_challenges SET consumed_at = $2 WHERE id = $1', [challengeId, at]);

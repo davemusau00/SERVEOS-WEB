@@ -154,7 +154,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if(req.method==='POST'&&url.pathname==='/v1/offline-grants'){
         const actor=await authenticate(req);
-        if(!actor.permissions?.includes('catalog.manage'))throw new ApiProblem(403,'PERMISSION_DENIED','Catalog management permission is required for these offline operations.');
+        if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('catalog.manage'))throw new ApiProblem(403,'PERMISSION_DENIED','Catalog management permission is required for these offline operations.');
         if(!process.env.OFFLINE_GRANT_PRIVATE_JWK)throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing is not configured.');
         let privateJwk;try{privateJwk=JSON.parse(process.env.OFFLINE_GRANT_PRIVATE_JWK)}catch{throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing is not configured.')}
         if(privateJwk.kty!=='EC'||privateJwk.crv!=='P-256'||typeof privateJwk.d!=='string')throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing key is invalid.');
