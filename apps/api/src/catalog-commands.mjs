@@ -153,8 +153,8 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
 };
 
 export const catalogCommandRegistry = new Map([
-  ['stockItem.save', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:stockItemSave}],
-  ['product.save', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:productSave}],
+  ['stockItem.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:stockItemSave}],
+  ['product.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:productSave}],
   ['catalog.createWithOpeningStock', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:catalogCreateWithOpeningStock}],
   ['catalog.item.create', {
     permission: 'catalog.manage',

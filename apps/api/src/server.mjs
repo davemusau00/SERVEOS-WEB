@@ -203,7 +203,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const actor = await authenticate(req);
         if (!actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view catalog data.');
         const cursorRows=await store.pool.query('SELECT cursor FROM business_change_cursors WHERE business_id=$1',[actor.businessId]);
-        return json(res,200,{protocolVersion:1,cursor:Number(cursorRows.rows[0]?.cursor??0),projections:await store.catalogProjection(actor.businessId)});
+        return json(res,200,{protocolVersion:1,cursor:Number(cursorRows.rows[0]?.cursor??0),records:await store.catalogProjection(actor.businessId)});
       }
       if (req.method === 'POST' && url.pathname === '/v1/commands') {
         const actor = await authenticate(req);

@@ -2,7 +2,7 @@ export interface ApiCommandEnvelope {commandId:string;name:string;payload:Record
 export interface ApiCommandOutcome {kind:'CONFIRMED'|'REJECTED'|'CONFLICT';commandId:string;cursor?:number;result?:unknown;error?:{code:string;message:string;retryable:boolean}}
 export interface ApiChangePage {protocolVersion:1;cursor:number;highWater:number;hasMore:boolean;changes:Array<{sequence:number;commandId:string;actorId?:string;deviceId?:string;occurredAt:string;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}>}
 export interface ApiCatalogItem {id:string;categoryId:string|null;name:string;sku:string|null;basePriceMinor:number;currency:string;trackInventory:boolean;version:number;createdAt:string}
-export interface ApiCatalogBootstrap {protocolVersion:number;cursor:number;projections:Record<string,Array<{collection:string;id:string;version:number;data:Record<string,unknown>}>>}
+export interface ApiCatalogBootstrap {protocolVersion:number;cursor:number;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
 
 export class ApiHttpError extends Error {

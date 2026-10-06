@@ -68,7 +68,8 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
   if(received?.outcome&&(received.status==='CONFIRMED'||received.status==='REJECTED'||received.status==='CONFLICT'))return received.outcome;
   const terminalFailure=async error=>{
     const status=error.status===409||error.code==='VERSION_CONFLICT'?'CONFLICT':'REJECTED';
-    const safe={code:error.code||'COMMAND_REJECTED',message:error.status>=500?'The request could not be completed.':error.message,retryable:error.status>=500};
+    const retryable=!Number.isInteger(error.status)||error.status>=500;
+    const safe={code:error.code||'COMMAND_REJECTED',message:retryable?'The request could not be completed.':error.message,retryable};
     if(typeof db.finalizeCommandFailure==='function')return db.finalizeCommandFailure({businessId:actor.businessId,commandId:command.commandId,name:command.name,actor,status,error:safe,at:now()});
     throw error;
   };

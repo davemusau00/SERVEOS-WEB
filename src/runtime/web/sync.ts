@@ -7,7 +7,7 @@ export interface CloudTransport {execute(command:BusinessCommandV2):Promise<Tran
 export function createApiTransport(client:ReturnType<typeof createServOSApiClient>):CloudTransport{
  return {
   async execute(command){
-   const outcome=await client.submitCommand({commandId:command.id,name:command.operation,payload:command.payload,expectedVersions:Object.fromEntries(command.expectedVersions.map(item=>[`${item.collection}:${item.id}`,item.version]))});
+   const outcome=await client.submitCommand({commandId:command.id,name:command.operation,payload:command.payload,expectedVersions:Object.fromEntries(command.expectedVersions.map(item=>[`${item.collection}:${item.id}`,item.version])),...(command.offlineGrantId?{offlineGrantId:command.offlineGrantId}:{})});
    if(outcome.kind==='CONFIRMED')return {commandId:command.id,status:'SYNCHRONIZED',recordVersions:[],serverSequence:outcome.cursor};
    return {commandId:command.id,status:outcome.kind==='CONFLICT'?'CONFLICT':'REJECTED',recordVersions:[],error:outcome.error||{code:outcome.kind,message:'The API did not confirm this command.',retryable:false}};
   },

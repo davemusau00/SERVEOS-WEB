@@ -10,7 +10,7 @@ export interface WorkflowDraft {
 export interface LocalBusinessDocument {id:string;type:string;documentNumber:string;layoutVersion:number;hash:string;snapshot:Record<string,unknown>;issuedAt:string}
 export type LocalPrintState='QUEUED'|'SENDING'|'SENT_TO_SPOOLER'|'DELIVERY_UNCERTAIN'|'FAILED'|'CANCELLED';
 export interface LocalPrintJob {id:string;documentId:string;printerRole:string;copies:number;state:LocalPrintState;createdAt:string;updatedAt:string;attempt:number;errorCode?:string}
-export interface OfflineGrantEnvelope {grantId:string;businessId:string;deviceId:string;staffId:string;issuedAt:string;expiresAt:string;policyVersion:number;allowedCommands:string[];maxCommands:number;keyVersion:string;signature:string;scope?:Record<string,unknown>}
+export interface OfflineGrantEnvelope {grantId:string;businessId:string;deviceId:string;staffId:string;issuedAt:string;expiresAt:string;policyVersion:number;allowedCommands:string[];maxCommands:number;usedCommands?:number;keyVersion:string;signature:string;scope?:Record<string,unknown>}
 const request=<T>(value:IDBRequest<T>)=>new Promise<T>((resolve,reject)=>{value.onsuccess=()=>resolve(value.result);value.onerror=()=>reject(value.error||new Error('Storage request failed'))});
 const stableJson=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(stableJson).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${stableJson((value as Record<string,unknown>)[key])}`).join(',')}}`;
 const sensitiveKey=/password|secret|token|credential|pin/i;
@@ -49,7 +49,6 @@ export class BusinessStore {
     void done.catch(()=>undefined);
     try{const result=await run(tx);await done;return result;}catch(error){try{tx.abort()}catch{/* already completed/aborted */}await done.catch(()=>undefined);throw error;}
   }
-  private requireOnline(){if(typeof navigator==='undefined'||!navigator.onLine)throw new Error('Business v2 submission requires an online connection. Save the workflow as a draft to continue offline.')}
   async saveDraft(input:Omit<WorkflowDraft,'schemaVersion'|'contractVersion'|'createdAt'|'updatedAt'> & {createdAt?:string}){
     const now=new Date().toISOString();
     const safeFields=input.fields?.map(field=>sensitiveKey.test(field.key)?{...field,value:''}:redactSensitiveData(field) as WorkflowDraftField);
@@ -60,26 +59,24 @@ export class BusinessStore {
   async resumeDraft(id:string):Promise<WorkflowDraft|undefined>{return this.transaction(['drafts'],'readonly',tx=>request(tx.objectStore('drafts').get(id)))}
   async discardDraft(id:string):Promise<void>{await this.transaction(['drafts'],'readwrite',async tx=>{await request(tx.objectStore('drafts').delete(id))})}
   async promoteDraftToCommand(id:string):Promise<BusinessCommandV2>{
-    this.requireOnline();
-    return this.transaction(['drafts','queue','meta'],'readwrite',async tx=>{
+    return this.transaction(['drafts','queue','meta','offlineGrants'],'readwrite',async tx=>{
       const drafts=tx.objectStore('drafts');const draft=await request(drafts.get(id)) as WorkflowDraft|undefined;
       if(!draft)throw new Error('Draft is no longer available; refresh saved work before submitting.');
       const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
-      this.requireOnline();
       if(!Number.isSafeInteger(previous+1))throw new Error('Device sequence exhausted');
-      const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation:draft.operation,...(draft.supersedes?{supersedes:draft.supersedes}:{}),payload:draft.payload,expectedVersions:draft.expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
+      const offlineGrantId=typeof navigator!=='undefined'&&!navigator.onLine?await this.consumeLocalGrant(tx,draft.operation):undefined;
+      const command:BusinessCommandV2={id:crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation:draft.operation,...(draft.supersedes?{supersedes:draft.supersedes}:{}),...(offlineGrantId?{offlineGrantId}:{}),payload:draft.payload,expectedVersions:draft.expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
       await request(tx.objectStore('queue').add({id:command.id,sequence:command.clientSequence,command,state:'PENDING_SYNC'} satisfies QueuedCommand));
       await request(meta.put(command.clientSequence,'sequence'));await request(drafts.delete(id));return command;
     });
   }
   async enqueue(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion[],supersedes?:string,reviewCommandId?:string):Promise<BusinessCommandV2>{
-    this.requireOnline();
-    return this.transaction(['queue','meta'],'readwrite',async tx=>{
+    return this.transaction(['queue','meta','offlineGrants'],'readwrite',async tx=>{
       if(reviewCommandId){const existing=await request(tx.objectStore('queue').get(reviewCommandId)) as QueuedCommand|undefined;if(existing){if(existing.command.operation!==operation||JSON.stringify(existing.command.payload)!==JSON.stringify(payload)||JSON.stringify(existing.command.expectedVersions)!==JSON.stringify(expectedVersions))throw new Error('Reviewed command changed; recover its original outcome');return existing.command;}}
       const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
-      this.requireOnline();
       if(!Number.isSafeInteger(previous+1))throw new Error('Device sequence exhausted');
-      const command:BusinessCommandV2={id:reviewCommandId||crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation,...(supersedes?{supersedes}:{}),payload,expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
+      const offlineGrantId=typeof navigator!=='undefined'&&!navigator.onLine?await this.consumeLocalGrant(tx,operation):undefined;
+      const command:BusinessCommandV2={id:reviewCommandId||crypto.randomUUID(),schemaVersion:2,deviceId:this.deviceId,actorId:this.actorId,operation,...(supersedes?{supersedes}:{}),...(offlineGrantId?{offlineGrantId}:{}),payload,expectedVersions,allocationRefs:[],clientSequence:previous+1,occurredAt:new Date().toISOString()};
       await request(tx.objectStore('queue').add({id:command.id,sequence:command.clientSequence,command,state:'PENDING_SYNC'} satisfies QueuedCommand));
       await request(meta.put(command.clientSequence,'sequence'));return command;
     });
@@ -141,11 +138,17 @@ export class BusinessStore {
   async hasPending():Promise<boolean>{return (await this.queue()).some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN')}
   async saveVerifiedOfflineGrant(grant:OfflineGrantEnvelope,verify:(grant:OfflineGrantEnvelope)=>Promise<boolean>):Promise<void>{
     if(grant.businessId!==this.scope||grant.deviceId!==this.deviceId||grant.staffId!==this.actorId)throw new Error('Offline grant is scoped to a different business, device, or staff member');
-    if(Date.parse(grant.expiresAt)<=Date.now()||Date.parse(grant.issuedAt)>Date.now()||!Number.isSafeInteger(grant.maxCommands)||grant.maxCommands<1)throw new Error('Offline grant is expired or invalid');
+    if(Date.parse(grant.expiresAt)<=Date.now()||Date.parse(grant.issuedAt)>Date.now()||!Number.isSafeInteger(grant.maxCommands)||grant.maxCommands<1||grant.maxCommands>100||!Array.isArray(grant.allowedCommands)||!grant.allowedCommands.length||new Set(grant.allowedCommands).size!==grant.allowedCommands.length)throw new Error('Offline grant is expired or invalid');
     if(!(await verify(grant)))throw new Error('Offline grant signature could not be verified');
     await this.transaction(['offlineGrants'],'readwrite',async tx=>{await request(tx.objectStore('offlineGrants').put(grant))});
   }
   async offlineGrants():Promise<OfflineGrantEnvelope[]>{return this.transaction(['offlineGrants'],'readonly',tx=>request(tx.objectStore('offlineGrants').getAll()))}
+  private async consumeLocalGrant(tx:IDBTransaction,operation:string):Promise<string>{
+    const grants=tx.objectStore('offlineGrants');const candidates=await request(grants.getAll()) as OfflineGrantEnvelope[];
+    const now=Date.now();const grant=candidates.filter(item=>item.businessId===this.scope&&item.deviceId===this.deviceId&&item.staffId===this.actorId&&Date.parse(item.issuedAt)<=now&&Date.parse(item.expiresAt)>now&&item.allowedCommands.includes(operation)&&(item.usedCommands||0)<item.maxCommands).sort((a,b)=>Date.parse(a.expiresAt)-Date.parse(b.expiresAt))[0];
+    if(!grant)throw new Error(`No active offline grant authorizes ${operation}. Save this workflow as a draft and reconnect.`);
+    await request(grants.put({...grant,usedCommands:(grant.usedCommands||0)+1}));return grant.grantId;
+  }
   async saveBusinessDocument(document:LocalBusinessDocument):Promise<void>{
     if(!document.id||!document.type||!document.documentNumber||!Number.isSafeInteger(document.layoutVersion)||document.layoutVersion<1||!document.hash||!document.issuedAt)throw new Error('Business document snapshot is incomplete');
     const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(stableJson({id:document.id,type:document.type,documentNumber:document.documentNumber,layoutVersion:document.layoutVersion,snapshot:document.snapshot,issuedAt:document.issuedAt})));

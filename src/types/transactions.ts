@@ -16,6 +16,7 @@ export interface BusinessCommandV2 {
   supersedes?:string;
   payload:Record<string,unknown>; expectedVersions:RecordVersion[]; allocationRefs:AllocationReference[];
   clientSequence:number; occurredAt:string;
+  offlineGrantId?:string;
 }
 export interface TransactionResult {
   commandId:string; status:TransactionState; serverSequence?:number; recordVersions:RecordVersion[]; auditReference?:string;
