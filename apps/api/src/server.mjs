@@ -47,7 +47,8 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/health/live') return json(res, 200, {status: 'ok'});
       if (req.method === 'GET' && url.pathname === '/health/ready') {
-        await store.pool.query('SELECT 1');
+        const {rows} = await store.pool.query("SELECT to_regclass('public.api_schema_migrations') IS NOT NULL AS ready");
+        if (!rows[0]?.ready) return json(res, 503, {status: 'not_ready', reason: 'database_migrations_pending'});
         return json(res, 200, {status: 'ready'});
       }
       if (req.method === 'GET' && url.pathname === '/v1/sync/changes') {

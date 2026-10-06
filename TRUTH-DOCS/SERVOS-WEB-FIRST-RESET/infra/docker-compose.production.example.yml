@@ -18,6 +18,7 @@ services:
       retries: 10
 
   api:
+    image: serveos-api:${SERVEOS_VERSION}
     build:
       context: ../../../apps/api
       dockerfile: Dockerfile
@@ -30,14 +31,19 @@ services:
         condition: service_healthy
     networks: [serveos_private]
     command: ["sh", "-c", "npm run migrate && npm start"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   worker:
-    image: ghcr.io/davemusau00/serveos-api:${SERVEOS_VERSION}
-    command: ["node", "dist/worker.js"]
+    image: serveos-api:${SERVEOS_VERSION}
+    command: ["node", "src/worker.mjs"]
     restart: unless-stopped
     env_file: .env
     depends_on:
-      postgres:
+      api:
         condition: service_healthy
     networks: [serveos_private]
 

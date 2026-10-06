@@ -19,7 +19,7 @@ test('session authentication hashes bearer token and ignores caller identity hea
 });
 
 test('health routes are public and command routes require session authentication', async t => {
-  const pool = {query: async () => ({rows: [{ok: 1}]})};
+  const pool = {query: async () => ({rows: [{ready: true}]})};
   const store = {pool, commandStatus: async () => null, changesAfter: async (_businessId, after, limit) => ({fromCursor: after, toCursor: after, highWater: 0, hasMore: false, changes: [], limit})};
   const server = createApiServer({store, origin: 'https://serveos.example', authenticate: async req => {
     if (req.headers.authorization !== 'Bearer valid-session') throw Object.assign(new Error('Sign in required.'), {status: 401, code: 'AUTH_REQUIRED'});

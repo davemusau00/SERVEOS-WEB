@@ -5,6 +5,13 @@ CREATE TABLE IF NOT EXISTS businesses (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE api_staff_sessions
+  ADD CONSTRAINT api_staff_sessions_business_fk FOREIGN KEY (business_id) REFERENCES businesses(id);
+ALTER TABLE api_enrolled_devices
+  ADD CONSTRAINT api_enrolled_devices_business_fk FOREIGN KEY (business_id) REFERENCES businesses(id);
+ALTER TABLE api_staff_permissions
+  ADD CONSTRAINT api_staff_permissions_business_fk FOREIGN KEY (business_id) REFERENCES businesses(id);
+
 CREATE TABLE IF NOT EXISTS catalog_categories (
   business_id uuid NOT NULL REFERENCES businesses(id),
   id uuid NOT NULL,
