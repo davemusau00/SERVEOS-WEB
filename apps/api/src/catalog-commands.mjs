@@ -105,6 +105,8 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   if (!await tx.requireStockLocation(actor.businessId, locationId)) throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'The selected stock location is missing or archived.');
   const stockExpected = expectedVersion(command, 'stockItems', stockId);
   if (stockExpected !== 0) throw new ApiProblem(400, 'VALIDATION_FAILED', 'A new stock item must include expected version 0.');
+  const locationExpected = expectedVersion(command,'stockLocations',locationId);
+  if(locationExpected<1)throw new ApiProblem(409,'RESOURCE_CONFLICT','The stock location must have a current version before opening stock can be posted.');
   const name = text(stock.name, 'Stock name');
   const code = text(stock.code, 'Stock code', 80);
   const barcode = optionalText(stock.barcode);
@@ -139,6 +141,8 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
     const movementVersion = expectedVersion(command,'stockMovements',movementId);
     if (movementVersion !== 0) throw new ApiProblem(400,'VALIDATION_FAILED','Opening movement must include expected version 0.');
     await tx.bumpEntityVersion(actor.businessId,'stockMovements',movementId,0);
+    await tx.bumpEntityVersion(actor.businessId,'stockLocations',locationId,locationExpected);
+    for(const ingredient of product?.recipeIngredients||[])if(ingredient&&uuid(ingredient.stockItemId))expectedVersion(command,'stockItems',ingredient.stockItemId);
     await tx.createOpeningStockMovement({businessId:actor.businessId,id:movementId,stockItemId:stockId,locationId,quantity,commandId:command.commandId,staffId:actor.staffId,at});
     await tx.upsertInventoryBalance({businessId:actor.businessId,stockItemId:stockId,locationId,quantityDelta:quantity});
   }
