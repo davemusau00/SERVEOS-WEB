@@ -1,5 +1,6 @@
 import { BusinessStore } from './BusinessStore';
 import type { RecordVersion } from '../../types/transactions';
+import {getOrCreateWebDeviceIdentity} from './deviceIdentity';
 
 export type WebLifecycleStage='INTAKE'|'SETUP'|'READY_FOR_GO_LIVE'|'LIVE';
 export interface WebReadinessCheck {id:string;label:string;complete:boolean}
@@ -17,8 +18,9 @@ export const allowed=(session:WebSession,permission:string)=>session.permissions
 
 export async function openWebDevice(session:WebSession,rpc:Rpc){
   const storageKey=`servos-device:${session.businessId}:${session.actorId}`;
-  let id=localStorage.getItem(storageKey);
-  if(!id){id=crypto.randomUUID();localStorage.setItem(storageKey,id)}
+  const identity=await getOrCreateWebDeviceIdentity(session.businessId,localStorage.getItem(storageKey)||undefined);
+  const id=identity.deviceId;
+  localStorage.removeItem(storageKey);
   const device=await rpc('rpc/servos_v2_register_device',{device_id:id,label:'Browser workstation',kind:'WEB'}) as {id:string;lastSequence:number};
   if(device.id!==id)throw new Error('The server returned a different device identity');
   const store=await BusinessStore.open(session.businessId,id,session.actorId,device.lastSequence);

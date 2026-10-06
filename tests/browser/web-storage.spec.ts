@@ -1,7 +1,15 @@
 import {test,expect} from '@playwright/test';
 import {buildSync} from 'esbuild';
 
-const harness=buildSync({stdin:{contents:"export {BusinessStore} from './src/runtime/web/BusinessStore'; export {synchronizeStore} from './src/runtime/web/sync';",resolveDir:process.cwd()},bundle:true,write:false,format:'iife',globalName:'ServOSQueue',platform:'browser',target:'es2022'}).outputFiles[0].text;
+const harness=buildSync({stdin:{contents:"export {BusinessStore} from './src/runtime/web/BusinessStore'; export {synchronizeStore} from './src/runtime/web/sync'; export {getOrCreateWebDeviceIdentity} from './src/runtime/web/deviceIdentity';",resolveDir:process.cwd()},bundle:true,write:false,format:'iife',globalName:'ServOSQueue',platform:'browser',target:'es2022'}).outputFiles[0].text;
+
+test('device identity keeps a non-exportable WebCrypto key in IndexedDB across reloads',async({page})=>{
+  await page.goto('/');await page.addScriptTag({content:harness});
+  const first=await page.evaluate(async()=>{const identity=await (window as any).ServOSQueue.getOrCreateWebDeviceIdentity('identity-business');return{deviceId:identity.deviceId,extractable:identity.privateKey.extractable,algorithm:identity.privateKey.algorithm.name,publicKey:identity.publicKey.kid||identity.publicKey.crv}});
+  await page.reload();await page.addScriptTag({content:harness});
+  const second=await page.evaluate(async()=>{const identity=await (window as any).ServOSQueue.getOrCreateWebDeviceIdentity('identity-business');return{deviceId:identity.deviceId,extractable:identity.privateKey.extractable,algorithm:identity.privateKey.algorithm.name}});
+  expect(second).toEqual({deviceId:first.deviceId,extractable:false,algorithm:'ECDSA'});expect(first.extractable).toBe(false);expect(first.publicKey).toBe('P-256');
+});
 
 test('reviewed inventory retry across browser connections preserves one sequence and rejects payload changes',async({page})=>{
   await page.goto('/');await page.addScriptTag({content:harness});
