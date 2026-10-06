@@ -2,7 +2,7 @@ import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
 import {PostgresStore} from './postgres-store.mjs';
-import {createHash} from 'node:crypto';
+import {createHash, createPublicKey, randomBytes, randomUUID, verify as verifySignature} from 'node:crypto';
 import {catalogCommandRegistry} from './catalog-commands.mjs';
 import {readConfig} from './config.mjs';
 
@@ -34,6 +34,15 @@ export async function authenticateSession(req, store, now = new Date()) {
   return normalizeActor(await store.authenticateSession(tokenHash, deviceId, now));
 }
 
+async function authenticateStaffSession(req, store, now = new Date()) {
+  const authorization = req.headers.authorization;
+  if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) throw new ApiProblem(401, 'AUTH_REQUIRED', 'A valid staff session is required.');
+  const token = authorization.slice(7);
+  if (token.length < 32 || token.length > 4096) throw new ApiProblem(401, 'AUTH_REQUIRED', 'A valid staff session is required.');
+  const actor = await store.authenticateStaffSession(createHash('sha256').update(token).digest('hex'), now);
+  return normalizeActor(actor && {...actor, deviceId: undefined});
+}
+
 export function createApiServer({store, registry = new Map(), authenticate, origin = process.env.WEB_ORIGIN}) {
   if (typeof authenticate !== 'function') throw new Error('An explicit session authenticator is required.');
   return createServer(async (req, res) => {
@@ -52,6 +61,32 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const {rows} = await store.pool.query("SELECT to_regclass('public.api_schema_migrations') IS NOT NULL AS ready");
         if (!rows[0]?.ready) return json(res, 503, {status: 'not_ready', reason: 'database_migrations_pending'});
         return json(res, 200, {status: 'ready'});
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/devices/enrollment-challenges') {
+        const actor = await authenticateStaffSession(req, store);
+        if (!actor.permissions?.includes('devices.manage')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll devices.');
+        const issuedAt = new Date();
+        const challengeId = randomUUID();
+        const challenge = randomBytes(32).toString('hex');
+        return json(res, 201, await store.issueDeviceEnrollmentChallenge({challengeId, challenge, businessId: actor.businessId, staffId: actor.staffId, issuedAt, expiresAt: new Date(issuedAt.getTime() + 5 * 60_000)}));
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/devices/enroll') {
+        const actor = await authenticateStaffSession(req, store);
+        const input = await readJson(req);
+        const {challengeId, deviceId, publicKey, signature} = input;
+        const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (typeof challengeId !== 'string' || !uuid.test(challengeId) || typeof deviceId !== 'string' || !uuid.test(deviceId)
+          || !publicKey || publicKey.kty !== 'EC' || publicKey.crv !== 'P-256' || typeof publicKey.x !== 'string' || typeof publicKey.y !== 'string' || 'd' in publicKey
+          || typeof signature !== 'string' || signature.length > 256) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Enrollment request is malformed.');
+        const challenge = await store.deviceEnrollmentChallenge(challengeId, actor.businessId, actor.staffId);
+        if (!challenge || challenge.consumedAt || new Date(challenge.expiresAt) <= new Date()) throw new ApiProblem(409, 'ENROLLMENT_CHALLENGE_INVALID', 'Enrollment challenge is expired or already used.');
+        const signed = `${challengeId}\n${actor.businessId}\n${actor.staffId}\n${deviceId}\n${challenge.challenge}`;
+        let valid = false;
+        try { valid = verifySignature('sha256', Buffer.from(signed), {key: createPublicKey({key: publicKey, format: 'jwk'}), dsaEncoding: 'ieee-p1363'}, Buffer.from(signature, 'base64url')); }
+        catch { valid = false; }
+        if (!valid) throw new ApiProblem(401, 'DEVICE_PROOF_INVALID', 'Device key proof could not be verified.');
+        const enrolled = await store.enrollDevice({challengeId, businessId: actor.businessId, staffId: actor.staffId, deviceId, publicKey, at: new Date()});
+        return json(res, 201, {deviceId: enrolled.id, businessId: enrolled.businessId, createdAt: enrolled.createdAt});
       }
       if (req.method === 'GET' && url.pathname === '/v1/sync/changes') {
         const actor = await authenticate(req);

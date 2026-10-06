@@ -26,10 +26,21 @@ CREATE TABLE IF NOT EXISTS api_enrolled_devices (
   id uuid NOT NULL,
   business_id uuid NOT NULL,
   staff_id uuid NOT NULL,
-  public_key text NOT NULL,
+  public_key jsonb NOT NULL,
   created_at timestamptz NOT NULL,
   revoked_at timestamptz,
   PRIMARY KEY (business_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS api_device_enrollment_challenges (
+  id uuid PRIMARY KEY,
+  challenge char(64) NOT NULL,
+  business_id uuid NOT NULL,
+  staff_id uuid NOT NULL,
+  issued_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL,
+  consumed_at timestamptz,
+  CHECK (expires_at > issued_at)
 );
 
 CREATE TABLE IF NOT EXISTS api_staff_permissions (

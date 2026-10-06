@@ -68,6 +68,60 @@ export class PostgresStore {
     `, [tokenHash, deviceId, now]);
     return rows[0] ?? null;
   }
+
+  async authenticateStaffSession(tokenHash, now = new Date()) {
+    const {rows} = await this.pool.query(`
+      SELECT s.business_id AS "businessId", s.staff_id AS "staffId",
+             COALESCE(array_agg(p.permission) FILTER (WHERE p.permission IS NOT NULL), '{}') AS permissions
+      FROM api_staff_sessions s
+      LEFT JOIN api_staff_permissions p ON p.business_id = s.business_id AND p.staff_id = s.staff_id
+      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $2
+      GROUP BY s.business_id, s.staff_id
+    `, [tokenHash, now]);
+    return rows[0] ?? null;
+  }
+
+  async issueDeviceEnrollmentChallenge({challengeId, challenge, businessId, staffId, issuedAt, expiresAt}) {
+    await this.pool.query(`
+      INSERT INTO api_device_enrollment_challenges (id, challenge, business_id, staff_id, issued_at, expires_at)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [challengeId, challenge, businessId, staffId, issuedAt, expiresAt]);
+    return {challengeId, challenge, issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString()};
+  }
+
+  async deviceEnrollmentChallenge(challengeId, businessId, staffId) {
+    const {rows} = await this.pool.query(`
+      SELECT id AS "challengeId", challenge, business_id AS "businessId", staff_id AS "staffId",
+             expires_at AS "expiresAt", consumed_at AS "consumedAt"
+      FROM api_device_enrollment_challenges
+      WHERE id = $1 AND business_id = $2 AND staff_id = $3
+    `, [challengeId, businessId, staffId]);
+    return rows[0] ?? null;
+  }
+
+  async enrollDevice({challengeId, businessId, staffId, deviceId, publicKey, at}) {
+    return this.transaction(async tx => {
+      const {rows} = await tx.client.query(`
+        SELECT challenge, expires_at AS "expiresAt", consumed_at AS "consumedAt"
+        FROM api_device_enrollment_challenges
+        WHERE id = $1 AND business_id = $2 AND staff_id = $3
+        FOR UPDATE
+      `, [challengeId, businessId, staffId]);
+      const challenge = rows[0];
+      if (!challenge || challenge.consumedAt || new Date(challenge.expiresAt) <= at) {
+        const error = new Error('Enrollment challenge is expired or already used.');
+        error.status = 409;
+        error.code = 'ENROLLMENT_CHALLENGE_INVALID';
+        throw error;
+      }
+      await tx.client.query(`
+        INSERT INTO api_enrolled_devices (id, business_id, staff_id, public_key, created_at)
+        VALUES ($1, $2, $3, $4::jsonb, $5)
+      `, [deviceId, businessId, staffId, JSON.stringify(publicKey), at]);
+      await tx.client.query('UPDATE api_device_enrollment_challenges SET consumed_at = $2 WHERE id = $1', [challengeId, at]);
+      return {id: deviceId, businessId, staffId, publicKey, createdAt: at.toISOString()};
+    });
+  }
 }
 
 class PostgresTransaction {
