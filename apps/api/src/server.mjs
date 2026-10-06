@@ -40,7 +40,8 @@ async function authenticateStaffSession(req, store, now = new Date()) {
   const token = authorization.slice(7);
   if (token.length < 32 || token.length > 4096) throw new ApiProblem(401, 'AUTH_REQUIRED', 'A valid staff session is required.');
   const actor = await store.authenticateStaffSession(createHash('sha256').update(token).digest('hex'), now);
-  return normalizeActor(actor && {...actor, deviceId: undefined});
+  if (!actor || typeof actor.businessId !== 'string' || typeof actor.staffId !== 'string') throw new ApiProblem(401, 'AUTH_REQUIRED', 'A valid staff session is required.');
+  return actor;
 }
 
 export function createApiServer({store, registry = new Map(), authenticate, origin = process.env.WEB_ORIGIN}) {
@@ -149,8 +150,8 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       return json(res, 404, {error: {code: 'NOT_FOUND', message: 'Route not found.'}});
     } catch (error) {
-      const status = Number.isInteger(error.status) ? error.status : 500;
-      const code = error.code ?? 'INTERNAL_ERROR';
+      const status = Number.isInteger(error.status) ? error.status : error.code === '23505' ? 409 : error.code === '22P02' ? 400 : 500;
+      const code = error.code === '23505' ? 'DUPLICATE_REFERENCE' : error.code === '22P02' ? 'VALIDATION_FAILED' : error.code ?? 'INTERNAL_ERROR';
       if (status >= 500) console.error(JSON.stringify({event: 'request_error', code, errorType: error.constructor?.name ?? 'Error'}));
       return json(res, status, {error: {code, message: status >= 500 ? 'The request could not be completed.' : error.message, ...(error.details ? {details: error.details} : {})}});
     }

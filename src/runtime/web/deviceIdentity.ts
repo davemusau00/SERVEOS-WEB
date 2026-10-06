@@ -40,3 +40,18 @@ export async function getOrCreateWebDeviceIdentity(businessId:string,preferredDe
   return (await readIdentity(db,businessId))!;
  }finally{db.close()}
 }
+
+export async function enrollWebDeviceWithApi(apiOrigin:string,accessToken:string,businessId:string,staffId:string,identity:WebDeviceIdentity):Promise<void>{
+ const origin=new URL(apiOrigin);if(origin.protocol!=='https:'&&origin.hostname!=='localhost'&&origin.hostname!=='127.0.0.1')throw new Error('Device enrollment requires HTTPS');
+ if(!accessToken||!businessId||!staffId)throw new Error('An authenticated staff session is required for device enrollment');
+ const headers={'content-type':'application/json',authorization:`Bearer ${accessToken}`};
+ const challengeResponse=await fetch(`${origin.origin}/v1/devices/enrollment-challenges`,{method:'POST',headers,signal:AbortSignal.timeout(15000)});
+ if(!challengeResponse.ok)throw new Error(`Device enrollment challenge failed (${challengeResponse.status})`);
+ const challenge=await challengeResponse.json() as {challengeId:string;challenge:string};
+ const signed=`${challenge.challengeId}\n${businessId}\n${staffId}\n${identity.deviceId}\n${challenge.challenge}`;
+ const signature=await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},identity.privateKey,new TextEncoder().encode(signed));
+ const encodedSignature=btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+ const enrollResponse=await fetch(`${origin.origin}/v1/devices/enroll`,{method:'POST',headers,body:JSON.stringify({challengeId:challenge.challengeId,deviceId:identity.deviceId,publicKey:identity.publicKey,signature:encodedSignature}),signal:AbortSignal.timeout(15000)});
+ if(!enrollResponse.ok)throw new Error(`Device enrollment failed (${enrollResponse.status})`);
+ const enrolled=await enrollResponse.json() as {deviceId:string};if(enrolled.deviceId!==identity.deviceId)throw new Error('The API enrolled a different device identity');
+}

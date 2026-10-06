@@ -82,6 +82,16 @@ export class PostgresStore {
   }
 
   async issueDeviceEnrollmentChallenge({challengeId, challenge, businessId, staffId, issuedAt, expiresAt}) {
+    const {rows: recent} = await this.pool.query(`
+      SELECT count(*)::int AS count FROM api_device_enrollment_challenges
+      WHERE business_id = $1 AND staff_id = $2 AND issued_at > $3
+    `, [businessId, staffId, new Date(issuedAt.getTime() - 60 * 60_000)]);
+    if (recent[0].count >= 10) {
+      const error = new Error('Too many device enrollment challenges were requested.');
+      error.status = 429;
+      error.code = 'RATE_LIMITED';
+      throw error;
+    }
     await this.pool.query(`
       INSERT INTO api_device_enrollment_challenges (id, challenge, business_id, staff_id, issued_at, expires_at)
       VALUES ($1, $2, $3, $4, $5, $6)
