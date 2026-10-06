@@ -19,10 +19,30 @@ export class PostgresStore {
 
   async commandStatus(businessId, commandId) {
     const {rows} = await this.pool.query(
-      'SELECT outcome FROM api_commands WHERE business_id = $1 AND command_id = $2',
+      'SELECT status, outcome, error, received_at AS "receivedAt", updated_at AS "updatedAt" FROM api_commands WHERE business_id = $1 AND command_id = $2',
       [businessId, commandId],
     );
-    return rows[0]?.outcome ?? null;
+    return rows[0] ?? null;
+  }
+
+  async persistCommandReceived({businessId,commandId,name,payloadHash,actor,request,at}){
+    return this.transaction(async tx=>{
+      await tx.lockCommandKey(businessId,commandId);
+      const existing=await tx.getCommand(businessId,commandId);
+      if(existing)return existing;
+      const {rows}=await tx.client.query(`INSERT INTO api_commands(business_id,command_id,command_name,payload_hash,staff_id,device_id,status,request,received_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,'RECEIVED',$7::jsonb,$8,$8) RETURNING status,outcome,error,payload_hash AS "payloadHash"`,[businessId,commandId,name,payloadHash,actor.staffId,actor.deviceId,JSON.stringify(request),at]);
+      return rows[0];
+    });
+  }
+
+  async setCommandProcessing(businessId,commandId,at){await this.pool.query(`UPDATE api_commands SET status='PROCESSING',updated_at=$3 WHERE business_id=$1 AND command_id=$2 AND status IN ('RECEIVED','PROCESSING')`,[businessId,commandId,at]);}
+
+  async finalizeCommandFailure({businessId,commandId,name,actor,status,error,at}){
+    return this.transaction(async tx=>{
+      await tx.client.query(`UPDATE api_commands SET status=$3,error=$4::jsonb,outcome=$5::jsonb,updated_at=$6 WHERE business_id=$1 AND command_id=$2 AND status IN ('RECEIVED','PROCESSING')`,[businessId,commandId,status,JSON.stringify(error),JSON.stringify({kind:status,commandId,error}),at]);
+      await tx.insertAudit({businessId,commandId,name,actor,at,eventType:status});
+      const saved=await tx.getCommand(businessId,commandId);return saved?.outcome;
+    });
   }
 
   async changesAfter(businessId, after, limit) {
