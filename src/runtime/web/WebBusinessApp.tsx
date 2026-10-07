@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {Activity,BedDouble,Boxes,CheckCircle2,ChevronRight,ClipboardCheck,CreditCard,HelpCircle,Home,LockKeyhole,LogIn,Martini,PackageSearch,RefreshCw,Settings,ShieldCheck,Truck,Users,WalletCards,Wifi,WifiOff} from 'lucide-react';
 import {BusinessStore,redactSensitiveData,type QueuedCommand,type WorkflowDraft,type WorkflowDraftField} from './BusinessStore';
 import {resolveOperationDependencies} from './dependencies';
-import {startAutomaticSync,synchronizeStore} from './sync';
+import {startAutomaticSync,subscribeSyncUpdates,synchronizeStore} from './sync';
 import {allowed,loadAuthorizedSnapshot,openWebDevice,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
 import {createApiCloudTransport} from './sync';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
@@ -60,10 +60,15 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
  const [editor,setEditor]=useState<Editor|null>(null);const [values,setValues]=useState<Values>({});
  const store=useRef<BusinessStore|null>(apiStore||null);const committedCommands=useRef(new Set<string>());const submitInFlight=useRef(false);const rpcRef=useRef(rpc);rpcRef.current=rpc;const sessionRef=useRef(session);sessionRef.current=session;const apiTransport=useRef(apiAuth?createApiCloudTransport(apiAuth.client):null);
  const syncRef=useRef<()=>Promise<void>>(async()=>{});
+ const updateHold=useRef(false);
+ const activeSyncCycles=useRef(0);
  const refresh=async()=>{if(!store.current)return;const [r,q,d]=await Promise.all([store.current.records(),store.current.queue(),store.current.drafts()]);const displayQueue=q.map(entry=>({...entry,command:{...entry.command,payload:redactSensitiveData(entry.command.payload) as Record<string,unknown>},result:entry.result?redactSensitiveData(entry.result) as NonNullable<QueuedCommand['result']>:undefined}));setRecords(r);setQueue(displayQueue);setDrafts(d)};
   useEffect(()=>{
   let stopped=false;let needsSnapshot=true;let automatic:ReturnType<typeof startAutomaticSync>|undefined;let opened:BusinessStore|undefined;
   const run=async()=>{
+    if(updateHold.current)return;
+    activeSyncCycles.current++;
+    try{
     if(apiAuth&&apiStore){
       if(!opened){opened=apiStore;store.current=apiStore;}
       if(stopped)return;
@@ -94,13 +99,59 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
   }catch(e){if(!stopped)setError(operatorError(e))}})();
   return()=>{stopped=true;automatic?.stop();opened?.close();store.current=null};
  },[initialSession.businessId,initialSession.actorId,lifecycleRefresh,apiAuth,apiStore]);
+ useEffect(()=>{
+  if(!apiStore)return;
+  let stopped=false;
+  const unsubscribe=subscribeSyncUpdates(apiStore.scope,apiStore.deviceId,apiStore.actorId,update=>{
+   if(update.type!=='SYNC_FINISHED'||stopped)return;
+   void Promise.all([apiStore.records(),apiStore.queue(),apiStore.drafts()]).then(([nextRecords,nextQueue,nextDrafts])=>{
+    if(stopped)return;
+    setRecords(nextRecords);setQueue(nextQueue.map(entry=>({...entry,command:{...entry.command,payload:redactSensitiveData(entry.command.payload) as Record<string,unknown>},result:entry.result?redactSensitiveData(entry.result) as NonNullable<QueuedCommand['result']>:undefined})));setDrafts(nextDrafts);
+   }).catch(error=>{if(!stopped)setError(operatorError(error))});
+  },apiStore.commandAuthority);
+  return()=>{stopped=true;unsubscribe()};
+ },[apiStore]);
   const syncNow=async()=>{setSyncing(true);try{await syncRef.current()}catch(error){const message=operatorError(error);setError(message);throw new Error(message)}finally{setSyncing(false)}};
   useEffect(()=>{const handleOnline=()=>setOnline(true);const handleOffline=()=>setOnline(false);window.addEventListener('online',handleOnline);window.addEventListener('offline',handleOffline);return()=>{window.removeEventListener('online',handleOnline);window.removeEventListener('offline',handleOffline)}},[]);
   useEffect(()=>{const handleUpdate=()=>setUpdateReady(true);window.addEventListener('servos:sw-update-ready',handleUpdate);return()=>window.removeEventListener('servos:sw-update-ready',handleUpdate)},[]);
   useEffect(()=>{const handleHash=()=>{const raw=decodeURIComponent(window.location.hash.replace(/^#\/?/,'').split('/')[0]||'Home') as WorkspaceTab;if(visibleWorkspaces(session).some(workspace=>workspace.id===raw))setTab(raw)};window.addEventListener('hashchange',handleHash);return()=>window.removeEventListener('hashchange',handleHash)},[session]);
   useEffect(()=>{const navigate=(event:Event)=>{const next=(event as CustomEvent<{tab?:string}>).detail?.tab as WorkspaceTab|undefined;if(next&&visibleWorkspaces(session).some(workspace=>workspace.id===next))setTab(next)};window.addEventListener('servos:web-navigate',navigate);return()=>window.removeEventListener('servos:web-navigate',navigate)},[session]);
   useEffect(()=>{const nextHash=`#/${encodeURIComponent(tab)}`;if(window.location.hash!==nextHash)window.history.replaceState(null,'',nextHash)},[tab]);
-  const activateUpdate=async()=>{if(busy||syncing)return;const registration=await navigator.serviceWorker?.getRegistration();const worker=registration?.waiting;if(!worker){window.location.reload();return}const reload=()=>window.location.reload();navigator.serviceWorker.addEventListener('controllerchange',reload,{once:true});worker.postMessage({type:'SERVOS_ACTIVATE_UPDATE'});};
+ useEffect(()=>{
+  if(!('serviceWorker' in navigator))return;
+  const handleMessage=(event:MessageEvent)=>{
+   if(event.data?.type==='SERVOS_RELEASE_UPDATE_BOUNDARY'){updateHold.current=false;document.getElementById('root')?.removeAttribute('inert');return}
+   if(event.data?.type==='SERVOS_SW_READY'&&updateHold.current){window.location.reload();return}
+   if(event.data?.type==='SERVOS_UPDATE_DEFERRED'){setNotice('Another ServOS tab is busy or unavailable. Finish its work or close it, then retry the update.');return}
+   if(event.data?.type!=='SERVOS_CHECK_UPDATE_BOUNDARY'||!event.ports[0])return;
+   const port=event.ports[0];
+   const busyNow=()=>busy||syncing||submitInFlight.current||!!editor||!!document.querySelector('[role="dialog"],dialog[open]');
+   void(async()=>{
+    let safe=false;
+    try{const current=store.current;if(current&&!busyNow()){const [pending,jobs]=await Promise.all([current.hasPending(),current.printJobs()]);safe=!pending&&!jobs.some(job=>job.state==='SENDING'||job.state==='DELIVERY_UNCERTAIN')&&!busyNow()}}
+    catch{safe=false}
+    if(safe){updateHold.current=true;document.getElementById('root')?.setAttribute('inert','');}
+    port.postMessage({safe});port.close();
+   })();
+  };
+  navigator.serviceWorker.addEventListener('message',handleMessage);
+  return()=>navigator.serviceWorker.removeEventListener('message',handleMessage);
+ },[busy,syncing,editor]);
+  const activateUpdate=async()=>{
+   if(busy||syncing||submitInFlight.current)return;
+   if(editor||document.querySelector('[role="dialog"],dialog[open]')){setNotice('Finish or close the current form before updating ServOS.');return}
+   const currentStore=store.current;
+   if(!currentStore){setNotice('Wait for the business workspace to open before updating ServOS.');return}
+   try{
+    const [pending,jobs]=await Promise.all([currentStore.hasPending(),currentStore.printJobs()]);
+    if(pending){setNotice('Synchronize pending actions and resolve unknown outcomes in Activity before updating ServOS.');return}
+    if(jobs.some(job=>job.state==='SENDING'||job.state==='DELIVERY_UNCERTAIN')){setNotice('Resolve the active or uncertain print delivery before updating ServOS.');return}
+    if(busy||syncing||submitInFlight.current||editor||document.querySelector('[role="dialog"],dialog[open]'))return;
+    const registration=await navigator.serviceWorker?.getRegistration();const worker=registration?.waiting;
+    if(!worker){window.location.reload();return}
+    const reload=()=>window.location.reload();navigator.serviceWorker.addEventListener('controllerchange',reload,{once:true});worker.postMessage({type:'SERVOS_ACTIVATE_UPDATE'});
+   }catch(error){setError(operatorError(error))}
+  };
  useEffect(()=>{let active=true;void rpcRef.current('rpc/servos_v2_guidance_progress',{}).then(rows=>{if(active)setGuidance(Array.isArray(rows)?rows:[])}).catch(()=>undefined);return()=>{active=false}},[session.businessId,session.actorId]);
  const saveGuidance=async(next:WebGuidanceProgress)=>{setGuidance(rows=>[next,...rows.filter(row=>row.guideId!==next.guideId)]);try{const saved=await rpcRef.current('rpc/servos_v2_guidance_save',{progress:next});setGuidance(rows=>[saved,...rows.filter(row=>row.guideId!==saved.guideId)]);setNotice('')}catch{setNotice('Guide progress could not be saved to your account. It may not resume on another device; ask an Admin to check Web guidance setup.')}};
  const startTour=(guideId='servos.core')=>{const guide=GUIDES.find(item=>item.id===guideId);if(!guide||(guide.permissions||[]).some(permission=>!session.permissions.includes('*')&&!session.permissions.includes(permission))){setNotice('Your account is not allowed to open this guide. Ask an Admin to review your assigned work.');return}setTourGuideId(guide.id);setTourOpen(true)};
@@ -125,6 +176,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
  const select=(key:string,title:string,collection:string):Field=>({key,label:title,type:'select',options:choices(collection)});
  const open=(next:Editor)=>{setEditor(next);setValues(Object.fromEntries(next.fields.map(f=>[f.key,f.value??''])));setError('')};
  const submit=async(operation:string,collection:string,id:string,payload:Record<string,unknown>):Promise<CommandOutcome>=>{
+  if(updateHold.current)return {kind:'BLOCKED',message:'ServOS is preparing an update. Wait for this workspace to restart.'};
   const apiCatalogCommand=['product.save','stockItem.save','stockLocation.save','catalog.createWithOpeningStock'].includes(operation);const apiCountCommand=['inventory.countLocation','inventory.countSelected'].includes(operation);const apiInventoryCommand=['inventory.transfer','inventory.waste','inventory.adjust','inventory.produceBatch'].includes(operation);
   if(apiAuth&&!apiCatalogCommand&&!apiCountCommand&&!apiInventoryCommand)return {kind:'BLOCKED',message:`${operation} has not migrated to the ServOS API. No command was submitted.`};
   const requiredApiPermission=apiCountCommand?'inventory.count':operation==='inventory.produceBatch'?'inventory.adjust':apiInventoryCommand?operation:'catalog.manage';

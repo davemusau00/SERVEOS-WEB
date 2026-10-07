@@ -11,7 +11,28 @@ const ALLOWED=new Set(ASSETS);
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS))));
 // Do not force activation over active tabs. A new worker waits until the current
 // client releases it at a safe application boundary.
-self.addEventListener('message',event=>{if(event.data?.type==='SERVOS_ACTIVATE_UPDATE')self.skipWaiting()});
+let activationPending=false;
+self.addEventListener('message',event=>{
+ if(event.data?.type==='SERVOS_ACTIVATE_UPDATE')event.waitUntil((async()=>{
+  if(activationPending)return;activationPending=true;
+  try{
+   const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+   const safe=await Promise.all(clients.map(client=>new Promise(resolve=>{
+    const channel=new MessageChannel();
+    const finish=value=>{clearTimeout(timer);channel.port1.close();resolve(value)};
+    const timer=setTimeout(()=>finish(false),3000);
+    channel.port1.onmessage=reply=>finish(reply.data?.safe===true);
+    client.postMessage({type:'SERVOS_CHECK_UPDATE_BOUNDARY'},[channel.port2]);
+   })));
+   if(safe.every(Boolean))await self.skipWaiting();
+   else {clients.forEach(client=>client.postMessage({type:'SERVOS_RELEASE_UPDATE_BOUNDARY'}));event.source?.postMessage({type:'SERVOS_UPDATE_DEFERRED'});}
+  }catch(error){
+   const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+   clients.forEach(client=>client.postMessage({type:'SERVOS_RELEASE_UPDATE_BOUNDARY'}));
+   event.source?.postMessage({type:'SERVOS_UPDATE_DEFERRED'});
+  }finally{activationPending=false}
+ })());
+});
 self.addEventListener('activate',event=>event.waitUntil(self.clients.matchAll({type:'window'}).then(clients=>clients.forEach(client=>client.postMessage({type:'SERVOS_SW_READY',cache:CACHE})))));
 self.addEventListener('fetch',event=>{
  const req=event.request,url=new URL(req.url);

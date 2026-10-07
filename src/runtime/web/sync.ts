@@ -16,10 +16,15 @@ export function createApiCloudTransport(client:ReturnType<typeof createServOSApi
       await new Promise(resolve=>setTimeout(resolve,500));const current=await client.commandStatus(command.id);
       if(current.outcome&&(current.status==='CONFIRMED'||current.status==='REJECTED'||current.status==='CONFLICT')){outcome=current.outcome;break}
      }
-     if(!outcome)throw new ApiOutcomeUnknown(command.id);
+     // A process may have stopped after persisting RECEIVED/PROCESSING.
+     // Replay the identical envelope: the API command lock and payload hash
+     // serialize an active execution and return its durable terminal outcome.
     }
    }catch(error){if(!(error instanceof ApiHttpError&&error.status===404))throw error}
    outcome??=await client.submitCommand({commandId:command.id,name:command.operation,payload:command.payload,expectedVersions:Object.fromEntries(command.expectedVersions.map(item=>[`${item.collection}:${item.id}`,item.version])),...(command.offlineGrantId?{offlineGrantId:command.offlineGrantId}:{})});
+   if(outcome.commandId!==command.id)throw new ApiOutcomeUnknown(command.id);
+   if(!['CONFIRMED','REJECTED','CONFLICT'].includes(outcome.kind))throw new ApiOutcomeUnknown(command.id);
+   if(outcome.kind==='CONFIRMED'&&(!Number.isSafeInteger(outcome.cursor)||Number(outcome.cursor)<1))throw new ApiOutcomeUnknown(command.id);
    if(outcome.kind==='CONFIRMED')return {commandId:command.id,status:'SYNCHRONIZED',recordVersions:[],serverSequence:outcome.cursor};
    return {commandId:command.id,status:outcome.kind==='CONFLICT'?'CONFLICT':'REJECTED',recordVersions:[],error:outcome.error||{code:outcome.kind,message:'The API did not confirm this command.',retryable:false}};
   },
@@ -34,9 +39,9 @@ export function createApiCloudTransport(client:ReturnType<typeof createServOSApi
 export const createApiTransport=createApiCloudTransport;
 export type SyncUpdate={type:'SYNC_STARTED'|'SYNC_FINISHED'|'SYNC_FAILED';at:string};
 const syncChannel=(scope:string,deviceId:string,actorId:string)=>`servos-v2-sync:${scope}:${deviceId}:${actorId}:updates`;
-export function subscribeSyncUpdates(scope:string,deviceId:string,actorId:string,onUpdate:(update:SyncUpdate)=>void){
+export function subscribeSyncUpdates(scope:string,deviceId:string,actorId:string,onUpdate:(update:SyncUpdate)=>void,authority:BusinessStore['commandAuthority']='SUPABASE'){
  if(typeof BroadcastChannel==='undefined')return()=>{};
- const channel=new BroadcastChannel(syncChannel(scope,deviceId,actorId));channel.onmessage=event=>{if(event.data&&['SYNC_STARTED','SYNC_FINISHED','SYNC_FAILED'].includes(event.data.type))onUpdate(event.data as SyncUpdate)};
+ const channel=new BroadcastChannel(`${syncChannel(scope,deviceId,actorId)}:${authority}`);channel.onmessage=event=>{if(event.data&&['SYNC_STARTED','SYNC_FINISHED','SYNC_FAILED'].includes(event.data.type))onUpdate(event.data as SyncUpdate)};
  return()=>channel.close();
 }
 export async function synchronizeStore(store:BusinessStore,transport:CloudTransport):Promise<void>{
