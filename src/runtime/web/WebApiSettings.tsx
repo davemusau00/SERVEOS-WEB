@@ -1,3 +1,4 @@
+import {WebOutletSettings} from './WebOutletSettings';
 import React,{useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
@@ -38,10 +39,11 @@ export function WebApiSettings({records,session,disabled,command}:{records:Busin
  };
  return <section className="space-y-4">
   <h2 className="text-xl font-bold">Business and payment settings</h2>
+  <WebOutletSettings records={records} disabled={disabled||busy||pending} command={command}/>
   <div className="flex flex-wrap gap-2">{allowed(session,'business.tax.configure')&&<button disabled={disabled||busy||pending} className={button} onClick={()=>open('BUSINESS',business)}>Business identity and tax</button>}<button disabled={disabled||busy||pending} className={button} onClick={()=>open('TILL',till)}>Till policy</button><button disabled={disabled||busy||pending} className={button} onClick={()=>open('ACCOUNT')}>Add payment account</button></div>
   <p className="text-sm text-slate-400">Configure the business's approved tax rates explicitly. Issued documents retain their original settings. Till policy changes require all tills to be closed and reviewed.</p>
   <div className="space-y-2">{accounts.map(row=><button key={row.id} disabled={disabled||busy||pending} className={`${button} block w-full text-left`} onClick={()=>open('ACCOUNT',row)}>{String(row.data.name)} · {String(row.data.method)}{row.archived?' · Archived':''}</button>)}</div>
-  {editor&&<form onSubmit={event=>void submit(event)} className="space-y-3 rounded-xl border border-slate-700 p-4">
+  {editor&&<form role="dialog" aria-label="Edit business settings" onSubmit={event=>void submit(event)} className="space-y-3 rounded-xl border border-slate-700 p-4">
    <h3 className="font-bold">{editor.kind==='BUSINESS'?'Receipt identity and tax rates':editor.kind==='TILL'?'Till scope and variance policy':'Payment account'}</h3>
    {fields.map(field=><label key={field.key} className="block text-sm">{field.kind==='checkbox'?<><input type="checkbox" disabled={busy||pending} checked={editor.values[field.key]===true} onChange={event=>setEditor({...editor,values:{...editor.values,[field.key]:event.target.checked}})}/> {field.label}</>:<>{field.label}{field.kind==='select'?<select className={input} disabled={busy||pending||field.key==='method'&&editor.version>0} value={String(editor.values[field.key]??'')} onChange={event=>setEditor({...editor,values:{...editor.values,[field.key]:event.target.value}})}>{field.choices?.map(choice=><option key={choice}>{choice}</option>)}</select>:field.kind==='textarea'?<textarea className={input} disabled={busy||pending} value={String(editor.values[field.key]??'')} onChange={event=>setEditor({...editor,values:{...editor.values,[field.key]:event.target.value}})}/>:<input className={input} disabled={busy||pending} required={field.required} type={field.kind==='number'?'number':'text'} min={field.kind==='number'?0:undefined} step={field.kind==='number'?'0.01':undefined} value={String(editor.values[field.key]??'')} onChange={event=>setEditor({...editor,values:{...editor.values,[field.key]:event.target.value}})}/>}</>}</label>)}
    <label className="block text-sm">Change reason<textarea className={input} required minLength={3} maxLength={500} disabled={busy||pending} value={reason} onChange={event=>setReason(event.target.value)}/></label>

@@ -240,3 +240,11 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Editors pin configuration revisions when opened, require change reasons and explicit rate inputs, preserve M-Pesa till/paybill/account details, and prevent tender-method changes on existing identities. Settings actions require connectivity and use typed API commands rather than generic record replacement or Supabase RPC.
 - Unresolved configuration outbox entries disable further configuration submission while Activity recovers their original outcomes. Tax editing additionally requires tax-configuration permission; the API independently enforces it.
 - No tests/lint/build/browser execution ran. Deferred acceptance includes percentage/minor conversion, stale edits, archive/reactivation, field validation, permissions, response loss/reconnect and zero legacy calls. Outlet configuration, online POS/till operator wiring and the remaining sprint phases remain outstanding.
+
+
+## Final sprint continuation ? outlet setup (source only)
+
+- Added online-only authorized `outlet.save`, with expected outlet/storage versions, an active stock-location requirement, explicit archive state and a durable configuration reason. The shared business boundary serializes outlet setup with order/till opening; active outlet orders or tills block storage reassignment and archive.
+- Added outlet create/edit/archive/reactivation to API Settings. Editors pin the reviewed outlet and storage projections; unresolved outlet commands join the configuration submission hold. Outlet bootstrap now retains archived tombstones so reactivation remains available after reload.
+- Inline configuration editors now expose a dialog boundary for the existing Service Worker update hold, preventing activation while these forms are open.
+- No tests/lint/build/database/browser execution ran. Deferred acceptance includes create/edit/archive/reactivate/reload, stale storage/outlet revisions, opening-order/till races, permissions/isolation, response loss and safe updates. Online POS/till operator wiring and the remaining sprint phases remain outstanding.
