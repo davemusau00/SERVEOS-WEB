@@ -256,6 +256,13 @@ export class BusinessStore {
       await request(tx.objectStore('printEvents').add({id:crypto.randomUUID(),jobId:id,documentId:current.documentId,fromState:current.state,toState:state,attempt:next.attempt,actorId:this.actorId,deviceId:this.deviceId,occurredAt:next.updatedAt,confirmedPossibleDuplicate,errorCode:errorCode||null}));return next;
     });
   }
+  async hasUnresolvedPrintDelivery():Promise<boolean>{
+    return this.transaction(['printJobs','records'],'readonly',async tx=>{
+      const local=await request(tx.objectStore('printJobs').getAll()) as LocalPrintJob[];
+      const records=await request(tx.objectStore('records').getAll()) as Array<RecordVersion & {data:Record<string,unknown>}>;
+      return local.some(job=>job.state==='SENDING'||job.state==='DELIVERY_UNCERTAIN')||records.some(record=>record.collection==='printJobs'&&record.data.claimedDeviceId===this.deviceId&&['SENDING','SENT_TO_SPOOLER','DELIVERY_UNCERTAIN'].includes(String(record.data.state)));
+    });
+  }
   async printJobs():Promise<LocalPrintJob[]>{return this.transaction(['printJobs'],'readonly',tx=>request(tx.objectStore('printJobs').getAll()))}
   async storageDiagnostics(){
     const estimate=await navigator.storage?.estimate?.().catch(()=>undefined);const persisted=await navigator.storage?.persisted?.().catch(()=>null)??null;

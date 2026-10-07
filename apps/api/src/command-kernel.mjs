@@ -57,6 +57,10 @@ export function normalizeActor(actor) {
   return actor;
 }
 
+const assertCommandOwner=(saved,actor)=>{
+  if(saved&&((saved.staffId!==undefined&&saved.staffId!==actor.staffId)||(saved.deviceId!==undefined&&saved.deviceId!==actor.deviceId)))throw new ApiProblem(403,'COMMAND_ACTOR_MISMATCH','Recover this command using the original staff and enrolled device.');
+};
+
 export async function executeCommand({db, command: input, actor: actorInput, registry, now = () => new Date()}) {
   const command = validateCommandEnvelope(input);
   const actor = normalizeActor(actorInput);
@@ -65,6 +69,7 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
   const received = typeof db.persistCommandReceived === 'function'
     ? await db.persistCommandReceived({businessId:actor.businessId,commandId:command.commandId,name:command.name,payloadHash:hash,actor,request:command,at:now()})
     : null;
+  assertCommandOwner(received,actor);
   if(received?.payloadHash&&received.payloadHash!==hash)throw new ApiProblem(409,'COMMAND_ID_REUSED','This command ID was already used with a different payload.');
   if(received?.outcome&&(received.status==='CONFIRMED'||received.status==='REJECTED'||received.status==='CONFLICT'))return received.outcome;
   const terminalFailure=async error=>{
@@ -78,12 +83,13 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
     throw error;
   };
   if(!definition)return terminalFailure(new ApiProblem(404,'UNKNOWN_COMMAND','This command is not available on this API version.'));
-  if(!actor.permissions?.includes('*')&&!actor.permissions?.includes(definition.permission))return terminalFailure(new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to perform this action.'));
+  if(!actor.permissions?.includes('*')&&!(definition.permissionAny??[definition.permission]).some(permission=>actor.permissions?.includes(permission)))return terminalFailure(new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to perform this action.'));
   if(definition.offlinePolicy==='ONLINE_ONLY'&&command.offlineGrantId)return terminalFailure(new ApiProblem(403,'OFFLINE_NOT_ALLOWED','This action must be performed while connected.'));
   await db.setCommandProcessing?.(actor.businessId,command.commandId,now());
   try {
     return await db.transaction(async tx => {
     const existing = await tx.getCommand(actor.businessId, command.commandId);
+    assertCommandOwner(existing,actor);
     if (existing) {
       if (existing.payloadHash !== hash) throw new ApiProblem(409, 'COMMAND_ID_REUSED', 'This command ID was already used with a different payload.');
       if(existing.outcome)return existing.outcome;
@@ -91,6 +97,7 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
 
     if (typeof tx.lockCommandKey === 'function') await tx.lockCommandKey(actor.businessId, command.commandId);
     const afterLock = await tx.getCommand(actor.businessId, command.commandId);
+    assertCommandOwner(afterLock,actor);
     if (afterLock) {
       if (afterLock.payloadHash !== hash) throw new ApiProblem(409, 'COMMAND_ID_REUSED', 'This command ID was already used with a different payload.');
       if(afterLock.outcome)return afterLock.outcome;

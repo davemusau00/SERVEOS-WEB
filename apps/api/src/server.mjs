@@ -1,3 +1,11 @@
+import {outletCommandRegistry} from './outlet-commands.mjs';
+import {printCommandRegistry} from './print-commands.mjs';
+import {businessTaxCommandRegistry} from './business-tax.mjs';
+import {paymentCommandRegistry} from './payment-commands.mjs';
+import {paymentAccountCommandRegistry} from './payment-accounts.mjs';
+import {tillCommandRegistry} from './till-commands.mjs';
+import {filterRecords,filterChangePage} from './projection-access.mjs';
+import {posCommandRegistry} from './pos-commands.mjs';
 import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
@@ -181,7 +189,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         }
         const page = await store.changesAfter(actor.businessId, after, limit);
         if (after > page.highWater) throw new ApiProblem(409, 'CURSOR_AHEAD', 'The requested cursor is ahead of this business change feed.');
-        return json(res, 200, {protocolVersion: 1, ...page});
+        return json(res, 200, {protocolVersion: 1, ...filterChangePage(actor,page)});
       }
       if (req.method === 'GET' && url.pathname === '/v1/sync/stream') {
         const actor = await authenticate(req);
@@ -218,7 +226,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if (req.method === 'GET' && url.pathname === '/v1/catalog/items') {
         const actor = await authenticate(req);
-        if (!actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) {
+        if (!actor.permissions?.includes('*') && !actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) {
           throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to view the catalog.');
         }
         const search = (url.searchParams.get('search') ?? '').trim();
@@ -227,8 +235,9 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if (req.method === 'GET' && url.pathname === '/v1/bootstrap/catalog') {
         const actor = await authenticate(req);
-        if (!actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view catalog data.');
-        return json(res,200,{protocolVersion:1,...await store.catalogBootstrap(actor.businessId)});
+        if (!actor.permissions?.includes('*') && !actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view catalog data.');
+        const bootstrap=await store.catalogBootstrap(actor.businessId);
+        return json(res,200,{protocolVersion:1,...bootstrap,records:filterRecords(actor,bootstrap.records)});
       }
       if (req.method === 'POST' && url.pathname === '/v1/commands') {
         const actor = await authenticate(req);
@@ -238,7 +247,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       const match = req.method === 'GET' && url.pathname.match(/^\/v1\/commands\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i);
       if (match) {
         const actor = await authenticate(req);
-        const outcome = await store.commandStatus(actor.businessId, match[1]);
+        const outcome = await store.commandStatus(actor.businessId, match[1],actor.permissions?.includes('*')||actor.permissions?.includes('audit.view')?null:actor.staffId);
         return outcome ? json(res, 200, {commandId:match[1],status:outcome.status,outcome:outcome.outcome,error:outcome.error,receivedAt:outcome.receivedAt,updatedAt:outcome.updatedAt}) : json(res, 404, {error: {code: 'COMMAND_NOT_FOUND', message: 'No command with this ID exists.'}});
       }
       return json(res, 404, {error: {code: 'NOT_FOUND', message: 'Route not found.'}});
@@ -260,7 +269,7 @@ async function main() {
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
-  const server = createApiServer({store, registry: catalogCommandRegistry, authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
+  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
   server.listen(config.port, config.host, () => console.log(JSON.stringify({event: 'api_started', port: config.port, environment: config.nodeEnv, logLevel: config.logLevel})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
   process.on('SIGTERM', shutdown);

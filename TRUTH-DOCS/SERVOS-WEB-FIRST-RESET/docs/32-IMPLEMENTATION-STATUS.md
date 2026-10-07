@@ -8,7 +8,7 @@ The verification-first continuation below supersedes earlier test-deferral and s
 - Cloud-v2 disposable PostgreSQL suite passes; complete preview browser matrix: **52 passed**, with the dedicated real API case skipped in this matrix and passing separately.
 - Real Playwright/API/PostgreSQL acceptance passes, including login/enrollment, catalog mutation, fresh sign-in after reload, missed remote change recovery, full stocktake, authoritative balance version and IndexedDB/outbox checks, with zero legacy RPC calls.
 - Durable domain rejections/conflicts are retained; infrastructure errors remain unresolved and replayable. Change records are explicit, and location-balance revisions guard reviewed inventory commands against ABA changes.
-- Corrected production browser matrix is still running. GitHub Actions YAML parses and requires the API browser gate, but hosted CI green is **unverified**.
+- Complete production browser rerun: **88 passed**, 4 skipped (dedicated real API scenario runs separately). GitHub Actions YAML parses and requires the API browser gate, but hosted CI green is **unverified**.
 - Next business gates: receiving and exact movement reversal with immutable physical-state evidence and later-activity blockers, then online POS, consumption, payments/tills and printing. Procurement/rooms expansion, production writers and cutover remain gated.
 
 ## Baseline captured for this checkout
@@ -134,3 +134,109 @@ The latest pasted review supersedes the earlier sprint-end test deferral. POS, p
 - API stock projections now expose per-location balance revisions, and inventory handlers require the reviewed stock/location versions plus independent balance revisions for counts, corrections, transfers, waste and batch inputs/output. No database schema migration was required: existing balance revision columns already increment transactionally. PostgreSQL ABA regression proves a 5 -> 4 -> 5 balance change conflicts against the old revision even when the stock master version remains unchanged; missing revisions are rejected and a freshly reviewed count confirms.
 - PWA inventory editors pin their reviewed revisions; count drafts retain balance versions, and the API projection marker advances to api-catalog-v2 so older projections rebuild safely after pending commands are recovered. Older drafts lacking balance metadata require a fresh review. Two additional root tests cover pinned independent revisions and missing/invalid metadata, bringing the root suite to 218/218. Lint passes; API tests remain 19/19 with zero skips.
 - Extended the real API/PostgreSQL browser acceptance to perform a full stocktake, verify PostgreSQL quantity/revision, and verify IndexedDB stock revision plus two synchronized outbox entries; it passed locally. No legacy RPC requests were observed.
+
+- Final complete production browser rerun passed: **88 passed, 4 skipped** across 1024x600, AIO, laptop and mobile. The skipped cases are the dedicated real API/PostgreSQL scenario, which passed separately after the latest API changes. Complete preview evidence remains **52 passed, 2 dedicated-project skips**.
+- Extended PostgreSQL regression assertions cover transfer replay, source/destination balances, waste, reviewed corrections, and stale movement revisions. They exposed first-response/replay shape differences; movement timestamps now use ISO strings and nullable stock container sizes use explicit nulls. API suite passes **19/19, zero skips** after these changes. Latest real API browser test passes, including full stocktake and persisted balance revision; latest lint and root suite pass (**218/218**). Documentation checks pass.
+- Disposable verification API databases were stopped after evidence collection; no hosted database, production writer, unrelated Docker workload, physical printer or cutover was changed. Hosted CI green, receiving and exact reversal remain outstanding; online POS has not been enabled.
+
+
+## Final sprint continuation ? exact recording reversal (source only)
+
+The active objective now includes `final-sprint.md` alongside the controlling reset pack. Further tests are deferred to the end of the development sprint by the latest user instruction. Earlier passing evidence does not verify this continuation.
+
+- Added API migration 016 for immutable movement before/after balance evidence, stock unit/container/cost snapshots, and a unique original-command reversal link. Existing movements are intentionally not backfilled with guessed physical states.
+- Balance-setting transactions retain the first before-state and resulting revision; newly inserted movements persist that evidence in the same transaction. Transfer and waste commands can now be reversed as complete original commands through `inventory.reverseMovement`, with `inventory.adjust` permission, manager reason, same-business lookup, original-command locking and duplicate-reversal exclusion.
+- Exact restoration checks all affected locations before changing any balance: reviewed stock/location/balance revisions, original after-state revision and physical state, unchanged stock units/container size/cost, and reconciled movement delta. Missing evidence, unknown original bottle state, later activity, unsupported financial/batch correction types and already-reversed recordings fail closed. Compensation increments current balance revisions, preserves original movements, and publishes the canonical `movementCorrections` record plus stock and compensating movements through the explicit change-feed contract.
+- Added reversal history to API bootstrap and restoration evidence to movement projections. Wired an API-specific operator review dialog showing all affected locations, a manager reason and current revision baselines. Incomplete linked transfers and unresolved submissions cannot be confirmed again in the same dialog. Legacy mode retains its existing correction workflow.
+- This migration, handler and PWA wiring are **unverified by execution**. End-of-sprint coverage must include non-bottle and sealed/open transfers/waste, duplicate/replayed reversal, unknown response, simultaneous reversals, later ABA activity, cost/unit/configuration changes, missing history/evidence, cross-business lookup, permissions, bootstrap/reload and compensating-ledger reconciliation.
+- Receiving remains next; it must preserve package conversion, weighted cost, source documents, duplicate prevention and supplier/PO policy rather than bypassing their business effects. POS and the later final-sprint phases remain outstanding.
+
+
+## Final sprint continuation ? direct receiving (source only)
+
+- Added migration 017 for explicit business receiving policy and immutable stock receipt/source snapshots. Direct receiving defaults to disabled; approved-PO-required policy blocks the direct command. Linked supplier/PO receiving remains a separate procurement operation.
+- Added online-only `inventory.receive` and administrator `inventory.policy.save` handlers. Receiving pins policy, stock, location and independent balance revisions; stores package conversion and source document evidence; prevents duplicate source lines; updates weighted valuation and physical balances; and publishes receipt, stock and movement records atomically. Posted receipt amounts remain integer minor currency units, while unit cost rates use twelve decimal places.
+- Added receipt and policy bootstrap projections plus PWA receiving/policy dialogs. Bottle receipts require explicit sealed/open quantities that reconcile to received liquid. Unknown outcomes hold repeat submission in the open dialog. These source changes do not post supplier payment or claim procurement completion.
+- No tests, lint or build were run for this continuation, following the user instruction to defer verification. Earlier passing checkpoints do not verify migrations 016/017 or the new dialogs. Required end-of-sprint evidence includes policy authorization/concurrency, source deduplication, precise weighted cost, package changes, bottle conservation, rollback, response loss, reload/change-feed equivalence and cross-business isolation. Online POS remains outstanding.
+
+
+## Final sprint continuation ? online POS draft kernel (source only)
+
+- Added migration 018 for API-owned orders, lines and immutable per-version order events. Orders pin outlet/storage location and staff/device attribution; lines retain product/portion/recipe identity and price snapshots. Posted totals use integer minor units.
+- Added online-only canonical `order.create`, `order.addItem`, `order.updateItem` and `order.removeItem` handlers with required reviewed order versions, server-selected pricing, product/outlet checks, bounded lines/quantities and durable event recording. Removed lines remain in history; fired lines cannot be edited through draft commands. No client-supplied prices or arbitrary service references are accepted.
+- Registered the draft commands in the production API and added batched order/line bootstrap projections. Existing PWA POS remains gated until stock-consuming fire and payment/till authority are connected. Modifier and table/customer/room registries remain to be ported; the draft API rejects those unsupported references explicitly.
+- This is a source foundation, not an accepted POS migration. Tests/build/lint remain deferred. Pending work includes modifiers, service registries, atomic fire/consumption/KOT-BOT documents, PWA concurrency/recovery, payments, tills, receipts and all sprint acceptance gates. Earlier passing checkpoints do not verify this migration or module.
+
+
+## Final sprint continuation ? online fire/consumption and production tickets (source only)
+
+- Added migration 019 for immutable per-line stock consumption links, versioned BusinessDocument snapshots and a queued printer-role job model. Database triggers protect issued documents, order events and consumption evidence from updates/deletes.
+- Draft lines now capture canonical base-unit ingredient quantities and stock configuration. Batch sales consume finished stock; recipes consume ingredients; configured spirit/wine portions distinguish whole sealed containers from measured liquid. Invalid tracked-product configuration is rejected rather than treated as untracked.
+- Added online-only `order.fire` with pinned order/stock/location/balance revisions, full prevalidation, stock underflow protection, bottle conservation and atomic stock movements/consumption links/order events. Whole bottles are reserved before measured pours; unknown physical bottle state requires a physical count. Previously fired lines cannot be consumed again.
+- Fire creates immutable KOT/BOT snapshots and QUEUED jobs for kitchen/bar routes in the same transaction. Canonical snapshot hashes and bootstrap document/job projections support recovery. No printer is contacted and no delivery success is claimed. PWA POS stays gated while payment/till and operator wiring are incomplete.
+- All new source remains unverified: no tests, lint, build or database execution ran. Deferred coverage must prove recipe/batch/portion consumption, fractional quantities/costs, sealed/open conservation, stale/ABA revisions, transaction rollback, replay/response loss, second fire after adding lines, permissions/isolation, document hash/bootstrap equivalence and printer-independent confirmation.
+
+
+## Final sprint continuation ? till lifecycle and financial read boundaries (source only)
+
+- Added migration 020 and online-only till policy/open/cash-movement/close/variance-review commands. Scope is explicit (single-business default, outlet, or operator/device); active tills are unique per scope, operator and device. Policy cannot change while tills remain active and each session retains its policy snapshot.
+- Cash operations require the owning staff/device, reviewed till revision, integer minor amounts and manager-readable reasons. Cash entries are append-only, drawer underflow is rejected, and close stores the count before returning expected/variance figures. Above-threshold counts freeze the till in REVIEW_REQUIRED until an authorized variance review closes it. Open outlet orders and unresolved financial command lifecycles block close.
+- Added till bootstrap/change records and financial projection access filtering. Cashier records are scoped to their attribution unless their permissions authorize broader visibility; order/doc/print records require corresponding operational permissions. Filtered feed entries retain their sequence so cursors do not develop gaps. Command-status lookup is limited to the issuing staff unless audit authority is present.
+- Registered the API till commands. PWA till/payment operator wiring and actual payment posting remain outstanding. No tests/lint/build/database execution ran; this source is unverified. Deferred acceptance includes scope races, ownership/isolation, blind-count UX, policy baselines, ledger totals/underflow, unresolved outcomes, close/payment races, variance review, reload and authorization changes.
+
+
+## Final sprint continuation ? tender configuration and recovery identity (source only)
+
+- Added migration 021 and online-only `paymentAccount.save` for named KES cash, manual M-Pesa, card and bank accounts. Configuration requires expected versions, explicit reference/status policy and an audit reason. M-Pesa till/paybill destination and paybill account reference are validated; tender method cannot be changed under an existing account identity. Archived accounts remain versioned tombstones.
+- Registered account configuration in the API and added account bootstrap/change projection access for authorized configuration/payment/accounting staff. No provider integration or provider-success assertion was introduced. Payment posting and PWA account/payment forms remain to be implemented.
+- Source review found command recovery was not bound to original staff/device. Durable command queries now include attribution, and the kernel rejects a different operator/device before replay or processing. Original unresolved outcomes remain intact. RECEIVED now also persists the immutable command envelope in the existing request column, preserving configuration reasons and recovery evidence rather than only their hash.
+- No tests/lint/build/database execution ran. Deferred verification must cover configuration validation, null/check constraints, archive/reload, account concurrency, duplicate codes, manual confirmation/reference behavior, original-identity replay, foreign-identity rejection without lifecycle mutation, and durable request/audit recovery.
+
+
+## Final sprint continuation ? payment posting (source only)
+
+- Added migration 022 and online-only canonical `payment.record` / `payment.split`. Payments retain immutable IDs, tender/account snapshots, order/till/staff/device attribution and recorded timestamps. Same-command replay uses the durable command lifecycle; unique business/method external references prevent reposting under another command ID.
+- Payment posting requires reviewed order/till/account revisions, an owned open till in the order outlet, fired lines and a valid outstanding balance. Split tenders settle exactly; single tenders may partially settle. Cash records tender/change separately and adds only the allocated amount to the immutable drawer ledger. Drawer and payment totals remain bounded integer minor amounts.
+- External payments require explicit cashier confirmation. M-Pesa additionally requires recording permission, actual received timestamp and matching received amount; discrepancies block posting pending their dedicated reconciliation workflow. No provider success is claimed.
+- Posting atomically updates paid totals/order state/till revision, order events, payment records, payment acknowledgement and queued receipt-role job. Payment acknowledgements record funds received; fiscal sales receipts/tax snapshots remain a separate pending requirement. Added payment bootstrap projections; PWA payment activation remains gated.
+- No tests/lint/build/database execution ran. Deferred acceptance must prove same-ID response-loss recovery, concurrent balance/till changes, partial/split tenders, cash change/drawer reconciliation, duplicate references, manual M-Pesa truthfulness/discrepancies, rollback/isolation, document hashes and reload/feed recovery. Refunds/reversals, tax snapshots, sales receipts and PWA operator wiring remain outstanding.
+
+
+## Final sprint continuation ? tax and sales receipt snapshots (source only)
+
+- Added migration 023 and an authorized `business.settings.save` API command for business receipt identity, footer and explicitly configured VAT/levy basis points. No statutory rates are inferred. Trading requires configured settings and reviewed settings versions, preserving the native configuration gate.
+- Orders retain business identity snapshots; lines retain tax class, inclusive rate snapshot and integer net/VAT/levy totals. Quantity edits recompute taxes using the original line policy. BigInt intermediate calculations preserve money arithmetic and database constraints enforce line-total conservation. Older orders without required snapshots cannot settle silently.
+- Final settlement now reconciles tax and payment ledgers, issues an immutable SALES_RECEIPT with business/cashier/line/tax/tender snapshots, links it to the order and queues the receipt-role job. Partial settlements retain payment acknowledgements. Receipt payment reconciliation loads the complete order payment history rather than the capped bootstrap history.
+- No tests/lint/build/database execution ran. Deferred verification includes mixed tax classes, rounding boundaries, rate/identity edits during an order, immutable historical rendering, replay/rollback, payment/tax reconciliation and receipt link/feed/bootstrap equality. Logo/QR image pipeline, canonical rendering, refunds/reversals and PWA operator wiring remain outstanding.
+
+
+## Final sprint continuation ? canonical browser document renderer (source only)
+
+- Added `BusinessDocumentRenderer` for immutable sales receipts, payment acknowledgements and KOT/BOT snapshots. Layout includes business/cashier identity, quantities/prices, integer-derived tax/tender totals, external manual-confirmation wording and footer. Receipt styling targets 80mm paper with safe margins; browser paper selection remains deployment/hardware acceptance.
+- Logo and uploaded payment QR use the same bounded embedded-PNG pipeline; mutable remote image URLs are not rendered. QR appears before the footer with the required exact caption. Full image ingestion/snapshot configuration remains pending.
+- Added browser-print preparation with SHA-256 snapshot verification, supported-layout checks, escaped React markup, image decode waiting and preparation timeout. The API explicitly returns UNKNOWN delivery after the browser print dialog; it cannot infer paper delivery or cancellation. No raw-printer cut command or hardware success is claimed.
+- This renderer is not yet connected to audited operator print-job actions. No tests/lint/build/browser/hardware execution ran. Deferred acceptance includes long names/totals, fractional quantities, tax/tender layout, malicious snapshot text, tampered hash, broken/oversized PNG, QR scan, browser cancel/delivery uncertainty and physical 80mm margins.
+
+
+## Final sprint continuation ? audited print lifecycle (source only)
+
+- Added migration 024 for canonical sending/spooler/uncertain states, print-job revisions/claim attribution and append-only print events. Existing job entity versions are seeded; new ticket/payment jobs initialize their versions through one shared queue helper and use the same feed/bootstrap projection shape.
+- Added online-only claim/report/confirm/retry/cancel commands with expected versions and document-specific permission checks. Browser transport reports uncertain delivery. Preparation failure requires an explicit assertion that transport never began. Interrupted/uncertain/spooler attempts require a reason plus possible-duplicate acknowledgement before requeue; only queued/known-unsent failures can be cancelled. Physical delivery confirmation is explicit operator evidence.
+- Command definitions may authorize one of several listed permissions, while handlers still enforce document access. The PWA update boundary now checks both local jobs and unresolved API claims on the current device. Browser renderer errors after transport begins remain uncertain rather than being treated as safe preparation failures.
+- No tests/lint/build/database/browser execution ran. Operator print UI/claim-to-browser orchestration remains pending. Deferred verification includes concurrent claims/retries, same-command replay, interrupted browser delivery, authorization, canonical state migrations, audit immutability and Service Worker update holds/recovery.
+
+
+## Final sprint continuation ? PWA document queue (source only)
+
+- Added the API document/print queue to Activity with immutable previews, claim-before-browser-print, physical delivery confirmation, guarded requeue and unsent cancellation. Commands pin print-job revisions and require connectivity; they cannot create offline print-action drafts.
+- Browser transport starts only after the original claim confirms and the persisted projection shows the exact next revision plus matching staff/device ownership. Missing/stale claim projection stops transport. Unknown command outcomes hold further actions until the shared job advances; interrupted SENDING attempts remain reviewable after restart without automatic resend.
+- Preparation failures report known-unsent failure; a browser dialog attempt reports uncertain delivery and asks the operator to check paper before confirmation or possible-duplicate requeue. No print-dialog completion is presented as physical delivery success.
+- No tests/lint/build/browser/printer execution ran. Deferred acceptance includes double clicks, concurrent claims, lost claim/report responses, restart with SENDING/uncertain state, cancelled dialogs, missing/tampered documents, offline actions, revisions after requeue, permissions and physical printer/QR/layout checks. POS configuration/operator wiring, refunds/reversals and the remaining sprint phases stay outstanding.
+
+
+## Final sprint continuation ? API configuration workspace (source only)
+
+- Added a permission-gated API Settings workspace for receipt business identity/tax rates, till scope/variance policy and cash/manual M-Pesa/card/bank payment accounts. API mode renders its own settings controls; legacy master-record forms remain confined to legacy mode.
+- Editors pin configuration revisions when opened, require change reasons and explicit rate inputs, preserve M-Pesa till/paybill/account details, and prevent tender-method changes on existing identities. Settings actions require connectivity and use typed API commands rather than generic record replacement or Supabase RPC.
+- Unresolved configuration outbox entries disable further configuration submission while Activity recovers their original outcomes. Tax editing additionally requires tax-configuration permission; the API independently enforces it.
+- No tests/lint/build/browser execution ran. Deferred acceptance includes percentage/minor conversion, stale edits, archive/reactivation, field validation, permissions, response loss/reconnect and zero legacy calls. Outlet configuration, online POS/till operator wiring and the remaining sprint phases remain outstanding.

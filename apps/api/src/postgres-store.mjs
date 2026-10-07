@@ -1,3 +1,18 @@
+import {receiptSettingsProjections} from './business-tax.mjs';
+import {paymentProjections} from './payment-commands.mjs';
+import {paymentAccountProjections} from './payment-accounts.mjs';
+import {tillProjections} from './till-commands.mjs';
+import {documentProjections} from './business-documents.mjs';
+import {orderProjections} from './pos-commands.mjs';
+const receiptProjection = row => {
+  const data={...row,receivedAt:row.receivedAt.toISOString()};
+  for(const key of ['quantity','baseQuantity','totalCostMinor','unitCostMinor','beforeAverageCostMinor','afterAverageCostMinor','sealedContainers','openQuantity'])data[key]=row[key]===null?null:Number(row[key]);
+  return {collection:'inventoryReceipts',id:row.id,version:1,data,archived:false};
+};
+const receiptColumns = `id,stock_item_id AS "stockItemId",location_id AS "locationId",source_document AS "sourceDocument",purchase_package_snapshot AS "purchasePackage",quantity_received AS quantity,base_quantity AS "baseQuantity",total_cost_minor AS "totalCostMinor",unit_cost_minor AS "unitCostMinor",before_average_cost_minor AS "beforeAverageCostMinor",after_average_cost_minor AS "afterAverageCostMinor",received_sealed_containers AS "sealedContainers",received_open_quantity AS "openQuantity",source_command_id AS "sourceCommandId",received_by AS "receivedBy",received_at AS "receivedAt"`;
+const policyProjection = row => ({collection:'inventoryPolicy',id:row.businessId,version:Number(row.version),archived:false,data:{allowDirectReceipts:row.allowDirectReceipts,requireSupplierReference:row.requireSupplierReference,requirePurchaseOrder:row.requirePurchaseOrder,updatedBy:row.updatedBy,updatedAt:row.updatedAt.toISOString()}});
+const policyColumns = `business_id AS "businessId",allow_direct_receipts AS "allowDirectReceipts",require_supplier_reference AS "requireSupplierReference",require_purchase_order AS "requirePurchaseOrder",version,updated_by AS "updatedBy",updated_at AS "updatedAt"`;
+
 export class PostgresStore {
   constructor(pool) { this.pool = pool; }
 
@@ -17,20 +32,20 @@ export class PostgresStore {
     }
   }
 
-  async commandStatus(businessId, commandId) {
+  async commandStatus(businessId, commandId, staffId = null) {
     const {rows} = await this.pool.query(
-      'SELECT status, outcome, error, received_at AS "receivedAt", updated_at AS "updatedAt" FROM api_commands WHERE business_id = $1 AND command_id = $2',
-      [businessId, commandId],
+      'SELECT status, outcome, error, received_at AS "receivedAt", updated_at AS "updatedAt" FROM api_commands WHERE business_id = $1 AND command_id = $2 AND ($3::uuid IS NULL OR staff_id=$3)',
+      [businessId, commandId, staffId],
     );
     return rows[0] ?? null;
   }
 
-  async persistCommandReceived({businessId,commandId,name,payloadHash,actor,at}){
+  async persistCommandReceived({businessId,commandId,name,payloadHash,actor,request,at}){
     return this.transaction(async tx=>{
       await tx.lockCommandKey(businessId,commandId);
       const existing=await tx.getCommand(businessId,commandId);
       if(existing)return existing;
-      const {rows}=await tx.client.query(`INSERT INTO api_commands(business_id,command_id,command_name,payload_hash,staff_id,device_id,status,received_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$7) RETURNING status,outcome,error,payload_hash AS "payloadHash"`,[businessId,commandId,name,payloadHash,actor.staffId,actor.deviceId,at]);
+      const {rows}=await tx.client.query(`INSERT INTO api_commands(business_id,command_id,command_name,payload_hash,staff_id,device_id,status,received_at,updated_at,request) VALUES($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$7,$8::jsonb) RETURNING status,outcome,error,payload_hash AS "payloadHash",staff_id AS "staffId",device_id AS "deviceId"`,[businessId,commandId,name,payloadHash,actor.staffId,actor.deviceId,at,JSON.stringify(request)]);
       return rows[0];
     });
   }
@@ -94,16 +109,34 @@ export class PostgresStore {
     const ingredientsByProduct = new Map();
     for(const ingredient of recipes.rows){const list=ingredientsByProduct.get(ingredient.productId)||[];list.push({...ingredient,quantity:Number(ingredient.quantity)});ingredientsByProduct.set(ingredient.productId,list);}
     const countResult=await db.query(`SELECT c.id,c.scope,c.location_id AS "locationId",l.name AS "locationName",c.selected_stock_item_ids AS "selectedStockItemIds",c.item_count AS "itemCount",c.matches,c.short,c.over,c.reason,c.source_command_id AS "sourceCommandId",c.created_by AS "createdBy",c.created_at AS "createdAt",COALESCE(jsonb_agg(jsonb_build_object('stockItemId',r.stock_item_id,'name',r.stock_item_name_snapshot,'baseUnit',r.base_unit_snapshot,'identitySnapshotAvailable',(r.stock_item_name_snapshot IS NOT NULL),'expectedQuantity',r.expected_quantity,'countedQuantity',r.counted_quantity,'variance',r.variance,'countedSealedContainers',r.counted_sealed_containers,'countedOpenQuantity',r.counted_open_quantity,'measurementMethod',r.measurement_method,'consumptionProductIds',r.consumption_product_ids) ORDER BY r.stock_item_id) FILTER(WHERE r.stock_item_id IS NOT NULL),'[]'::jsonb) AS rows FROM inventory_stock_counts c JOIN stock_locations l ON l.business_id=c.business_id AND l.id=c.location_id LEFT JOIN inventory_stock_count_rows r ON r.business_id=c.business_id AND r.count_id=c.id WHERE c.business_id=$1 GROUP BY c.business_id,c.id,l.name ORDER BY c.created_at DESC,c.id LIMIT 1000`,[businessId]);
-    const movementResult=await db.query(`SELECT m.id,m.stock_item_id AS "stockItemId",s.name AS "stockItemName",s.base_unit AS "baseUnit",m.location_id AS "locationId",l.name AS "locationName",m.quantity_delta AS "quantityDelta",m.movement_type AS "movementType",m.reason,m.movement_type AS "reasonCode",m.source_command_id AS "sourceId",m.staff_id AS "actorUserId",m.occurred_at AS "occurredAt" FROM inventory_movements m JOIN stock_items s ON s.business_id=m.business_id AND s.id=m.stock_item_id JOIN stock_locations l ON l.business_id=m.business_id AND l.id=m.location_id WHERE m.business_id=$1 ORDER BY m.occurred_at DESC,m.id DESC LIMIT 1000`,[businessId]);
+    const movementResult=await db.query(`SELECT m.id,m.stock_item_id AS "stockItemId",s.name AS "stockItemName",s.base_unit AS "baseUnit",m.location_id AS "locationId",l.name AS "locationName",m.quantity_delta AS "quantityDelta",m.movement_type AS "movementType",m.reason,m.movement_type AS "reasonCode",m.source_command_id AS "sourceId",m.staff_id AS "actorUserId",m.occurred_at AS "occurredAt",(SELECT jsonb_build_object('before',e.before_state,'after',e.after_state,'baseUnit',e.base_unit,'unitCostMinor',e.average_unit_cost_minor,'containerSize',e.sealed_container_size) FROM inventory_movement_states e WHERE e.business_id=m.business_id AND e.movement_id=m.id) AS "restorationEvidence" FROM inventory_movements m JOIN stock_items s ON s.business_id=m.business_id AND s.id=m.stock_item_id JOIN stock_locations l ON l.business_id=m.business_id AND l.id=m.location_id WHERE m.business_id=$1 ORDER BY m.occurred_at DESC,m.id DESC LIMIT 1000`,[businessId]);
     const adjustmentResult=await db.query(`SELECT a.id,a.stock_item_id AS "stockItemId",s.name AS "stockItemName",a.location_id AS "locationId",l.name AS "locationName",a.before_quantity AS "beforeQuantity",a.after_quantity AS "afterQuantity",a.variance,a.before_sealed_containers AS "beforeSealedContainers",a.before_open_quantity AS "beforeOpenQuantity",a.after_sealed_containers AS "afterSealedContainers",a.after_open_quantity AS "afterOpenQuantity",a.reason,a.source_command_id AS "sourceCommandId",a.created_by AS "createdBy",a.created_at AS "createdAt" FROM inventory_stock_adjustments a JOIN stock_items s ON s.business_id=a.business_id AND s.id=a.stock_item_id JOIN stock_locations l ON l.business_id=a.business_id AND l.id=a.location_id WHERE a.business_id=$1 ORDER BY a.created_at DESC,a.id LIMIT 1000`,[businessId]);
     const batchResult=await db.query(`SELECT id,product_id AS "productId",output_stock_item_id AS "outputStockItemId",location_id AS "locationId",batch_count AS "batchCount",output_quantity AS "outputQuantity",ingredient_usage AS "ingredientUsage",total_cost_minor AS "totalCostMinor",reason,source_command_id AS "sourceCommandId",created_by AS "createdBy",created_at AS "createdAt" FROM inventory_batch_preparations WHERE business_id=$1 ORDER BY created_at DESC,id LIMIT 1000`,[businessId]);
+    const reversals=await db.query(`SELECT reversal_command_id AS id,original_command_id AS "originalCommandId",original_movement_id AS "movementId",movement_ids AS "movementIds",reversal_command_id AS "sourceCommandId",reason,staff_id AS "createdBy",occurred_at AS "createdAt" FROM inventory_reversals WHERE business_id=$1 ORDER BY occurred_at DESC,reversal_command_id LIMIT 1000`,[businessId]);
+    const receipts=await db.query(`SELECT ${receiptColumns} FROM inventory_receipts WHERE business_id=$1 ORDER BY received_at DESC,id LIMIT 1000`,[businessId]);
+    const policies=await db.query(`SELECT ${policyColumns} FROM business_inventory_policy WHERE business_id=$1`,[businessId]);
+    const orders=await orderProjections(db,businessId);
+    const documents=await documentProjections(db,businessId);
+    const tills=await tillProjections(db,businessId);
+    const paymentAccounts=await paymentAccountProjections(db,businessId);
+    const payments=await paymentProjections(db,businessId);
+    const settings=await receiptSettingsProjections(db,businessId);
     return [
+      ...orders,
+      ...documents,
+      ...tills,
+      ...paymentAccounts,
+      ...payments,
+      ...settings,
+      ...receipts.rows.map(receiptProjection),
+      ...policies.rows.map(policyProjection),
+      ...reversals.rows.map(row=>({collection:'movementCorrections',id:row.id,version:1,data:{...row,createdAt:row.createdAt.toISOString()},archived:false})),
       ...productsResult.rows.map(row=>({collection:'products',id:row.id,version:Number(row.version),data:{...row,priceMinor:Number(row.priceMinor),recipeIngredients:ingredientsByProduct.get(row.id)||[]},archived:false})),
-      ...stockResult.rows.map(row=>({collection:'stockItems',id:row.id,version:Number(row.version),data:{...row,scanUnitQuantity:Number(row.scanUnitQuantity),reorderLevel:Number(row.reorderLevel),averageUnitCostMinor:Number(row.averageUnitCostMinor),sealedContainerSize:row.sealedContainerSize===null?undefined:Number(row.sealedContainerSize),currentStock:row.currentStock,purchasePackages:row.purchasePackages.map(pack=>({...pack,baseQuantity:Number(pack.baseQuantity),unitCostMinor:Number(pack.unitCostMinor)}))},archived:false})),
+      ...stockResult.rows.map(row=>({collection:'stockItems',id:row.id,version:Number(row.version),data:{...row,scanUnitQuantity:Number(row.scanUnitQuantity),reorderLevel:Number(row.reorderLevel),averageUnitCostMinor:Number(row.averageUnitCostMinor),sealedContainerSize:row.sealedContainerSize===null?null:Number(row.sealedContainerSize),currentStock:row.currentStock,purchasePackages:row.purchasePackages.map(pack=>({...pack,baseQuantity:Number(pack.baseQuantity),unitCostMinor:Number(pack.unitCostMinor)}))},archived:false})),
       ...locationsResult.rows.map(row=>({collection:'stockLocations',id:row.id,version:Number(row.version),data:{name:row.name,code:row.code,type:row.type},archived:false})),
       ...outletsResult.rows.map(row=>({collection:'outlets',id:row.id,version:Number(row.version),data:{name:row.name,defaultStockLocationId:row.defaultStockLocationId},archived:false})),
       ...countResult.rows.map(row=>({collection:'stockCounts',id:row.id,version:1,data:{scope:row.scope,locationId:row.locationId,locationName:row.locationName,selectedStockItemIds:row.selectedStockItemIds,itemCount:row.itemCount,matches:row.matches,short:row.short,over:row.over,reason:row.reason,status:'COMMITTED',sourceCommandId:row.sourceCommandId,createdBy:row.createdBy,createdAt:row.createdAt,rows:row.rows},archived:false})),
-      ...movementResult.rows.map(row=>({collection:'stockMovements',id:row.id,version:1,data:{...row,quantityDelta:Number(row.quantityDelta)},archived:false})),
+      ...movementResult.rows.map(row=>({collection:'stockMovements',id:row.id,version:1,data:{...row,occurredAt:row.occurredAt.toISOString(),quantityDelta:Number(row.quantityDelta)},archived:false})),
       ...adjustmentResult.rows.map(row=>({collection:'inventoryAdjustments',id:row.id,version:1,data:{...row,beforeQuantity:Number(row.beforeQuantity),afterQuantity:Number(row.afterQuantity),variance:Number(row.variance)},archived:false})),
       ...batchResult.rows.map(row=>({collection:'inventoryBatchPreparations',id:row.id,version:1,data:{...row,batchCount:Number(row.batchCount),outputQuantity:Number(row.outputQuantity),totalCostMinor:Number(row.totalCostMinor)},archived:false})),
     ];
@@ -276,11 +309,11 @@ export class PostgresStore {
 }
 
 class PostgresTransaction {
-  constructor(client) { this.client = client; }
+  constructor(client) { this.client = client; this.balanceChanges = new Map(); }
 
   async getCommand(businessId, commandId) {
     const {rows} = await this.client.query(
-      'SELECT payload_hash AS "payloadHash",status,outcome,error FROM api_commands WHERE business_id = $1 AND command_id = $2 FOR UPDATE',
+      'SELECT payload_hash AS "payloadHash",staff_id AS "staffId",device_id AS "deviceId",status,outcome,error FROM api_commands WHERE business_id = $1 AND command_id = $2 FOR UPDATE',
       [businessId, commandId],
     );
     return rows[0] ?? null;
@@ -388,14 +421,28 @@ class PostgresTransaction {
   async batchRecipeDetails(businessId,productId){const {rows}=await this.client.query(`SELECT id,name,inventory_type AS "inventoryType",stock_item_id AS "stockItemId",recipe_yield AS "recipeYield",version FROM products WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR UPDATE`,[businessId,productId]);if(!rows.length){const error=new Error('Batch recipe is missing or archived.');error.status=409;error.code='RESOURCE_CONFLICT';throw error}const recipe=await this.client.query(`SELECT stock_item_id AS "stockItemId",quantity,unit FROM product_recipe_ingredients WHERE business_id=$1 AND product_id=$2 ORDER BY stock_item_id`,[businessId,productId]);const row=rows[0];return {...row,recipeYield:row.recipeYield===null?null:Number(row.recipeYield),version:Number(row.version),ingredients:recipe.rows.map(item=>({...item,quantity:Number(item.quantity)}))};}
 
   async totalStockQuantity(businessId,stockItemId){const {rows}=await this.client.query('SELECT COALESCE(sum(quantity),0) AS quantity FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2',[businessId,stockItemId]);return Number(rows[0].quantity);}
+  async inventoryPolicy(businessId){
+    const {rows}=await this.client.query(`SELECT ${policyColumns} FROM business_inventory_policy WHERE business_id=$1 FOR SHARE`,[businessId]);
+    return rows[0]??{version:0,allowDirectReceipts:false,requireSupplierReference:true,requirePurchaseOrder:true};
+  }
+  async saveInventoryPolicy({businessId,allowDirectReceipts,requireSupplierReference,requirePurchaseOrder,version,staffId,at}){
+    await this.client.query(`INSERT INTO business_inventory_policy(business_id,allow_direct_receipts,require_supplier_reference,require_purchase_order,version,updated_by,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(business_id) DO UPDATE SET allow_direct_receipts=EXCLUDED.allow_direct_receipts,require_supplier_reference=EXCLUDED.require_supplier_reference,require_purchase_order=EXCLUDED.require_purchase_order,version=EXCLUDED.version,updated_by=EXCLUDED.updated_by,updated_at=EXCLUDED.updated_at`,[businessId,allowDirectReceipts,requireSupplierReference,requirePurchaseOrder,version,staffId,at]);
+  }
+  async insertInventoryReceipt({businessId,id,stockItemId,locationId,sourceKey,sourceDocument,pack,quantity,baseQuantity,totalCostMinor,unitCostMinor,beforeCost,afterCost,sealed,open,commandId,staffId,at}){
+    await this.client.query(`INSERT INTO inventory_receipts(business_id,id,stock_item_id,location_id,source_key,source_document,purchase_package_id,purchase_package_snapshot,quantity_received,base_quantity,total_cost_minor,unit_cost_minor,before_average_cost_minor,after_average_cost_minor,received_sealed_containers,received_open_quantity,source_command_id,received_by,received_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,[businessId,id,stockItemId,locationId,sourceKey,JSON.stringify(sourceDocument),pack?.id??null,pack?JSON.stringify(pack):null,quantity,baseQuantity,totalCostMinor,unitCostMinor,beforeCost,afterCost,sealed,open,commandId,staffId,at]);
+  }
+  async inventoryReceiptProjection(businessId,id){
+    const {rows}=await this.client.query(`SELECT ${receiptColumns} FROM inventory_receipts WHERE business_id=$1 AND id=$2`,[businessId,id]);
+    return rows[0]?receiptProjection(rows[0]):null;
+  }
   async updateStockCostAndVersion(businessId,stockItemId,averageUnitCostMinor,version){await this.client.query('UPDATE stock_items SET average_unit_cost_minor=$3,version=$4,updated_at=now() WHERE business_id=$1 AND id=$2',[businessId,stockItemId,averageUnitCostMinor,version]);}
   async insertBatchPreparation({businessId,id,productId,outputStockItemId,locationId,batchCount,outputQuantity,ingredientUsage,totalCostMinor,reason,commandId,staffId,at}){await this.client.query(`INSERT INTO inventory_batch_preparations(business_id,id,product_id,output_stock_item_id,location_id,batch_count,output_quantity,ingredient_usage,total_cost_minor,reason,source_command_id,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13)`,[businessId,id,productId,outputStockItemId,locationId,batchCount,outputQuantity,JSON.stringify(ingredientUsage),totalCostMinor,reason,commandId,staffId,at]);}
 
   async productConsumptionIds(businessId,stockItemId){const {rows}=await this.client.query(`SELECT DISTINCT p.id FROM products p LEFT JOIN product_recipe_ingredients i ON i.business_id=p.business_id AND i.product_id=p.id WHERE p.business_id=$1 AND p.archived_at IS NULL AND (p.stock_item_id=$2 OR i.stock_item_id=$2) ORDER BY p.id`,[businessId,stockItemId]);return rows.map(row=>row.id);}
 
-  async stockRecordProjection(businessId,stockItemId){const {rows}=await this.client.query(`SELECT s.id,s.name,s.code,s.base_unit AS "baseUnit",s.barcode,s.barcode_aliases AS "barcodeAliases",s.scan_unit_quantity AS "scanUnitQuantity",s.reorder_level AS "reorderLevel",s.average_unit_cost_minor AS "averageUnitCostMinor",s.sealed_container_size AS "sealedContainerSize",s.version,COALESCE((SELECT jsonb_object_agg(b.location_id::text,b.quantity) FROM inventory_location_balances b WHERE b.business_id=s.business_id AND b.stock_item_id=s.id),'{}'::jsonb) AS "currentStock",COALESCE((SELECT jsonb_object_agg(b.location_id::text,b.version) FROM inventory_location_balances b WHERE b.business_id=s.business_id AND b.stock_item_id=s.id),'{}'::jsonb) AS "balanceVersions",COALESCE((SELECT jsonb_object_agg(b.location_id::text,jsonb_build_object('sealedContainers',b.sealed_containers,'openQuantity',b.open_quantity)) FROM inventory_location_balances b WHERE b.business_id=s.business_id AND b.stock_item_id=s.id AND b.sealed_containers IS NOT NULL),'{}'::jsonb) AS "sealedOpenStock",COALESCE((SELECT jsonb_agg(jsonb_build_object('id',p.id,'name',p.name,'baseQuantity',p.base_quantity,'unitCostMinor',p.unit_cost_minor,'barcode',p.barcode) ORDER BY p.sort_order) FROM stock_purchase_packages p WHERE p.business_id=s.business_id AND p.stock_item_id=s.id),'[]'::jsonb) AS "purchasePackages" FROM stock_items s WHERE s.business_id=$1 AND s.id=$2 AND s.archived_at IS NULL`,[businessId,stockItemId]);const row=rows[0];if(!row)return null;return {collection:'stockItems',id:row.id,version:Number(row.version),data:{...row,scanUnitQuantity:Number(row.scanUnitQuantity),reorderLevel:Number(row.reorderLevel),averageUnitCostMinor:Number(row.averageUnitCostMinor),sealedContainerSize:row.sealedContainerSize===null?undefined:Number(row.sealedContainerSize),purchasePackages:row.purchasePackages.map(pack=>({...pack,baseQuantity:Number(pack.baseQuantity),unitCostMinor:Number(pack.unitCostMinor)}))},archived:false};}
+  async stockRecordProjection(businessId,stockItemId){const {rows}=await this.client.query(`SELECT s.id,s.name,s.code,s.base_unit AS "baseUnit",s.barcode,s.barcode_aliases AS "barcodeAliases",s.scan_unit_quantity AS "scanUnitQuantity",s.reorder_level AS "reorderLevel",s.average_unit_cost_minor AS "averageUnitCostMinor",s.sealed_container_size AS "sealedContainerSize",s.version,COALESCE((SELECT jsonb_object_agg(b.location_id::text,b.quantity) FROM inventory_location_balances b WHERE b.business_id=s.business_id AND b.stock_item_id=s.id),'{}'::jsonb) AS "currentStock",COALESCE((SELECT jsonb_object_agg(b.location_id::text,b.version) FROM inventory_location_balances b WHERE b.business_id=s.business_id AND b.stock_item_id=s.id),'{}'::jsonb) AS "balanceVersions",COALESCE((SELECT jsonb_object_agg(b.location_id::text,jsonb_build_object('sealedContainers',b.sealed_containers,'openQuantity',b.open_quantity)) FROM inventory_location_balances b WHERE b.business_id=s.business_id AND b.stock_item_id=s.id AND b.sealed_containers IS NOT NULL),'{}'::jsonb) AS "sealedOpenStock",COALESCE((SELECT jsonb_agg(jsonb_build_object('id',p.id,'name',p.name,'baseQuantity',p.base_quantity,'unitCostMinor',p.unit_cost_minor,'barcode',p.barcode) ORDER BY p.sort_order) FROM stock_purchase_packages p WHERE p.business_id=s.business_id AND p.stock_item_id=s.id),'[]'::jsonb) AS "purchasePackages" FROM stock_items s WHERE s.business_id=$1 AND s.id=$2 AND s.archived_at IS NULL`,[businessId,stockItemId]);const row=rows[0];if(!row)return null;return {collection:'stockItems',id:row.id,version:Number(row.version),data:{...row,scanUnitQuantity:Number(row.scanUnitQuantity),reorderLevel:Number(row.reorderLevel),averageUnitCostMinor:Number(row.averageUnitCostMinor),sealedContainerSize:row.sealedContainerSize===null?null:Number(row.sealedContainerSize),purchasePackages:row.purchasePackages.map(pack=>({...pack,baseQuantity:Number(pack.baseQuantity),unitCostMinor:Number(pack.unitCostMinor)}))},archived:false};}
 
-  async inventoryMovementProjection(businessId,movementId){const {rows}=await this.client.query(`SELECT m.id,m.stock_item_id AS "stockItemId",s.name AS "stockItemName",s.base_unit AS "baseUnit",m.location_id AS "locationId",l.name AS "locationName",m.quantity_delta AS "quantityDelta",m.movement_type AS "movementType",m.reason,m.movement_type AS "reasonCode",m.source_command_id AS "sourceId",m.staff_id AS "actorUserId",m.occurred_at AS "occurredAt" FROM inventory_movements m JOIN stock_items s ON s.business_id=m.business_id AND s.id=m.stock_item_id JOIN stock_locations l ON l.business_id=m.business_id AND l.id=m.location_id WHERE m.business_id=$1 AND m.id=$2`,[businessId,movementId]);const row=rows[0];return row?{collection:'stockMovements',id:row.id,version:1,data:{...row,quantityDelta:Number(row.quantityDelta)},archived:false}:null;}
+  async inventoryMovementProjection(businessId,movementId){const {rows}=await this.client.query(`SELECT m.id,m.stock_item_id AS "stockItemId",s.name AS "stockItemName",s.base_unit AS "baseUnit",m.location_id AS "locationId",l.name AS "locationName",m.quantity_delta AS "quantityDelta",m.movement_type AS "movementType",m.reason,m.movement_type AS "reasonCode",m.source_command_id AS "sourceId",m.staff_id AS "actorUserId",m.occurred_at AS "occurredAt",(SELECT jsonb_build_object('before',e.before_state,'after',e.after_state,'baseUnit',e.base_unit,'unitCostMinor',e.average_unit_cost_minor,'containerSize',e.sealed_container_size) FROM inventory_movement_states e WHERE e.business_id=m.business_id AND e.movement_id=m.id) AS "restorationEvidence" FROM inventory_movements m JOIN stock_items s ON s.business_id=m.business_id AND s.id=m.stock_item_id JOIN stock_locations l ON l.business_id=m.business_id AND l.id=m.location_id WHERE m.business_id=$1 AND m.id=$2`,[businessId,movementId]);const row=rows[0];return row?{collection:'stockMovements',id:row.id,version:1,data:{...row,occurredAt:row.occurredAt.toISOString(),quantityDelta:Number(row.quantityDelta)},archived:false}:null;}
 
   async applyInventoryDelta({businessId,stockItemId,locationId,quantityDelta}){
     const {rowCount}=await this.client.query(`INSERT INTO inventory_location_balances(business_id,stock_item_id,location_id,quantity,version) VALUES($1,$2,$3,$4,1) ON CONFLICT(business_id,stock_item_id,location_id) DO UPDATE SET quantity=inventory_location_balances.quantity+EXCLUDED.quantity,version=inventory_location_balances.version+1 WHERE inventory_location_balances.quantity+EXCLUDED.quantity>=0`,[businessId,stockItemId,locationId,quantityDelta]);
@@ -403,13 +450,31 @@ class PostgresTransaction {
   }
 
   async setInventoryBalance({businessId,stockItemId,locationId,quantity,sealedContainers=null,openQuantity=null}){
+    const key=`${businessId}:${stockItemId}:${locationId}`;
+    const before=this.balanceChanges.get(key)?.before || await this.stockBalance(businessId,stockItemId,locationId);
     await this.client.query(`INSERT INTO inventory_location_balances(business_id,stock_item_id,location_id,quantity,version,sealed_containers,open_quantity) VALUES($1,$2,$3,$4,1,$5,$6) ON CONFLICT(business_id,stock_item_id,location_id) DO UPDATE SET quantity=EXCLUDED.quantity,version=inventory_location_balances.version+1,sealed_containers=EXCLUDED.sealed_containers,open_quantity=EXCLUDED.open_quantity`,[businessId,stockItemId,locationId,quantity,sealedContainers,openQuantity]);
+    this.balanceChanges.set(key,{before,after:await this.stockBalance(businessId,stockItemId,locationId)});
   }
 
   async updateStockItemVersion(businessId,stockItemId,version){await this.client.query('UPDATE stock_items SET version=$3,updated_at=now() WHERE business_id=$1 AND id=$2',[businessId,stockItemId,version]);}
 
   async insertInventoryMovement({businessId,id,stockItemId,locationId,quantityDelta,movementType='COUNT_ADJUSTMENT',reason,commandId,staffId,at}){
     await this.client.query(`INSERT INTO inventory_movements(business_id,id,stock_item_id,location_id,quantity_delta,movement_type,reason,source_command_id,staff_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[businessId,id,stockItemId,locationId,quantityDelta,movementType,reason,commandId,staffId,at]);
+    const states=this.balanceChanges.get(`${businessId}:${stockItemId}:${locationId}`);
+    if(states)await this.client.query(`INSERT INTO inventory_movement_states(business_id,movement_id,before_state,after_state,base_unit,average_unit_cost_minor,sealed_container_size) SELECT $1,$2,$3::jsonb,$4::jsonb,base_unit,average_unit_cost_minor,sealed_container_size FROM stock_items WHERE business_id=$1 AND id=$5`,[businessId,id,JSON.stringify(states.before),JSON.stringify(states.after),stockItemId]);
+  }
+
+  async reversalSource(businessId,movementId){
+    const {rows}=await this.client.query('SELECT source_command_id FROM inventory_movements WHERE business_id=$1 AND id=$2',[businessId,movementId]);
+    if(!rows.length)return null;const originalCommandId=rows[0].source_command_id;
+    await this.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`inventory-reversal:${businessId}:${originalCommandId}`]);
+    const reversal=await this.client.query('SELECT reversal_command_id FROM inventory_reversals WHERE business_id=$1 AND original_command_id=$2',[businessId,originalCommandId]);
+    const movements=await this.client.query(`SELECT m.id,m.stock_item_id AS "stockItemId",m.location_id AS "locationId",m.quantity_delta AS "quantityDelta",m.movement_type AS "movementType",s.before_state AS "before",s.after_state AS "after",s.base_unit AS "baseUnit",s.average_unit_cost_minor AS "unitCost",s.sealed_container_size AS "containerSize" FROM inventory_movements m LEFT JOIN inventory_movement_states s ON s.business_id=m.business_id AND s.movement_id=m.id WHERE m.business_id=$1 AND m.source_command_id=$2 ORDER BY m.stock_item_id,m.location_id FOR UPDATE OF m`,[businessId,originalCommandId]);
+    return {originalCommandId,reversed:reversal.rows.length>0,movements:movements.rows};
+  }
+
+  async insertInventoryReversal({businessId,originalCommandId,movementId,movementIds,commandId,reason,staffId,at}){
+    await this.client.query('INSERT INTO inventory_reversals(business_id,original_command_id,original_movement_id,movement_ids,reversal_command_id,reason,staff_id,occurred_at) VALUES($1,$2,$3,$4::uuid[],$5,$6,$7,$8)',[businessId,originalCommandId,movementId,movementIds,commandId,reason,staffId,at]);
   }
 
   async insertStockCount({businessId,id,scope,locationId,selectedStockItemIds,rows,matches,short,over,reason,commandId,staffId,at}){
