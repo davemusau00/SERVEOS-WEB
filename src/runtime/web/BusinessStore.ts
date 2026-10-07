@@ -103,7 +103,9 @@ export class BusinessStore {
       const entries=tx.objectStore('queue');const entry=await request(entries.get(result.commandId)) as QueuedCommand|undefined;
       if(!entry)throw new Error('Acknowledgement has no matching command');
       if(entry.result&&stableJson(entry.result)!==stableJson(result))throw new Error('Server changed an acknowledged result');
-      await request(entries.put({...entry,state:result.status,result}));
+      let command=entry.command;
+      if(entry.command.operation==='managerApproval.issue'){const payload={...entry.command.payload};delete payload.approvalToken;command={...entry.command,payload};}
+      await request(entries.put({...entry,command,state:result.status,result}));
     });
   }
   async markOutcomeUnknown(id:string){

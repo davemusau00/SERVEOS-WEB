@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3, FileEdit, RefreshCw, Send, WifiOff, XCircle } from 'lucide-react';
-import type { QueuedCommand, WorkflowDraft } from './BusinessStore';
+import {redactSensitiveData,type QueuedCommand,type WorkflowDraft} from './BusinessStore';
 import { ds } from '../../design-system/tokens';
 import { EmptyState, StatusBadge } from '../../design-system/components';
 
@@ -70,7 +70,7 @@ export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync, onR
         {item.state === 'OUTCOME_UNKNOWN' && <p role="status" className="mt-3 rounded-lg border border-amber-800 bg-amber-950/30 p-3 text-sm text-amber-100">The server may have committed this command, but its acknowledgement was not received. Synchronize to retry the same command ID and reconcile its original result. Do not submit this action again.</p>}
         {item.state === 'CONFLICT' && <p className="mt-3 text-sm leading-6 text-amber-100">The server did not silently overwrite this change. Review the current records, then reopen the saved workflow and submit a new command with fresh versions.</p>}
         {item.state === 'REJECTED' && <p className="mt-3 text-sm leading-6 text-slate-300">The server rejected this command. Do not resend it. Review the saved workflow and create a new command only after its business conditions are valid.</p>}
-        <details className="mt-3 text-xs text-slate-500"><summary className="cursor-pointer font-semibold">Technical details</summary><p className="mt-2 break-all">{item.command.operation} · {item.id}</p><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-3">{JSON.stringify(item.result || item.command.payload, null, 2)}</pre></details>
+        <details className="mt-3 text-xs text-slate-500"><summary className="cursor-pointer font-semibold">Technical details</summary><p className="mt-2 break-all">{item.command.operation} · {item.id}</p><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-3">{JSON.stringify(redactSensitiveData(item.result || item.command.payload), null, 2)}</pre></details>
       </article> })}
       {drafts.map(draft => <article className={`${ds.panel} p-4`} key={draft.id}><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-3"><span className="rounded-lg bg-slate-950 p-2 text-slate-300"><FileEdit className="h-4 w-4" /></span><div><h3 className="font-bold text-white">{operationLabel(draft.operation)}</h3><p className="mt-1 text-sm text-slate-400">Local draft · saved {new Date(draft.updatedAt).toLocaleString()}</p><p className="mt-2 text-xs text-amber-200">This draft has not been finalized as a business transaction. It will remain local until the workflow can submit it safely.</p></div></div>{draft.fields&&<button type="button" className={ds.button} onClick={()=>onReviewDraft(draft)}><FileEdit className="h-4 w-4" />Review and reopen</button>}</div></article>)}
     </div>}

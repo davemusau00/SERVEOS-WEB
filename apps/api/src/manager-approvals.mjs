@@ -18,7 +18,7 @@ const issue=async({tx,command,actor,at})=>{
  await tx.client.query(`INSERT INTO api_manager_approvals(business_id,id,token_hash,issuer_staff_id,recipient_staff_id,permission,target_id,issued_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[actor.businessId,p.id,tokenHash,actor.staffId,p.recipientStaffId,p.permission,p.target.trim(),at,new Date(at.getTime()+5*60_000)]);
  await tx.client.query(`INSERT INTO api_manager_approval_events(business_id,id,approval_id,event_type,staff_id,command_id,occurred_at) VALUES($1,$2,$3,'ISSUED',$4,$5,$6)`,[actor.businessId,randomUUID(),p.id,actor.staffId,command.commandId,at]);
  const value={collection:'managerApprovals',id:p.id,version:1,archived:false,data:{recipientStaffId:p.recipientStaffId,permission:p.permission,target:p.target.trim(),issuedBy:actor.staffId,issuedAt:at.toISOString(),expiresAt:new Date(at.getTime()+5*60_000).toISOString(),status:'ISSUED'}};
- return {value:{approval:value,token:p.approvalToken},records:[value]};
+ return {value:{approval:value},records:[value]};
 };
 
 export async function requireManagerApproval({tx,actor,at,token,permission,target,command}){

@@ -243,6 +243,7 @@ const fire=async({tx,command,actor,at})=>{
 const voidOrder=async({tx,command,actor,at})=>{
  await tx.lockInventoryCatalog(actor.businessId);
  const p=command.payload;await editable(tx,command,actor,p.orderId,{allowPaid:true});
+ const managerApproval=await requireManagerApproval({tx,actor,at,token:p.approvalToken,permission:'order.void',target:p.orderId,command});
  const order=await orderProjection(tx.client,actor.businessId,p.orderId);
  if(order.data.amountPaidMinor!==0||order.data.amountCreditedMinor!==0)throw new ApiProblem(409,'PAID_ORDER_CANNOT_VOID','A paid or credited order cannot be voided. Review its payment or credit reversal workflow.');
  if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.trim().length>500)fail('Explain the void in 3 to 500 characters.');
@@ -295,7 +296,7 @@ const voidOrder=async({tx,command,actor,at})=>{
  await tx.client.query(`UPDATE pos_order_lines SET void_previous_state=state,state='VOIDED',updated_at=$3 WHERE business_id=$1 AND order_id=$2 AND state<>'VOIDED'`,[actor.businessId,p.orderId,at]);
  await tx.client.query(`UPDATE pos_orders SET state='VOIDED',void_reason=$3,void_disposition=$4,voided_by=$5,voided_at=$6,version=$7,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,reason,disposition,actor.staffId,at,version]);
  const tickets=await cancelUnsentOrderTickets(tx,{actor,command,at,orderId:p.orderId,reason});records.push(...tickets.records);
- await event(tx,command,actor,at,p.orderId,version,{reason,disposition,stockRestored:plans.length>0,inventoryCorrectionRequired:disposition==='MANAGER_ADJUSTMENT',originalTotalMinor:order.data.grandTotalMinor,unresolvedTicketIds:tickets.unresolvedTicketIds});
+ await event(tx,command,actor,at,p.orderId,version,{reason,disposition,managerApproval,stockRestored:plans.length>0,inventoryCorrectionRequired:disposition==='MANAGER_ADJUSTMENT',originalTotalMinor:order.data.grandTotalMinor,unresolvedTicketIds:tickets.unresolvedTicketIds});
  const documentIds=[];
  const notices=[{type:'ORDER_VOID_NOTICE',role:'OFFICE',items:order.data.items.filter(line=>line.state!=='VOIDED')},...['KITCHEN','BAR'].map(route=>({type:route==='KITCHEN'?'KOT_CANCEL':'BOT_CANCEL',role:route,items:fired.filter(line=>line.routeTo===route)})).filter(notice=>notice.items.length)];
  for(const notice of notices){
@@ -366,7 +367,7 @@ export const posCommandRegistry=new Map([
  ['order.create',create],['order.addItem',add],['order.updateItem',edit(false)],['order.removeItem',edit(true)],
 ].map(([name,handler])=>[name,{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler}]));
 posCommandRegistry.set('order.fire',{permission:'order.fire',offlinePolicy:'ONLINE_ONLY',handler:fire});
-posCommandRegistry.set('order.void',{permission:'order.void',offlinePolicy:'ONLINE_ONLY',handler:voidOrder});
+posCommandRegistry.set('order.void',{permission:'order.void',approvalPermission:'order.void',offlinePolicy:'ONLINE_ONLY',handler:voidOrder});
 
 posCommandRegistry.set('order.discount',{permission:'order.discount',approvalPermission:'order.discount',offlinePolicy:'ONLINE_ONLY',handler:reprice('discount')});
 posCommandRegistry.set('order.compItem',{permission:'order.comp',approvalPermission:'order.comp',offlinePolicy:'ONLINE_ONLY',handler:reprice('compItem')});

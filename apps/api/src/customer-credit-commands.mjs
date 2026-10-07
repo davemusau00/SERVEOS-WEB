@@ -214,8 +214,8 @@ const writeOff=async({tx,command,actor,at})=>{
 };
 
 const reverse=async({tx,command,actor,at})=>{
- if(!actor.permissions.includes('*')&&!actor.permissions.includes('credit.write_off'))throw new ApiProblem(403,'PERMISSION_DENIED','Customer credit reversal permission is required.');
  const p=command.payload;if(!uuid(p.id)||!uuid(p.entryId))fail('Choose an original customer credit entry and a reversal identity.');
+ const managerApproval=await requireManagerApproval({tx,actor,at,token:p.approvalToken,permission:'credit.write_off',target:p.customerId,command});
  const entryVersion=command.expectedVersions[`customerCreditEntries:${p.entryId}`],accountVersion=command.expectedVersions[`customerCreditAccounts:${p.customerId}`];
  if(!Number.isSafeInteger(entryVersion)||entryVersion!==1||!Number.isSafeInteger(accountVersion)||accountVersion<1)fail('Review the original entry and current account revisions before reversal.');
  if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.trim().length>500||/[\u0000-\u001f\u007f]/u.test(p.reason))fail('Reversal reason must be 3 to 500 characters.');
@@ -269,7 +269,7 @@ const reverse=async({tx,command,actor,at})=>{
  const reference=externalReference??`REV-${command.commandId}`;
  const allocations=Array.isArray(original.allocations)?original.allocations:[];
  await tx.client.query(`INSERT INTO customer_credit_entries(business_id,id,customer_id,kind,balance_delta_minor,amount_minor,payment_method,till_session_id,reference,allocations,reverses_entry_id,reason,actor_id,device_id,source_command_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16)`,[actor.businessId,id,p.customerId,kind,balanceDelta,amount,reversePaymentMethod,till?.id??null,reference,JSON.stringify(allocations),p.entryId,note,actor.staffId,actor.deviceId,command.commandId,at]);
- const journal=await postCustomerCreditJournal(tx,{actor,command,at,entry:{id,amountMinor:amount},sourceType:'CUSTOMER_CREDIT_REVERSAL',originalJournalId,lines:originalLines.rows.map(line=>({code:line.code,ref:line.ref,debitMinor:Number(line.creditMinor),creditMinor:Number(line.debitMinor)})),basisSnapshot:{policyVersion:1,customerId:p.customerId,originalEntryId:p.entryId,originalJournalId,balanceBeforeMinor:balance,balanceAfterMinor:balance+balanceDelta,amountMinor:amount,reason:note,returnedMoney:original.kind==='SETTLEMENT',externalReference}});
+ const journal=await postCustomerCreditJournal(tx,{actor,command,at,entry:{id,amountMinor:amount},sourceType:'CUSTOMER_CREDIT_REVERSAL',originalJournalId,lines:originalLines.rows.map(line=>({code:line.code,ref:line.ref,debitMinor:Number(line.creditMinor),creditMinor:Number(line.debitMinor)})),basisSnapshot:{policyVersion:1,customerId:p.customerId,originalEntryId:p.entryId,originalJournalId,balanceBeforeMinor:balance,balanceAfterMinor:balance+balanceDelta,amountMinor:amount,reason:note,returnedMoney:original.kind==='SETTLEMENT',externalReference,managerApproval}});
  const records=[(await customerCreditAccountProjections(tx.client,actor.businessId,[p.customerId]))[0],(await customerCreditEntryProjections(tx.client,actor.businessId,[id]))[0],journal];
  if(till){
   const cashId=randomUUID();await tx.client.query(`INSERT INTO till_cash_entries(business_id,id,till_session_id,kind,amount_delta_minor,reason,source_command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,'CREDIT_COLLECTION_REVERSAL',$4,$5,$6,$7,$8,$9)`,[actor.businessId,cashId,till.id,-amount,`Reverse credit collection ${p.entryId}`,command.commandId,actor.staffId,actor.deviceId,at]);
@@ -295,5 +295,5 @@ export const customerCreditCommandRegistry=new Map([
  ['credit.charge',{permission:'credit.charge',offlinePolicy:'ONLINE_ONLY',handler:charge}],
  ['credit.settle',{permission:'credit.settle',offlinePolicy:'ONLINE_ONLY',handler:settle}],
  ['credit.writeOff',{permission:'credit.write_off',approvalPermission:'credit.write_off',offlinePolicy:'ONLINE_ONLY',handler:writeOff}],
- ['credit.reverse',{permission:'credit.write_off',offlinePolicy:'ONLINE_ONLY',handler:reverse}],
+ ['credit.reverse',{permission:'credit.write_off',approvalPermission:'credit.write_off',offlinePolicy:'ONLINE_ONLY',handler:reverse}],
 ]);

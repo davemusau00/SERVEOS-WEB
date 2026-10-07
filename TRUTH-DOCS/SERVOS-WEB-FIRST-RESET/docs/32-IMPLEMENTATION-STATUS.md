@@ -932,3 +932,11 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added migration 055 with a tenant/customer-scoped immutable entry sequence, backfilled in historical posting order. The authenticated API now returns bounded 100-entry statement pages with an opaque high-water/continuation cursor and running balances over the same stable snapshot.
 - The API PWA statement now loads and appends pages, refreshes to the latest high-water, and uses paged rows for ledger review/reversal selection. POS now reads the account's authoritative projected balance instead of summing the bootstrap's bounded recent entries. Credit-only staff are admitted by the bootstrap route.
 - No tests, builds, migrations, API or browser checks were run. Cursor durability across migration and page reads remains source-only and unverified; approval step-up remains open.
+
+### API manager approvals (source only; migration unapplied)
+
+- Added migration 056 for hashed, five-minute, single-use approvals bound to recipient staff, action and exact target. Issuance requires an active Admin/Manager and consumption plus audit evidence are transactional with the approved command.
+- Registered API approval issuance and wired it to API-mode staff administration. Credit limit exceptions and order discounts/comps require a matching token when the operator lacks the elevated permission; customer-credit write-off accepts delegated approval. POS now requests that token for an over-limit customer account charge.
+- Extended delegated approval to order void, full payment reversal, customer-credit reversal, procurement over-receipt and till-variance review. Tokens are omitted from API command outcomes, removed from the local issuance command after terminal acknowledgement, and redacted in Activity details and recovery export.
+- Approval metadata is filtered to staff administrators/auditors and the named recipient in the ordered change feed.
+- No tests, builds, migration execution, API, authorization abuse-case or browser checks were run. API manager profile provisioning, transaction rollback/replay and the whole slice remain unverified.

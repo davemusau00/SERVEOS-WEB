@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
+import {requireManagerApproval} from './manager-approvals.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
@@ -79,6 +80,7 @@ const close=async({tx,command,actor,at})=>{
 };
 const review=async({tx,command,actor,at})=>{
  const p=command.payload;if(!uuid(p.id))fail('Choose a till for review.');const note=reason(p.reason),baseline=expected(command,'tillSessions',p.id);
+ const managerApproval=await requireManagerApproval({tx,actor,at,token:p.approvalToken,permission:'till.override_variance',target:p.id,command});
  const {rows}=await tx.client.query(`SELECT status,version FROM till_sessions WHERE business_id=$1 AND id=$2 FOR UPDATE`,[actor.businessId,p.id]);
  if(!rows.length||rows[0].status!=='REVIEW_REQUIRED')throw new ApiProblem(409,'REVIEW_NOT_REQUIRED','This till does not await variance review.');
  if(Number(rows[0].version)!==baseline)throw new ApiProblem(409,'VERSION_CONFLICT','The till review changed. Refresh it.');
@@ -86,4 +88,4 @@ const review=async({tx,command,actor,at})=>{
 };
 export const tillCommandRegistry=new Map([
  ['till.policy.save','business.configure',savePolicy],['till.open','till.open',open],['till.cashMovement','till.cashMovement',cashMovement],['till.close','till.close',close],['till.reviewVariance','till.override_variance',review],
-].map(([name,permission,handler])=>[name,{permission,offlinePolicy:'ONLINE_ONLY',handler}]));
+].map(([name,permission,handler])=>[name,{permission,approvalPermission:name==='till.reviewVariance'?'till.override_variance':undefined,offlinePolicy:'ONLINE_ONLY',handler}]));

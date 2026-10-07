@@ -8,6 +8,7 @@ import {goodsReceiptProjections} from './goods-receipt-projections.mjs';
 import {receiptSettings} from './business-tax.mjs';
 import {documentHash} from './business-documents.mjs';
 import {queueDocumentPrint} from './print-commands.mjs';
+import {requireManagerApproval} from './manager-approvals.mjs';
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message);};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
 const text=(value,label,max=160,min=1)=>{if(typeof value!=='string'||value.trim().length<min||value.trim().length>max||/[\u0000-\u001f\u007f]/.test(value))fail(`${label} requires ${min} to ${max} plain-text characters.`);return value.trim();};
@@ -30,6 +31,7 @@ const receive=async({tx,command,actor,at})=>{
  const duplicate=await tx.client.query('SELECT 1 FROM procurement_goods_receipts WHERE business_id=$1 AND po_id=$2 AND lower(btrim(delivery_reference))=lower($3)',[actor.businessId,po.id,reference]);if(duplicate.rows.length)throw new ApiProblem(409,'DUPLICATE_DELIVERY','This purchase-order delivery reference was already received. Recover the original GRN.');
  const business=await receiptSettings(tx.client,actor.businessId);if(!business?.businessName)throw new ApiProblem(409,'BUSINESS_IDENTITY_REQUIRED','Configure the business identity before issuing a GRN.');
  const plans=[],seen=new Set();let acceptedTotal=0n;const nextAccepted=new Map(po.data.items.map(line=>[line.id,qty(line.quantityReceived)]));
+ let hasOverage=false;
  for(const input of p.items){
   if(!input||!uuid(input.purchaseOrderLineId)||seen.has(input.purchaseOrderLineId))fail('Each delivered PO line can occur once per GRN.');seen.add(input.purchaseOrderLineId);
   const line=po.data.items.find(row=>row.id===input.purchaseOrderLineId);if(!line)fail('A delivered line is not on this purchase order.');
@@ -38,7 +40,7 @@ const receive=async({tx,command,actor,at})=>{
   const pack=line.purchasePackageSnapshot;if(pack&&[delivered,accepted,rejected].some(value=>value%1000000n!==0n))fail('Package receiving requires whole delivered, accepted and rejected package counts.');
   const previous=qty(line.quantityReceived),cumulative=previous+accepted;
   if(cumulative>1000000000000000n||qty(line.quantityDelivered)+delivered>1000000000000000n||qty(line.quantityRejected)+rejected>1000000000000000n)fail('Cumulative receiving quantities exceed the supported range.');
-  if(cumulative>qty(line.quantityOrdered)&&(!actor.permissions?.includes('*')&&!actor.permissions?.includes('procurement.over_receive')||p.overReceiveAcknowledged!==true))throw new ApiProblem(403,'OVER_RECEIVE_REVIEW_REQUIRED','Over-receiving requires permission and explicit acknowledgement.');
+  if(cumulative>qty(line.quantityOrdered)){hasOverage=true;if(p.overReceiveAcknowledged!==true)throw new ApiProblem(403,'OVER_RECEIVE_REVIEW_REQUIRED','Over-receiving requires explicit review and acknowledgement.');}
   nextAccepted.set(line.id,cumulative);
   const baseRaw=accepted*(pack?qty(pack.baseQuantity):1000000n);if(baseRaw%1000000n!==0n||baseRaw/1000000n>1000000000000000n)fail('Accepted base quantity exceeds stock precision/range.');
   const lineCost=cost(cumulative,line.unitPriceMinor)-cost(previous,line.unitPriceMinor);acceptedTotal+=lineCost;if(acceptedTotal>BigInt(Number.MAX_SAFE_INTEGER))fail('Accepted delivery value exceeds supported amounts.');
@@ -46,6 +48,7 @@ const receive=async({tx,command,actor,at})=>{
   if(accepted>0n){baseline(command,'stockItems',line.stockItemId);stock=await tx.stockItemDetails(actor.businessId,line.stockItemId);if(!stock||stock.baseUnit!==line.stockSnapshot.baseUnit||stock.sealedContainerSize!==line.stockSnapshot.sealedContainerSize)throw new ApiProblem(409,'STOCK_IDENTITY_CHANGED','The purchased stock unit/container configuration changed. Resolve it before receiving.');before=await reviewedBalance(tx,command,actor,line.stockItemId,p.locationId);}
   plans.push({id:randomUUID(),line,input,previous,cumulative,delivered,accepted,rejected,rejectionReason,base:baseRaw/1000000n,lineCost,stock,before,receiptId:null});
  }
+ if(hasOverage)await requireManagerApproval({tx,actor,at,token:p.approvalToken,permission:'procurement.over_receive',target:p.purchaseOrderId,command});
  const records=[];
  for(const plan of plans){if(plan.accepted===0n)continue;
   const sourceDocument={type:'GOODS_RECEIPT',reference,supplierReference:po.data.supplierId,purchaseOrderId:po.id,goodsReceiptId:p.id,lineReference:plan.line.id};
@@ -69,4 +72,4 @@ const receive=async({tx,command,actor,at})=>{
  records.push(value,(await purchaseOrderProjections(tx.client,actor.businessId)).find(row=>row.id===po.id),{collection:'businessDocuments',id:documentId,version:1,archived:false,data:{id:documentId,type:'GOODS_RECEIPT',documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}},await queueDocumentPrint(tx,{businessId:actor.businessId,documentId,printerRole:'OFFICE',staffId:actor.staffId,at}));
  return {value,records};
 };
-export const goodsReceiptCommandRegistry=new Map([['procurement.receive',{permission:'procurement.receive',offlinePolicy:'ONLINE_ONLY',handler:receive}]]);
+export const goodsReceiptCommandRegistry=new Map([['procurement.receive',{permission:'procurement.receive',approvalPermission:'procurement.over_receive',offlinePolicy:'ONLINE_ONLY',handler:receive}]]);

@@ -6,6 +6,7 @@ import {paymentById} from './payment-commands.mjs';
 import {documentHash} from './business-documents.mjs';
 import {queueDocumentPrint} from './print-commands.mjs';
 import {allocationDelta,originalPaymentJournal,postFinancialJournal} from './financial-journals.mjs';
+import {requireManagerApproval} from './manager-approvals.mjs';
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
 const expected=(command,collection,id)=>{const value=command.expectedVersions[`${collection}:${id}`];if(!Number.isSafeInteger(value)||value<1)fail(`Reviewed ${collection} version is required.`);return value;};
@@ -15,6 +16,7 @@ export async function refundProjections(db,businessId){const {rows}=await db.que
 
 const refund=reverse=>async({tx,command,actor,at})=>{
  const p=command.payload;if(!uuid(p.paymentId)||!uuid(p.tillSessionId))fail('Choose an original payment and an open till.');
+ const managerApproval=reverse?await requireManagerApproval({tx,actor,at,token:p.approvalToken,permission:'payment.reverse',target:p.paymentId,command}):null;
  const locked=await tx.client.query('SELECT order_id AS "orderId" FROM order_payments WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,p.paymentId]);
  if(!locked.rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The original payment is missing.');
  const payment=await paymentById(tx.client,actor.businessId,p.paymentId);
@@ -45,7 +47,7 @@ const refund=reverse=>async({tx,command,actor,at})=>{
   records.push({collection:'cashMovements',id:entryId,version:1,archived:false,data:{id:entryId,tillSessionId:p.tillSessionId,kind,amountDeltaMinor:-amount,reason:note,sourceCommandId:command.commandId,staffId:actor.staffId,deviceId:actor.deviceId,occurredAt:at.toISOString()}});
  }
  const saved=await tx.client.query(`INSERT INTO payment_refunds(business_id,id,payment_id,order_id,till_session_id,amount_minor,method,kind,reason,external_reference,manually_confirmed,staff_id,device_id,occurred_at,source_command_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING ${columns}`,[actor.businessId,id,p.paymentId,orderId,p.tillSessionId,amount,method,reverse?'FULL_REMAINING_REVERSAL':'REFUND',note,externalReference,method==='CASH'?false:true,actor.staffId,actor.deviceId,at,command.commandId]);
- records.push(await postFinancialJournal(tx,{actor,command,at,paymentId:p.paymentId,refundId:id,originalJournalId:originalJournal.id,accountId:payment.data.accountId,currency:order.data.currency,allocation:taxReversal,basisSnapshot:{policyVersion:1,rounding:'CUMULATIVE_COMBINED_TAX_THEN_VAT',originalJournalId:originalJournal.id,originalAllocation:originalJournal.basis,refundedBeforeMinor:payment.data.refundedAmountMinor,refundedAfterMinor:payment.data.refundedAmountMinor+amount,allocation:taxReversal,reason:note}}));
+ records.push(await postFinancialJournal(tx,{actor,command,at,paymentId:p.paymentId,refundId:id,originalJournalId:originalJournal.id,accountId:payment.data.accountId,currency:order.data.currency,allocation:taxReversal,basisSnapshot:{policyVersion:1,rounding:'CUMULATIVE_COMBINED_TAX_THEN_VAT',originalJournalId:originalJournal.id,originalAllocation:originalJournal.basis,refundedBeforeMinor:payment.data.refundedAmountMinor,refundedAfterMinor:payment.data.refundedAmountMinor+amount,allocation:taxReversal,reason:note,managerApproval}}));
  const refunded=order.data.refundedAmountMinor+amount;if(!Number.isSafeInteger(refunded)||refunded>order.data.amountPaidMinor)throw new ApiProblem(409,'REFUND_RECONCILIATION_FAILED','Refund totals exceed recorded paid amounts.');
  const version=await tx.bumpEntityVersion(actor.businessId,'orders',orderId,baseline);
  await tx.client.query('UPDATE pos_orders SET refunded_amount_minor=$3,version=$4,updated_at=$5 WHERE business_id=$1 AND id=$2',[actor.businessId,orderId,refunded,version,at]);
@@ -60,5 +62,5 @@ const refund=reverse=>async({tx,command,actor,at})=>{
 };
 export const refundCommandRegistry=new Map([
  ['payment.refund',{permission:'order.refund',offlinePolicy:'ONLINE_ONLY',handler:refund(false)}],
- ['payment.reverse',{permission:'payment.reverse',offlinePolicy:'ONLINE_ONLY',handler:refund(true)}],
+ ['payment.reverse',{permission:'payment.reverse',approvalPermission:'payment.reverse',offlinePolicy:'ONLINE_ONLY',handler:refund(true)}],
 ]);
