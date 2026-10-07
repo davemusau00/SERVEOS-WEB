@@ -1,4 +1,5 @@
 import {refundCommandRegistry} from './refund-commands.mjs';
+import {closeDayCommandRegistry} from './close-day-commands.mjs';
 import {outletCommandRegistry} from './outlet-commands.mjs';
 import {printCommandRegistry} from './print-commands.mjs';
 import {businessTaxCommandRegistry} from './business-tax.mjs';
@@ -236,7 +237,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if (req.method === 'GET' && url.pathname === '/v1/bootstrap/catalog') {
         const actor = await authenticate(req);
-        if (!['*','catalog.view','catalog.manage','pos.sell','order.fire','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','business.configure','order.refund','payment.reverse'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
+        if (!['*','catalog.view','catalog.manage','pos.sell','order.fire','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','business.configure','order.refund','payment.reverse','reports.view','accounting.view','audit.view'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
         const bootstrap=await store.catalogBootstrap(actor.businessId);
         return json(res,200,{protocolVersion:1,...bootstrap,records:filterRecords(actor,bootstrap.records)});
       }
@@ -270,7 +271,7 @@ async function main() {
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
-  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
+  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
   server.listen(config.port, config.host, () => console.log(JSON.stringify({event: 'api_started', port: config.port, environment: config.nodeEnv, logLevel: config.logLevel})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
   process.on('SIGTERM', shutdown);

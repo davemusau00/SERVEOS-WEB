@@ -4,6 +4,7 @@ import {ApiProblem} from './command-kernel.mjs';
 import {moneyMinor,requireOpenTill,tillSessionProjection} from './till-commands.mjs';
 import {orderProjection} from './pos-commands.mjs';
 import {documentHash} from './business-documents.mjs';
+import {allocationDelta,remainingPaymentBasis,postFinancialJournal} from './financial-journals.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
@@ -68,11 +69,15 @@ const record=split=>async({tx,command,actor,at})=>{
  const drawer=await tx.client.query('SELECT COALESCE(sum(amount_delta_minor),0) AS delta FROM till_cash_entries WHERE business_id=$1 AND till_session_id=$2',[actor.businessId,p.tillSessionId]);
  const drawerAfter=Number(till.openingFloatMinor)+Number(drawer.rows[0].delta)+cashAmount;
  if(!Number.isSafeInteger(drawerAfter)||drawerAfter<0)throw new ApiProblem(409,'DRAWER_AMOUNT_LIMIT','Drawer balance exceeds supported money amounts or needs reconciliation.');
- const records=[];
+ const records=[],allocationBasis=await remainingPaymentBasis(tx.client,actor.businessId,p.orderId,order.data);
+ let allocatedPaid=0;
  for(const plan of plans){
   await tx.bumpEntityVersion(actor.businessId,'payments',plan.id,0);
   const {rows}=await tx.client.query(`INSERT INTO order_payments(business_id,id,order_id,account_id,account_snapshot,till_session_id,method,amount_minor,cash_tendered_minor,change_minor,external_reference,normalized_reference,received_amount_minor,external_received_at,origin,staff_id,device_id,recorded_at,source_command_id,tender_index) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING ${columns}`,[actor.businessId,plan.id,p.orderId,plan.account.id,JSON.stringify(plan.account),p.tillSessionId,plan.account.method,plan.amount,plan.cashTendered,plan.change,plan.reference,plan.normalized,plan.receivedAmount,plan.receivedAt,plan.origin,actor.staffId,actor.deviceId,at,command.commandId,plan.index]);
   records.push(paymentProjection(rows[0]));
+  const allocation=allocationDelta(allocationBasis.remaining,allocatedPaid,plan.amount);
+  records.push(await postFinancialJournal(tx,{actor,command,at,paymentId:plan.id,accountId:plan.account.id,currency:order.data.currency,allocation,basisSnapshot:{policyVersion:1,rounding:'CUMULATIVE_COMBINED_TAX_THEN_VAT',orderId:p.orderId,orderVersion:baseline,...allocationBasis,paidBeforeMinor:order.data.amountPaidMinor+allocatedPaid,paidAfterMinor:order.data.amountPaidMinor+allocatedPaid+plan.amount,allocation,accountSnapshot:plan.account}}));
+  allocatedPaid+=plan.amount;
   if(plan.account.method==='CASH'){
    const id=randomUUID(),reason=`Order ${p.orderId} cash payment`;
    await tx.client.query(`INSERT INTO till_cash_entries(business_id,id,till_session_id,kind,amount_delta_minor,reason,source_command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,'SALE',$4,$5,$6,$7,$8,$9)`,[actor.businessId,id,p.tillSessionId,plan.amount,reason,command.commandId,actor.staffId,actor.deviceId,at]);
