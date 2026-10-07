@@ -3,7 +3,7 @@ import {Activity,BedDouble,Boxes,CheckCircle2,ChevronRight,ClipboardCheck,Credit
 import {BusinessStore,redactSensitiveData,type QueuedCommand,type WorkflowDraft,type WorkflowDraftField} from './BusinessStore';
 import {resolveOperationDependencies} from './dependencies';
 import {startAutomaticSync,synchronizeStore} from './sync';
-import {allowed,loadAuthorizedSnapshot,openWebDevice,refreshApiCatalogProjection,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
+import {allowed,loadAuthorizedSnapshot,openWebDevice,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
 import {createApiCloudTransport} from './sync';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
 import type {CommandOutcome} from '../../types/transactions';
@@ -67,7 +67,6 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
     if(apiAuth&&apiStore){
       if(!opened){opened=apiStore;store.current=apiStore;}
       if(stopped)return;
-      await refreshApiCatalogProjection(opened,apiAuth.client);
       await synchronizeStore(opened,apiTransport.current!);
       await refresh();if(!stopped){setReady(true);setError('')};return;
     }

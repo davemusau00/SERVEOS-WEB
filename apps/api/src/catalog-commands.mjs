@@ -162,11 +162,40 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   return {collection:'stockItems',id:stockId,version:stockVersion,data:{name,code,baseUnit,barcode,scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages},product:productResult,openingQuantity:startingQuantity};
 };
 
+const inventoryCount = async ({tx,command,actor,at})=>{
+  const p=command.payload;const selected=command.name==='inventory.countSelected';const locationId=p.locationId;
+  if(!uuid(locationId)||!await tx.requireStockLocation(actor.businessId,locationId))throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected stock location is missing or archived.');
+  const rows=p.rows;if(!Array.isArray(rows)||rows.length<1||rows.length>5000)throw new ApiProblem(400,'VALIDATION_FAILED','A count must include between 1 and 5000 stock items.');
+  const unknown=Array.isArray(p.unknownScans)?p.unknownScans:Array.isArray(p.unknownBarcodes)?p.unknownBarcodes:[];if(unknown.length)throw new ApiProblem(400,'UNKNOWN_BARCODES','Resolve or dismiss unknown barcode scans before confirming the count.');
+  const reason=text(p.reason||'Physical stock count','Count note',500);const activeIds=await tx.activeStockItemIds(actor.businessId);const active=new Set(activeIds);const rowIds=rows.map(row=>row?.stockItemId);
+  if(rowIds.some(id=>!uuid(id))||new Set(rowIds).size!==rowIds.length||rowIds.some(id=>!active.has(id)))throw new ApiProblem(409,'RESOURCE_CONFLICT','The count includes duplicate, missing, or archived stock items. Refresh and review it.');
+  let selectedIds;
+  if(selected){if(!Array.isArray(p.selectedStockItemIds)||!p.selectedStockItemIds.length||p.scope==='FULL')throw new ApiProblem(400,'VALIDATION_FAILED','Select stock items explicitly for a quick count.');selectedIds=p.selectedStockItemIds;if(new Set(selectedIds).size!==selectedIds.length||selectedIds.length!==rowIds.length||selectedIds.some(id=>!rowIds.includes(id)))throw new ApiProblem(400,'VALIDATION_FAILED','Quick count rows must exactly match the explicitly selected stock items.');}
+  else{if(p.scope==='SELECTED'||rowIds.length!==activeIds.length||activeIds.some(id=>!rowIds.includes(id)))throw new ApiProblem(400,'VALIDATION_FAILED','A full location count must include every active stock item exactly once.');selectedIds=activeIds;}
+  const countRows=[],changedStock=[],movementRecords=[];let matches=0,short=0,over=0;
+  for(const row of rows.slice().sort((a,b)=>a.stockItemId.localeCompare(b.stockItemId))){
+    const expected=Number(row.expectedQuantity),counted=Number(row.countedQuantity);if(!Number.isFinite(expected)||expected<0||!Number.isFinite(counted)||counted<0)throw new ApiProblem(400,'VALIDATION_FAILED','Expected and counted stock quantities must be non-negative numbers.');
+    const balance=await tx.stockBalance(actor.businessId,row.stockItemId,locationId);if(Math.abs(balance-expected)>0.000001)throw new ApiProblem(409,'VERSION_CONFLICT','Stock changed while this count was open. Refresh the affected items and recount.');
+    const consumption=await tx.productConsumptionIds(actor.businessId,row.stockItemId);const expectedConsumption=Array.isArray(row.consumptionProductIds)?row.consumptionProductIds.slice().sort():null;if(expectedConsumption&&JSON.stringify(expectedConsumption)!==JSON.stringify(consumption))throw new ApiProblem(409,'VERSION_CONFLICT','Product stock usage changed while this count was open. Recount the affected item.');
+    const stock=await tx.stockItemDetails(actor.businessId,row.stockItemId);const delta=Number((counted-expected).toFixed(6));if(row.measurementMethod!==undefined&&!['EXACT','ESTIMATED'].includes(row.measurementMethod))throw new ApiProblem(400,'VALIDATION_FAILED','Count measurement method is invalid.');
+    let sealed=null,open=null;const bottleSize=stock.sealedContainerSize;
+    if(bottleSize!==null){sealed=Number(row.countedSealedContainers);open=Number(row.countedOpenQuantity);if(stock.baseUnit!=='ml'||!Number.isInteger(sealed)||sealed<0||!Number.isFinite(open)||open<0||open>=bottleSize||Math.abs(counted-sealed*bottleSize-open)>0.000001)throw new ApiProblem(400,'VALIDATION_FAILED','Counted liquid must equal whole sealed containers plus open quantity below one container.');}
+    else if((row.countedSealedContainers!==undefined&&row.countedSealedContainers!==null)||(row.countedOpenQuantity!==undefined&&row.countedOpenQuantity!==null))throw new ApiProblem(400,'VALIDATION_FAILED','Bottle quantities require configured ml stock.');
+    if(delta===0)matches++;else if(delta<0)short++;else over++;
+    if(delta!==0){await tx.applyInventoryDelta({businessId:actor.businessId,stockItemId:row.stockItemId,locationId,quantityDelta:delta});const version=await tx.bumpEntityVersion(actor.businessId,'stockItems',row.stockItemId,stock.version);await tx.updateStockItemVersion(actor.businessId,row.stockItemId,version);const movementId=randomUUID();await tx.insertInventoryMovement({businessId:actor.businessId,id:movementId,stockItemId:row.stockItemId,locationId,quantityDelta:delta,reason,commandId:command.commandId,staffId:actor.staffId,at});movementRecords.push(await tx.inventoryMovementProjection(actor.businessId,movementId));changedStock.push(await tx.stockRecordProjection(actor.businessId,row.stockItemId));}
+    countRows.push({stockItemId:row.stockItemId,expectedQuantity:expected,countedQuantity:counted,variance:delta,countedSealedContainers:sealed,countedOpenQuantity:open,measurementMethod:row.measurementMethod||'EXACT',consumptionProductIds:consumption,name:stock.name,baseUnit:stock.baseUnit});
+  }
+  const id=`count-${command.commandId}`;await tx.insertStockCount({businessId:actor.businessId,id,scope:selected?'SELECTED':'FULL',locationId,selectedStockItemIds:selectedIds,rows:countRows,matches,short,over,reason,commandId:command.commandId,staffId:actor.staffId,at});
+  return {count:{collection:'stockCounts',id,version:1,data:{scope:selected?'SELECTED':'FULL',locationId,selectedStockItemIds:selectedIds,itemCount:countRows.length,matches,short,over,reason,status:'COMMITTED',sourceCommandId:command.commandId,createdBy:actor.staffId,createdAt:at.toISOString(),rows:countRows},archived:false},stockItems:changedStock,stockMovements:movementRecords};
+};
+
 export const catalogCommandRegistry = new Map([
   ['stockItem.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:stockItemSave}],
   ['stockLocation.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:stockLocationSave}],
   ['product.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:productSave}],
   ['catalog.createWithOpeningStock', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:catalogCreateWithOpeningStock}],
+  ['inventory.countLocation',{permission:'inventory.count',offlinePolicy:'ONLINE_ONLY',handler:inventoryCount}],
+  ['inventory.countSelected',{permission:'inventory.count',offlinePolicy:'ONLINE_ONLY',handler:inventoryCount}],
   ['catalog.item.create', {
     permission: 'catalog.manage',
     offlinePolicy: 'ONLINE_ONLY',

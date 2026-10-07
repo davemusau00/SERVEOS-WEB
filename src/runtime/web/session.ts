@@ -47,21 +47,14 @@ export async function loadAuthorizedSnapshot(store:BusinessStore,rpc:Rpc,session
 
 /** Install the API's records[] bootstrap into the same IndexedDB projection consumed by PWA workflows. */
 export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnType<typeof createServOSApiClient>,policyVersion='api-catalog-v1'){
+  const localCursor=await store.cursor();
+  const localPolicy=await store.policyVersion();
+  const localRecords=await store.records();
+  if(localCursor>0&&localPolicy===policyVersion&&localRecords.length>0)return {cursor:localCursor,records:localRecords.length,policyVersion,reused:true};
+  const queued=await store.queue();
+  if(localCursor>0&&queued.some(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN'))throw new Error('Saved API commands must be recovered before rebuilding this device projection.');
   const bootstrap=await client.bootstrapCatalog();
   if(bootstrap.protocolVersion!==1||!Number.isSafeInteger(bootstrap.cursor)||bootstrap.cursor<0)throw new Error('API catalog bootstrap is invalid');
   await store.replaceSnapshot(bootstrap.records,bootstrap.cursor,policyVersion);
-  return {cursor:bootstrap.cursor,records:bootstrap.records.length,policyVersion};
-}
-
-export async function refreshApiCatalogProjection(store:BusinessStore,client:ReturnType<typeof createServOSApiClient>,policyVersion='api-catalog-v1'){
-  const bootstrap=await client.bootstrapCatalog();
-  if(bootstrap.protocolVersion!==1||!Number.isSafeInteger(bootstrap.cursor)||bootstrap.cursor<0)throw new Error('API catalog bootstrap is invalid');
-  const localCursor=await store.cursor();
-  if(bootstrap.cursor<localCursor)throw new Error('API catalog bootstrap is behind this device projection; reload recovery is required.');
-  if(bootstrap.cursor!==localCursor||await store.policyVersion()!==policyVersion){
-    const pending=(await store.queue()).filter(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN');
-    if(localCursor>0&&pending.length)throw new Error('A catalog refresh found unsynchronized commands. Recover those outcomes before rebuilding this projection.');
-    await store.replaceSnapshot(bootstrap.records,bootstrap.cursor,policyVersion);
-  }
-  return {cursor:bootstrap.cursor,records:bootstrap.records.length,policyVersion};
+  return {cursor:bootstrap.cursor,records:bootstrap.records.length,policyVersion,reused:false};
 }
