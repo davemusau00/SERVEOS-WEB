@@ -244,7 +244,9 @@ pub fn prepare_customer_credit(input: &ValidatedAction) -> Result<PreparedDocume
             } else if method == "CASH" {
                 at(&snapshot, "recordedAt")?
             } else {
-                return Err("External customer payment must retain its actual received time".into());
+                return Err(
+                    "External customer payment must retain its actual received time".into(),
+                );
             };
             lines.push(format!("Received: {received_at}"));
             lines.push(format!("Balance before: {}", money(before)));
