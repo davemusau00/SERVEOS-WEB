@@ -312,6 +312,12 @@ export class PostgresStore {
     });
   }
 
+  async initialSetupComplete(){
+    const {rows}=await this.pool.query("SELECT to_regclass('public.api_staff_profiles') IS NOT NULL AS schema_ready");
+    if(!rows[0]?.schema_ready)return false;
+    const result=await this.pool.query('SELECT EXISTS(SELECT 1 FROM api_staff_profiles) AS complete');return result.rows[0]?.complete===true;
+  }
+
   async changePassword({businessId,staffId,currentHash,newHash,at}) {
     const {rows}=await this.pool.query('UPDATE api_staff_profiles SET credential_hash=$4,must_change_password=false,failed_login_count=0,locked_until=NULL,updated_at=$5 WHERE business_id=$1 AND staff_id=$2 AND credential_hash=$3 RETURNING staff_id',[businessId,staffId,currentHash,newHash,at]);
     return rows.length>0;

@@ -136,6 +136,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const credentialHash=await hashPassword(password);const permissions=['*','business.view','business.configure','catalog.view','catalog.manage','inventory.view','inventory.count','inventory.adjust','devices.manage','devices.register','records.view','staff.view','staff.create','staff.update','staff.deactivate','staff.reset_pin','staff.change_role','pos.sell','payment.record','till.view','till.open','procurement.view','procurement.manage','procurement.receive','rooms.view','rooms.manage','reports.view','audit.view','system.configure'];
         const created=await store.createInitialAdmin({setupSecretHash:secretHash,expectedSetupSecretHash,businessId,businessName,staffId,loginName,displayName,credentialHash,permissions,at:new Date()});
         if(!created)throw new ApiProblem(409,'SETUP_CLOSED','Initial setup has already been completed.');
+        delete process.env.INITIAL_ADMIN_SETUP_SECRET;
         return json(res,201,{created:true});
       }
       if(req.method==='POST'&&url.pathname==='/v1/auth/logout'){
@@ -313,6 +314,7 @@ async function main() {
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
+  if(await store.initialSetupComplete())delete process.env.INITIAL_ADMIN_SETUP_SECRET;
   const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...customerCommandRegistry,...customerCreditCommandRegistry,...customerCreditReconciliationCommandRegistry,...staffCommandRegistry,...deviceCommandRegistry,...managerApprovalCommandRegistry,...supplierCommandRegistry,...purchaseOrderCommandRegistry,...goodsReceiptCommandRegistry,...supplierInvoiceCommandRegistry,...supplierPaymentCommandRegistry,...supplierReturnCommandRegistry,...supplierCreditCommandRegistry,...supplierCreditApplicationCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
   server.listen(config.port, config.host, () => console.log(JSON.stringify({event: 'api_started', port: config.port, environment: config.nodeEnv, logLevel: config.logLevel})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });

@@ -956,3 +956,14 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Enrollment now locks and checks the active staff profile inside its transaction, serializing device enrollment against staff deactivation. The API Staff screen lists enrolled devices from the filtered API bootstrap and permits online revocation by a different device.
 - Last-seen and command-sequence fields are not backed by API telemetry yet; API device rows now show these as untracked rather than implying a zero sequence or a never-seen device.
 - No migration, API, authorization, change-feed/reload, session invalidation, browser or database verification was run. Device lifecycle and staff-management remain source-only and unverified.
+
+### API own-session review and revocation (source only; migration unapplied)
+
+- Added migration 059 for append-only session revocation evidence. Authenticated staff can list only their own latest 100 sessions and revoke another session belonging to the same staff profile; the current session must use Sign out and cannot be revoked through this endpoint.
+- Added API endpoints and PWA session dialog with session/device IDs, created/expiry/revocation state and explicit revocation confirmation. Session listing is read-only; access tokens remain only in the in-memory auth closure, and no refresh credential is persisted.
+- This does not yet implement rotating refresh tokens, cookie sessions, token-family replay detection or automatic access-token renewal. No tests, migration, API, concurrency, reload or browser checks were run.
+
+### Initial-admin setup secret lifecycle (source only)
+
+- On startup, the API checks whether staff setup has already completed and removes `INITIAL_ADMIN_SETUP_SECRET` from its process environment when an Admin profile exists. Successful one-time setup also removes it immediately; the database's existing one-Admin bootstrap fence remains authoritative after restarts.
+- This is source behavior only. Deployment secret-store cleanup, startup behavior, concurrent setup and restart acceptance remain unverified.
