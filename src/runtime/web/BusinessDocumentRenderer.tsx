@@ -7,7 +7,7 @@ const text=(value:unknown)=>typeof value==='string'?value:'';
 const number=(value:unknown)=>typeof value==='number'&&Number.isFinite(value)?value:null;
 const money=(value:unknown)=>{const amount=number(value);return amount===null?'—':(amount/100).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2});};
 const localTime=(value:unknown)=>{const raw=text(value),date=new Date(raw);return raw&&Number.isFinite(date.getTime())?date.toLocaleString('en-KE',{timeZone:'Africa/Nairobi'}):raw;};
-const titles:Record<string,string>={SALES_RECEIPT:'Sales receipt',PAYMENT_ACKNOWLEDGEMENT:'Payment acknowledgement',KOT:'Kitchen order ticket',BOT:'Bar order ticket',REFUND_RECEIPT:'Refund receipt',CLOSE_DAY_REPORT:'Close-day report',ORDER_VOID_NOTICE:'Order void notice',KOT_CANCEL:'Cancel kitchen order',BOT_CANCEL:'Cancel bar order'};
+const titles:Record<string,string>={PURCHASE_ORDER:'Purchase order',SALES_RECEIPT:'Sales receipt',PAYMENT_ACKNOWLEDGEMENT:'Payment acknowledgement',KOT:'Kitchen order ticket',BOT:'Bar order ticket',REFUND_RECEIPT:'Refund receipt',CLOSE_DAY_REPORT:'Close-day report',ORDER_VOID_NOTICE:'Order void notice',KOT_CANCEL:'Cancel kitchen order',BOT_CANCEL:'Cancel bar order'};
 const canonical=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(canonical).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${canonical((value as Record<string,unknown>)[key])}`).join(',')}}`;
 
 const isSnapshotPng=(value:unknown):value is string=>typeof value==='string'&&value.length<=2_800_000&&/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value);
@@ -22,7 +22,7 @@ export function BusinessDocumentRenderer({document}:{document:LocalBusinessDocum
  const s=document.snapshot,b=object(s.business),tax=object(s.taxes),cashier=object(s.cashier);
  const ticket=['KOT','BOT','KOT_CANCEL','BOT_CANCEL'].includes(document.type);
  const voidNotice=['ORDER_VOID_NOTICE','KOT_CANCEL','BOT_CANCEL'].includes(document.type);
- const qr=document.type==='CLOSE_DAY_REPORT'||voidNotice?'':text(b.paymentQrPngDataUrl);
+ const qr=['PURCHASE_ORDER','CLOSE_DAY_REPORT'].includes(document.type)||voidNotice?'':text(b.paymentQrPngDataUrl);
  const issued=new Date(document.issuedAt);
  return <article className="servos-business-document" aria-label={titles[document.type]||document.type}>
   <header>
@@ -41,7 +41,8 @@ export function BusinessDocumentRenderer({document}:{document:LocalBusinessDocum
    {text(s.serviceDestination)&&<p>Service: {text(s.serviceDestination)}</p>}
   </section>
   {voidNotice&&<section><p><b>ORDER VOIDED - stop preparation/service</b></p><p>Reason: {text(s.reason)}</p><p>Stock disposition: {text(s.disposition)}</p><p>{s.stockRestored===true?'Original sealed bottles returned to stock.':'No automatic stock return.'}</p>{s.inventoryCorrectionRequired===true&&<p>Separate reviewed inventory correction required.</p>}{Array.isArray(s.unresolvedTicketIds)&&s.unresolvedTicketIds.length>0&&<p>Earlier preparation tickets may already have printed. Confirm cancellation with kitchen/bar staff.</p>}<p>This notice does not refund money.</p></section>}
-  {rows(s.items).length>0&&<table><thead><tr><th>Item</th><th>Qty</th>{!ticket&&<><th>Price</th><th>Amount</th></>}</tr></thead><tbody>{rows(s.items).map((line,index)=>{
+  {document.type==='PURCHASE_ORDER'&&<section><p>Supplier: {text(object(s.supplier).name)}</p><p>Supplier code: {text(object(s.supplier).code)}</p><p>{text(object(s.supplier).address)}</p><p>{text(object(s.supplier).phone)} {text(object(s.supplier).email)}</p><p>Expected delivery: {text(s.expectedDeliveryDate)||'Not specified'}</p>{rows(s.items).map(line=><div key={text(line.id)}><p><b>{text(object(line.stockSnapshot).name)}</b></p><p>{String(line.quantityOrdered)} {text(object(line.purchasePackageSnapshot).name)||text(object(line.stockSnapshot).baseUnit)} x {money(line.unitPriceMinor)} = {money(line.lineTotalMinor)}</p><p>Base quantity: {String(line.baseQuantityOrdered)} {text(object(line.stockSnapshot).baseUnit)}</p></div>)}<p><b>PO total ({text(s.currency)}): {money(s.subtotalMinor)}</b></p><p>{text(s.notes)}</p><p>Approved by: {text(s.approvedBy)} ? {localTime(s.approvedAt)}</p><p>Issuing this document does not confirm supplier delivery or receipt of goods.</p></section>}
+  {document.type!=='PURCHASE_ORDER'&&rows(s.items).length>0&&<table><thead><tr><th>Item</th><th>Qty</th>{!ticket&&<><th>Price</th><th>Amount</th></>}</tr></thead><tbody>{rows(s.items).map((line,index)=>{
    const product=object(line.productSnapshot),portion=object(line.portionSnapshot);
    return <tr key={text(line.id)||index}><td>{text(line.name)||text(product.name)}{text(portion.name)&&<small>{text(portion.name)}</small>}{rows(line.modifierSnapshots).map((modifier,i)=><small key={i}>{text(modifier.name)}</small>)}{line.comped===true&&<small>Complimentary: {text(line.compReason)}</small>}{Number(line.discountMinor)>0&&<small>Reduction: {money(line.discountMinor)}</small>}{text(line.courseName)&&<small>Course: {text(line.courseName)}</small>}{text(line.notes)&&<small>{text(line.notes)}</small>}</td><td>{number(line.quantity)?.toLocaleString('en-KE',{maximumFractionDigits:6})??'—'}</td>{!ticket&&<><td>{money(line.unitPriceMinor)}</td><td>{money(line.lineTotalMinor)}</td></>}</tr>;
   })}</tbody></table>}

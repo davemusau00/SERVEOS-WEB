@@ -13,7 +13,7 @@ export async function supplierProjections(db,businessId){const {rows}=await db.q
 const save=async({tx,command,actor,at})=>{
  const p=command.payload,d=p.data;if(!uuid(p.id)||!d||typeof d!=='object'||Array.isArray(d))fail('Supplier identity and details are required.');
  const allowed=['code','name','contactName','phone','email','address','taxPin','paymentTermsDays','notes'];
- if(Object.keys(p).some(key=>!['id','data','reason'].includes(key))||Object.keys(d).some(key=>!allowed.includes(key)))fail('Unsupported supplier fields. Archive requires its dedicated reviewed workflow.');
+ if(Object.keys(p).some(key=>!['id','data','reason','expectedVersions','reviewCommandId'].includes(key))||Object.keys(d).some(key=>!allowed.includes(key)))fail('Unsupported supplier fields. Archive requires its dedicated reviewed workflow.');
  field(p.reason,'Change reason',500,true);
  const baseline=command.expectedVersions[`suppliers:${p.id}`];if(!Number.isSafeInteger(baseline)||baseline<0)fail('Reviewed supplier version is required.');
  const code=field(d.code,'Supplier code',80,true),name=field(d.name,'Supplier name',160,true),contact=field(d.contactName,'Contact name',160),phone=field(d.phone,'Phone',80),email=field(d.email,'Email',254),address=field(d.address,'Address',2000,false,true),taxPin=field(d.taxPin,'Tax PIN',80),notes=field(d.notes,'Notes',2000,false,true);

@@ -1,3 +1,4 @@
+import {purchaseOrderProjections} from './purchase-order-commands.mjs';
 import {supplierProjections} from './supplier-commands.mjs';
 import {refundProjections} from './refund-commands.mjs';
 import {journalProjections} from './financial-journals.mjs';
@@ -129,8 +130,10 @@ export class PostgresStore {
     const journals=await journalProjections(db,businessId);
     const closeDays=await closeDayProjections(db,businessId);
     const suppliers=await supplierProjections(db,businessId);
+    const purchaseOrders=await purchaseOrderProjections(db,businessId);
     return [
       ...suppliers,
+      ...purchaseOrders,
       ...orders,
       ...documents,
       ...tills,

@@ -680,3 +680,49 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Supplier projections join repeatable-read bootstrap and are filtered by supplier/procurement permission. No generic record replacement or Supabase mutation path was added.
 - Supplier archiving/restoration is deliberately unavailable until PO/payable blockers have their authoritative tables and reviewed workflows; save refuses archive fields. Legacy open-PO/payable archive behavior was inspected for preservation.
 - No migration, tests, builds or runtime execution ran. Procurement UI, PO/GRN/receiving, invoice/payable/payment/return workflows remain incomplete; offline POS remains disabled pending prerequisite verification.
+
+
+## Final sprint continuation - API supplier operator workspace (source only)
+
+- Wired API Procurement to supplier search/add/edit with reviewed supplier versions, bounded fields, explicit terms/reasons and current permission controls. API sessions no longer enter the legacy procurement view for this workspace.
+- Supplier saves use the API outbox/command path and remain online-only. Pending/unknown commands block another supplier write across remounts; recovered outcomes close the stale editor and require reopening current data after rejection/conflict.
+- Aligned supplier payload validation with existing UI review metadata; authoritative expected versions still come from the command envelope. Added bootstrap eligibility for procurement-only operator sessions.
+- No tests, builds, migrations or runtime execution ran. PO approval/issue/receiving, GRN/payables/returns and supplier archive blockers remain upcoming procurement work.
+
+
+## Final sprint continuation - purchase order draft authority (source only)
+
+- Added migration 037 with tenant-scoped PO headers/normalized lines, supplier/stock foreign keys, immutable identity numbers, status/amount/quantity constraints and lookup indexes.
+- Added online-only procurement.saveDraft with reviewed PO/supplier/stock versions, active-source checks, frozen supplier/item/package snapshots, unique stock/line identities and exact six-decimal quantity/minor-money arithmetic. Package counts remain whole and draft save never posts inventory.
+- PO projections join bootstrap and permission-filtered feed. Only DRAFT can be edited; expense/asset treatments remain explicitly unavailable pending their accounting workflows rather than being converted into stock purchases.
+- No migrations, tests, builds or runtime execution ran. Draft operator UI, approval/issue documents, GRN/canonical receive, payable/payment/return and archive blockers remain unfinished.
+
+
+## Final sprint continuation - purchase draft operator UI (source only)
+
+- Added API purchase-order draft list/editor with reviewed supplier/stock baselines, package/base-unit selection, whole-package counts, decimal quantity/money entry, delivery date and reasons. Issued draft totals and frozen line identities come from API projections.
+- Draft commands use the normal API persistence/sync path and remain online-only. Pending/unknown outcomes block another purchase-draft write across remounts; recovered rejection/conflict requires reopening current data.
+- Tightened derived base-quantity range to the bounded stock precision supported by the API/UI. No draft action receives inventory, approves an order or creates a payable.
+- No tests, builds, migrations or runtime execution ran. Approval/issue/GRN/receiving, financial procurement treatments, invoice/payable/payment/return and archive workflows remain unfinished.
+
+
+## Final sprint continuation - PO approval and immutable issue (source only)
+
+- Added migration 038 with approval/issue metadata, immutable transition events, post-approval content protection and draft-only line mutation guards.
+- Added online reviewed procurement.approve/issue transitions. Approval checks frozen supplier/stock revisions against active source records; issue freezes an immutable PURCHASE_ORDER document and office print job without claiming supplier delivery or receiving inventory.
+- Added browser PO document rendering and procurement document/print permissions. PO snapshots retain supplier, purchase/package/base quantities, costs, dates, notes and approval identity.
+- No migrations, tests, builds or runtime execution ran. Approval/issue operator controls, PO bridge layout, GRN/canonical receiving and financial procurement workflows remain unfinished.
+
+
+## Final sprint continuation - PO approval/issue operator review (source only)
+
+- Added explicit approval/issue review panels showing frozen supplier, line quantities/costs and totals. Review binds the selected PO version and requires acknowledgement/reason; pending or unknown procurement transitions block another transition across remounts.
+- Issued PO documents open the existing audited document/print queue directly from Procurement. Browser printing remains available; issue explicitly does not claim supplier transmission or receipt.
+- PO issue now requires configured business identity before creating immutable documents. No tests, builds, migrations or runtime execution ran. PO bridge rendering, canonical GRN receive, invoices/payables/returns and archive/recovery gates remain unfinished.
+
+
+## Final sprint continuation - immutable PO bridge layout (source only)
+
+- Added office-role PURCHASE_ORDER bridge rendering with immutable supplier contact/tax/terms, package/base quantities, frozen item costs, delivery date, notes and approval/issue identities. Quantity/package/cost/total consistency is checked before transport.
+- PO logos use the shared PNG pipeline; payment QR is excluded. Typed browser/bridge contracts and document queue submission now support issued POs with existing signed claims, live checks and durable delivery evidence.
+- No tests, build, migration or runtime execution ran. Browser/thermal document parity, physical printing and GRN/canonical inventory receiving remain unfinished acceptance/development work.

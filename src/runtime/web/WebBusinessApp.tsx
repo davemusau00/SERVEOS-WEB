@@ -1,3 +1,5 @@
+import {WebApiPurchaseOrders} from './WebApiPurchaseOrders';
+import {WebApiSuppliers} from './WebApiSuppliers';
 import {exportBridgeRecoveryEvidence} from './printBridgeTransport';
 import {WebBridgeSettings} from './WebBridgeSettings';
 import {WebBridgeRecovery} from './WebBridgeRecovery';
@@ -62,7 +64,7 @@ const money=(value:unknown)=>new Intl.NumberFormat('en-KE',{style:'currency',cur
 const minor=(value:string)=>parseMoneyToMinor(value);
 const middleDot='\u00B7';
 type WorkspaceTab='Home'|'POS'|'KDS'|'Catalog'|'Inventory'|'Procurement'|'Front Desk'|'Guest Accounts'|'Housekeeping'|'Rooms'|'Maintenance'|'Floorplan'|'Assets'|'Master Data'|'Refunds'|'Finance Controls'|'Settings'|'Finance'|'Staff'|'Administration'|'Activity'|'Help';
-const apiWorkspaces=(session:WebSession):WorkspaceTab[]=>['Home',...(['pos.sell','kds.view','kds.update','order.fire','order.kds','order.void','order.discount','order.comp','order.compItem','payment.record','till.open','till.close','till.view','till.override_variance'].some(permission=>allowed(session,permission))?['POS' as const]:[]),'Catalog','Inventory',...(['order.refund','payment.reverse'].some(permission=>allowed(session,permission))?['Refunds' as const]:[]),'Activity','Help',...(allowed(session,'business.configure')?['Settings' as const]:[])];
+const apiWorkspaces=(session:WebSession):WorkspaceTab[]=>['Home',...(['pos.sell','kds.view','kds.update','order.fire','order.kds','order.void','order.discount','order.comp','order.compItem','payment.record','till.open','till.close','till.view','till.override_variance'].some(permission=>allowed(session,permission))?['POS' as const]:[]),'Catalog','Inventory',...(['procurement.view','procurement.manage','suppliers.manage','procurement.receive','procurement.pay'].some(permission=>allowed(session,permission))?['Procurement' as const]:[]),...(['order.refund','payment.reverse'].some(permission=>allowed(session,permission))?['Refunds' as const]:[]),'Activity','Help',...(allowed(session,'business.configure')?['Settings' as const]:[])];
 const canSeeTab=(session:WebSession,tab:WorkspaceTab,apiAuthority=false)=>apiAuthority?apiWorkspaces(session).includes(tab):canSeeWorkspace(session,workspaceById(tab));
 
 export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{initialSession:WebSession;rpc:Rpc;onSignOut:()=>void;apiAuth?:ApiAuthenticatedDeviceSession;apiStore?:BusinessStore}){
@@ -260,6 +262,10 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
  const submit=async(operation:string,collection:string,id:string,payload:Record<string,unknown>):Promise<CommandOutcome>=>{
   if(updateHold.current)return {kind:'BLOCKED',message:'ServOS is preparing an update. Wait for this workspace to restart.'};
   const apiCatalogCommand=['product.save','stockItem.save','stockLocation.save','catalog.createWithOpeningStock'].includes(operation);const apiCountCommand=['inventory.countLocation','inventory.countSelected'].includes(operation);const apiInventoryCommand=['inventory.transfer','inventory.waste','inventory.adjust','inventory.produceBatch','inventory.reverseMovement','inventory.receive','inventory.policy.save'].includes(operation);
+  const apiProcurementCommand=['procurement.saveDraft','procurement.approve','procurement.issue'].includes(operation);
+  if(apiAuth&&apiProcurementCommand&&!navigator.onLine)return {kind:'BLOCKED',message:'Connect before submitting a purchase order draft.'};
+  const apiSupplierCommand=operation==='supplier.save';
+  if(apiAuth&&apiSupplierCommand&&!navigator.onLine)return {kind:'BLOCKED',message:'Connect before changing shared supplier details.'};
   const apiPrintCommand=['print.claim','print.report','print.confirm','print.retry','print.cancel'].includes(operation);
   const apiCloseDayCommand=operation==='closeDay.generate';
   if(apiAuth&&apiCloseDayCommand&&!navigator.onLine)return {kind:'BLOCKED',message:'Connect before issuing an immutable close-day report.'};
@@ -274,9 +280,9 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
   const apiSettingsCommand=['business.settings.save','till.policy.save','paymentAccount.save','outlet.save'].includes(operation);
   if(apiAuth&&apiSettingsCommand&&!navigator.onLine)return {kind:'BLOCKED',message:'Connect before changing shared business settings.'};
   if(apiAuth&&apiPrintCommand&&!navigator.onLine)return {kind:'BLOCKED',message:'Connect before claiming or changing a shared print job.'};
-  if(apiAuth&&!apiCatalogCommand&&!apiCountCommand&&!apiInventoryCommand&&!apiPrintCommand&&!apiSettingsCommand&&!apiPosCommand&&!apiTillCommand&&!apiPaymentCommand&&!apiRefundCommand&&!apiCloseDayCommand)return {kind:'BLOCKED',message:`${operation} has not migrated to the ServOS API. No command was submitted.`};
-  const requiredApiPermission=apiCloseDayCommand?'reports.view':apiRefundCommand?(operation==='payment.refund'?'order.refund':'payment.reverse'):apiPaymentCommand?operation:apiTillCommand?(operation==='till.reviewVariance'?'till.override_variance':operation):apiPosCommand?(operation==='order.kds'?'kds.update':operation==='order.compItem'?'order.comp':['order.fire','order.kds','order.void','order.discount','order.comp','order.compItem'].includes(operation)?operation:'pos.sell'):apiSettingsCommand?'business.configure':operation==='inventory.policy.save'?'business.configure':apiCountCommand?'inventory.count':['inventory.produceBatch','inventory.reverseMovement'].includes(operation)?'inventory.adjust':apiInventoryCommand?operation:'catalog.manage';
-  if(apiAuth&&!(apiPrintCommand?['pos.sell','payment.record','order.refund','payment.reverse','order.void','order.discount','order.comp','kds.view','kds.update','system.configure','reports.view','accounting.view','audit.view'].some(permission=>allowed(session,permission)):allowed(session,requiredApiPermission)))return {kind:'BLOCKED',message:`Your API staff account cannot perform ${operation}.`};
+  if(apiAuth&&!apiCatalogCommand&&!apiCountCommand&&!apiInventoryCommand&&!apiPrintCommand&&!apiSettingsCommand&&!apiPosCommand&&!apiTillCommand&&!apiPaymentCommand&&!apiRefundCommand&&!apiCloseDayCommand&&!apiSupplierCommand&&!apiProcurementCommand)return {kind:'BLOCKED',message:`${operation} has not migrated to the ServOS API. No command was submitted.`};
+  const requiredApiPermission=apiProcurementCommand?'procurement.manage':apiSupplierCommand?(allowed(session,'suppliers.manage')?'suppliers.manage':'procurement.manage'):apiCloseDayCommand?'reports.view':apiRefundCommand?(operation==='payment.refund'?'order.refund':'payment.reverse'):apiPaymentCommand?operation:apiTillCommand?(operation==='till.reviewVariance'?'till.override_variance':operation):apiPosCommand?(operation==='order.kds'?'kds.update':operation==='order.compItem'?'order.comp':['order.fire','order.kds','order.void','order.discount','order.comp','order.compItem'].includes(operation)?operation:'pos.sell'):apiSettingsCommand?'business.configure':operation==='inventory.policy.save'?'business.configure':apiCountCommand?'inventory.count':['inventory.produceBatch','inventory.reverseMovement'].includes(operation)?'inventory.adjust':apiInventoryCommand?operation:'catalog.manage';
+  if(apiAuth&&!(apiPrintCommand?['procurement.view','procurement.manage','procurement.receive','procurement.pay','pos.sell','payment.record','order.refund','payment.reverse','order.void','order.discount','order.comp','kds.view','kds.update','system.configure','reports.view','accounting.view','audit.view'].some(permission=>allowed(session,permission)):allowed(session,requiredApiPermission)))return {kind:'BLOCKED',message:`Your API staff account cannot perform ${operation}.`};
   if(!store.current||!ready)return {kind:'BLOCKED',message:'The business workspace is not ready. Reconnect and try again.'};
   if(submitInFlight.current)return {kind:'BLOCKED',message:'Another business action is being submitted. Wait for its outcome before continuing.'};
   submitInFlight.current=true;setBusy(true);setError('');setNotice('');let activeCommandId='';
@@ -355,7 +361,9 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
   {ready&&tab==='KDS'&&<WebKDSView records={records} session={session} disabled={disabled} command={submit} onRefresh={syncNow}/>}
  {ready&&tab==='Catalog'&&<WebCatalogView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Inventory'&&<WebInventoryView records={records} session={session} disabled={disabled} command={submit} apiAuthority={Boolean(apiAuth)}/>}
- {ready&&tab==='Procurement'&&<WebProcurementView records={records} session={session} disabled={disabled} command={submit}/>}
+ {ready&&tab==='Procurement'&&apiAuth&&<WebApiPurchaseOrders apiAuth={apiAuth} readRecords={async()=>await store.current?.records()||[]} records={records} session={session} queue={queue} disabled={disabled} command={submit}/>}
+ {ready&&tab==='Procurement'&&apiAuth&&<WebApiSuppliers records={records} session={session} queue={queue} disabled={disabled} command={submit}/>}
+ {ready&&tab==='Procurement'&&!apiAuth&&<WebProcurementView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Front Desk'&&<WebFrontDeskView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Guest Accounts'&&<WebGuestAccountsView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Housekeeping'&&<WebHousekeepingView records={records} session={session} disabled={disabled} command={submit}/>}

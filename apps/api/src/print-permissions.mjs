@@ -1,1 +1,1 @@
-export const PRINT_PERMISSIONS=Object.freeze(['pos.sell','payment.record','order.refund','payment.reverse','order.void','order.discount','order.comp','kds.view','kds.update','system.configure','reports.view','accounting.view','audit.view']);
+export const PRINT_PERMISSIONS=Object.freeze(['procurement.view','procurement.manage','procurement.receive','procurement.pay','pos.sell','payment.record','order.refund','payment.reverse','order.void','order.discount','order.comp','kds.view','kds.update','system.configure','reports.view','accounting.view','audit.view']);

@@ -1,416 +1,123 @@
-# ServOS Web-First Reset: Final Non-Stop Development Sprint
+# SERVOS FINAL SPRINT
+## Web-First Reset, Revenue Completion, Print Bridge, Operational Domains, Migration and Production Cutover
 
 **Repository:** `davemusau00/SERVEOS-WEB`  
 **Branch:** `reset/vps-platform`  
-**Current checkpoint:** `393c3a69e6bbd5cae007157328361c54a6a8d122`  
+**Current remote HEAD:** `6d04abdea9c0892f326ff99c5a9aa94c2576c50a`  
 **Checkpoint date:** 2026-10-07  
-**Branch position at checkpoint:** 84 commits ahead of `main`, 0 behind  
-**Current phase:** Revenue-domain migration and production hardening  
-**Execution model:** build continuously until release gates are satisfied
+**Branch position:** 107 commits ahead of `main`, 0 behind  
+**Current phase:** Revenue stabilization + Print Bridge execution + remaining business-domain migration  
+**Execution mode:** continuous implementation until production acceptance gates pass
 
 ---
 
-# 0. EXECUTION MANDATE
+# 0. PURPOSE
 
-This is the final implementation sprint. It is not a planning document and it is not a request to stop after individual milestones.
+This is the authoritative final sprint instruction from the current live repository state.
 
-Continue phase by phase without asking for routine approval.
+Do not treat it as a roadmap that permits stopping after convenient milestones. The sprint ends only when ServOS can run the real business on the Web/PWA authority, through the ServOS API and PostgreSQL, with reliable local printing, safe bounded offline behavior, migrated real data, tested restore/rollback, and no Tauri/Supabase business authority.
 
 For every implementation slice:
 
 ```text
-inspect current code
--> inspect legacy/parity behavior
--> implement smallest architecture-consistent change
--> typecheck
+inspect existing source
+-> inspect parity/oracle behavior
+-> implement
+-> lint/typecheck
 -> unit test
 -> PostgreSQL integration test
--> browser acceptance test when operator-facing
--> inspect CI evidence
+-> browser acceptance
+-> hardware acceptance when applicable
+-> inspect evidence
 -> fix failures
 -> commit atomically
 -> continue
 ```
 
-Do not pause after:
-
-- one migration,
-- one handler,
-- one passing test,
-- one green local build,
-- one working screen,
-- one deployment.
-
-Stop only when an action requires external authority that cannot safely be inferred, such as a production destructive migration, unavailable production secret, DNS/SSH credential, payment-provider credential, or physical hardware interaction that cannot be simulated.
-
-Do not ask the user to choose between equivalent internal engineering approaches. Inspect the repository and make the best architecture-consistent choice.
+Stop only when an external action genuinely requires the user, such as production-destructive migration approval, unavailable production secrets, DNS/SSH credentials, payment-provider credentials, or physical hardware interaction that cannot be simulated.
 
 ---
 
-# 1. CURRENT REPOSITORY STATE
+# 1. CURRENT COMPLETION BASELINE
 
-The project has advanced substantially beyond the earlier version of this sprint.
+| Area | Source Completion | Production Confidence |
+|---|---:|---:|
+| Architecture / target design | 96% | 90% |
+| API command platform | 95% | 88% |
+| PostgreSQL core | 91% | 85% |
+| Authentication/device/session | 89% | 75% |
+| IndexedDB/outbox/sync | 92% | 82% |
+| Catalog | 92% | 82% |
+| Inventory | 88% | 77% |
+| POS backend | 84% | 68% |
+| POS operator UX | 70% | 58% |
+| Payments/tills | 67% | 58% |
+| Refunds/reversals | 63% | 55% |
+| Financial journals | 56% | 45% |
+| Close-day | 52% | 42% |
+| Business documents | 67% | 52% |
+| Native printer transport | 60% | 20% |
+| Print Bridge service | 55% | 10-15% |
+| Procurement | 8% | ~5% |
+| Customer credit/finance | 15% | ~10% |
+| Hotel/PMS | 5% | ~5% |
+| Existing-data migration | 10% | ~5% |
+| VPS production cutover | 20% | ~10% |
+| Backup restore proof | 15% | ~10% |
+| Real business pilot | 0% | 0% |
 
-The platform core is no longer the main risk. The remaining work is increasingly the actual hospitality business system, deployment proof, data migration, hardware printing, and production cutover.
-
-Approximate current maturity:
-
-| Area | Current level |
-|---|---:|
-| Architecture / target design | 96% |
-| API platform/kernel | 95% |
-| PostgreSQL core | 90% |
-| Command lifecycle/idempotency | 95% |
-| Auth/device/session foundation | 89% |
-| IndexedDB/PWA sync kernel | 92% |
-| Real PWA -> API -> PostgreSQL proof | 85% |
-| Catalog | 88% |
-| Inventory | 86% |
-| POS backend | 60% |
-| POS Web operator UX | 40% |
-| Payments backend | 55% |
-| Till backend | 55% |
-| Refund/reversal backend | 45% |
-| Business document/print lifecycle | 60% |
-| Print Bridge | 5% |
-| Procurement | 5-10% |
-| Customer credit/finance | 10% |
-| Hotel/PMS | 5% |
-| Existing-data migration | 10% |
-| VPS release/backup tooling | 65-70% |
-| Production readiness | about 50% |
-
-The correct overall interpretation is:
+Roll-up:
 
 ```text
-core platform        mostly built
-catalog              largely migrated
-inventory            largely migrated
-POS/money            now actively migrating
-printing             server/browser lifecycle exists, bridge absent
-procurement/PMS      still mostly legacy
-migration/cutover    still major work
+PLATFORM / ARCHITECTURE             ~94%
+SOURCE IMPLEMENTATION               ~91%
+BUSINESS WORKFLOW MIGRATION         ~74%
+VERIFIED IMPLEMENTATION             ~72%
+PRODUCTION READINESS                ~56%
+OVERALL WEB-FIRST RESET             ~82%
 ```
+
+The remaining work is now dominated by verification, physical printing, remaining business domains, migration and cutover rather than foundational architecture.
 
 ---
 
-# 2. COMPLETED FOUNDATIONS: DO NOT REBUILD
+# 2. CURRENT CI STOP GATE
 
-Treat the following as existing architecture to preserve and extend.
+At this checkpoint, the latest HEAD CI is active.
 
-## 2.1 Command platform
-
-Already implemented:
-
-- immutable command IDs,
-- canonical payload hashing,
-- same-ID idempotent replay,
-- changed-payload reuse refusal,
-- durable command lifecycle,
-- `RECEIVED`,
-- `PROCESSING`,
-- `CONFIRMED`,
-- `REJECTED`,
-- `CONFLICT`,
-- expected-version checks,
-- permission checks,
-- audit evidence,
-- ordered change cursors,
-- explicit handler `{ value, records[] }` contract,
-- duplicate record detection,
-- status-first recovery of uncertain commands,
-- retryable infrastructure failures without terminally poisoning the UUID.
-
-Preserve the current rule:
+Already green:
 
 ```text
-deterministic validation -> REJECTED
-permission/domain refusal -> REJECTED
-version/business conflict -> CONFLICT
-infrastructure/5xx failure -> unresolved and replayable with same UUID
+native-domain
+cloud-protocol-base
+cloud-protocol-v2
 ```
 
-Never regress to terminally rejecting transient infrastructure failures.
-
-## 2.2 Real PostgreSQL verification
-
-The API/PostgreSQL CI path exists and has already proven:
-
-- fresh migrations,
-- command lifecycle,
-- catalog writes,
-- command replay,
-- conflict replay,
-- bootstrap,
-- change feed,
-- balance revisions,
-- real PWA/API/PostgreSQL acceptance.
-
-Continue extending this suite rather than creating a second integration framework.
-
-## 2.3 PWA authority and local durability
-
-Already present:
-
-- API-only IndexedDB scope,
-- durable command outbox,
-- projections,
-- drafts,
-- offline grants,
-- immutable business documents,
-- print jobs,
-- append-only print events,
-- storage diagnostics,
-- recovery evidence export,
-- sync broadcasts,
-- service-worker update coordination,
-- status-first response-loss recovery.
-
-Do not replace this with a separate offline store.
-
-## 2.4 Authentication and device trust
-
-Already present:
-
-- staff login,
-- password changes,
-- hashed bearer token lookup,
-- browser device key,
-- P-256 enrollment proof,
-- one-use enrollment challenge,
-- enrolled-device API enforcement,
-- session logout,
-- permission refresh,
-- sign-out cleanup,
-- disabled/unready behavior.
-
-Remaining hardening belongs in the existing API auth system.
-
-## 2.5 Catalog
-
-Already migrated substantially:
-
-- products,
-- stock items,
-- stock locations,
-- package units,
-- recipes,
-- Smart Item setup,
-- opening stock,
-- product and stock projections,
-- expected versions,
-- API-authority PWA editing.
-
-## 2.6 Inventory
-
-Current API command set includes:
+Still running when this document was generated:
 
 ```text
-inventory.countLocation
-inventory.countSelected
-inventory.transfer
-inventory.waste
-inventory.policy.save
-inventory.receive
-inventory.reverseMovement
-inventory.adjust
-inventory.produceBatch
+api-postgres
+browser-preview
+browser-production
+desktop-shell
+windows-printer-shell
 ```
 
-Current Inventory capabilities include:
-
-- full stocktake,
-- selected count,
-- count history,
-- count identity snapshots,
-- balance revisions,
-- sealed/open bottle state,
-- transfer,
-- waste,
-- manager correction,
-- batch preparation,
-- receiving,
-- movement reversal evidence,
-- location/stock revision tracking.
-
-Do not redesign Inventory from scratch.
-
----
-
-# 3. LATEST REVENUE-DOMAIN IMPLEMENTATION
-
-The previous sprint document treated POS/payments/tills as mostly future work. That is no longer accurate.
-
-## 3.1 POS schema/backend now exists
-
-New PostgreSQL migrations include:
+Known blocker:
 
 ```text
-018_pos_orders.sql
-019_pos_fire_documents.sql
-020_till_lifecycle.sql
-021_payment_accounts.sql
-022_order_payments.sql
-023_business_tax_snapshots.sql
-024_print_job_lifecycle.sql
-025_payment_refunds.sql
+frontend
+  npm ci        PASS
+  npm run lint  FAIL
 ```
 
-Current POS commands include:
+## Immediate rule
 
-```text
-order.create
-order.addItem
-order.updateItem
-order.removeItem
-order.fire
-```
+Do not expand into Procurement, PMS, customer credit or another large POS feature wave while the current branch carries a frontend lint/type failure.
 
-The PWA now has:
+Fix the exact current HEAD first.
 
-```text
-WebApiPosView
-```
-
-and it is integrated into the API-authoritative workspace.
-
-This phase must now finish POS rather than begin it.
-
-## 3.2 Payments now exist in source
-
-Current payment commands include:
-
-```text
-payment.record
-payment.split
-```
-
-The PWA now has:
-
-```text
-WebApiPaymentPanel
-```
-
-Payment accounts/settings have API-side source support.
-
-## 3.3 Tills now exist in source
-
-Current till commands include:
-
-```text
-till.policy.save
-till.open
-till.cashMovement
-till.close
-till.reviewVariance
-```
-
-The PWA now has:
-
-```text
-WebApiTillPanel
-```
-
-The till model already includes:
-
-- opening float,
-- operator/device ownership,
-- outlet,
-- cash movements,
-- expected cash,
-- blind counted cash,
-- variance,
-- review-required state,
-- unresolved-money-command close blocker,
-- unsettled-order close blocker.
-
-Extend these semantics. Do not replace them.
-
-## 3.4 Refunds/reversals now exist in source
-
-Current commands include:
-
-```text
-payment.refund
-payment.reverse
-```
-
-The PWA now has:
-
-```text
-WebApiRefundsView
-```
-
-Current refund logic includes:
-
-- original payment lock,
-- order lock,
-- payment version,
-- order version,
-- till ownership,
-- remaining refundable amount,
-- explicit reason,
-- operator confirmation,
-- external refund reference for non-cash,
-- drawer cash check for cash refund,
-- cash ledger posting,
-- refund evidence,
-- order refunded total,
-- payment version bump,
-- till version bump,
-- refund business document,
-- print queue entry.
-
-Retain the current policy that a refund does **not automatically restock inventory**. Stock disposition must be a separate explicit business decision.
-
-## 3.5 Business documents and print lifecycle now exist
-
-Current source includes:
-
-```text
-business-documents.mjs
-print-commands.mjs
-BusinessDocumentRenderer
-WebDocumentQueue
-```
-
-Print command lifecycle includes:
-
-```text
-print.claim
-print.report
-print.confirm
-print.retry
-print.cancel
-```
-
-The browser already has durable local print states/events.
-
-The remaining gap is physical transport and full document parity, not the conceptual print queue.
-
-## 3.6 Settings/outlets now exist in API mode
-
-Current source includes:
-
-```text
-outlet.save
-WebApiSettings
-WebOutletSettings
-```
-
-The operation manifest has also been updated for inventory policy and outlet configuration.
-
----
-
-# 4. FIRST IMMEDIATE GATE: MAKE THE LATEST HEAD GREEN
-
-Before continuing large business-domain expansion, establish one current fully green HEAD.
-
-At this checkpoint, earlier commits such as `88cc83b` and `0573ec3` have completed green hosted CI runs.
-
-The latest revenue-domain commits are newer and must not inherit that green status by assumption.
-
-Required same-commit jobs:
+Required same-commit green matrix:
 
 ```text
 frontend
@@ -425,184 +132,386 @@ windows-printer-shell
 evidence-summary
 ```
 
-The current head must also include the dedicated real PWA/API/PostgreSQL acceptance gate.
-
-If any job fails:
-
-```text
-classify failure
--> real regression?
--> outdated source assertion?
--> test harness failure?
--> intentional architecture change?
--> fix root cause
--> rerun
-```
-
-Do not weaken tests merely to produce green badges.
-
-Do not continue to Procurement or PMS with known red revenue-path tests.
+Do not weaken lint/test configuration merely to produce a green badge.
 
 ---
 
-# 5. FINISH POS TO PRODUCTION PARITY
+# 3. NON-NEGOTIABLE ARCHITECTURE
 
-The backend and first PWA view now exist. Complete the actual operator journey.
-
-## 5.1 Order lifecycle
-
-Finish and verify:
+## One shared authority
 
 ```text
-new order
--> add item
--> edit quantity
--> choose portion/options
--> remove/void line
--> assign customer/table/room where enabled
--> fire
--> receive KOT/BOT evidence
--> payment
--> completion
+PWA
+ |
+ServOS API
+ |
+PostgreSQL
 ```
 
-Add missing commands only where required by the canonical operation manifest.
+No browser direct shared-database mutation. No Supabase business mutation after cutover. No Tauri/SQLite business authority after cutover.
 
-Do not invent duplicate operations when a legacy/parity operation already exists.
+## No dual writers
 
-## 5.2 POS inventory consumption
+Never operate legacy and PostgreSQL business writers against the same live business at the same time.
 
-POS must mutate the same PostgreSQL Inventory authority.
+Catalog + Inventory + POS + Payments/Tills must cut over as one business-authority cluster.
 
-For direct stock:
+## Shared mutations are commands
+
+Preserve:
 
 ```text
-sold quantity
--> inventory movement
--> location balance
--> balance revision
+immutable command UUID
+canonical payload hash
+permission checks
+expected versions
+transaction
+audit
+change records
+durable outcome
+same UUID after uncertainty
 ```
 
-For recipe product:
+## Transient failures remain replayable
 
 ```text
-sold quantity
--> ingredient consumption
--> movements per ingredient
--> balance revisions
+deterministic validation -> REJECTED
+permission/domain refusal -> REJECTED
+version/business conflict -> CONFLICT
+infrastructure/5xx -> unresolved and replayable with same UUID
 ```
 
-For batch product:
+## Explicit projection contract
 
-```text
-sold quantity
--> finished batch stock consumption
+Every handler returns:
+
+```ts
+{
+  value,
+  records
+}
 ```
 
-For spirit/wine portion:
+No recursive projection guessing.
 
-```text
-portion ml
--> open quantity first
--> open sealed bottle only when required
--> preserve sealed/open invariant
-```
+## IndexedDB is local durability, not cloud authority
 
-Every stock mutation must occur atomically with the sale/order transition that makes it economically real.
+IndexedDB owns local projections, outbox, drafts, offline grants, immutable document snapshots, print evidence and recovery evidence.
 
-Do not confirm a final sale while silently failing required stock consumption unless explicit negative-stock policy permits it.
+PostgreSQL remains authoritative shared truth.
 
-## 5.3 Order concurrency
+## SSE is only an invalidation hint
 
-Every editable order requires a canonical order version.
-
-Test two terminals editing one order.
-
-Stale edits must:
-
-- conflict,
-- not overwrite,
-- show a useful operator message,
-- retain intended changes as reviewable state where practical.
-
-## 5.4 Fire/KOT/BOT behavior
-
-`order.fire` must:
-
-- be idempotent,
-- snapshot fired lines,
-- create immutable kitchen/bar documents,
-- queue print jobs,
-- never reverse the business command because a printer failed.
-
-Printing is a side effect after authoritative order confirmation.
-
-## 5.5 POS UX
-
-Complete a fast operator surface:
-
-- barcode scanner input,
-- search,
-- favorites,
-- categories,
-- touch-friendly product grid,
-- portions/selling modes,
-- visible running total,
-- clear line-level edit,
-- customer/table/room assignment only when enabled,
-- fire status,
-- payment status,
-- sync/unknown-outcome visibility without technical jargon.
-
-The API PWA must not surface unmigrated legacy actions.
+Authoritative synchronization remains ordered change polling by cursor.
 
 ---
 
-# 6. FINISH PAYMENTS
+# 4. PRESERVE COMPLETED PLATFORM WORK
 
-## 6.1 Required tenders
+Do not rebuild or replace:
 
-Support and prove:
+- API login
+- password changes
+- device enrollment
+- P-256 device identity
+- hashed bearer sessions
+- durable command lifecycle
+- idempotent replay
+- expected-version locking
+- transient failure recovery
+- ordered change feed
+- SSE invalidation
+- API bootstrap
+- IndexedDB projections/outbox
+- response-loss recovery
+- signed bounded offline grants
+- service-worker update fencing
+- immutable local business documents
+- local print jobs/events
+- storage diagnostics
+- recovery evidence export
+- real PWA -> API -> PostgreSQL acceptance
+- immutable release packaging
+- VPS activation/rollback tooling
+- backup implementation skeleton
 
-- cash,
-- manual M-Pesa,
-- card/manual external tender,
-- split tender.
+Extend these systems. Do not create parallel replacements.
 
-Customer credit comes in the finance phase unless already required by current parity.
+---
 
-## 6.2 Payment invariants
+# 5. CATALOG: VERIFY, DO NOT REDESIGN
 
-Every payment requires:
+Current source already supports:
 
-- stable UUID,
-- integer minor amount,
-- method,
-- order/folio source,
-- till session,
-- staff,
-- device,
-- occurred-at timestamp,
-- optional external reference,
-- version,
-- immutable audit.
+- products
+- stock items
+- locations
+- package units
+- recipes
+- selling options
+- product modifiers
+- modifier ingredient adjustments
+- favorites/default selling behavior
+- Smart Item opening stock
 
-Never create a replacement payment UUID after response loss.
+Required acceptance:
 
-## 6.3 Manual M-Pesa
+- whole item sale
+- portion sale
+- package sale
+- bottle sale
+- recipe sale
+- modifier price effect
+- modifier stock effect
+- stale modifier revision
+- archived modifier refusal
+- barcode unaffected by active UI filters
+- duplicate barcode refusal
+- scanner Enter/newline behavior
+- response-loss recovery
 
-Production-safe manual flow must provide:
+---
 
-- configured payment account/till/paybill identity,
-- optional/required external transaction reference by policy,
-- duplicate reference detection,
-- clear operator confirmation,
-- receipt tender detail,
-- configurable payment QR.
+# 6. INVENTORY: FINISH ACCEPTANCE + PROCUREMENT HOOKS
 
-Later DARAJA integration must sit on top of this stable accounting model.
+Current source supports:
 
-## 6.4 Split payment
+```text
+opening stock
+full count
+selected count
+transfer
+waste
+policy
+receive
+movement reversal
+manager adjustment
+batch preparation
+sealed/open bottle state
+balance revisions
+POS consumption
+modifier inventory effects
+void return evidence
+```
+
+## Receiving
+
+Prove:
+
+- package conversion
+- base quantity
+- unit cost
+- weighted average cost
+- sealed bottle receive
+- balance revisions
+- replay
+- concurrent receive
+- response loss
+
+## Movement reversal
+
+Prove:
+
+- original movement retained
+- compensating movement
+- immutable relationship
+- no double reversal
+- later-activity blocker
+- reviewed physical state
+- current balance/revision
+- original cost
+- sealed/open constraints
+
+## Counts
+
+Finish:
+
+- history pagination
+- filters
+- variance summary
+- approval threshold
+- actor/date/location
+- stale balance revision conflict
+- bottle conservation
+- multi-terminal race tests
+
+## Requisition/issue
+
+Implement only where required by real parity:
+
+```text
+request
+-> approve
+-> issue
+-> acknowledge
+```
+
+Use canonical paired stock movements.
+
+## Supplier return
+
+Inventory owns the physical return. Procurement owns supplier accounting.
+
+---
+
+# 7. POS: FREEZE FEATURE EXPANSION AND PROVE IT
+
+Current POS includes:
+
+```text
+order.create
+order.addItem
+order.updateItem
+order.removeItem
+order.fire
+order.void
+order.discount
+order.compItem
+order.comp
+round tracking
+repeat round
+courses
+partial firing
+preparation notes
+preparation states
+selling options
+modifiers
+modifier inventory adjustments
+KOT/BOT
+zero-value completion
+```
+
+The next work should be acceptance, not another feature burst.
+
+## Required end-to-end flow
+
+```text
+open till
+-> create order
+-> select/scan product
+-> select selling option
+-> select modifiers
+-> add preparation note
+-> fire selected lines
+-> issue KOT/BOT
+-> preparation state transitions
+-> repeat round
+-> add later round
+-> pay
+-> issue receipt
+-> journal
+-> till
+-> close day
+```
+
+## Concurrent order editing
+
+Two terminals must never silently overwrite.
+
+Test concurrency for:
+
+- add line
+- quantity edit
+- modifier edit
+- note edit
+- fire
+- discount
+- comp
+- void
+
+## Partial firing
+
+Verify:
+
+- draft lines editable
+- fired lines frozen
+- later fire emits only new ticket content
+- no duplicate stock consumption
+- course/round attribution remains correct
+
+## Rounds
+
+Test:
+
+- first round
+- repeat round
+- changed catalog after earlier round
+- modifier changes
+- insufficient stock
+- response loss
+- concurrent repeat from two terminals
+
+## Preparation/KDS
+
+Prove the canonical preparation state model end-to-end, including kitchen and bar station separation, partial tickets, cancellations and uncertain prior delivery.
+
+## Discounts/comps
+
+Verify:
+
+- item comp
+- order comp
+- discount
+- reason
+- permission
+- no repricing after payment
+- frozen tax policy
+- stock unaffected
+- zero-value receipt
+
+## Void
+
+Verify:
+
+- unpaid order
+- partially paid refusal
+- paid refusal
+- unfired void
+- fired void
+- sealed return
+- waste
+- consumed disposition
+- manager-correction-needed state
+- later stock activity
+- KOT/BOT cancellation
+- uncertain prior print delivery
+
+Never silently rewind stock history.
+
+---
+
+# 8. PAYMENTS
+
+Current source includes:
+
+```text
+payment.record
+payment.split
+payment.refund
+payment.reverse
+```
+
+Production baseline:
+
+- cash
+- manual M-Pesa
+- card/manual external payment
+- split tender
+
+## Manual M-Pesa
+
+Verify:
+
+- configured account/till/paybill
+- external reference
+- duplicate-reference policy
+- operator confirmation
+- receipt evidence
+- optional payment QR
+
+DARAJA is optional for first production if manual M-Pesa is safe and reconciled.
+
+## Split tender
 
 Prove:
 
@@ -612,679 +521,672 @@ cash + card
 M-Pesa + card
 ```
 
-Ensure:
+Cash drawer must change only for cash allocation.
 
-- exact total reconciliation,
-- no overpayment unless explicit policy,
-- each component independently idempotent,
-- till cash only changes for cash component.
-
-## 6.5 Payment response-loss tests
+## Response loss
 
 Mandatory:
 
 ```text
-commit payment
--> drop response
--> browser marks outcome unknown
--> status lookup
--> exact original payment recovered
--> no duplicate payment
+payment commits
+-> response disappears
+-> client marks outcome unknown
+-> status checks original command UUID
+-> exact payment recovered
+-> no duplicate money
 ```
 
-Repeat for split tender.
+Repeat for split payment.
 
 ---
 
-# 7. FINISH TILLS AND CLOSE-DAY
+# 9. REFUNDS AND REVERSALS
 
-The base till model exists. Complete operator and manager behavior.
+Preserve:
 
-## 7.1 Till flow
+```text
+refund money != automatic stock return
+```
+
+Current refund source already includes payment/order locks, remaining refundable amount, till ownership, cash-drawer checks, external refs, immutable evidence, refund documents and print queue integration.
+
+Prove:
+
+- partial refund
+- second partial refund
+- full remaining reversal
+- over-refund refusal
+- duplicate UUID replay
+- cash refund
+- external/manual refund
+- closed till behavior
+- response loss
+- prior refund journal reconciliation
+
+---
+
+# 10. FINANCIAL JOURNALS
+
+Current account model includes:
+
+```text
+ASSET_TENDER
+REVENUE_SALES
+LIABILITY_VAT
+LIABILITY_LEVY
+```
+
+Every journal must satisfy:
+
+```text
+total debit == total credit
+```
+
+Prove:
+
+- full payment
+- two partial payments
+- many small partial payments
+- split tender
+- new fired lines after partial payment
+- partial refund
+- multiple partial refunds
+- final remaining reversal
+
+Rounding must conserve the original order total exactly.
+
+Missing or inconsistent historical journals must fail closed. Do not guess historical allocations.
+
+---
+
+# 11. TILLS AND CLOSE DAY
+
+Current commands:
+
+```text
+till.policy.save
+till.open
+till.cashMovement
+till.close
+till.reviewVariance
+```
 
 Prove:
 
 ```text
-open till
--> opening float
--> cash payments
--> paid in
--> paid out
--> cash refunds
--> expected cash
--> blind count
--> variance
--> manager review when required
--> close
+open
+opening float
+cash payment
+paid in
+paid out
+cash refund
+expected cash
+blind count
+variance
+manager review
+close
 ```
 
-## 7.2 Till ownership
+Close blockers must include unresolved money commands and unsettled orders.
 
-Retain operator/device ownership rules unless business policy explicitly changes them.
+Close-day must prove:
 
-Do not allow a random staff/device to spend from another operator's till.
+- one immutable report per closed till
+- settled sales
+- zero-value sales
+- tender totals
+- refunds
+- tax totals
+- journal reconciliation
+- expected cash
+- counted cash
+- variance
+- unresolved diagnostics
 
-## 7.3 Cash safety
-
-Block:
-
-- negative drawer cash,
-- invalid paid-out greater than recorded cash,
-- cash refund greater than recorded drawer availability,
-- close with unresolved money commands,
-- close with unsettled orders.
-
-## 7.4 Day close
-
-Add/complete a close-day summary:
-
-- sales,
-- payments by tender,
-- cash expected,
-- cash counted,
-- variance,
-- refunds,
-- credit,
-- open orders,
-- unresolved money commands,
-- tax summary,
-- room/folio exposure when PMS arrives.
-
-Make it printable and immutable.
+Do not infer credit or hotel folio exposure until those modules exist.
 
 ---
 
-# 8. FINISH REFUNDS AND REVERSALS
+# 12. BUSINESS DOCUMENTS
 
-The first implementation exists. Harden it.
-
-## 8.1 Refund policy
-
-Retain:
-
-```text
-refund money != automatic stock restock
-```
-
-When merchandise physically returns, use a separate explicit inventory action.
-
-## 8.2 Partial refund
-
-Test:
-
-- partial amount,
-- second partial refund,
-- remaining refundable amount,
-- over-refund refusal.
-
-## 8.3 Full reversal
-
-Test:
-
-- full remaining amount,
-- duplicate reversal replay,
-- reversal after prior partial refund,
-- closed/invalid till policy.
-
-## 8.4 External tender refund
-
-Require:
-
-- manual confirmation or provider confirmation,
-- external return reference,
-- audit.
-
-Do not pretend ServOS itself reversed an external payment unless provider integration confirms it.
-
-## 8.5 Refund printing
-
-Ensure refund produces:
-
-```text
-REFUND_RECEIPT
--> immutable snapshot
--> print job
-```
-
-and reprinting never executes the refund again.
-
----
-
-# 9. COMPLETE INVENTORY EDGES
-
-Inventory is close, but complete the last operational gaps.
-
-## 9.1 Receiving
-
-`inventory.receive` exists.
-
-Prove and finalize:
-
-- location,
-- item,
-- package conversion,
-- base quantity,
-- unit cost,
-- weighted average cost,
-- bottle physical state,
-- immutable receive evidence,
-- balance revision,
-- movement,
-- same-ID replay.
-
-## 9.2 Movement reversal
-
-`inventory.reverseMovement` exists.
-
-Rules:
-
-- never delete original movement,
-- compensating movement only,
-- original reference,
-- no double reversal,
-- block reversal if later physical state makes exact reversal unsafe,
-- manager reason,
-- immutable reversal evidence.
-
-## 9.3 Stock policy
-
-`inventory.policy.save` exists.
-
-Finish configurable policies required by current business:
-
-- negative-stock behavior,
-- count tolerance,
-- approval threshold,
-- receiving policy,
-- bottle handling where appropriate.
-
-## 9.4 Requisition/issue
-
-Add if required by operation parity:
-
-```text
-request
-approve
-issue
-receive/acknowledge
-```
-
-with paired location movements.
-
-## 9.5 Supplier return hook
-
-Add a stock-return operation linked to Procurement GRN/receipt where possible.
-
-Do not implement supplier accounting twice. Inventory return should expose the hook and Procurement should own supplier financial consequences.
-
-## 9.6 Count history
-
-Finish:
-
-- pagination,
-- filtering,
-- variance summaries,
-- actor,
-- date,
-- location,
-- exact identity snapshots.
-
----
-
-# 10. COMPLETE BUSINESS DOCUMENTS
-
-The renderer and document queue exist. Build the canonical document library.
-
-Required documents:
+Complete canonical immutable document support for:
 
 ```text
 SALE_RECEIPT
 REFUND_RECEIPT
 PAYMENT_ACKNOWLEDGEMENT
-PURCHASE_ORDER
-GOODS_RECEIPT_NOTE
-SUPPLIER_RETURN
-STOCK_REQUISITION
+KITCHEN_TICKET
+BAR_TICKET
+KOT_CANCEL
+BOT_CANCEL
+ORDER_VOID_NOTICE
+TILL_CLOSE_SUMMARY
+CLOSE_DAY_REPORT
 STOCK_TRANSFER
 STOCK_COUNT_SHEET
 STOCK_VARIANCE_REPORT
-CASH_MOVEMENT_VOUCHER
-TILL_CLOSE_SUMMARY
-CLOSE_DAY_SUMMARY
+PURCHASE_ORDER
+GOODS_RECEIPT_NOTE
+SUPPLIER_RETURN
 CUSTOMER_STATEMENT
 CREDIT_PAYMENT_ACK
 HOTEL_FOLIO
 RESERVATION_CONFIRMATION
 HOUSEKEEPING_LIST
 MAINTENANCE_WORK_ORDER
-KITCHEN_TICKET
-BAR_TICKET
 ```
 
-A document snapshot must contain the historical values needed to render it later.
-
-Never re-render historical receipts from current mutable product/business settings.
+Historical documents render from immutable snapshots, not current mutable business/catalog state.
 
 ---
 
-# 11. CANONICAL 80MM RECEIPT
+# 13. PRINT BRIDGE: CURRENT IMPLEMENTATION
 
-Complete one canonical renderer that can be shared by browser fallback and Print Bridge.
+The Print Bridge is now a real source subsystem.
 
-Requirements:
+Current remote includes:
 
-- 80mm width,
-- safe printable margins,
-- business logo,
-- business identity,
-- tax identity,
-- receipt/document number,
-- timestamp,
-- cashier,
-- item rows,
-- quantity,
-- unit price,
-- line total,
-- tax summary,
-- grand total,
-- payment method,
-- optional customer,
-- optional M-Pesa QR,
-- caption exactly `Scan to Pay via One app`,
-- QR immediately before footer,
-- footer,
-- cut instruction for bridge.
+```text
+crates/servos-printer-transport
+apps/print-bridge
+```
 
-Long names must wrap without clipping.
+Implemented source includes:
 
-Logo/QR must never exceed printable raster width.
+- retained native ESC/POS transport
+- Windows RAW
+- private-LAN TCP
+- bounded printer profiles
+- cut/feed behavior
+- typed bridge actions
+- device signature verification
+- trusted pairing
+- API-signed bridge claims
+- pinned API key verification
+- live claim checks
+- current permission checks
+- approved local printer routing
+- strict KOT/BOT rendering
+- cancellation rendering
+- void notice rendering
+- durable local journal
+- attempt fencing
+- delivery uncertainty handling
+- authenticated dispatcher
+- request recovery
+- PWA transport contracts
+- PWA recovery evidence
+- recovery UI
+- trusted local config
+- private serial worker
+
+Do not describe this as "not started."
+
+It is source-complete enough to enter execution and service-integration work.
 
 ---
 
-# 12. BUILD THE PRINT BRIDGE
+# 14. PRINT BRIDGE: IMMEDIATE NEXT WORK
 
-This remains one of the largest concrete gaps.
+## Add explicit bridge CI
 
-Extract the smallest useful bridge from the proven native Rust printer implementation.
-
-Architecture:
+Create a dedicated CI job for:
 
 ```text
-PWA
--> localhost bridge
--> Windows RAW or TCP 9100
--> thermal printer
+crates/servos-printer-transport
+apps/print-bridge
 ```
 
-The bridge must not contain business authority.
-
-It may only:
-
-- authenticate/pair local client,
-- validate trusted origin,
-- accept typed bounded document jobs,
-- render/translate canonical job,
-- send to printer,
-- report transport state.
-
-It must not:
-
-- connect to PostgreSQL,
-- modify orders,
-- modify payments,
-- modify stock,
-- run ServOS business rules.
-
-## 12.1 Transport
-
-Support:
-
-- Windows RAW,
-- TCP 9100.
-
-Reuse existing mature ESC/POS code where possible.
-
-## 12.2 Delivery state
-
-Retain:
+Run:
 
 ```text
-QUEUED
-SENDING
-SENT_TO_SPOOLER
-DELIVERY_UNCERTAIN
-FAILED
-CANCELLED
+cargo fmt --check
+cargo clippy
+cargo test
+cargo build --release
 ```
 
-Never blindly retry `DELIVERY_UNCERTAIN`.
+The existing Tauri tests are not proof of the standalone bridge.
 
-Require operator acknowledgement of possible duplicate before resend.
+## Cross-language crypto interoperability
 
-## 12.3 Printer roles
-
-Support:
+Test:
 
 ```text
-RECEIPT
-KITCHEN
-BAR
-OFFICE
-LABEL
+TypeScript signs -> Rust verifies
+API signs claim -> Rust verifies
+API signs live check -> Rust verifies
 ```
 
-## 12.4 Hardware acceptance
+Modify each signed field individually and prove failure:
 
-Test actual target hardware:
+- business ID
+- device ID
+- bridge ID
+- job ID
+- job revision
+- attempt
+- document ID
+- document hash
+- type
+- role
+- copies
+- expiry
 
-- Countryside Windows AIO,
-- XP-80T or deployed equivalent,
-- barcode scanner,
-- actual network/USB printer path.
+## Request lifecycle
+
+Prove:
+
+```text
+PWA SUBMIT
+-> signature verification
+-> trusted pairing
+-> API claim verification
+-> live API check
+-> current permission
+-> approved route
+-> strict renderer
+-> durable local attempt
+-> native transport
+-> durable result
+-> bounded response
+```
+
+## Crash/restart matrix
+
+Crash at:
+
+- before request persistence
+- after request persistence
+- before attempt creation
+- after attempt creation
+- before native send
+- during native send
+- after native acceptance before result commit
+- after result commit before browser response
+
+Never automatically resend ambiguous output.
+
+## Local HTTPS host
+
+The private stdio worker is not yet the installed service.
+
+Add a small host:
+
+```text
+localhost HTTPS only
+trusted Origin allowlist
+strict CORS
+bounded bodies
+no redirects
+no LAN bind
+private worker pipe ownership
+installer-managed config
+```
+
+## Pairing
+
+Implement local approval:
+
+```text
+browser device public key
+-> local admin approval
+-> trusted config
+-> per-request reload
+```
+
+Support revocation.
+
+No implicit/default trust.
+
+## API outcome reporting
+
+Bridge must map and report:
+
+```text
+native accepted -> SENT_TO_SPOOLER
+known pre-output failure -> FAILED
+possible output -> DELIVERY_UNCERTAIN
+```
+
+Server and local attempt evidence must reconcile.
+
+## Normal PWA printing
+
+Recovery controls already exist.
+
+Add normal flow:
+
+```text
+claim
+-> bridge submit
+-> result
+-> server outcome
+```
+
+Never fall back to browser printing automatically after delivery uncertainty.
 
 ---
 
-# 13. OFFLINE POS
+# 15. PRINT RENDERERS
 
-Do not enable offline POS until online POS, payments and tills are green.
+Current strict renderers focus on KOT/BOT and void/cancel notices.
 
-The existing offline grant architecture must be extended, not replaced.
+Add:
 
-## 13.1 Grant scope
+- SALE_RECEIPT
+- REFUND_RECEIPT
+- PAYMENT_ACKNOWLEDGEMENT
+- TILL_CLOSE_SUMMARY
+- CLOSE_DAY_REPORT
+- PURCHASE_ORDER
+- GRN
+- HOTEL_FOLIO
 
-A POS offline grant may bind:
-
-- business,
-- device,
-- staff,
-- outlet,
-- till,
-- allowed commands,
-- expiry,
-- quota,
-- policy version,
-- stock/resource constraints,
-- key version,
-- signature.
-
-## 13.2 First offline allowlist
-
-Start narrow:
-
-- order create,
-- add/update/remove lines,
-- fire KOT/BOT,
-- cash payment,
-- manually evidenced external payment only if policy permits,
-- receipt creation,
-- deterministic stock consumption.
-
-Keep online-only:
-
-- staff/roles,
-- business configuration,
-- supplier payments,
-- major stock corrections,
-- high-value refunds,
-- credit overrides,
-- imports,
-- destructive recovery.
-
-## 13.3 Restart proof
-
-Mandatory acceptance:
+Canonical 80mm receipt must support:
 
 ```text
-disconnect
--> complete allowed sale
+logo
+business identity
+tax identity
+receipt number
+date/time
+cashier
+items
+qty
+unit price
+discount/comp
+line total
+tax
+grand total
+payment method
+customer
+M-Pesa QR
+Scan to Pay via One app
+footer
+cut
+```
+
+QR goes immediately before footer.
+
+Respect physical printer margins.
+
+---
+
+# 16. HARDWARE ACCEPTANCE
+
+Use actual target hardware:
+
+- Countryside Windows AIO
+- XP-80T or deployed equivalent
+- barcode scanner
+- LAN printer where applicable
+
+Test:
+
+- Windows RAW
+- TCP 9100
+- logo
+- QR
+- cutter
+- long receipt
+- KOT
+- BOT
+- cancellation notice
+- void notice
+- Unicode fallback
+- printer offline
+- Windows queue stalled
+- power interruption
+- bridge restart
+- uncertain delivery
+- reviewed retry
+
+Print Bridge is not production-ready until this passes.
+
+---
+
+# 17. OFFLINE POS
+
+Do not expand offline POS until online revenue + Print Bridge are stable.
+
+Extend the existing signed-grant system.
+
+Potential first allowlist:
+
+- order.create
+- order.addItem
+- order.updateItem
+- order.removeItem
+- order.fire
+- cash payment
+- explicitly allowed manual external payment
+- ordinary stock consumption
+- immutable receipt/KOT generation
+
+Keep online-only initially:
+
+- refunds
+- high-value discounts/comps
+- staff changes
+- supplier payments
+- major stock corrections
+- imports
+- destructive recovery
+
+Mandatory restart proof:
+
+```text
+offline sale
 -> close browser
--> restart machine/browser offline
--> sale/payment/document still present
+-> restart
+-> reopen offline
+-> order/payment/documents still present
 -> reconnect
--> same UUIDs synchronize exactly once
+-> same UUIDs synchronize once
 ```
 
 ---
 
-# 14. PROCUREMENT
+# 18. PROCUREMENT
 
-Migrate after revenue path and printing are stable.
+This is now the largest missing non-hotel domain.
 
-Required:
+Implement:
 
-- suppliers,
-- purchase orders,
-- PO rows,
-- approval,
-- issue,
-- partial/full receive,
-- GRN,
-- stock receive,
-- supplier invoices,
-- payables,
-- supplier payments,
-- returns.
+- suppliers
+- purchase orders
+- approvals
+- PO issue
+- partial/full receive
+- GRN
+- inventory receive
+- supplier return
+- supplier invoice
+- payable
+- supplier payment
 
-Core flow:
+Canonical flow:
 
 ```text
 draft PO
 -> approve
--> print/send
+-> issue
 -> receive
 -> GRN
--> inventory receive
+-> stock posting
 -> invoice/payable
 -> supplier payment
 ```
 
-Do not duplicate Inventory receiving logic. Procurement must call/use the canonical inventory posting semantics.
+Rules:
 
-Tests:
+- partial receiving
+- replay-safe receive
+- over-receive policy
+- package conversion
+- cost basis
+- duplicate supplier invoice protection
+- returns linked to original receipt
+- corrections via compensating records
 
-- partial receive,
-- duplicate receive replay,
-- two-terminal receive conflict,
-- cost update,
-- supplier return,
-- duplicate invoice,
-- supplier payment response loss.
+Reuse canonical Inventory receive/reversal logic.
 
 ---
 
-# 15. CUSTOMER CREDIT AND FINANCE
+# 19. CUSTOMER CREDIT + FINANCE
 
 Migrate:
 
-- named-customer credit,
-- credit limit/policy,
-- order charge to credit,
-- credit payment,
-- statement,
-- aging,
-- balance,
-- manager override,
-- expenses,
-- supplier payments,
-- cash movements,
-- financial controls.
+- named customer credit
+- credit limit
+- credit charge from order
+- credit payment
+- statement
+- aging
+- balance
+- manager override
+- payment acknowledgement
 
 No anonymous credit.
 
-All financial values use integer minor units.
+Finance additionally needs:
 
-Corrections are compensating entries, not history deletion.
+- expenses
+- supplier payments
+- cash movements
+- approval controls
+- reconciled reports
 
----
-
-# 16. HOTEL / PMS
-
-Migrate after POS/money is stable.
-
-Required:
-
-- room types,
-- rooms,
-- rates,
-- reservations,
-- guests,
-- stays,
-- folios,
-- folio charges,
-- room payments,
-- room moves,
-- checkout,
-- housekeeping,
-- maintenance blocks.
-
-## 16.1 Double-booking protection
-
-Use authoritative versions/leases.
-
-Prove a real race:
-
-```text
-browser A selects room
-browser B selects same room
-only one incompatible reservation/check-in confirms
-```
-
-## 16.2 Restaurant-to-room
-
-POS must support posting a restaurant/bar charge to an active guest folio only with valid stay/folio authority.
+All money uses integer minor units.
 
 ---
 
-# 17. ASSETS AND MAINTENANCE
+# 20. HOTEL / PMS
 
 Migrate:
 
-- asset register,
-- location,
-- condition,
-- maintenance work order,
-- assignment,
-- cost,
-- status,
-- history.
+- room types
+- rooms
+- rates
+- guests
+- reservations
+- stays
+- folios
+- folio charges
+- folio payments
+- room move
+- extension
+- checkout
+- housekeeping
+- maintenance blocks
 
-Never delete maintenance history to correct mistakes.
+## Double-booking
 
----
+Use authoritative version/lease semantics.
 
-# 18. AUTHENTICATION HARDENING
+Prove two-browser race. Only one incompatible reservation/check-in may confirm.
 
-The current API auth works. Finish production browser-session security.
+## Restaurant-to-room
 
-Add:
+POS room charge must require a valid active stay/folio.
 
-- short-lived access token,
-- rotating refresh token,
-- Secure HttpOnly SameSite cookie,
-- hashed refresh token storage,
-- refresh family/replay detection,
-- revoke device,
-- revoke staff sessions,
-- session/device administration,
-- forced credential reset where required.
-
-Do not store reusable refresh credentials in IndexedDB.
-
-After initial setup, remove/disable `INITIAL_ADMIN_SETUP_SECRET`.
+No orphan folio charges.
 
 ---
 
-# 19. API-AUTHORITY PURITY
+# 21. ASSETS + MAINTENANCE
 
-The API workspace must operate with Supabase unavailable.
+Migrate:
 
-Add an automated browser assertion:
+- asset register
+- location
+- condition
+- maintenance work order
+- assignment
+- cost
+- status
+- history
+
+Corrections must preserve history.
+
+---
+
+# 22. AUTH PRODUCTION HARDENING
+
+Current auth works.
+
+Finish:
+
+- short-lived access token
+- rotating refresh token
+- Secure HttpOnly SameSite cookie
+- hashed refresh tokens
+- replay/family detection
+- session list
+- session revoke
+- device list/revoke
+- staff-disable invalidation
+- password-change invalidation policy
+
+Do not store refresh credentials in IndexedDB.
+
+Disable/remove initial admin bootstrap secret after setup.
+
+---
+
+# 23. API AUTHORITY PURITY
+
+Permanent browser assertion:
 
 ```text
-API authority
--> zero requests matching /rest/v1/rpc/servos_v2_*
+apiAuth active
+=> zero /rest/v1/rpc/servos_v2_* business calls
 ```
 
-Any remaining API-mode guidance, capability, navigation, setup or business dependency must move to:
-
-- API,
-- IndexedDB,
-- static/shared contract data.
-
-Legacy Remote Manager may retain legacy RPC during transition.
+Legacy Remote Manager can remain isolated during transition.
 
 ---
 
-# 20. SHARED CONTRACTS
+# 24. FULL BOOTSTRAP / RECOVERY
 
-Formalize shared server/browser types for:
-
-- command envelope,
-- command status,
-- command outcome,
-- change page,
-- projection record,
-- bootstrap manifest,
-- offline grant,
-- business document,
-- print job,
-- session projection.
-
-Prefer one generated/shared source package.
-
-Do not allow client/server payloads to drift silently.
-
-Add protocol versioning where not already explicit.
-
----
-
-# 21. BOOTSTRAP AND RECOVERY
-
-Upgrade the current catalog bootstrap into a complete recovery protocol.
-
-Target:
+Upgrade bootstrap into complete business recovery:
 
 ```text
 manifest
-schema/protocol version
+protocol version
+schema version
 high-water cursor
 collection counts
-hash/checksums
+hashes
 paged records
-temporary IndexedDB install
+temporary install
 verification
 atomic activation
 ```
 
-Never wipe unresolved local commands.
-
-When rebuilding:
+Before projection replacement:
 
 ```text
-check unresolved command IDs against server
--> resolve terminal outcomes
--> retain unresolved evidence
--> install server projection
+resolve all unresolved command IDs against server
 ```
 
-Browser recovery evidence is not a PostgreSQL backup.
+Never erase unresolved evidence.
 
 ---
 
-# 22. EXISTING DATA MIGRATION
+# 25. EXISTING COUNTRYSIDE DATA MIGRATION
 
-This remains a hard production blocker.
+Build deterministic migration tooling.
 
-Build a deterministic migration tool for the existing Countryside data.
+Possible sources:
 
-Potential sources:
+- old terminal SQLite
+- Supabase
+- CSV exports
+- legacy browser state
 
-- legacy terminal SQLite,
-- Supabase V2,
-- exported CSV,
-- legacy Web state.
-
-Migration stages:
+Stages:
 
 ```text
 PRECHECK
@@ -1296,548 +1198,477 @@ READY
 COMMIT
 ```
 
-Manifest must include:
+Manifest:
 
-- source identity,
-- export timestamp,
-- source version,
-- hashes,
-- record counts,
-- stock totals,
-- financial totals,
-- open orders,
-- customer balances,
-- supplier balances,
-- rooms/stays/reservations,
-- history counts.
-
-Before production activation reconcile:
-
-```text
-products
-stock items
-stock balances by location
-customers
-customer credit
-suppliers
-supplier balances
-sales
-payments
-refunds
-tills
-rooms
-stays
-reservations
-documents
-```
+- source identity
+- source version
+- export time
+- hashes
+- counts
+- stock totals
+- sales totals
+- payment totals
+- customer credit
+- supplier balances
+- rooms/stays/reservations
+- history/documents
 
 No unexplained difference is acceptable.
 
----
-
-# 23. NO DUAL WRITERS
-
-Production cutover must prevent this:
-
-```text
-legacy POS writes stock A
-while
-new PostgreSQL Inventory writes stock B
-```
-
-Catalog + Inventory + POS + Payments/Tills form one production authority cluster.
-
-Cutover:
-
-```text
-backup old authority
--> freeze legacy writers
--> final export
--> import
--> reconcile
--> activate API/PWA authority
--> smoke test
-```
-
-Do not run both business authorities concurrently.
+Do not rely on hand-written live SQL as the migration strategy.
 
 ---
 
-# 24. VPS STAGING
+# 26. VPS STAGING
 
-Deploy production-like staging before live cutover.
-
-Target topology:
+Production-like topology:
 
 ```text
 Internet
  |
 Nginx
- |---- static PWA /var/www/serveos/current
+ |--- static PWA
  |
- +---- API hostname -> 127.0.0.1:3101
-                      |
-                  API container
-                      |
-              private Docker network
-               /             \
-          PostgreSQL         worker
-               \
-                backup
+ +--- API hostname -> 127.0.0.1:3101
+                     |
+                 API container
+                     |
+                private network
+                 /          \
+           PostgreSQL       worker
+                 \
+                  backup
 ```
 
-No Caddy.
+Requirements:
 
-No public PostgreSQL.
+- PostgreSQL private
+- HTTPS
+- strict CORS
+- API loopback
+- immutable release dirs
+- atomic symlink activation
+- rollback
 
-No PM2 requirement for the API.
-
-## 24.1 Readiness
-
-Improve `/health/ready` so it verifies expected migration level, not merely the existence of the migration table.
-
-Also verify:
-
-- DB connectivity,
-- critical schema level,
-- required configuration.
-
-## 24.2 Release
-
-Continue immutable release directories and SHA-256 manifests.
-
-Activation:
-
-```text
-stage
--> validate
--> atomically switch current symlink
-```
-
-Rollback must switch to a previously verified release without modifying its contents.
+Improve `/health/ready` to verify the expected migration level, not merely migration-table existence.
 
 ---
 
-# 25. BACKUP AND RESTORE
+# 27. BACKUP RESTORE
 
-Encrypted off-VPS backup source exists.
+Backup is not accepted until restoration works.
 
-It is not production-ready until restore succeeds.
-
-Automate a rehearsal:
+Run:
 
 ```text
-download backup
--> decrypt
--> restore into clean Postgres
--> run required migrations
+production-like DB
+-> encrypted backup
+-> off-VPS destination
+-> clean target DB
+-> restore
 -> start API
--> health check
--> verify login
--> verify totals
--> verify catalog/inventory/orders/payments
+-> health
+-> login
+-> verify catalog
+-> verify inventory
+-> verify POS
+-> verify payments
+-> verify journals
 -> verify command/audit history
 ```
 
-Record evidence.
-
-Add monitoring for:
-
-- backup age,
-- backup size,
-- backup failure.
+Record restore evidence.
 
 ---
 
-# 26. PRODUCTION OBSERVABILITY
+# 28. OBSERVABILITY + SECURITY
 
-Expose useful diagnostics without requiring developer access.
-
-Operator/admin diagnostics should include:
-
-- app release SHA,
-- API version/release,
-- schema/migration level,
-- business,
-- staff,
-- device,
-- online/offline,
-- last successful sync,
-- current cursor,
-- pending commands,
-- unknown commands,
-- conflicts,
-- print queue,
-- IndexedDB persistence,
-- storage usage,
-- API health.
-
-Support exports must redact:
-
-- bearer tokens,
-- refresh tokens,
-- device private keys,
-- signing material,
-- passwords.
-
----
-
-# 27. SECURITY HARDENING
-
-Before cutover verify:
-
-- HTTPS outside localhost,
-- strict CORS,
-- secure headers,
-- no stack leakage,
-- parameterized SQL,
-- rate-limited login,
-- rate-limited enrollment,
-- bounded request bodies,
-- least-privilege DB role,
-- audit for admin actions,
-- device/session revocation,
-- offline grant expiry/quota/scope,
-- signing-key rotation policy,
-- no production secrets in repo/logs/artifacts.
-
-Print Bridge:
-
-- localhost only,
-- trusted origin,
-- pairing,
-- bounded typed jobs,
-- no arbitrary shell,
-- no arbitrary files,
-- no arbitrary printer bytes from browser JS.
-
----
-
-# 28. STAGING REHEARSAL
-
-A full production-like rehearsal must cover:
+Expose diagnostics:
 
 ```text
-fresh VPS release
-database migration
+app SHA
+API release
+schema version
+business
+staff
+device
+last sync
+cursor
+pending commands
+unknown outcomes
+conflicts
+print queue
+bridge status
+storage persistence
+API health
+backup age
+```
+
+Redact:
+
+- bearer tokens
+- refresh tokens
+- private keys
+- signing secrets
+- passwords
+
+Before production verify:
+
+- HTTPS
+- strict CORS
+- secure headers
+- no stack leaks
+- parameterized SQL
+- least-privilege DB user
+- login/enrollment throttling
+- request limits
+- device/session revoke
+- signing-key rotation
+- bridge localhost only
+- no arbitrary browser ESC/POS
+- no arbitrary shell/file access
+- no production secrets in repo/logs/artifacts
+
+---
+
+# 29. FULL STAGING ACCEPTANCE
+
+Run:
+
+```text
 login
 device enrollment
 catalog
-opening stock
-inventory count
+stock
 receive
+count
 transfer
 waste
-adjust
-batch prep
-POS order
-fire
-inventory consumption
-cash payment
-manual M-Pesa
-split payment
-refund
-till close
-receipt
+batch
+POS
+selling option
+modifier
+course
+round
 KOT/BOT
+preparation
+discount
+comp
+void
+cash
+M-Pesa
+split
+refund
+till
+journal
+close day
+receipt
 Print Bridge
 PO/GRN
-room reservation/check-in/folio/checkout
+customer credit
+reservation
+check-in
+folio
+checkout
 backup
 restore
-release rollback
+rollback
 ```
 
-Record every failure and rerun until clean.
+No skipped revenue-path steps.
 
 ---
 
-# 29. REAL BUSINESS PILOT
+# 30. REAL BUSINESS PILOT
 
-Do one controlled real-business day before permanent authority cutover.
+Run one controlled real operating day.
 
 Capture:
 
-- devices,
-- operators,
-- opening stock,
-- opening tills,
-- sales,
-- tenders,
-- M-Pesa,
-- refunds,
-- print failures,
-- sync interruptions,
-- conflicts,
-- room activity,
-- closing counts.
+- operators
+- devices
+- opening stock
+- opening tills
+- orders
+- rounds
+- payments
+- M-Pesa
+- refunds
+- print events
+- bridge uncertainty
+- stock movement
+- room activity
+- closing cash
+- closing stock
 
-End-of-day reconciliation must prove:
+Reconcile:
 
 ```text
-sales total
-= tender totals
-= order/payment ledger
-
-cash expected
-vs cash counted
-
-M-Pesa ledger
-vs external evidence
-
-refund ledger
-vs returned payments
-
-stock opening
-+ receives
-+ transfers in
-- transfers out
-- waste
-- recipe/batch/pos consumption
-+ adjustments
-= closing stock
-
-room/folio charges
-= guest balances/payments
+sales
+payments
+refunds
+tenders
+cash
+M-Pesa
+journals
+tax
+stock
+credit
+rooms/folios
 ```
 
-Do not production-cut over after a pilot that does not reconcile.
+A non-reconciling pilot returns to development.
 
 ---
 
-# 30. NATIVE/LEGACY RETIREMENT
+# 31. PRODUCTION CUTOVER
 
-Only retire old authority after successful production operation.
+Sequence:
+
+```text
+green release
+-> verified backup
+-> freeze legacy writers
+-> final export
+-> hash
+-> final import
+-> reconcile
+-> activate API/PWA
+-> activate Print Bridge
+-> smoke test
+-> operate
+-> monitor
+```
+
+Never run dual business authorities.
+
+---
+
+# 32. LEGACY RETIREMENT
+
+After successful production operation:
 
 Disable/remove:
 
-- Supabase browser business writer,
-- legacy snapshot writer,
-- Tauri/SQLite business authority,
-- duplicate cloud mutation path.
+- Supabase browser business mutation
+- Tauri/SQLite business authority
+- legacy snapshot writer
+- duplicate sync writers
 
-Retain where useful:
+Retain useful:
 
-- Print Bridge code,
-- parity fixtures,
-- migration compatibility,
-- historical tests.
-
-Do not delete required historical DB migrations.
+- parity fixtures
+- migration compatibility
+- printer transport source
+- historical tests
+- historical DB migrations
 
 ---
 
-# 31. CURRENT PRIORITY ORDER FROM `393c3a69`
-
-Execute in this order.
+# 33. CURRENT EXECUTION ORDER FROM `6d04abd`
 
 ```text
-1. make latest HEAD fully green
+1. FIX FRONTEND LINT ON CURRENT HEAD
 
-2. finish POS integration tests and browser acceptance
-   order create/add/update/remove/fire
-   multi-terminal order conflict
-   stock consumption
-   KOT/BOT
+2. GET ONE FULL SAME-COMMIT GREEN CI RUN
 
-3. finish payment tests and operator UX
-   cash
-   manual M-Pesa
-   split
-   response-loss recovery
+3. ADD EXPLICIT PRINT-BRIDGE CI
+   cargo fmt
+   clippy
+   test
+   release build
 
-4. finish till tests/UX
-   open
-   cash movement
-   blind close
-   variance review
-   close-day
+4. PROVE TS <-> RUST <-> API SIGNATURE INTEROPERABILITY
 
-5. finish refund/reversal tests
-   partial
-   full
-   cash
-   non-cash external reference
-   no automatic restock
+5. PROVE PRINT-BRIDGE CRASH/RESTART/UNCERTAINTY BEHAVIOR
 
-6. complete Inventory receiving/reversal acceptance
-   package conversion
-   cost
-   bottle state
-   later-activity reversal blockers
+6. IMPLEMENT LOCAL HTTPS BRIDGE HOST + INSTALLER/SERVICE
 
-7. complete immutable business documents and 80mm renderer
+7. WIRE NORMAL PWA PRINT SUBMISSION + SERVER OUTCOME REPORTING
 
-8. build and hardware-test Print Bridge
+8. COMPLETE RECEIPT/REFUND/CLOSE-DAY BRIDGE RENDERERS
 
-9. extend signed grants for offline POS
-   only after online revenue path is stable
+9. RUN REAL XP-80T HARDWARE ACCEPTANCE
 
-10. migrate Procurement
+10. RUN FULL POS ACCEPTANCE
+    modifiers
+    courses
+    rounds
+    preparation
+    discounts
+    comps
+    voids
+    multi-terminal conflicts
+    response loss
 
-11. migrate customer credit/Finance
+11. COMPLETE PAYMENT/TILL/JOURNAL/CLOSE-DAY RECONCILIATION
 
-12. migrate Hotel/PMS
+12. ENABLE NARROW OFFLINE POS ONLY AFTER ONLINE REVENUE IS GREEN
 
-13. migrate Assets/Maintenance
+13. MIGRATE PROCUREMENT
 
-14. complete shared contracts + auth refresh lifecycle
+14. MIGRATE CUSTOMER CREDIT + FINANCE
 
-15. build full business bootstrap/recovery
+15. MIGRATE HOTEL/PMS
 
-16. implement Countryside migration/reconciliation
+16. MIGRATE ASSETS/MAINTENANCE
 
-17. deploy isolated VPS staging
+17. FINISH AUTH REFRESH/REVOCATION
 
-18. prove encrypted backup restore
+18. FINISH FULL BOOTSTRAP/RECOVERY
 
-19. perform complete staging cutover rehearsal
+19. BUILD COUNTRYSIDE DATA MIGRATION
 
-20. run controlled real-business pilot
+20. DEPLOY VPS STAGING
 
-21. freeze legacy writers and perform final production migration
+21. PROVE ENCRYPTED BACKUP RESTORE
 
-22. monitor/reconcile production
+22. RUN COMPLETE STAGING CUTOVER REHEARSAL
 
-23. retire Tauri/Supabase business authority
+23. RUN REAL BUSINESS PILOT
 
-24. clean dead legacy code
+24. FREEZE LEGACY WRITERS
+
+25. FINAL MIGRATION + PRODUCTION CUTOVER
+
+26. RECONCILE FIRST PRODUCTION DAY
+
+27. RETIRE TAURI/SUPABASE BUSINESS AUTHORITY
+
+28. CLEAN DEAD LEGACY CODE
 ```
 
 ---
 
-# 32. RELEASE GATES
+# 34. RELEASE GATES
 
-## Gate A: Revenue platform
-
-Required before expanding to Procurement/PMS:
+## Gate A: Current branch integrity
 
 ```text
-latest full CI green
-real PWA -> API -> Postgres green
-POS order flow green
-POS stock consumption green
-payments green
-tills green
-refunds green
-documents green
+frontend PASS
+api-postgres PASS
+browser-preview PASS
+browser-production PASS
+cloud-protocol-base PASS
+cloud-protocol-v2 PASS
+native-domain PASS
+desktop-shell PASS
+windows-printer-shell PASS
+evidence-summary PASS
 ```
 
-## Gate B: Physical operation
-
-Required before staging pilot:
+## Gate B: Print Bridge
 
 ```text
-80mm renderer green
-Print Bridge green
-XP-80T hardware acceptance
-barcode scanner acceptance
-printer uncertainty/retry behavior green
+bridge compile PASS
+bridge unit tests PASS
+crypto interoperability PASS
+claim expiry/revoke PASS
+crash recovery PASS
+HTTPS host PASS
+installer/service PASS
+XP-80T PASS
+uncertain delivery PASS
+reviewed retry PASS
 ```
 
-## Gate C: Operational domains
-
-Required before full-business staging:
+## Gate C: Revenue
 
 ```text
-Procurement
-Customer credit/Finance
-Hotel/PMS
-Assets/Maintenance
+POS PASS
+inventory consumption PASS
+payments PASS
+refunds PASS
+till PASS
+journals PASS
+close day PASS
+receipts PASS
+KOT/BOT PASS
 ```
 
-with PostgreSQL integration and browser acceptance.
-
-## Gate D: Recovery
-
-Required before live cutover:
+## Gate D: Business domains
 
 ```text
-data migration rehearsal
-reconciliation
-backup restore
-release rollback
-browser rebuild/re-enroll
+procurement PASS
+customer credit PASS
+finance PASS
+hotel/PMS PASS
+assets/maintenance PASS
 ```
 
-## Gate E: Production
-
-Required:
+## Gate E: Recovery/cutover
 
 ```text
-all P0/P1 issues closed
-full CI green
-hardware green
-migration green
-restore green
-pilot green
-close-day reconciliation green
-rollback tested
-no dual writers
+data migration PASS
+reconciliation PASS
+backup restore PASS
+release rollback PASS
+browser rebuild PASS
+pilot PASS
+no dual writers PASS
 ```
 
 ---
 
-# 33. DEFINITION OF DONE
+# 35. DEFINITION OF DONE
 
-The final sprint ends only when this statement is true:
+ServOS is done when:
 
-> A staff member can enroll a new browser device, authenticate to the ServOS API, run catalog, inventory, POS, payments, tills, refunds, procurement, finance and hotel workflows against PostgreSQL, print reliable 80mm documents through the local Print Bridge, continue explicitly authorized operations during temporary connectivity loss, recover uncertain commands by their original IDs, rebuild the browser from server truth, restore the server from encrypted off-VPS backup, migrate the existing Countryside business with reconciled evidence, complete a real business day, and operate without Tauri or Supabase as business authority.
+> A staff member can enroll a new browser device, authenticate to the ServOS API, run catalog, inventory, POS, payments, tills, refunds, procurement, customer credit, finance and hotel workflows against PostgreSQL, print reliable 80mm documents through the installed trusted Print Bridge, continue explicitly authorized workflows during temporary connectivity loss, recover uncertain commands using their original IDs, rebuild a browser from server truth, restore the server from encrypted off-VPS backup, migrate the existing Countryside business with reconciled evidence, complete a real business day, and operate without Tauri or Supabase as business authority.
 
 Final evidence:
 
 ```text
 FULL CI                         PASS
-REAL PWA -> API -> PG           PASS
+REAL PWA -> API -> POSTGRES     PASS
 MULTI-TERMINAL POS              PASS
 RESPONSE LOSS                   PASS
 INVENTORY                       PASS
 POS                             PASS
 PAYMENTS                        PASS
-TILL                            PASS
 REFUNDS                         PASS
-DOCUMENTS                       PASS
+TILL                            PASS
+JOURNALS                        PASS
+CLOSE DAY                       PASS
 PRINT BRIDGE                    PASS
-HARDWARE PRINT                  PASS
+XP-80T HARDWARE                 PASS
 OFFLINE RESTART                 PASS
 PROCUREMENT                     PASS
-FINANCE/CREDIT                  PASS
+CUSTOMER CREDIT                 PASS
+FINANCE                         PASS
 HOTEL/PMS                       PASS
 MIGRATION RECONCILIATION        PASS
 BACKUP RESTORE                  PASS
 RELEASE ROLLBACK                PASS
 REAL BUSINESS PILOT             PASS
-CLOSE-DAY RECONCILIATION        PASS
+FIRST-DAY RECONCILIATION        PASS
 NO DUAL WRITERS                 PASS
 ```
 
 ---
 
-# 34. FINAL EXECUTION RULE
+# 36. FINAL EXECUTION RULE
 
-Do not optimize for commit count.
+The remaining work is no longer about proving the architecture is possible. It is about proving the complete system is trustworthy.
 
-Do not stop because a subsystem "mostly works."
+Do not chase feature count. Do not create another framework. Do not redesign the architecture.
 
-Continue through:
+Drive the current system through:
 
 ```text
-green revenue platform
--> physical printing
--> offline revenue
--> procurement
--> finance
--> PMS
+green CI
+-> Print Bridge execution
+-> real printer
+-> full revenue acceptance
+-> remaining business domains
 -> migration
--> staging
 -> restore
+-> staging
 -> pilot
 -> production cutover
 -> legacy retirement
 ```
 
-If a later phase reveals a broken earlier invariant, repair the earlier invariant, add regression evidence, and resume.
+If any later phase exposes a broken earlier invariant, repair the invariant, add regression evidence, then continue.
 
-The final goal is not a newer ServOS branch.
-
-The final goal is a **single-authority, recoverable, hardware-proven, test-proven, browser-first ServOS that can run the actual resort without losing stock, money, rooms, documents, or transaction history.**
+The sprint ends with a production system, not with a large diff.

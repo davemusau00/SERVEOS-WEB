@@ -22,3 +22,5 @@ pub mod images;
 pub mod close_day_rendering;
 
 pub mod document_text;
+
+pub mod purchase_order_rendering;
