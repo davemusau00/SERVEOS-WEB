@@ -862,8 +862,15 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 ### Dedicated Print Bridge CI (workflow source only)
 
 - Added a dedicated Linux and Windows workflow matrix for the standalone bridge and printer transport. Each OS runs formatting, Clippy, unit tests and release builds for both Rust packages and uploads a separate evidence artifact.
+- The Windows matrix now also compiles the optional `windows-service` SCM wrapper with Clippy and release-build steps. Workflow execution remains deferred.
 - Added the matrix result and both required artifacts to the same-commit CI evidence gate and release-candidate eligibility. Updated the sprint's required CI matrix accordingly.
 - Workflow execution is deferred; current-commit CI status is not claimed.
+
+### Print Bridge Windows service lifecycle (source only)
+
+- Added a Windows SCM wrapper that launches the loopback HTTPS host exactly once, runs under the configured LocalService account, and forwards SCM stop/shutdown through a private stdin token. The host stops accepting new requests and drains admitted work before closing its worker; forced termination is treated as an uncertain print outcome. There is no automatic restart/replay.
+- Added a manual-start install/uninstall script. It keeps business-specific approved pairing and TLS material outside the release bundle, applies restrictive ProgramData ACLs, preserves journal/pairing/TLS data on unregister, and does not start the service or install a TLS trust root.
+- Added bounded code-only service lifecycle logging. This is not deployment evidence: wrapper compilation, installer execution, account/printer ACL verification, localhost certificate trust, browser service calls, printer delivery and restart recovery remain deferred and unverified.
 
 ### Print Bridge shared outcome mapping (source only)
 

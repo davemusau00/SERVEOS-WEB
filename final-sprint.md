@@ -810,9 +810,11 @@ Never automatically resend ambiguous output.
 
 ## Local HTTPS host
 
-The private stdio worker is not yet the installed service.
+Source now includes a loopback Node HTTPS host that privately owns the stdio worker, plus a Windows SCM wrapper and manual install/uninstall script. The wrapper runs as LocalService, forwards stop through a private control pipe, drains admitted host requests and never automatically restarts or resends a print. The install script keeps pairing/TLS inputs outside the release bundle and preserves the SQLite journal when unregistering.
 
-Add a small host:
+This is not an installed or accepted service. Build/sign/package evidence, service execution, LocalService printer ACL acceptance, trusted localhost certificate setup, browser-to-service acceptance and physical printer delivery remain open.
+
+The host boundary is:
 
 ```text
 localhost HTTPS only
@@ -1473,7 +1475,7 @@ Retain useful:
 
 2. GET ONE FULL SAME-COMMIT GREEN CI RUN
 
-3. ADD EXPLICIT PRINT-BRIDGE CI
+3. RUN EXPLICIT PRINT-BRIDGE CI (Linux and Windows; workflow source is present)
    cargo fmt
    clippy
    test
@@ -1483,7 +1485,8 @@ Retain useful:
 
 5. PROVE PRINT-BRIDGE CRASH/RESTART/UNCERTAINTY BEHAVIOR
 
-6. IMPLEMENT LOCAL HTTPS BRIDGE HOST + INSTALLER/SERVICE
+6. COMPLETE LOCAL HTTPS BRIDGE HOST + SIGNED INSTALLER/SERVICE ACCEPTANCE
+   source host, SCM wrapper and manual install/uninstall are present; build, packaging, execution and target acceptance remain open
 
 7. WIRE NORMAL PWA PRINT SUBMISSION + SERVER OUTCOME REPORTING
 
