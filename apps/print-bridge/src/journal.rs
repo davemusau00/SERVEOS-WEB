@@ -30,7 +30,7 @@ impl PrintJournal {
   connection.busy_timeout(std::time::Duration::from_secs(5)).map_err(error)?;
   connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;").map_err(error)?;
   let version:i64=connection.query_row("PRAGMA user_version",[],|row|row.get(0)).map_err(error)?;
-  if version>2{return Err("This bridge journal needs a newer bridge release".into());}
+  if version>3{return Err("This bridge journal needs a newer bridge release".into());}
   if version==0{
    let tx=connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(error)?;
    tx.execute_batch("CREATE TABLE local_print_jobs(
@@ -62,6 +62,16 @@ impl PrintJournal {
     CREATE TRIGGER local_requests_completed_immutable BEFORE UPDATE ON local_bridge_requests WHEN OLD.state='COMPLETED' BEGIN SELECT RAISE(ABORT,'Immutable completed bridge outcome'); END;
     CREATE TRIGGER local_requests_no_delete BEFORE DELETE ON local_bridge_requests BEGIN SELECT RAISE(ABORT,'Retain bridge replay evidence'); END;
     PRAGMA user_version=2;").map_err(error)?;
+   tx.commit().map_err(error)?;
+  }
+  if version<3{
+   let tx=connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(error)?;
+   tx.execute_batch("CREATE TABLE local_request_attempts(
+    request_id TEXT PRIMARY KEY REFERENCES local_bridge_requests(request_id),
+    local_job_id TEXT NOT NULL UNIQUE);
+    CREATE TRIGGER local_request_attempts_no_update BEFORE UPDATE ON local_request_attempts BEGIN SELECT RAISE(ABORT,'Immutable request attempt linkage'); END;
+    CREATE TRIGGER local_request_attempts_no_delete BEFORE DELETE ON local_request_attempts BEGIN SELECT RAISE(ABORT,'Retain request attempt linkage'); END;
+    PRAGMA user_version=3;").map_err(error)?;
    tx.commit().map_err(error)?;
   }
   Ok(Self{connection})
@@ -156,5 +166,27 @@ impl PrintJournal {
  pub fn request_status(&self,authorization:&VerifiedRequest,original_id:&str)->Result<Option<RequestDecision>,String>{
   job_id(original_id)?;
   self.connection.query_row("SELECT response FROM local_bridge_requests WHERE request_id=?1 AND bridge_id=?2 AND business_id=?3 AND device_id=?4",params![original_id,authorization.bridge_id(),authorization.business_id(),authorization.device_id()],|row|Ok(RequestDecision::Existing{response:row.get(0)?})).optional().map_err(error)
+ }
+}
+
+/// Reconciliation is read-only. Missing delivery means no journaled transport began.
+#[derive(Clone,Debug)]
+pub struct RequestAttemptStatus {pub local_job_id:String,pub delivery:Option<JobStatus>}
+impl PrintJournal {
+ /// Commit the request/attempt association before enqueue or transport. Never re-execute a link.
+ pub(crate) fn link_attempt(&mut self,request:&VerifiedRequest,local_id:&str)->Result<(),String>{
+  job_id(local_id)?;
+  let tx=self.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(error)?;
+  let saved:Option<(String,String)>=tx.query_row("SELECT fingerprint,state FROM local_bridge_requests WHERE request_id=?1",[request.request_id()],|row|Ok((row.get(0)?,row.get(1)?))).optional().map_err(error)?;
+  let (fingerprint,state)=saved.ok_or("Request must be durably received before delivery")?;
+  if fingerprint!=request.fingerprint()||state!="RECEIVED"{return Err("Request is completed or belongs to different signed content".into());}
+  tx.execute("INSERT INTO local_request_attempts(request_id,local_job_id) VALUES(?1,?2)",params![request.request_id(),local_id]).map_err(|_|"Request or API attempt already linked; reconcile without resending".to_string())?;
+  tx.commit().map_err(error)
+ }
+ /// Fresh device authorization can inspect an older request without extending its print authority.
+ pub fn request_attempt_status(&self,authorization:&VerifiedRequest,original_id:&str)->Result<Option<RequestAttemptStatus>,String>{
+  job_id(original_id)?;
+  let local_id:Option<String>=self.connection.query_row("SELECT a.local_job_id FROM local_request_attempts a JOIN local_bridge_requests r ON r.request_id=a.request_id WHERE r.request_id=?1 AND r.bridge_id=?2 AND r.business_id=?3 AND r.device_id=?4",params![original_id,authorization.bridge_id(),authorization.business_id(),authorization.device_id()],|row|row.get(0)).optional().map_err(error)?;
+  match local_id{None=>Ok(None),Some(local_job_id)=>{let delivery=status(&self.connection,&local_job_id)?;Ok(Some(RequestAttemptStatus{local_job_id,delivery}))}}
  }
 }

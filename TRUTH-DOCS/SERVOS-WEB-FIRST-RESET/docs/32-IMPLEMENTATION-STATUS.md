@@ -528,3 +528,19 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Extracted the API print permission list into one shared source used by command authorization and live bridge checks, preventing a removed permission from remaining effective merely because an earlier attestation has not expired.
 - Permission removal returns signed inactive evidence without mutating the claim or business data. Observation/transport race boundaries still apply; no perpetual lease is implied.
 - No tests, builds, migrations, runtime or printer execution ran. Deferred acceptance includes permission removal/restoration, wildcard grants, document-specific visibility, current staff/device revocation and claim/check/transport races.
+
+
+## Final sprint continuation - authorized bridge delivery boundary (source only)
+
+- Added a consuming delivery function connecting fresh API observation, approved local route, strict document rendering, durable local SENDING and native transport. It rechecks observation freshness after journal commits immediately before transport.
+- Local attempt IDs derive from API job UUID and API attempt, preserving evidence across reviewed retries. Any existing local attempt refuses transport, including interrupted QUEUED attempts; recovery must reconcile evidence rather than automatically resend.
+- Copies are rendered independently and combined within a 4 MiB bound. Transport acceptance records SENT_TO_SPOOLER, known pre-output failure records FAILED, and possible output records DELIVERY_UNCERTAIN. A failed outcome commit retains durable SENDING for conservative startup recovery.
+- No tests, compilation, dependency resolution, network calls or printer execution ran. Request-to-attempt crash reconciliation, authenticated listener/pairing, API outcome reporting, financial renderers and PWA integration remain outstanding. This library boundary does not activate a service or prove physical delivery.
+
+
+## Final sprint continuation - durable bridge request/attempt reconciliation (source only)
+
+- Added local journal schema version 3 with immutable, unique request-to-local-attempt linkage. Delivery now requires the matching verified request and commits the association before enqueue and transport. Reusing either request or API attempt refuses execution.
+- A fresh signed request can inspect an older request's associated delivery evidence within the same business/device/bridge scope. Missing linked delivery, queued, active and uncertain outcomes remain explicit; none authorizes replay. Restart recovery continues to mark interrupted SENDING as DELIVERY_UNCERTAIN.
+- Linkage and enqueue are separate durable commits: interruption between them leaves linked evidence with no delivery record and prevents automatic execution. This is conservative recovery, not an automatic retry policy.
+- Tests, compilation and runtime execution remain deferred. Listener response serialization, completion reconciliation, API outcome reporting, pairing and PWA wiring still require implementation and final acceptance.

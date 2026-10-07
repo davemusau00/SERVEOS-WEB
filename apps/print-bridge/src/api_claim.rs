@@ -76,4 +76,6 @@ impl FreshSubmit {
   if now_unix>=self.expires_at_unix||now_unix>=self.authorized.expires_at_unix()||self.observed.elapsed()>=self.max_age{return Err("Live print claim observation expired before transport".into());}Ok(())
  }
  pub fn action(&self)->&ValidatedAction{self.authorized.action()}
+ pub fn api_attempt(&self)->i64{self.authorized.attempt()}
+ pub fn claim_payload(&self)->&str{&self.authorized.authorization().payload_json}
 }

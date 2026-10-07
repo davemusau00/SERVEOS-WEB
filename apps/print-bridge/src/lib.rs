@@ -8,3 +8,5 @@ pub mod routing;
 pub mod rendering;
 pub mod api_claim;
 pub mod api_client;
+
+pub mod delivery;
