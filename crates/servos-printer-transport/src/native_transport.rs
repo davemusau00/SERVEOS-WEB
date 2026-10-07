@@ -144,7 +144,8 @@ impl PrinterProfile {
     }
 }
 
-pub fn encode_receipt(
+#[cfg(test)]
+fn encode_receipt(
     customer: &[String],
     business: &[String],
     logo: Option<&Value>,
@@ -159,6 +160,7 @@ pub fn encode_receipt(
     bytes
 }
 
+#[cfg(test)]
 fn append_copy(
     bytes: &mut Vec<u8>,
     lines: &[String],
@@ -264,7 +266,7 @@ pub(super) fn append_logo(bytes: &mut Vec<u8>, logo: &Value, profile: &PrinterPr
     let Ok(raster) = STANDARD.decode(encoded) else {
         return;
     };
-    let row_bytes = (width + 7) / 8;
+    let row_bytes = width.div_ceil(8);
     if raster.len() != row_bytes * height {
         return;
     }
@@ -297,7 +299,7 @@ fn decode_qr(qr: &Value, profile: &PrinterProfile) -> Option<(usize, usize, Vec<
         return None;
     }
     let decoded = STANDARD.decode(encoded).ok()?;
-    if decoded.len() != ((width + 7) / 8) * height {
+    if decoded.len() != width.div_ceil(8) * height {
         return None;
     }
     Some((width, height, decoded))
@@ -315,7 +317,7 @@ pub(super) fn append_qr(bytes: &mut Vec<u8>, qr: &Value, profile: &PrinterProfil
     let Some((width, height, raster)) = decode_qr(qr, profile) else {
         return;
     };
-    let row_bytes = (width + 7) / 8;
+    let row_bytes = width.div_ceil(8);
     // ESC/POS GS v 0 is normal-density byte mode: xL/xH and yL/yH bound the raster.
     // Blank rows before and after keep the QR clear of the totals and the footer.
     bytes.extend(std::iter::repeat_n(b'\n', 2));
@@ -367,7 +369,7 @@ pub fn logo_supported(logo: Option<&Value>, profile: &PrinterProfile) -> bool {
     let Ok(raster) = STANDARD.decode(encoded) else {
         return false;
     };
-    raster.len() == ((width + 7) / 8) * height
+    raster.len() == width.div_ceil(8) * height
 }
 
 pub(super) fn wrap_line(line: &str, columns: usize) -> Vec<String> {
@@ -541,7 +543,7 @@ mod tests {
 
     /// A square 16-dot raster (2 bytes per row) with an all-zero body, plus a matching PNG data URL.
     fn qr() -> Value {
-        let raster = STANDARD.encode(vec![0u8; (16 + 7) / 8 * 16]);
+        let raster = STANDARD.encode(vec![0u8; 16usize.div_ceil(8) * 16]);
         serde_json::json!({"enabled":true,"dataUrl":"data:image/png;base64,AA==","thermalRaster":{"width":16,"height":16,"base64":raster}})
     }
 
@@ -575,7 +577,7 @@ mod tests {
         assert_eq!(
             bytes
                 .windows(3)
-                .filter(|part| *part == &[0x1d, b'V', 0])
+                .filter(|part| *part == [0x1d, b'V', 0])
                 .count(),
             2
         );
@@ -653,7 +655,7 @@ mod tests {
         let (footer, cut) = footer_and_cut(&bytes);
         let raster = bytes
             .windows(6)
-            .position(|part| part == &[0x1d, b'v', 0, 0, 2, 0])
+            .position(|part| part == [0x1d, b'v', 0, 0, 2, 0])
             .unwrap();
         assert!(raster < footer, "QR raster must precede the fixed footer");
         assert!(text.find("Thank you").unwrap() < raster);
@@ -675,7 +677,7 @@ mod tests {
         assert_eq!(
             bytes
                 .windows(6)
-                .filter(|part| *part == &[0x1d, b'v', 0, 0, 2, 0])
+                .filter(|part| *part == [0x1d, b'v', 0, 0, 2, 0])
                 .count(),
             1
         );
@@ -701,7 +703,7 @@ mod tests {
         assert_eq!(
             bytes
                 .windows(6)
-                .filter(|part| *part == &[0x1d, b'v', 0, 0, 2, 0])
+                .filter(|part| *part == [0x1d, b'v', 0, 0, 2, 0])
                 .count(),
             0
         );
@@ -710,7 +712,7 @@ mod tests {
     /// The QR raster stays inside the configured printer dot width and honours the accepted feed margin.
     #[test]
     fn till_qr_width_stays_inside_the_printer_profile_and_feeds_after_content() {
-        let mut profile = lan_profile();
+        let profile = lan_profile();
         let qr_value = qr();
         assert!(qr_supported(Some(&qr_value), &profile));
         let bytes = encode_receipt(&customer_lines(), &[], None, Some(&qr_value), &profile);
@@ -733,12 +735,12 @@ mod tests {
             padded.starts_with(' '),
             "the source line must really be pre-padded"
         );
-        let bytes = encode_receipt(&[padded.clone()], &[], None, None, &profile);
+        let bytes = encode_receipt(std::slice::from_ref(&padded), &[], None, None, &profile);
 
         // Find the ESC M 1 (Font B) switch and the ESC a 1 that must follow it.
         let font_b = bytes
             .windows(4)
-            .position(|part| part == &[0x1b, b'M', 1, 0x1b])
+            .position(|part| part == [0x1b, b'M', 1, 0x1b])
             .expect("Font B must be selected for the footer");
         assert_eq!(
             &bytes[font_b..font_b + 3],
@@ -841,9 +843,9 @@ mod tests {
         // window search inside itself.
         let center = bytes
             .windows(3)
-            .position(|part| part == &[0x1b, b'a', 1])
+            .position(|part| part == [0x1b, b'a', 1])
             .expect("ESC a 1 must be emitted before the QR raster");
-        let row_bytes = ((16 + 7) / 8) as u8;
+        let row_bytes = 16usize.div_ceil(8) as u8;
         let raster = center + 3;
         // GS v 0 takes four dimension bytes: xL, xH, yL, yH.
         assert_eq!(

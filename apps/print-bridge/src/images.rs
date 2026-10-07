@@ -72,7 +72,7 @@ pub fn raster(data: &str, qr: bool, profile: &PrinterProfile) -> Result<Value, S
         .min(1.0);
     let out_width = ((width as f64 * scale).floor() as usize).max(1);
     let out_height = ((height as f64 * scale).floor() as usize).max(1);
-    let row_bytes = (out_width + 7) / 8;
+    let row_bytes = out_width.div_ceil(8);
     let mut dots = vec![0u8; row_bytes * out_height];
     for y in 0..out_height {
         for x in 0..out_width {

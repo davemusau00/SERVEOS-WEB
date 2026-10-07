@@ -111,8 +111,6 @@ pub fn prepare_customer_credit(input: &ValidatedAction) -> Result<PreparedDocume
     lines.push(document.document_number.clone());
     let timestamp = if document.document_type == "CUSTOMER_CREDIT_INVOICE" {
         "issuedAt"
-    } else if document.document_type == "CUSTOMER_CREDIT_PAYMENT_ACKNOWLEDGEMENT" {
-        "recordedAt"
     } else {
         "recordedAt"
     };
@@ -257,14 +255,14 @@ pub fn prepare_customer_credit(input: &ValidatedAction) -> Result<PreparedDocume
         }
         "CUSTOMER_CREDIT_WRITE_OFF_NOTICE" => {
             identity(&snapshot, "entryId")?;
-            let amount = amount(&snapshot, "amountMinor")?;
+            let amount_minor = amount(&snapshot, "amountMinor")?;
             let before = amount(&snapshot, "balanceBeforeMinor")?;
-            if before.checked_sub(amount) != Some(amount(&snapshot, "balanceAfterMinor")?) {
+            if before.checked_sub(amount_minor) != Some(amount(&snapshot, "balanceAfterMinor")?) {
                 return Err("Write-off account balance does not reconcile".into());
             }
             lines.push(format!(
                 "ACCOUNTS RECEIVABLE WRITTEN OFF: {}",
-                money(amount)
+                money(amount_minor)
             ));
             lines.push(format!("Balance before: {}", money(before)));
             lines.push(format!(
@@ -281,7 +279,7 @@ pub fn prepare_customer_credit(input: &ValidatedAction) -> Result<PreparedDocume
         "CUSTOMER_CREDIT_REVERSAL_NOTICE" => {
             identity(&snapshot, "entryId")?;
             identity(&snapshot, "originalEntryId")?;
-            let amount = amount(&snapshot, "amountMinor")?;
+            let amount_minor = amount(&snapshot, "amountMinor")?;
             let before = amount(&snapshot, "balanceBeforeMinor")?;
             let after = amount(&snapshot, "balanceAfterMinor")?;
             let kind = text(&snapshot, "kind", true)?;
@@ -295,14 +293,14 @@ pub fn prepare_customer_credit(input: &ValidatedAction) -> Result<PreparedDocume
                 return Err("Invalid customer credit reversal kind".into());
             }
             let reconciled = if kind == "CHARGE_REVERSAL" {
-                before.checked_sub(amount) == Some(after)
+                before.checked_sub(amount_minor) == Some(after)
             } else {
-                before.checked_add(amount) == Some(after)
+                before.checked_add(amount_minor) == Some(after)
             };
             if !reconciled {
                 return Err("Reversal account balance does not reconcile".into());
             }
-            lines.push(format!("{kind}: {}", money(amount)));
+            lines.push(format!("{kind}: {}", money(amount_minor)));
             lines.push(format!(
                 "Original entry: {}",
                 identity(&snapshot, "originalEntryId")?

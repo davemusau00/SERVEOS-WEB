@@ -203,7 +203,7 @@ fn append_payments(lines: &mut Vec<String>, payments: &[Value]) -> Result<i64, S
             .checked_add(paid)
             .ok_or("Tender total exceeds bounds")?;
         lines.push(format!("{method}: {}", money(paid)));
-        push_text(&mut lines, payment, "reference", "Reference: ")?;
+        push_text(lines, payment, "reference", "Reference: ")?;
         let origin = text(payment, "origin", true)?;
         if method == "CASH" {
             if origin != "CASHIER_CASH" {

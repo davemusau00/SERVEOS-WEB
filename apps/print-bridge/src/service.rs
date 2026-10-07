@@ -163,10 +163,10 @@ fn service_main(arguments: Vec<OsString>) {
     };
     let log_path = configuration_path.as_deref();
     event(log_path, "SERVICE_STARTING");
-    let _ = run_service(configuration_path, log_path);
+    let _ = run_service(log_path, log_path);
 }
 
-fn run_service(configuration_path: Option<PathBuf>, log_path: Option<&Path>) -> Result<(), String> {
+fn run_service(configuration_path: Option<&Path>, log_path: Option<&Path>) -> Result<(), String> {
     let (stop_sender, stop_receiver) = mpsc::channel::<()>();
     let event_handler = move |event| match event {
         ServiceControl::Stop | ServiceControl::Shutdown => {
@@ -197,7 +197,7 @@ fn run_service(configuration_path: Option<PathBuf>, log_path: Option<&Path>) -> 
             return Err("Print Bridge service configuration path is missing".into());
         }
     };
-    let configuration = match read_configuration(&configuration_path) {
+    let configuration = match read_configuration(configuration_path) {
         Ok(configuration) => configuration,
         Err(_) => {
             status_handle
