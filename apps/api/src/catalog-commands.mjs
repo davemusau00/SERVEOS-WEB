@@ -107,8 +107,16 @@ const productSave = async ({tx, command, actor, at}) => {
   const portionVolume = data.portionVolume === undefined ? null : safeQuantity(data.portionVolume,'Portion volume');
   const sellingMode = typeof data.sellingMode === 'string' ? data.sellingMode : null;
   if (sellingMode && !['SERVING_AND_BOTTLE','BOTTLE_ONLY'].includes(sellingMode)) throw new ApiProblem(400,'VALIDATION_FAILED','Selling mode is unsupported.');
-  const portions = data.portions ?? [];
-  if (!Array.isArray(portions) || portions.some(portion => !portion || typeof portion !== 'object' || typeof portion.id !== 'string' || typeof portion.name !== 'string' || !Number.isSafeInteger(portion.priceMinor) || portion.priceMinor < 0 || !Number.isFinite(portion.volume) || portion.volume <= 0)) throw new ApiProblem(400,'VALIDATION_FAILED','Product portions are malformed.');
+  const rawPortions = data.portions ?? [];
+  if (!Array.isArray(rawPortions) || rawPortions.length>50) throw new ApiProblem(400,'VALIDATION_FAILED','Product portions must be a list of at most 50 options.');
+  const portionIds=new Set();
+  const portions=rawPortions.map(portion=>{
+    if(!portion||typeof portion!=='object'||Array.isArray(portion)||typeof portion.id!=='string'||!portion.id.trim()||portion.id.length>100||portionIds.has(portion.id)||!Number.isSafeInteger(portion.priceMinor)||portion.priceMinor<0||(portion.wholeContainerSale!==undefined&&typeof portion.wholeContainerSale!=='boolean'))throw new ApiProblem(400,'VALIDATION_FAILED','Portion IDs must be unique, prices must be safe minor units, and whole-container flags must be boolean.');
+    portionIds.add(portion.id);
+    const volume=safeQuantity(portion.volume,'Portion stock quantity');
+    if(Math.abs(volume*1_000_000-Math.round(volume*1_000_000))>0.0001)throw new ApiProblem(400,'VALIDATION_FAILED','Portion stock quantities support at most six decimals.');
+    return {id:portion.id,name:text(portion.name,'Portion name',100),priceMinor:portion.priceMinor,volume,wholeContainerSale:portion.wholeContainerSale===true};
+  });
   await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeYield,portionVolume,sellingMode,portions,outletIds,recipe:recipeIngredients.length > 0,recipeIngredients,version});
   return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeIngredients,recipeYield,portionVolume,sellingMode,portions,outletIds,updatedAt:at.toISOString()}};
 };

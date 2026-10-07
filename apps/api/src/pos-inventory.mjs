@@ -25,6 +25,7 @@ export async function consumptionSnapshot(db,businessId,product,portion,recipe){
   const containerSize=stock.containerSize===null?null:Number(stock.containerSize);
   const measured=direct&&(product.sellingMode||['SPIRIT','WINE'].includes(product.inventoryType));
   const wholeContainerSale=Boolean(measured&&containerSize!==null&&(portion?.wholeContainerSale===true||Math.abs(per-containerSize)<0.000001));
+  if(portion?.wholeContainerSale===true&&!wholeContainerSale)invalid('A whole-container portion must consume linked bottle-tracked stock with its configured container size.');
   if(product.sellingMode==='BOTTLE_ONLY'&&!wholeContainerSale)invalid('Bottle-only products require a whole-container portion.');
   if(containerSize!==null&&baseUnit!=='ml')invalid('Bottle-tracked stock must use ml.');
   if(wholeContainerSale&&Math.abs(per/containerSize-Math.round(per/containerSize))>0.000001)invalid('Whole-bottle portions must contain whole sealed containers.');
