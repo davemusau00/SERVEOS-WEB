@@ -807,3 +807,18 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Dedicated bridge voucher layout remains outstanding; browser fallback supported in source. All migrations/tests/builds/runtime/physical checks remain deferred.
 
 - Follow-up: added typed office Print Bridge voucher layout with strict payment identity, manual origin/method, amount and payable-balance reconciliation, actual-time/operator provenance and QR suppression. Browser and bridge layouts both describe payment as manually confirmed. End-to-end printer acceptance remains pending.
+
+### Supplier physical return API foundation (source only; migration unapplied)
+
+- Added tenant-scoped return draft/line/event schema linked to original GRN lines and inventory receipts, with immutable line/evidence guards and explicit DRAFT -> APPROVED -> DISPATCHED lifecycle.
+- Added online `supplierReturn.create`, `supplierReturn.approve` and `supplierReturn.dispatch` operations. Drafts require accepted original lines, reviewed locations/balances, quantities within accepted GRN less prior approved/dispatched returns, package and bottle conservation, condition and reasons.
+- Dispatch requires reviewed current stock, sufficient location/physical bottle balances, actual physical dispatch confirmation and named supplier/driver acknowledgement. It posts negative SUPPLIER_RETURN_OUT movements and an estimated supplier-credit-pending/inventory journal at current stock cost. It does not mislabel the event as a receipt reversal or claim a credit note/payment was received.
+- Bootstrap and permission-filtered projections are wired. Added a PWA create/approve/dispatch review and browser return-note printing. Original accepted receipt rows and inventory receipt IDs are tenant-scoped foreign keys; approval reserves quantities before physical dispatch. Approval rechecks other reserved returns against original accepted quantities. Draft cancellation, credit-note matching and accounting settlement of supplier credits remain outstanding. Tests/builds/migrations/runtime/hardware checks remain deferred.
+
+### Supplier credit-note matching API (source only; migration unapplied)
+
+- Added online `supplierReturn.matchCreditNote` for dispatched returns, with versioned return/payable checks, duplicate supplier reference protection, bounded note date/amount and immutable matching evidence. Credit amounts cannot exceed the remaining dispatch estimate; variances require accounting review.
+- Credit matching applies available value against the original GRN payable and retains excess as an unapplied supplier-credit asset. It reclassifies the estimated pending credit journal and updates a return-credit lifecycle without rewriting the physical stock movement.
+- Payable projections/payment bounds now account for applied supplier credits. Supplier credit-note projections are permission-filtered. Applying an unused supplier credit to another payable/refund remains open. Migration 045 also expands the guarded return lifecycle to partial and complete credit-note matching.
+
+- Follow-up: added PWA return credit-note review with unique reference/date/amount, frozen return/payable versions and explicit comparison acknowledgement. It shows applied and unapplied supplier credit separately; unresolved procurement outcomes block further receiving, matching, returns and PO changes.

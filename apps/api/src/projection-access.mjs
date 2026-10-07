@@ -1,7 +1,7 @@
 const has=(actor,...permissions)=>actor.permissions?.includes('*')||permissions.some(permission=>actor.permissions?.includes(permission));
 export function visibleRecord(actor,record){
  const {collection,data}=record;
- if(['purchaseOrders','goodsReceipts','supplierPayables','supplierPayments'].includes(collection))return has(actor,'procurement.view','procurement.manage','procurement.receive','procurement.pay');
+ if(['purchaseOrders','goodsReceipts','supplierPayables','supplierPayments','supplierReturns','supplierCreditNotes','supplierCredits','supplierCreditApplications'].includes(collection))return has(actor,'procurement.view','procurement.manage','procurement.receive','procurement.pay');
  if(collection==='suppliers')return has(actor,'suppliers.manage','procurement.view','procurement.manage','procurement.receive','procurement.pay');
  if(collection==='journalEntries')return has(actor,'accounting.view','audit.view','reports.view');
  if(collection==='closeDayReports')return has(actor,'reports.view','accounting.view','audit.view');
@@ -12,7 +12,7 @@ export function visibleRecord(actor,record){
  if(collection==='paymentAccounts')return has(actor,'business.configure','payment.record','payment.split','payments.view','accounting.view','procurement.pay');
  if(collection==='refunds')return has(actor,'order.refund','payment.reverse','payments.view','accounting.view','procurement.pay');
  if(collection==='payments')return has(actor,'order.refund','payment.reverse','payments.view','accounting.view')||data.staffId===actor.staffId&&has(actor,'payment.record');
- if(collection==='businessDocuments'&&['PURCHASE_ORDER','GOODS_RECEIPT','SUPPLIER_PAYMENT_VOUCHER'].includes(data.type))return has(actor,'procurement.view','procurement.manage','procurement.receive','procurement.pay');
+ if(collection==='businessDocuments'&&['PURCHASE_ORDER','GOODS_RECEIPT','SUPPLIER_PAYMENT_VOUCHER','SUPPLIER_RETURN_NOTE'].includes(data.type))return has(actor,'procurement.view','procurement.manage','procurement.receive','procurement.pay');
  if(collection==='businessDocuments'&&data.type==='ORDER_VOID_NOTICE')return has(actor,'pos.sell','order.void','order.discount','order.comp','reports.view','audit.view');
  if(collection==='businessDocuments')return data.type==='CLOSE_DAY_REPORT'?has(actor,'reports.view','accounting.view','audit.view'):['KOT','BOT','KOT_CANCEL','BOT_CANCEL'].includes(data.type)?has(actor,'pos.sell','order.void','order.discount','order.comp','kds.view','kds.update','system.configure'):has(actor,'order.fire','order.discount','order.comp','payment.record','order.refund','payment.reverse','payments.view','accounting.view','reports.view');
  if(collection==='printJobs')return has(actor,'procurement.view','procurement.manage','procurement.receive','procurement.pay','pos.sell','order.void','order.discount','order.comp','kds.view','kds.update','payment.record','order.refund','payment.reverse','system.configure','reports.view','accounting.view','audit.view');
