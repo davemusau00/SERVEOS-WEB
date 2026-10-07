@@ -1180,6 +1180,12 @@ Never erase unresolved evidence.
 
 ---
 
+## 2026-10-08 source continuation (verification deferred)
+
+- Migration 062 adds short-lived PostgreSQL snapshot manifests and ordered projection rows. Each snapshot is bound to business, staff, enrolled device, session and the permission-set hash; the API expires snapshots after ten minutes and keeps a bounded number per session.
+- Bootstrap now returns a deterministic manifest and per-page hashes. Authenticated resume and page routes recheck ownership and current authorization. The PWA stages pages in IndexedDB v5, resumes matching staging after reload, verifies downloaded and persisted pages and collection counts, then activates records/cursor/policy atomically after checking for unresolved commands and cursor rollback.
+- These are source changes only. Migration application, API/PostgreSQL execution, browser reload/reconnect acceptance, storage interruption, large-snapshot behavior, lint/build and CI remain deferred to the end-of-sprint verification gate.
+
 # 25. EXISTING COUNTRYSIDE DATA MIGRATION
 
 Build deterministic migration tooling.
@@ -1751,10 +1757,11 @@ The sprint ends with a production system, not with a large diff.
 ### Current frontend CI parser repair (source only; verification deferred)
 
 - The latest observed hosted run for remote commit `871f542` reported parser errors at `apps/api/src/supplier-return-commands.mjs:22` because an SQL literal containing single-quoted statuses was wrapped in a JavaScript single-quoted string. The query now uses a template literal.
-- That hosted run also recorded failures in browser and PostgreSQL API jobs. Their causes and the outcome of current local HEAD `14308b8` are not established. `cargo fmt` was applied to both workflow targets, but no formatter check, tests, lint, build or hosted CI were run for these working-tree corrections; same-commit green remains a stop gate.
+- That hosted run also recorded failures in browser and PostgreSQL API jobs. Their causes remain unknown. The parser and formatting repairs are included in local history; current local HEAD is `5a7fde5` with additional uncommitted bootstrap refinements. No tests, lint, build or hosted CI have been run on that state; same-commit green remains a stop gate.
 
-### API bootstrap manifest verification (source only; verification deferred)
+### API bootstrap paging and atomic activation (source only; verification deferred, 2026-10-08)
 
-- The authenticated API bootstrap is derived from a repeatable-read PostgreSQL snapshot and its ordered high-water cursor. It now emits a deterministic SHA-256 manifest with schema version, record count and per-collection counts after permission filtering.
-- Before the existing atomic IndexedDB replacement, the PWA validates record identities/shape, rejects duplicates, checks counts and recomputes the manifest hash. Unresolved commands remain protected by both preflight and the replacement transaction.
-- Paged delivery, durable temporary staging, interrupted-page resume and large-snapshot activation are still outstanding. No tests, lint, build, migration or API/browser execution ran for this source slice.
+- Migration 062 stores ten-minute bootstrap manifests and ordered projection rows. Snapshot access is bound to business, staff, enrolled device, session and a hash of current permissions; creation removes expired snapshots and bounds retained snapshots per session.
+- API bootstrap protocol v2 returns deterministic collection counts, fixed page boundaries, page SHA-256 values and a manifest hash, with authenticated manifest-resume and page routes. The records originate from a repeatable-read PostgreSQL snapshot at the recorded high-water cursor.
+- IndexedDB v5 stores a resumable temporary page set. The PWA validates the manifest and each page, rereads and rehashes staged pages after interruption, validates collection totals, protects unresolved commands and cursor monotonicity, then atomically swaps the projection and cursor.
+- No migration, tests, lint, build, API/PostgreSQL execution or browser acceptance ran for this slice. Reload resume, response loss, storage failure, authorization changes during transfer and large snapshots remain unverified.

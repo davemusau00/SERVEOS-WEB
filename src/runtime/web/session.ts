@@ -48,7 +48,7 @@ export async function loadAuthorizedSnapshot(store:BusinessStore,rpc:Rpc,session
 }
 
 /** Stage and atomically install a verified, paged API projection into the PWA IndexedDB store. */
-export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnType<typeof createServOSApiClient>,policyVersion='api-catalog-v2'){
+export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnType<typeof createServOSApiClient>,policyVersion='api-catalog-v3'){
   const localCursor=await store.cursor();
   const localPolicy=await store.policyVersion();
   const localRecords=await store.records();
@@ -64,7 +64,23 @@ export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnTy
   const validateManifest=async(value:unknown)=>{
     const bootstrap=value as {protocolVersion?:number;snapshotId?:string;expiresAt?:string;cursor?:number;manifest?:BootstrapManifest};
     const manifest=bootstrap?.manifest;
-    if(bootstrap?.protocolVersion!==2||typeof bootstrap.snapshotId!=='string'||! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bootstrap.snapshotId)||typeof bootstrap.expiresAt!=='string'||!Number.isFinite(Date.parse(bootstrap.expiresAt))||Date.parse(bootstrap.expiresAt)<=Date.now()||!Number.isSafeInteger(bootstrap.cursor)||bootstrap.cursor===undefined||bootstrap.cursor<0||!manifest||manifest.protocolVersion!==2||manifest.snapshotId!==bootstrap.snapshotId||manifest.expiresAt!==bootstrap.expiresAt||manifest.schemaVersion!==2||manifest.highWaterCursor!==bootstrap.cursor||!Number.isSafeInteger(manifest.recordCount)||manifest.recordCount<0||!Number.isSafeInteger(manifest.pageSize)||manifest.pageSize<1||manifest.pageSize>1000||manifest.pageCount!==Math.ceil(manifest.recordCount/manifest.pageSize)||!Array.isArray(manifest.pageHashes)||manifest.pageHashes.length!==manifest.pageCount||manifest.pageHashes.some(hash=>typeof hash!=='string'||!/^[a-f0-9]{64}$/.test(hash))||!manifest.collectionCounts||typeof manifest.collectionCounts!=='object'||Array.isArray(manifest.collectionCounts)||Object.entries(manifest.collectionCounts).some(([collection,count])=>!collection||!Number.isSafeInteger(count)||count<0)||!/^[a-f0-9]{64}$/.test(manifest.sha256))throw new Error('API catalog bootstrap manifest is invalid');
+    if(
+      bootstrap?.protocolVersion!==2 ||
+      typeof bootstrap.snapshotId!=='string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bootstrap.snapshotId) ||
+      typeof bootstrap.expiresAt!=='string' || !Number.isFinite(Date.parse(bootstrap.expiresAt)) || Date.parse(bootstrap.expiresAt)<=Date.now() ||
+      !Number.isSafeInteger(bootstrap.cursor) || bootstrap.cursor===undefined || bootstrap.cursor<0 ||
+      !manifest || manifest.protocolVersion!==2 || manifest.snapshotId!==bootstrap.snapshotId || manifest.expiresAt!==bootstrap.expiresAt ||
+      manifest.schemaVersion!==2 || manifest.highWaterCursor!==bootstrap.cursor ||
+      !Number.isSafeInteger(manifest.recordCount) || manifest.recordCount<0 ||
+      !Number.isSafeInteger(manifest.pageSize) || manifest.pageSize<1 || manifest.pageSize>1000 ||
+      manifest.pageCount!==Math.ceil(manifest.recordCount/manifest.pageSize) ||
+      !Array.isArray(manifest.pageHashes) || manifest.pageHashes.length!==manifest.pageCount || manifest.pageHashes.some(hash=>typeof hash!=='string'||!/^[a-f0-9]{64}$/.test(hash)) ||
+      !manifest.collectionCounts || typeof manifest.collectionCounts!=='object' || Array.isArray(manifest.collectionCounts) ||
+      Object.entries(manifest.collectionCounts).some(([collection,count])=>!collection||!Number.isSafeInteger(count)||count<0) ||
+      !/^[a-f0-9]{64}$/.test(manifest.sha256)
+    ) throw new Error('API catalog bootstrap manifest is invalid');
+    if(Object.values(manifest.collectionCounts).reduce((total,count)=>total+count,0)!==manifest.recordCount)throw new Error('API catalog bootstrap collection counts do not match its total.');
     const {sha256,...core}=manifest;
     if(await digest(core)!==sha256)throw new Error('API catalog bootstrap manifest hash does not match');
     return {bootstrap:bootstrap as {protocolVersion:2;snapshotId:string;expiresAt:string;cursor:number;manifest:BootstrapManifest},manifest};

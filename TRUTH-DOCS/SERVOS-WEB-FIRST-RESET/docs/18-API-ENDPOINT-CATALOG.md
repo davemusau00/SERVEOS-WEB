@@ -75,9 +75,13 @@ Issuance is restricted and policy-driven.
 
 ```text
 GET /v1/bootstrap/catalog
+GET /v1/bootstrap/catalog/:snapshotId
+GET /v1/bootstrap/catalog/:snapshotId/pages?after=:ordinal
 ```
 
-The API returns a permission-filtered repeatable-read snapshot with protocol/schema versions, high-water cursor, record and collection counts, and a SHA-256 manifest hash. The PWA verifies the manifest before replacing its IndexedDB projection. The endpoint still returns all records in one response; paged delivery and resumable staging remain open.
+The API creates a ten-minute, permission-filtered repeatable-read snapshot tied to the authenticated staff session, device and current permission set. The manifest carries protocol/schema versions, a high-water cursor, collection counts, fixed page boundaries, page hashes and a hash of the manifest. Snapshot lookup and page reads recheck the same identity and permission hash.
+
+The API PWA resumes matching snapshots after reload, verifies each received and locally staged page, and activates the projection in one IndexedDB transaction only after all pages and counts match. Unresolved command IDs block activation. This is source implementation only: migration 062, API/PostgreSQL behavior, reload recovery, large snapshots and atomic activation have not been executed or verified.
 
 ## 8. Business/settings reads
 

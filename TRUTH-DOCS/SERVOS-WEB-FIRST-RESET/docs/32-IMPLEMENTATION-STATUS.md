@@ -1,8 +1,8 @@
 # 32 — Web-First Reset Implementation Status
 
-## Current verification checkpoint ? 2026-10-07
+## Verification evidence checkpoint ? 2026-10-07 (later source changes unverified)
 
-The verification-first continuation below supersedes earlier test-deferral and stale pending-status notes.
+This section records evidence captured on 2026-10-07. The active development instruction defers new checks until the end of the sprint; the 2026-10-08 source continuation below has not been verified.
 
 - Local lint and builds pass; root tests: **218/218**; API/PostgreSQL tests: **19/19, zero skips**.
 - Cloud-v2 disposable PostgreSQL suite passes; complete preview browser matrix: **52 passed**, with the dedicated real API case skipped in this matrix and passing separately.
@@ -12,7 +12,7 @@ The verification-first continuation below supersedes earlier test-deferral and s
 - Next business gates: receiving and exact movement reversal with immutable physical-state evidence and later-activity blockers, then online POS, consumption, payments/tills and printing. Procurement/rooms expansion, production writers and cutover remain gated.
 - Source-only auth continuation adds migration 061 to bind a consumed refresh token to one successor. A response-loss retry now re-derives and returns that same successor, preventing the previous implementation from creating competing children. Migrations 060-061 and auth runtime behavior have not been executed or verified.
 - Hosted CI run #274 for remote commit `871f542` reported a frontend parse failure in `supplier-return-commands.mjs:22` from nested single quotes in its SQL, plus bridge formatting failures on Linux and Windows. The current worktree uses a template literal and has had `cargo fmt` applied to both bridge manifests. These changes and current local HEAD have not been run through local checks or CI.
-- API bootstrap now carries a deterministic, permission-filtered manifest (schema, high-water cursor, collection counts and SHA-256); the PWA verifies record shape, uniqueness, counts and hash before the existing atomic snapshot replacement. Paged transport and durable temporary staging remain open. This source change is unverified.
+- At this checkpoint, API bootstrap had a deterministic permission-filtered manifest but still returned records in one response. The later 2026-10-08 continuation below supersedes that implementation state; the changes remain unverified.
 
 ## Baseline captured for this checkout
 

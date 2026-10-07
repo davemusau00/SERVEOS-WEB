@@ -321,7 +321,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         }
         const bootstrap=await store.catalogBootstrap(actor.businessId);
         const records=JSON.parse(JSON.stringify(filterRecords(actor,bootstrap.records).sort((left,right)=>left.collection===right.collection?(left.id<right.id?-1:left.id>right.id?1:0):(left.collection<right.collection?-1:1))));
-        const pageSize=250,pageHashes=[];
+        const pageSize=25,pageHashes=[];
         for(let offset=0;offset<records.length;offset+=pageSize)pageHashes.push(createHash('sha256').update(stableJson({afterOrdinal:offset,nextOrdinal:Math.min(offset+pageSize,records.length),records:records.slice(offset,offset+pageSize)})).digest('hex'));
         const collectionCounts=Object.fromEntries([...records.reduce((counts,record)=>counts.set(record.collection,(counts.get(record.collection)||0)+1),new Map()).entries()].sort(([left],[right])=>left<right?-1:left>right?1:0));
         const snapshotId=randomUUID(),createdAt=new Date(),expiresAt=new Date(createdAt.getTime()+10*60_000).toISOString(),core={protocolVersion:2,snapshotId,expiresAt,schemaVersion:2,highWaterCursor:bootstrap.cursor,recordCount:records.length,collectionCounts,pageSize,pageCount:pageHashes.length,pageHashes};

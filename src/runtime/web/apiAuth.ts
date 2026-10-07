@@ -33,13 +33,13 @@ export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName
   }catch(error){try{await client.logout().catch(()=>undefined)}finally{token=undefined;sessionId=undefined;device=undefined;login.accessToken=''}throw error}
 }
 
-/** Open isolated API-authority IndexedDB and install its records[] catalog projection. */
+/** Open isolated API-authority IndexedDB and install its verified catalog projection. */
 export async function openApiBusinessStore(session:ApiAuthenticatedDeviceSession){
   const store=await BusinessStore.open(session.profile.businessId,session.identity.deviceId,session.profile.staffId,0,'API');
   try{
     // Recover durable commands before installing a replacement projection.
     // An initialized projection is reused, including an empty zero-cursor catalog.
-    if(await store.policyVersion()!=='api-catalog-v2'&&await store.hasPending())await synchronizeStore(store,createApiCloudTransport(session.client));
+    if(await store.policyVersion()!=='api-catalog-v3'&&await store.hasPending())await synchronizeStore(store,createApiCloudTransport(session.client));
     await loadApiCatalogSnapshot(store,session.client);return store;
   }catch(error){store.close();throw error}
 }
