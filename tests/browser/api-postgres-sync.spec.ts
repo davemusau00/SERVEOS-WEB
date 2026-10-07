@@ -53,7 +53,7 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   await expect(page.getByText('Saved and synchronized.',{exact:true})).toBeVisible();
   expect((await pool.query('SELECT name,version FROM stock_items WHERE business_id=$1 AND id=$2',[businessId,stockId])).rows[0]).toMatchObject({name:'Real coffee updated',version:'2'});
   await page.getByRole('button',{name:'New product',exact:true}).click();
-  const productForm=page.getByRole('dialog',{name:'New product',exact:true});
+  const productForm=page.getByRole('dialog').filter({has:page.getByRole('heading',{name:'New product',exact:true})});
   await productForm.getByLabel('Name',{exact:true}).fill('Real brewed coffee');
   await productForm.getByLabel('Code / SKU',{exact:true}).fill('REAL-BREW');
   await productForm.getByLabel('Price (KES)',{exact:true}).fill('150.25');
@@ -91,8 +91,9 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   expect(legacyRequests).toEqual([]);
   expect((await pool.query('SELECT count(*)::int AS total FROM api_commands WHERE business_id=$1 AND status=$2',[businessId,'CONFIRMED'])).rows[0].total).toBe(6);
  }finally{
-  await page.goto('about:blank');
-  if(server){const closingServer=server;closingServer.closeAllConnections();await new Promise<void>(resolve=>closingServer.close(()=>resolve()))}
-  await pool.end();
+  try{if(!page.isClosed())await page.goto('about:blank')}finally{
+   if(server){const closingServer=server;closingServer.closeAllConnections();await new Promise<void>(resolve=>closingServer.close(()=>resolve()))}
+   await pool.end();
+  }
  }
 });
