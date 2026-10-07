@@ -620,3 +620,17 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Operator-triggered reporting requires the original SENDING API attempt, revision, operator and device still to match. Known pre-output failure reports preparation failure; accepted/uncertain transport reports uncertain paper delivery. No recovery path confirms physical delivery or reprints.
 - Recovery reporting is blocked while any print command outcome remains pending/unknown and uses the existing persisted command path. Older evidence without attempt metadata requires manual shared-job review.
 - No tests, build, worker/HTTPS execution or hardware acceptance ran. Installation, financial renderers, complete browser/hardware acceptance and release gates remain outstanding.
+
+
+## Final sprint continuation - immutable financial bridge text layouts (source only)
+
+- Added receipt-role payment acknowledgement/refund layouts using issued snapshot amounts, Nairobi timestamps, original tender references, manual cashier confirmation, refund reasons and tax reversal facts. Tender amounts are checked against the issued acknowledgement total; no prices/taxes are recalculated.
+- Renderer rejects invalid IDs, amounts, methods, duplicate tenders and unsupported image content. Financial submission remains disabled in PWA until the PNG/logo/QR pipeline is connected, avoiding silent omission of branding or payment QR.
+- No tests, build, runtime or printer execution ran. Sales/close-day layouts, embedded images and shared canonical renderer parity remain incomplete, with physical layout/QR acceptance deferred.
+
+
+## Final sprint continuation - shared snapshot PNG thermal pipeline (source only)
+
+- Added bounded PNG decoding for immutable logo and uploaded QR images, rejecting animation, invalid format and excessive compressed/decoded dimensions. Both images use the same alpha-on-white monochrome raster pipeline and retained transport validation.
+- Financial renderers now carry snapshot images into encoding. QR remains square, uses nearest-neighbor scaling without cropping, and prints the required caption before the immutable custom footer. Added an explicit validated footer boundary to standalone document encoding; frozen Tauri source remains unchanged.
+- No dependency resolution, compilation, tests or hardware execution ran. PNG resource-limit behavior, raster fidelity, scaled QR scanning, footer placement and physical printer acceptance require final verification; financial PWA enablement remains pending.

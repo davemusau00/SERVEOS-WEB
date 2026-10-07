@@ -5,9 +5,9 @@ use servos_printer_transport::{encode_document,PrinterProfile};
 use uuid::Uuid;
 
 /// Renderer output only; it does not prove API issuance or authorize transport.
-pub struct PreparedDocument {lines:Vec<String>}
+pub struct PreparedDocument {pub(crate) lines:Vec<String>,pub(crate) logo:Option<String>,pub(crate) qr:Option<String>,pub(crate) footer_start:Option<usize>}
 impl PreparedDocument {
- pub fn encode(&self,profile:&PrinterProfile)->Result<Vec<u8>,String>{encode_document(&self.lines,None,None,profile)}
+ pub fn encode(&self,profile:&PrinterProfile)->Result<Vec<u8>,String>{{let logo=self.logo.as_deref().map(|image|crate::images::raster(image,false,profile)).transpose()?;let qr=self.qr.as_deref().map(|image|crate::images::raster(image,true,profile)).transpose()?;match self.footer_start{Some(footer)=>servos_printer_transport::encode_document_at_footer(&self.lines,footer,logo.as_ref(),qr.as_ref(),profile),None=>encode_document(&self.lines,logo.as_ref(),qr.as_ref(),profile)}}}
  pub fn lines(&self)->&[String]{&self.lines}
 }
 fn text(value:&Value,key:&str,max:usize,required:bool)->Result<String,String>{
@@ -56,7 +56,7 @@ pub fn prepare_preparation_ticket(input:&ValidatedAction)->Result<PreparedDocume
   if !notes.is_empty(){for note in notes.split('\n'){lines.push(format!("Note: {note}"));}}
  }
  lines.push("--------------------------------".into());
- Ok(PreparedDocument{lines})
+ Ok(PreparedDocument{lines,logo:None,qr:None,footer_start:None})
 }
 
 
@@ -64,6 +64,7 @@ pub fn prepare_preparation_ticket(input:&ValidatedAction)->Result<PreparedDocume
 pub fn prepare_document(input:&ValidatedAction)->Result<PreparedDocument,String>{
  let kind=match input.action(){BridgeAction::Submit{document,..}=>document.document_type.as_str(),_=>return Err("Rendering requires submit".into())};
  match kind{
+  "PAYMENT_ACKNOWLEDGEMENT"|"REFUND_RECEIPT"=>crate::financial_rendering::prepare_financial_document(input),
   "KOT"|"BOT"=>prepare_preparation_ticket(input),
   "KOT_CANCEL"|"BOT_CANCEL"|"ORDER_VOID_NOTICE"=>prepare_void_notice(input),
   _=>Err("This document needs a dedicated bridge renderer; use browser fallback".into()),
@@ -126,5 +127,5 @@ pub fn prepare_void_notice(input:&ValidatedAction)->Result<PreparedDocument,Stri
   if !notes.is_empty(){for note in notes.split('\n'){lines.push(format!("Original note: {note}"));}}
  }
  lines.push("THIS NOTICE DOES NOT REFUND MONEY.".into());
- Ok(PreparedDocument{lines})
+ Ok(PreparedDocument{lines,logo:None,qr:None,footer_start:None})
 }

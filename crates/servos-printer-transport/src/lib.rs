@@ -7,6 +7,13 @@ use serde_json::Value;
 /// The bridge service must authenticate and verify the signed canonical job first.
 /// This function does not accept caller-supplied ESC/POS bytes.
 pub fn encode_document(lines:&[String],logo:Option<&Value>,qr:Option<&Value>,profile:&PrinterProfile)->Result<Vec<u8>,String>{
+ let footer_markers=["Built By KINGSFORGE","info@kingsforge.co.ke","info@davemusau.co.ke","0746157440","Built By Davemusau.co.ke"];
+ let footer=lines.iter().position(|line|footer_markers.contains(&line.trim())).unwrap_or(lines.len());
+ encode_document_at_footer(lines,footer,logo,qr,profile)
+}
+/// Explicit immutable footer boundary for business documents with custom footer text.
+pub fn encode_document_at_footer(lines:&[String],footer:usize,logo:Option<&Value>,qr:Option<&Value>,profile:&PrinterProfile)->Result<Vec<u8>,String>{
+ if footer>lines.len(){return Err("Invalid document footer boundary".into());}
  if lines.is_empty()||lines.len()>2000{return Err("Document requires 1 to 2000 lines".into());}
  let mut size=0usize;
  for line in lines{
@@ -20,8 +27,6 @@ pub fn encode_document(lines:&[String],logo:Option<&Value>,qr:Option<&Value>,pro
  if !(24..=64).contains(&profile.columns)||!(2..=12).contains(&profile.feed_lines_before_cut){return Err("Printer width/feed profile is invalid".into());}
  let mut bytes=vec![0x1b,b'@'];
  if let Some(image)=logo{native_transport::append_logo(&mut bytes,image,profile);}
- let footer_markers=["Built By KINGSFORGE","info@kingsforge.co.ke","info@davemusau.co.ke","0746157440","Built By Davemusau.co.ke"];
- let footer=lines.iter().position(|line|footer_markers.contains(&line.trim())).unwrap_or(lines.len());
  append_text(&mut bytes,&lines[..footer],profile);
  if let Some(image)=qr{
   native_transport::append_qr(&mut bytes,image,profile);
