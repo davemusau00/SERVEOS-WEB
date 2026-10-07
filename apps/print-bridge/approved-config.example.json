@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "bridgeId": "00000000-0000-4000-8000-000000000001",
+  "businessId": "00000000-0000-4000-8000-000000000002",
+  "apiOrigin": "https://api.example.invalid",
+  "apiKeyId": "replace-with-active-print-bridge-key-id",
+  "apiPublicKey": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "replace-with-base64url-coordinate",
+    "y": "replace-with-base64url-coordinate",
+    "ext": true,
+    "key_ops": ["verify"],
+    "alg": "ES256"
+  },
+  "devices": [],
+  "printerConfigurationJson": "{\"schemaVersion\":1,\"roles\":{}}"
+}

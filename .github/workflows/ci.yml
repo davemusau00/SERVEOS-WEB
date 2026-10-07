@@ -248,6 +248,12 @@ jobs:
         run: cargo build --release --manifest-path apps/print-bridge/Cargo.toml 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
       - name: Build release printer transport
         run: cargo build --release --manifest-path crates/servos-printer-transport/Cargo.toml 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Lint Windows service host
+        if: runner.os == 'Windows'
+        run: cargo clippy --manifest-path apps/print-bridge/Cargo.toml --features windows-service --bin servos-print-bridge-service -- -D warnings 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Build Windows service host
+        if: runner.os == 'Windows'
+        run: cargo build --release --manifest-path apps/print-bridge/Cargo.toml --features windows-service --bin servos-print-bridge-service 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
       - name: Upload Print Bridge evidence
         if: always()
         uses: actions/upload-artifact@v4

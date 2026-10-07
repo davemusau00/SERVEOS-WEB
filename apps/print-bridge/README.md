@@ -1,6 +1,6 @@
 # ServOS Print Bridge foundation
 
-This contains the bridge library, private stdio worker, localhost HTTPS adapter source and local pairing administration tool. The HTTPS adapter is not activated or installed as a managed bridge service. The bridge has no ServOS API credentials, PostgreSQL access or business mutation code.
+This contains the bridge library, private stdio worker, localhost HTTPS adapter, Windows SCM wrapper source, Windows install/uninstall script and local pairing administration tool. The Windows service package is source-only: it has not been built, installed, or accepted on target hardware. The bridge has no ServOS API credentials, PostgreSQL access or business mutation code.
 
 ## Local delivery journal
 
@@ -12,27 +12,29 @@ Open the writer through `BridgeSession::open`. It holds an OS-backed exclusive l
 
 SENDING cannot be cancelled or retried. QUEUED/FAILED can be cancelled. Retrying SENT_TO_SPOOLER/DELIVERY_UNCERTAIN requires operator reason and explicit possible-duplicate acknowledgement. Revision checks reject stale or repeated transition requests. Status lookup recovers lost transition responses without resending.
 
-## Required service boundary still outstanding
+## Service boundary and authority
 
-The future service must implement trusted localhost HTTPS, strict origin/pairing, enrolled-device signature validation, typed canonical document validation and hash verification, local configured printer-role routing and durable transport orchestration. The library provides journal writer locking; the future installed service must consistently use that session boundary. Journal acceptance alone is not signature validation or permission to print. Never expose `enqueue` or the low-level transport as an unauthenticated HTTP API. Protect journal files with installer-managed local permissions; envelope history can contain business documents.
+The source service path is worker -> authenticated dispatcher -> local SQLite session/attempt journal -> configured printer transport. The Node HTTPS host privately owns the worker process. The Windows SCM wrapper starts exactly one host and sends it a private shutdown token; it does not restart a failed host or replay a print request. A stop drains accepted HTTP work for up to 30 seconds, then terminates the host; interrupted sends are recovered as `DELIVERY_UNCERTAIN`. Journal acceptance alone is not signature validation or permission to print. Never expose `enqueue` or the low-level transport as an unauthenticated HTTP API.
 
 PWA/API reconciliation must distinguish local acceptance, transport acceptance and physical delivery. API print claims/revisions remain authoritative for shared print workflow; local outcomes cannot modify orders, payments, stock or documents.
 
-Compilation, dependency resolution and tests are deferred to the sprint verification phase. No physical printer or installation acceptance is claimed.
+`install-windows.ps1` provisions the service under `NT AUTHORITY\LocalService`, installs the Node 22 runtime and bridge binaries, and restricts pairing/TLS/journal data to LocalService, SYSTEM and Administrators. It deliberately registers the service for manual start. `-Uninstall` removes only the matching SCM registration and preserves the pairing, TLS key and journal. The TLS certificate must already be trusted by target browsers and match the localhost origin; the script does not install a root certificate or start the service.
+
+Compilation, dependency resolution and tests are deferred to the sprint verification phase. The service scripts have not been executed. No service, TLS, printer, physical hardware or installation acceptance is claimed.
 
 
 ## Signed request foundation
 
 `auth` verifies WebCrypto ECDSA P-256/SHA-256 signatures in P1363 format against a public key from approved local pairing state. Request pairing identities and exact HTTPS Origin must match. The signed domain is `SERVOS_PRINT_BRIDGE_V1`, followed by bridge/business/device/origin/request IDs, issue/expiry seconds and SHA-256 of exact UTF-8 payload bytes, separated by newlines. Payloads are bounded to 1 MiB, validity to 120 seconds, and future clock skew to 30 seconds. Browser signing uses the existing non-exportable enrolled-device private key; no private key is transferred to the bridge.
 
-`VerifiedRequest` proves signature/binding only. Typed action validation, canonical document hash validation, durable request-ID replay handling and shared API claim authorization must still run before any operation. Pairing persistence, operator approval/revocation and HTTP Origin handling are not yet implemented. Do not construct approved pairing state from request-provided keys or treat this module as a complete service authentication flow.
+`VerifiedRequest` proves signature/binding only. Typed action validation, canonical document hash validation, durable request-ID replay handling and shared API claim authorization still run before submission. The installer-owned configuration loader, local approval/revocation CLI and HTTPS Origin checks provide the pairing source boundary. They are source-reviewed only; no installed-service security acceptance is claimed.
 
 
 ## Durable request replay protection
 
 Journal schema 2 retains signed request fingerprints independently of delivery jobs. `begin_request` returns `Accepted` exactly once for a request ID; only that result permits initial execution. An exact replay returns the original serialized response or an explicit unresolved state. Reusing the ID with different signed content is refused. Completed responses are immutable and cannot be deleted through normal journal operations.
 
-A crash after acceptance may leave RECEIVED without a response. The service must reconcile the typed operation against its original job/attempt evidence; it must not execute it again merely because the response is missing. Action/journal orchestration and that reconciliation remain outstanding. `complete_request` preserves the result before returning it to the PWA.
+A crash after acceptance may leave RECEIVED without a response. The dispatcher returns a scoped recovery decision from original job/attempt evidence; it never executes the action again just because the response is missing. A missing attempt remains a reconciliation case, not permission to resubmit. `complete_request` preserves completed responses before returning them to the PWA.
 
 Request validity still applies before accepting an envelope. After expiry, obtain a newly signed status request naming the old request ID; `request_status` restricts lookup to the same bridge/business/device. The HTTP service must validate that typed status payload before calling this boundary. This permits recovery without extending an expired mutation request or leaking another device's outcomes.
 
@@ -114,10 +116,10 @@ Configuration is reloaded for every message. Invalid/revoked configuration never
 previous loaded pairing. Malformed, oversized or truncated framing terminates the worker rather
 than attempting to guess message boundaries. Stdout is reserved for protocol responses.
 
-The future HTTPS host must own this child process, use private pipes, correlate responses,
-serialize requests, bound queued work and fail closed after worker exit. It must never automatically
-restart and resend an in-flight request. A worker interruption during transport requires journal
-recovery and an original-request status query. No worker execution or compilation has run yet.
+The HTTPS host owns this child process over private pipes, correlates responses, serializes requests,
+bounds queued work and fails closed after worker exit. It never automatically restarts or resends an
+in-flight request. A worker interruption during transport requires journal recovery and an
+original-request status query. Host and worker execution/compilation remain deferred.
 
 
 ### Local HTTPS host (source only, not started)
@@ -136,4 +138,22 @@ are refused. Private-network preflight is allowed only for an approved origin. U
 are admitted; worker operations remain serial even after HTTP response loss. Worker exit is terminal
 for this host instance: no restart/replay occurs. Restart requires deliberate service recovery, with
 original request identity retained by the PWA. Shutdown during output can leave uncertain delivery.
-No host execution, TLS/browser acceptance or printer validation has run; installation is still pending.
+The Windows wrapper records bounded service lifecycle codes in `service-events.log` without capturing request/document contents. The host accepts a private shutdown token over the parent-owned stdin pipe, stops accepting new requests, drains current handlers and then closes the worker. If drain exceeds 30 seconds, the wrapper forces host termination; a print in flight is reconciled from the journal as uncertain. The host does not bind a LAN interface or restart the worker.
+
+The Windows wrapper and install/uninstall script have not been built or executed. No service, TLS/browser acceptance or printer validation has run; installation remains pending.
+
+#### Windows packaging inputs
+
+Prepare an approved configuration from `approved-config.example.json`, the locally trusted TLS certificate/key pair, the Node.js 22 Windows distribution, and the Windows release bundle containing both bridge executables plus `https-host.mjs`. Keep the API private key out of this package; configuration contains only the pinned API public key. The service is installed manually and does not start as part of installation.
+
+```powershell
+.\apps\print-bridge\install-windows.ps1 `
+  -BundlePath C:\releases\servos-print-bridge `
+  -NodeDistributionPath C:\releases\node-v22-win-x64 `
+  -ApprovedConfigPath C:\secure\approved-config.json `
+  -TlsPrivateKeyPath C:\secure\localhost.key `
+  -TlsCertificatePath C:\secure\localhost.crt `
+  -BridgeOrigin https://localhost:9443
+```
+
+The installation script registers `ServOSPrintBridge` as a manual-start `LocalService` dependent on Windows Print Spooler. After checking printer ACLs, certificate trust/SAN, API public-key pin and pairing, an administrator may start it with `Start-Service ServOSPrintBridge`. Run the same script with `-Uninstall` to unregister only the matching service; persistent pairing, certificate and SQLite attempt evidence remain on disk. The release workflow does not yet package these inputs or produce a signed installer, and this procedure has not been run.

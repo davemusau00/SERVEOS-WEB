@@ -12,11 +12,12 @@ const port=Number(origin.port||443);
 if(!Number.isInteger(port)||port<1024||port>65535)throw new Error('Use a dedicated unprivileged bridge port');
 const tls={key:readFileSync(file('PRINT_BRIDGE_TLS_KEY')),cert:readFileSync(file('PRINT_BRIDGE_TLS_CERT')),minVersion:'TLSv1.2'};
 const worker=spawn(file('PRINT_BRIDGE_WORKER'),[file('PRINT_BRIDGE_CONFIG'),file('PRINT_BRIDGE_JOURNAL')],{stdio:['pipe','pipe','pipe'],windowsHide:true,shell:false});
-let terminal=false,pending=null,buffer=Buffer.alloc(0),tail=Promise.resolve(),admitted=0;
+let terminal=false,pending=null,buffer=Buffer.alloc(0),tail=Promise.resolve(),admitted=0,shuttingDown=false;
 function failWorker(){
  if(terminal)return;terminal=true;
  if(pending){pending.reject(new Error('Worker outcome unresolved'));pending=null;}
  worker.kill();
+ if(!shuttingDown)server.close(()=>{process.exitCode=1;});
 }
 worker.on('error',failWorker);worker.on('exit',failWorker);
 worker.stdin.on('error',failWorker);worker.stdout.on('error',failWorker);
@@ -42,6 +43,23 @@ function call(operation){
   worker.stdin.write(wire,error=>{if(error)failWorker();});
  });
 }
+let controlBuffer=Buffer.alloc(0),shutdownTimer;
+function shutdown(){
+ if(shuttingDown)return;shuttingDown=true;
+ // Stop accepting work, let admitted request handlers finish, then stop the private worker.
+ server.close(()=>{clearTimeout(shutdownTimer);failWorker();process.exitCode=0;});
+ shutdownTimer=setTimeout(()=>{failWorker();server.closeAllConnections();process.exitCode=1;},30000);
+}
+process.stdin.on('data',chunk=>{
+ controlBuffer=Buffer.concat([controlBuffer,chunk]);
+ if(controlBuffer.length>128){shutdown();return;}
+ let newline;
+ while((newline=controlBuffer.indexOf(10))!==-1){
+  const line=controlBuffer.subarray(0,newline).toString('utf8');controlBuffer=controlBuffer.subarray(newline+1);
+  if(line==='SERVOS_PRINT_BRIDGE_SHUTDOWN')shutdown();else shutdown();
+ }
+});
+process.stdin.on('end',shutdown);
 function singleHeader(req,name){
  const count=req.rawHeaders.filter((_,index)=>index%2===0&&req.rawHeaders[index].toLowerCase()===name).length;
  return count===1&&typeof req.headers[name]==='string'?req.headers[name]:null;
@@ -87,7 +105,6 @@ const server=createServer(tls,async(req,res)=>{
 server.requestTimeout=15000;server.headersTimeout=10000;server.keepAliveTimeout=3000;server.maxHeadersCount=40;
 server.setTimeout(30000,socket=>socket.destroy());
 server.on('error',()=>{failWorker();process.exitCode=1;server.close();});
-function shutdown(){server.close();failWorker();}
 process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);
 // Always loopback: browser TLS trust and explicit local approval are required.
 server.listen(port,'127.0.0.1');
