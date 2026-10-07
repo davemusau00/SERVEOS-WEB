@@ -35,8 +35,10 @@ jobs:
       - run: npm ci 2>&1 | tee artifacts/ci-logs/api-postgres-web-install.log
       - run: npx playwright install --with-deps chromium
       - name: Run API unit and PostgreSQL integration tests
+        id: api_tests
         run: npm run test:api 2>&1 | tee artifacts/ci-logs/api-postgres-tests.log
       - name: Run real PWA API PostgreSQL acceptance
+        if: ${{ always() && !cancelled() && steps.api_tests.outcome != 'skipped' }}
         run: npm run test:browser:api 2>&1 | tee artifacts/ci-logs/api-postgres-browser.log
       - name: Upload API database evidence
         if: always()

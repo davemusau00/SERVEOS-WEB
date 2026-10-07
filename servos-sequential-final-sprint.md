@@ -1,11 +1,11 @@
 # SERVOS FINAL SPRINT
-## Sequential Completion Plan — Remote Head `cdb54c6`, local head `cdb54c6`
+## Sequential Completion Plan — Remote Head `5e380e8`, local head `5e380e8`
 
 **Repository:** `davemusau00/SERVEOS-WEB`  
 **Branch:** `reset/vps-platform`  
-**Current remote HEAD:** `cdb54c68b9357da0cb7db67f1a46d8607f980e3e`
-**Current local HEAD:** `cdb54c68b9357da0cb7db67f1a46d8607f980e3e` (matches origin)
-**Branch position:** 166 commits ahead of `main`, 0 behind
+**Current remote HEAD:** `5e380e888379126dec98ffd313a1a6314fbf591c`
+**Current local HEAD:** `5e380e888379126dec98ffd313a1a6314fbf591c` (matches origin)
+**Branch position:** 167 commits ahead of `main`, 0 behind
 **Checkpoint:** 2026-10-08  
 **Execution principle:** sequential domain completion, not parallel feature expansion
 
@@ -131,11 +131,11 @@ This remains the immediate hard stop.
 
 ## Live checkpoint — 2026-10-08
 
-Local `HEAD` and `origin/reset/vps-platform` are both `cdb54c6`; the branch is 166 commits ahead of `main` and has no ahead/behind divergence. The latest public Actions run is [#279 on `6c94953`](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37693768353); no run for `cdb54c6` is visible. Run #279's browser-preview and browser-production jobs succeeded. Its frontend `npm test` step and API/PostgreSQL test step failed; both Print Bridge jobs failed at their lint step. Detailed test logs are not visible without GitHub sign-in.
+Local `HEAD` and `origin/reset/vps-platform` are both `5e380e8`; the branch is 167 commits ahead of `main` and has no ahead/behind divergence. [Actions run #282](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37696734473) completed on this exact commit with overall failure: frontend failed at `npm test`, and `api-postgres` failed at its API/PostgreSQL test command. Preview and production browser suites, both Print Bridge jobs, desktop-shell, native-domain, both cloud protocol jobs, and evidence-summary passed. The real PWA/API/PostgreSQL browser acceptance step was skipped after the API test command failed; release-candidate was skipped by its `main`-only condition. GitHub requires authentication to read the failing logs or download the artifacts, so individual failing test names and causes remain unknown.
 
-The source lint repairs pass locally: `npm run lint`, both Rust `cargo fmt --check` commands, strict all-target Clippy for the Print Bridge and printer transport crates, and the Windows-service Clippy command. These checks were run at `c8cd45c`; commits through `cdb54c6` changed only documentation, ignore rules and generated build output. Fixes addressed the credit renderer's `amount` shadowing, an unnecessary mutable reborrow, manual ceiling division, duplicate timestamp branches, transport lint errors, and a Windows service path borrow. The repository now ignores Rust `target/` directories, and the 1,212 tracked entries under `apps/print-bridge/target/` have been removed from the index while the local cache remains on disk. All four Cargo lockfiles remain tracked.
+The source lint repairs pass locally: `npm run lint`, both Rust `cargo fmt --check` commands, strict all-target Clippy for the Print Bridge and printer transport crates, and the Windows-service Clippy command. The Clippy gates have now also passed with `--locked`; `cargo metadata --locked --no-deps` succeeds for both packages. Fixes addressed the credit renderer's `amount` shadowing, an unnecessary mutable reborrow, manual ceiling division, duplicate timestamp branches, transport lint errors, and a Windows service path borrow. The repository now ignores Rust `target/` directories, and the 1,212 tracked entries under `apps/print-bridge/target/` have been removed from the index while the local cache remains on disk. All four Cargo lockfiles remain tracked. The Print Bridge workflow now requires `--locked` for Clippy, test and release-build commands so CI cannot silently rewrite those lockfiles.
 
-No local test suite, release build, migration, PostgreSQL runtime, or browser suite was run in this turn. Keep tests deferred to the end of the sprint as requested. CI has already run its frontend and API/PostgreSQL test steps on `6c94953`, and both failed. Phase 0 remains open until the full matrix is green on one exact head.
+No local test suite, release build, migration, PostgreSQL runtime, or browser suite was run in this turn; local test execution remains deferred to the end of the sprint. The current hosted failure evidence is on `5e380e8`, not the older `6c94953` run. The API/browser acceptance skip leaves that gate unproven. The local workflow now allows that browser acceptance step to run after the API test step fails, provided its prerequisites ran and the job was not cancelled; this workflow change has not yet been exercised by Actions. Phase 0 remains open until the two failing suites are diagnosed and the full same-commit matrix passes.
 
 ## Required same-commit green matrix
 
