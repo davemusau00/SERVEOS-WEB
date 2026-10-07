@@ -112,6 +112,17 @@ export class PostgresStore {
     return rows;
   }
 
+  async customerCreditStatementPage(businessId,customerId,{highWater=null,before=null,limit=100}={}){
+    if(highWater===null){const {rows}=await this.pool.query('SELECT COALESCE(max(entry_sequence),0)::text AS cursor FROM customer_credit_entries WHERE business_id=$1 AND customer_id=$2',[businessId,customerId]);highWater=rows[0].cursor;}
+    const {rows}=await this.pool.query(`WITH running AS (
+      SELECT e.id,e.entry_sequence AS "entrySequence",e.customer_id AS "customerId",c.name AS "customerName",e.kind,e.balance_delta_minor AS "balanceDeltaMinor",e.amount_minor AS "amountMinor",e.order_id AS "orderId",e.due_at AS "dueAt",e.payment_method AS "paymentMethod",e.payment_account_id AS "paymentAccountId",e.payment_account_snapshot AS "paymentAccountSnapshot",e.till_session_id AS "tillSessionId",e.received_at AS "receivedAt",e.reference,e.allocations,e.reverses_entry_id AS "reversesEntryId",e.reason,e.actor_id AS "actorId",e.device_id AS "deviceId",e.source_command_id AS "sourceCommandId",e.occurred_at AS "occurredAt",SUM(e.balance_delta_minor) OVER(ORDER BY e.entry_sequence ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS "balanceAfterMinor"
+      FROM customer_credit_entries e JOIN business_customers c ON c.business_id=e.business_id AND c.id=e.customer_id
+      WHERE e.business_id=$1 AND e.customer_id=$2 AND e.entry_sequence<=$3::bigint
+    ) SELECT * FROM running WHERE ($4::bigint IS NULL OR "entrySequence"<$4::bigint) ORDER BY "entrySequence" DESC LIMIT $5`,[businessId,customerId,highWater,before,limit+1]);
+    const hasMore=rows.length>limit,items=rows.slice(0,limit).map(row=>({collection:'customerCreditEntries',id:row.id,version:1,archived:false,data:{...row,entrySequence:String(row.entrySequence),balanceDeltaMinor:Number(row.balanceDeltaMinor),amountMinor:Number(row.amountMinor),balanceAfterMinor:Number(row.balanceAfterMinor),dueAt:row.dueAt?.toISOString()??null,receivedAt:row.receivedAt?.toISOString()??null,occurredAt:row.occurredAt.toISOString()}}));
+    return {items,hasMore,highWater:String(highWater),before:items.at(-1)?.data.entrySequence??null};
+  }
+
   async catalogProjection(businessId, db=this.pool) {
     const [productsResult,stockResult,locationsResult,outletsResult] = await Promise.all([
       db.query(`SELECT p.id,p.name,p.code,p.price_minor AS "priceMinor",p.category,p.route_to AS "routeTo",p.stock_item_id AS "stockItemId",p.barcode,p.favorite,p.tax_class_id AS "taxClassId",p.inventory_type AS "inventoryType",p.recipe_yield AS "recipeYield",p.portion_volume AS "portionVolume",p.selling_mode AS "sellingMode",p.portions,p.modifiers,p.outlet_ids AS "outletIds",p.version FROM products p WHERE p.business_id=$1 AND p.archived_at IS NULL ORDER BY p.name,p.id`,[businessId]),

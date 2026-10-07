@@ -3,6 +3,7 @@ export interface ApiCommandOutcome {kind:'CONFIRMED'|'REJECTED'|'CONFLICT';comma
 export interface ApiChangePage {protocolVersion:1;cursor:number;highWater:number;hasMore:boolean;changes:Array<{sequence:number;commandId:string;actorId?:string;deviceId?:string;occurredAt:string;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}>}
 export interface ApiCatalogItem {id:string;categoryId:string|null;name:string;sku:string|null;basePriceMinor:number;currency:string;trackInventory:boolean;version:number;createdAt:string}
 export interface ApiCatalogBootstrap {protocolVersion:number;cursor:number;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}
+export interface ApiCustomerCreditStatementPage {protocolVersion:1;customerId:string;items:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>;hasMore:boolean;nextCursor:string|null}
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
 
 export class ApiHttpError extends Error {
@@ -57,6 +58,7 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
   },
   changes(after:number,limit=200){return request<ApiChangePage>(`/v1/sync/changes?after=${encodeURIComponent(after)}&limit=${encodeURIComponent(limit)}`)},
   catalogItems(search=''){return request<{items:ApiCatalogItem[]}>(`/v1/catalog/items?search=${encodeURIComponent(search)}`)},
+  customerCreditStatement(customerId:string,cursor?:string,limit=100){const query=new URLSearchParams({limit:String(limit)});if(cursor)query.set('cursor',cursor);return request<ApiCustomerCreditStatementPage>(`/v1/customer-credit/accounts/${encodeURIComponent(customerId)}/statement?${query}`)},
   bootstrapCatalog(){return request<ApiCatalogBootstrap>('/v1/bootstrap/catalog')},
   enrollmentChallenge(){return request<{challengeId:string;challenge:string;issuedAt:string;expiresAt:string}>('/v1/devices/enrollment-challenges',{method:'POST'},false)},
   enrollDevice(body:{challengeId:string;deviceId:string;publicKey:JsonWebKey;signature:string}){return request<{deviceId:string;businessId:string;createdAt:string}>('/v1/devices/enroll',{method:'POST',body:JSON.stringify(body)},false)},

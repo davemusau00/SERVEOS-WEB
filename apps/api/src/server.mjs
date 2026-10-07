@@ -35,6 +35,13 @@ const json = (res, status, value) => {
 };
 const scrypt=promisify(scryptCallback);
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const encodeCreditStatementCursor=value=>Buffer.from(JSON.stringify({v:1,h:value.highWater,b:value.before}),'utf8').toString('base64url');
+function decodeCreditStatementCursor(value){
+ if(typeof value!=='string'||value.length>512||! /^[A-Za-z0-9_-]+$/.test(value))throw new ApiProblem(400,'VALIDATION_FAILED','Statement cursor is invalid.');
+ let parsed;try{parsed=JSON.parse(Buffer.from(value,'base64url').toString('utf8'))}catch{throw new ApiProblem(400,'VALIDATION_FAILED','Statement cursor is invalid.')}
+ if(!parsed||parsed.v!==1||typeof parsed.h!=='string'||typeof parsed.b!=='string'||!/^\d{1,20}$/.test(parsed.h)||!/^\d{1,20}$/.test(parsed.b)||BigInt(parsed.h)<BigInt(parsed.b)||BigInt(parsed.b)<1n)throw new ApiProblem(400,'VALIDATION_FAILED','Statement cursor is invalid.');
+ return {highWater:parsed.h,before:parsed.b};
+}
 const dummyCredentialHash='scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 const stableJson=value=>value===null||typeof value!=='object'?JSON.stringify(value):Array.isArray(value)?`[${value.map(stableJson).join(',')}]`:`{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
 async function hashPassword(password){const salt=randomBytes(16);const derived=await scrypt(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024});return `scrypt$16384$8$1$${salt.toString('base64url')}$${Buffer.from(derived).toString('base64url')}`;}
@@ -248,9 +255,19 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         if (search.length > 100) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Search text is too long.');
         return json(res, 200, {items: await store.listCatalogItems(actor.businessId, search)});
       }
+      const creditStatementMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/customer-credit\/accounts\/([0-9a-f-]{36})\/statement$/i);
+      if(creditStatementMatch){
+        const actor=await authenticate(req),customerId=creditStatementMatch[1];
+        if(!uuidPattern.test(customerId))throw new ApiProblem(400,'VALIDATION_FAILED','Customer identity is invalid.');
+        if(!['*','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view customer credit statements.');
+        const limitRaw=url.searchParams.get('limit')??'100';if(!/^\d+$/.test(limitRaw))throw new ApiProblem(400,'VALIDATION_FAILED','Statement page size must be a whole number.');const limit=Number(limitRaw);if(!Number.isSafeInteger(limit)||limit<1||limit>250)throw new ApiProblem(400,'VALIDATION_FAILED','Statement page size must be between 1 and 250.');
+        const encodedCursor=url.searchParams.get('cursor'),cursor=encodedCursor?decodeCreditStatementCursor(encodedCursor):null;
+        const page=await store.customerCreditStatementPage(actor.businessId,customerId,{...cursor,limit});
+        return json(res,200,{protocolVersion:1,customerId,items:filterRecords(actor,page.items),hasMore:page.hasMore,nextCursor:page.hasMore&&page.before?encodeCreditStatementCursor(page):null});
+      }
       if (req.method === 'GET' && url.pathname === '/v1/bootstrap/catalog') {
         const actor = await authenticate(req);
-        if (!['*','procurement.view','procurement.manage','procurement.receive','procurement.pay','suppliers.manage','catalog.view','catalog.manage','pos.sell','order.fire','order.void','order.discount','order.comp','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','kds.update','business.configure','order.refund','payment.reverse','reports.view','accounting.view','audit.view'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
+        if (!['*','procurement.view','procurement.manage','procurement.receive','procurement.pay','suppliers.manage','catalog.view','catalog.manage','pos.sell','order.fire','order.void','order.discount','order.comp','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','kds.update','business.configure','order.refund','payment.reverse','reports.view','accounting.view','audit.view','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
         const bootstrap=await store.catalogBootstrap(actor.businessId);
         return json(res,200,{protocolVersion:1,...bootstrap,records:filterRecords(actor,bootstrap.records)});
       }

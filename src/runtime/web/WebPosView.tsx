@@ -148,7 +148,7 @@ export function WebPosView({records,session,disabled,command}:{records:BusinessR
  const balance=Math.max(0,total-paid);
  const activeCustomerId=String(data(activeOrder)?.customerId||'');
  const creditAccount=creditAccounts.find(account=>String(data(account)?.customerId)===activeCustomerId);
- const creditBalance=creditEntries.filter(entry=>String(data(entry)?.customerId)===activeCustomerId).reduce((sum,entry)=>sum+Number(data(entry)?.balanceDeltaMinor||0),0);
+ const creditBalance=creditAccount?Number(data(creditAccount)?.balanceMinor||0):creditEntries.filter(entry=>String(data(entry)?.customerId)===activeCustomerId).reduce((sum,entry)=>sum+Number(data(entry)?.balanceDeltaMinor||0),0);
   const creditLimit=Number((data(creditAccount)?.creditLimitMinor??data(creditAccount)?.limitMinor)||0);
  const creditAvailable=Math.max(0,creditLimit-creditBalance);
  const startPayment=()=>{const cash=accounts.find(a=>data(a)?.method==='CASH');const accountId=cash?.id||accounts[0]?.id||'';setTenders([draftTender(accountId,timeZone,(balance/100).toFixed(2))]);setPaying(true)};
