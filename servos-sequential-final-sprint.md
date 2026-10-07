@@ -1,11 +1,11 @@
 # SERVOS FINAL SPRINT
-## Sequential Completion Plan — Remote Head `a0684e2`, local head `c624460`
+## Sequential Completion Plan — Remote Head `6c94953`, local head `c8cd45c`
 
 **Repository:** `davemusau00/SERVEOS-WEB`  
 **Branch:** `reset/vps-platform`  
-**Current remote HEAD:** `a0684e20b64990e6420d6ec3aec5fa1379786c06`  
-**Current local HEAD:** `c6244600c2a71a12c142579d19d800d37c6dde8b` (one commit ahead)  
-**Branch position:** 159 commits ahead of `main`, 0 behind  
+**Current remote HEAD:** `6c94953de676b2b7fd36b23233830d21fbcf8b2d`
+**Current local HEAD:** `c8cd45c8b53a7251b03f3bf02f594fbbf5b47ef9` (one commit ahead)
+**Branch position:** 163 commits ahead of `main`, 0 behind
 **Checkpoint:** 2026-10-08  
 **Execution principle:** sequential domain completion, not parallel feature expansion
 
@@ -131,32 +131,11 @@ This remains the immediate hard stop.
 
 ## Live checkpoint — 2026-10-08
 
-Local `HEAD` is `c624460`; `origin/reset/vps-platform` is `a0684e2` and local is one commit ahead. The latest public Actions run visible is #274 on `871f542`, which predates the bootstrap work. Its frontend, API/PostgreSQL, browser preview/production and both Print Bridge jobs failed; the run summary still displays an overall `In progress` label. No run for the current local head is available as evidence.
+Local `HEAD` is `c8cd45c`; `origin/reset/vps-platform` is `6c94953` and local is one commit ahead. The latest public Actions run is [#279 on `6c94953`](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37693768353), so it predates the current local Rust fixes. Its browser-preview and browser-production jobs succeeded. Its frontend `npm test` step and API/PostgreSQL test step failed; the Ubuntu and Windows Print Bridge jobs failed at their lint step. Detailed test logs are not visible without GitHub sign-in.
 
-Known recent failures remain:
+The source lint repairs are now verified locally at the current source state: `npm run lint`, both Rust `cargo fmt --check` commands, strict all-target Clippy for the Print Bridge and printer transport crates, and the Windows-service Clippy command all pass. Fixes addressed the credit renderer's `amount` shadowing, an unnecessary mutable reborrow, manual ceiling division, duplicate timestamp branches, transport lint errors, and a Windows service path borrow. The current `c8cd45c` commit includes `apps/print-bridge/Cargo.lock` and a checked-in `apps/print-bridge/target/` cache; generated-file policy and cleanup remain open.
 
-```text
-frontend
-  npm run lint
-
-print-bridge ubuntu
-  cargo fmt --check
-
-print-bridge windows
-  cargo fmt --check
-```
-
-Recent preceding heads also failed:
-
-```text
-api-postgres
-browser-preview
-browser-production
-```
-
-The known source repairs have now been applied locally: the SQL parser issue is fixed, local `npm run lint` passes after correcting the refund-document render guard, and both Print Bridge targets pass local `cargo fmt --check`. This does not establish current-head CI status. The API/PostgreSQL and browser failures belong to old `871f542`; their detailed logs require GitHub authentication and have not been inspected. Do not infer a pass or failure for later commits without a same-commit run.
-
-Per the active instruction, test suites and builds remain deferred to the end of the development sprint. Phase 0 is still open until its full matrix is run on one exact head and the API/PostgreSQL plus browser failures are resolved.
+No local test suite, release build, migration, PostgreSQL runtime, or browser suite was run in this turn. Keep tests deferred to the end of the sprint as requested. CI has already run its frontend and API/PostgreSQL test steps on `6c94953`, and both failed. There is no same-commit run for local `c8cd45c`; Phase 0 remains open until the full matrix is green on one exact head.
 
 ## Required same-commit green matrix
 
@@ -179,13 +158,10 @@ evidence-summary               PASS
 ## Immediate repair order
 
 ```text
-1. fix frontend lint
-2. fix exact Print Bridge rustfmt mismatch
-3. fix API/PostgreSQL integration
-4. fix browser preview
-5. fix browser production
-6. allow bridge CI to reach clippy/tests/release build
-7. confirm one exact green HEAD
+1. retain the current local frontend and Rust lint/format passes
+2. inspect and repair the frontend/API/PostgreSQL test failures when the end-of-sprint test phase begins
+3. run the full required matrix against one exact final head
+4. resolve every remaining failure and record the resulting evidence
 ```
 
 Do not open PMS before this.

@@ -145,7 +145,7 @@ The latest pasted review supersedes the earlier sprint-end test deferral. POS, p
 
 ## Final sprint continuation ? exact recording reversal (source only)
 
-The active objective now includes `final-sprint.md` alongside the controlling reset pack. Further tests are deferred to the end of the development sprint by the latest user instruction. Earlier passing evidence does not verify this continuation.
+The active continuation refers to `final-sprint.md`, but that file is absent from the current Downloads tree. `servos-sequential-final-sprint.md` is present and remains the controlling sequence for this checkout. Further tests are deferred to the end of the development sprint by the latest user instruction. Earlier passing evidence does not verify this continuation.
 
 - Added API migration 016 for immutable movement before/after balance evidence, stock unit/container/cost snapshots, and a unique original-command reversal link. Existing movements are intentionally not backfilled with guessed physical states.
 - Balance-setting transactions retain the first before-state and resulting revision; newly inserted movements persist that evidence in the same transaction. Transfer and waste commands can now be reversed as complete original commands through `inventory.reverseMovement`, with `inventory.adjust` permission, manager reason, same-business lookup, original-command locking and duplicate-reversal exclusion.
@@ -987,8 +987,15 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - IndexedDB v5 stores a resumable temporary page set. The PWA validates the manifest and each page, rereads and rehashes staged pages after interruption, validates collection totals, protects unresolved commands and cursor monotonicity, then atomically swaps the projection and cursor. The API browser fixture now follows protocol v2; it was updated but not run.
 - No migration, tests, lint, build, API/PostgreSQL execution or browser acceptance ran for this slice. Reload resume, response loss, storage failure, authorization changes during transfer and large snapshots remain unverified.
 
-### Phase 0 local lint/format repair (2026-10-08; tests deferred)
+### Phase 0 local lint/format repair (2026-10-08; historical checkpoint, tests deferred)
 
 - `npm run lint` found `BusinessDocumentRenderer.tsx` rendering an `unknown` tax-reversal value as a React child. The conditional now converts the value to a boolean before rendering; the follow-up `npm run lint` passed.
 - Ran `cargo fmt` for `apps/print-bridge` and `crates/servos-printer-transport`; both corresponding `cargo fmt --check` commands passed.
 - No test suite, build, migration, API/PostgreSQL runtime, or browser suite was run. Local `HEAD` was `c624460`, one commit ahead of `origin/reset/vps-platform` at `a0684e2`; the render fix is uncommitted. The latest public run available was #274 on older commit `871f542`, whose frontend, API/PostgreSQL, browser preview/production, and both bridge jobs failed. Current-head CI remains unknown.
+
+### Phase 0 Rust lint repair and current checkpoint (2026-10-08; tests deferred)
+
+- Current local `HEAD` is `c8cd45c8b53a7251b03f3bf02f594fbbf5b47ef9`, one commit ahead of `origin/reset/vps-platform` at `6c94953de676b2b7fd36b23233830d21fbcf8b2d`. The current commit includes source lint fixes, an `apps/print-bridge/Cargo.lock`, and a checked-in `apps/print-bridge/target/` build cache. The generated-file policy and cleanup remain unresolved.
+- `npm run lint` passed on this source state. `cargo fmt -- --check` passed for both the Print Bridge and printer transport manifests. Strict all-target Clippy passed for both crates, and Clippy passed for the Windows-service feature and service binary.
+- Public Actions run #279 on prior commit `6c94953` completed with failures in the frontend `npm test` step, API/PostgreSQL test step, and both Print Bridge lint steps. Browser preview and production succeeded. The public job pages expose no detailed test output without GitHub sign-in. The local Clippy repairs have not yet been exercised by a current-head CI run.
+- No local test suite, release build, migration, PostgreSQL runtime, or browser suite was run during this checkpoint. Tests remain deferred to the end of the sprint. Phase 0 remains open pending the full matrix on one exact head and resolution of the frontend/API test failures.
