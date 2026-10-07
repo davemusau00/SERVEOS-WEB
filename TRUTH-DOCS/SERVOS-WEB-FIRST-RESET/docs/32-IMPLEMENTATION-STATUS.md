@@ -25,21 +25,25 @@
 - Added a one-use, five-minute API device-enrollment challenge signed by the PWA key and a client enrollment helper; issuance and completion both require device-management permission and challenge issuance is rate-limited.
 - Added PWA IndexedDB stores for verified offline grants, immutable hashed BusinessDocument snapshots, and durable print-job state; added local-storage diagnostics and sync status broadcasts across tabs.
 - Added ECDSA grant-signature verification, an authenticated SSE change-invalidation endpoint, API runtime configuration validation, and worker lease renewal/expiry fencing.
-- Added a typed PWA API client for in-memory bearer access, device-scoped requests, command/status/change/catalog calls, enrollment calls, and command-status recovery after response loss. The existing Web sign-in screen now offers a separate API catalog pilot login that issues API staff sessions, rotates required initial passwords, enrolls the browser key, bootstraps catalog records, and uses an API-only IndexedDB database and transport. The broader production Web workspace remains Supabase-backed pending domain parity.
+- Added a typed PWA API client for in-memory bearer access, device-scoped requests, command/status/change/catalog calls, enrollment calls, and command-status recovery after response loss. The API login now opens the main PWA business workspace with an API-only IndexedDB projection and API CloudTransport. That workspace exposes Home, Catalog, Activity, and Help; command submission is enabled only for `product.save`, `stockItem.save`, and `stockLocation.save`, and all other command names are blocked before enqueue.
 - Added durable API command lifecycle states (`RECEIVED`, `PROCESSING`, `CONFIRMED`, `REJECTED`, `CONFLICT`), terminal error storage, failure audit events, and command-status recovery before an outcome-unknown PWA command is resubmitted. The durable row retains command identity and payload hash without duplicating sensitive request bodies. Legacy committed rows migrate as `CONFIRMED`.
-- Converged API bootstrap and change polling on the PWA `records[]` projection shape. Catalog bootstrap reads its records and high-water cursor in one repeatable-read transaction; change pages return the same event shape and cursor metadata.
+- Converged API bootstrap and change polling on the PWA `records[]` projection shape. Catalog bootstrap reads its records and high-water cursor in one repeatable-read transaction; change pages are adapted into the shared PWA `ChangePage` shape. API reconnect refresh rebuilds the catalog projection from a consistent bootstrap and preserves unresolved local commands rather than overwriting their outcomes.
 - Added signed, short-lived, bounded API offline grants for explicitly grant-capable catalog edits, server-side grant quota/replay accounting, atomic local quota reservation with API-authority PWA command enqueue, offline queue admission, and API status polling on reconnect. This is limited to `product.save`, `stockItem.save`, and `stockLocation.save`; POS, payment, inventory movement, procurement, and hospitality workflows remain online or draft-only until their API handlers exist.
-- Added relational stock-location code/type storage and its API save command so all three catalog record types shown in the API catalog pilot are represented by durable API-owned fields.
-- Added an API-native login/password-change/device-enrollment coordinator and an API catalog bootstrap installer for the existing PWA IndexedDB stores. These are integration primitives; the production Web sign-in and workspace still use Supabase and do not yet call this coordinator or API transport.
+- Added relational stock-location code/type storage and its API save command so the catalog workspace's three record types are represented by durable API-owned fields.
+- Added an API-native login/password-change/device-enrollment coordinator and connected it to the main PWA sign-in/workspace path. Supabase remains available for the separately selected Remote Manager mode and other not-yet-migrated operations.
+- Fixed the API staff-login migration's invalid expression-based table-level UNIQUE constraint; a unique expression index now enforces active case-insensitive login names.
+- Fixed API command kernel test adapters for the durable lifecycle and added durable rejection/conflict replay coverage.
+- Added a PostgreSQL integration test for fresh migrations, product/stock/location writes, API command status, terminal conflict replay, repeatable catalog bootstrap, and ordered change-feed entries. Added a CI PostgreSQL 16 service job.
+- Updated GitHub Actions to run on `reset/vps-platform` pushes and manual dispatch, fixed evidence-summary environment indentation, and included API/PostgreSQL results in release evidence. Release-candidate generation remains restricted to `main`.
 
 ## Still pending
 
 - Generated-file policy decision.
-- Expand the API pilot into the production Web workspace only as domain handlers and projections replace each Supabase workflow. The existing standard Web sign-in and business workspace still use Supabase; the new API entry is limited to catalog operations.
+- Continue domain migration in the production Web workspace. The API-authoritative PWA entry currently supports catalog master writes only; no POS or financial command is enabled.
 - Domain handlers must update `business_entity_versions` in the same business transaction; version increments now cover catalog products and stock masters, while complete cross-aggregate version semantics and existing-record updates still need review.
-- Shared API/client contract generation, broad authenticated bootstrap/change-feed/SSE coverage, and PWA API transport activation. Current browser synchronization still uses Supabase and snapshot bootstrap.
+- Shared API/client contract generation and broad authenticated bootstrap/change-feed/SSE coverage. The API transport is active in the API-authoritative PWA workspace; the older Supabase mode still uses its existing transport.
 - Complete operation payload parity and tests for product/stock commands, including bottle/package units, batch yields, and opening movements; connect projections to the PWA once API staff login and migration are ready.
-- API image validation and isolated staging deployment. Docker/PostgreSQL are unavailable in this environment; no live DB migration was run.
+- API image validation and isolated staging deployment. No hosted/staging database or live deployment was changed.
 - Actual off-VPS encrypted backup and restore verification.
 - Business domain migrations, document spooler/Print Bridge, one-time data migration, pilot, production cutover, and Tauri retirement.
 
@@ -47,9 +51,10 @@
 
 - The documentation bundle at `docs/docs.zip` was restored to the tracked `docs/` paths it contains so the existing help build, production build, and repository source tests can operate from this checkout.
 - Before the latest edits, the production build succeeded, the existing JavaScript suite passed 216/216, the native Rust/domain suite passed 106/106, and the API suite passed 13/13. Those results do not cover later edits.
-- The user requested that further tests be deferred until the end of the development sprint. Continue implementation without running test commands; perform the full planned verification matrix at sprint end.
-- Current development edits to migration 004 and its handlers are intentionally unverified because the sprint test gate is deferred. Do not treat this source slice as accepted or production-ready.
-- The current architectural-blocker implementation edits are also intentionally unverified; no tests, build, typecheck, migration, or database command has been run after them. Revisit API signing-key provisioning and migration 007 in the deferred sprint-end verification.
-- Docker Desktop and `psql` are unavailable in this environment. PostgreSQL migrations, container startup, real transaction concurrency, and staging deployment remain unverified.
+- The latest user explicitly requested real PostgreSQL API tests and reload/reconnect/change-feed proof. API unit tests and the PostgreSQL integration test passed locally against a disposable PostgreSQL 16 Docker container; no hosted/staging database was used.
+- `npm run lint` passed after API workspace wiring. A production build was started but its wrapper returned without final output, so the build result is unverified for this continuation.
+- A focused Playwright API-workspace scenario was added, but the local Playwright runner hung in its Windows test-server process and produced no result artifacts. Browser login/reload/reconnect behavior is therefore not yet proven; retry with a stable Playwright process before continuing to POS.
+- GitHub Actions was configured in source but no workflow dispatch or remote push was performed; hosted CI status is not yet verified.
+- Local disposable PostgreSQL and API processes were stopped; the disposable Docker database container remains available for another run and contains test-only records.
 
 Production use is not enabled by this slice. See roadmap phases 0–17 and gate production activation on their evidence.
