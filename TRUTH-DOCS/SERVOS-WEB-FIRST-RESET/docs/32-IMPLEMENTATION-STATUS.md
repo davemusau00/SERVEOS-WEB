@@ -834,3 +834,10 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 
 - Added typed office routing for SUPPLIER_RETURN_NOTE with return/supplier/GRN identities, unique lines, package/base-unit conservation, condition, line and total estimated-credit reconciliation, dispatch/acknowledgement provenance and bounded business logo/footer.
 - The layout states physical return evidence only and suppresses payment QR. Browser fallback remains available. Bridge compilation, print transport, target-printer layout and physical acknowledgement remain unverified/deferred.
+
+### Supplier payable credit settlement lifecycle (source only; migration unapplied)
+
+- Added migration 047 with an explicit `SETTLED` payable state when matched invoice liability is fully cleared by supplier credit, including a mixed cash-payment/credit settlement. Uninvoiced payables remain uninvoiced until invoice evidence is reviewed.
+- Supplier return credit matching and credit application now update payable status and version alongside credited balance. Invoice matching and later payments derive the status from paid plus credited amounts, so a fully settled payable is no longer presented as open for payment.
+- Supplier credit-note matching now emits the `supplierCredits` balance projection in the same command result, allowing the change feed to expose newly available credit without waiting for bootstrap/reload.
+- Source-only review; no tests, lint, builds or migrations were run, following the instruction to defer verification until the end of the sprint.

@@ -27,7 +27,8 @@ async function matchInvoice({tx,command,actor,at}){
  if(seen.size!==accepted.length||total!==BigInt(p.invoiceAmountMinor)||total!==BigInt(payable.amount_minor)||total!==BigInt(snapshot.acceptedTotalMinor))fail('Invoice must match every accepted GRN line and the payable control total.');
  const version=await tx.bumpEntityVersion(actor.businessId,'supplierPayables',p.payableId,expected);
  const evidence={schemaVersion:1,invoiceNumber,invoiceDate,dueDate,invoiceAmountMinor:p.invoiceAmountMinor,goodsReceiptId:payable.grn_id,supplierId:payable.supplier_id,lines:matched,reason,matchedBy:actor.staffId,deviceId:actor.deviceId,matchedAt:at.toISOString(),sourceCommandId:command.commandId};
- await tx.client.query(`UPDATE procurement_payables SET status='MATCHED_UNPAID',invoice_number=$3,invoice_date=$4,due_date=$5,invoice_snapshot=$6::jsonb,version=$7 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.payableId,invoiceNumber,invoiceDate,dueDate,JSON.stringify(evidence),version]);
+ const credited=BigInt(payable.credited_minor??0),paid=BigInt(payable.paid_minor),status=paid+credited===BigInt(payable.amount_minor)?'SETTLED':paid>0n?'PARTIALLY_PAID':'MATCHED_UNPAID';
+ await tx.client.query(`UPDATE procurement_payables SET status=$3,invoice_number=$4,invoice_date=$5,due_date=$6,invoice_snapshot=$7::jsonb,version=$8 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.payableId,status,invoiceNumber,invoiceDate,dueDate,JSON.stringify(evidence),version]);
  const value=(await payableProjections(tx.client,actor.businessId)).find(row=>row.id===p.payableId);return {value,records:[value]};
 }
 export const supplierInvoiceCommandRegistry=new Map([['supplierPayable.matchInvoice',{permission:'procurement.manage',offlinePolicy:'ONLINE_ONLY',handler:matchInvoice}]]);
