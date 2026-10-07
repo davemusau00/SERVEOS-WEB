@@ -11,6 +11,7 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use url::Url;
 use windows_service::{
     define_windows_service,
     service::{
@@ -20,7 +21,6 @@ use windows_service::{
     service_control_handler::{self, ServiceControlHandlerResult},
     service_dispatcher,
 };
-use url::Url;
 
 const SERVICE_NAME: &str = "ServOSPrintBridge";
 const STOP_MESSAGE: &[u8] = b"SERVOS_PRINT_BRIDGE_SHUTDOWN\n";
@@ -72,7 +72,9 @@ fn read_configuration(path: &Path) -> Result<LaunchConfiguration, String> {
             origin.scheme() == "https"
                 && origin.origin().ascii_serialization() == config.https_origin
                 && matches!(origin.host_str(), Some("localhost" | "127.0.0.1"))
-                && origin.port_or_known_default().is_some_and(|port| port >= 1024)
+                && origin
+                    .port_or_known_default()
+                    .is_some_and(|port| port >= 1024)
         })
         .unwrap_or(false);
     if paths.iter().any(|path| !path.is_absolute())
@@ -123,7 +125,11 @@ fn event(configuration_path: Option<&Path>, code: &str) {
     let Ok(file) = OpenOptions::new().create(true).append(true).open(path) else {
         return;
     };
-    if file.metadata().map(|metadata| metadata.len() < 1024 * 1024).unwrap_or(false) {
+    if file
+        .metadata()
+        .map(|metadata| metadata.len() < 1024 * 1024)
+        .unwrap_or(false)
+    {
         let mut file = file;
         let _ = writeln!(file, "{} {}", now.as_secs(), code);
     }
@@ -250,14 +256,14 @@ fn run_service(configuration_path: Option<PathBuf>, log_path: Option<&Path>) -> 
         match stop_receiver.recv_timeout(Duration::from_millis(500)) {
             Ok(()) | Err(RecvTimeoutError::Disconnected) => {
                 let _ = status_handle.set_service_status(ServiceStatus {
-                        service_type: ServiceType::OWN_PROCESS,
-                        current_state: ServiceState::StopPending,
-                        controls_accepted: ServiceControlAccept::empty(),
-                        exit_code: ServiceExitCode::Win32(0),
-                        checkpoint: 1,
-                        wait_hint: STOP_TIMEOUT + Duration::from_secs(5),
-                        process_id: None,
-                    });
+                    service_type: ServiceType::OWN_PROCESS,
+                    current_state: ServiceState::StopPending,
+                    controls_accepted: ServiceControlAccept::empty(),
+                    exit_code: ServiceExitCode::Win32(0),
+                    checkpoint: 1,
+                    wait_hint: STOP_TIMEOUT + Duration::from_secs(5),
+                    process_id: None,
+                });
                 event(log_path, "STOP_REQUESTED");
                 let result = match stop_child(&mut child) {
                     Ok(result) => result,
@@ -267,7 +273,14 @@ fn run_service(configuration_path: Option<PathBuf>, log_path: Option<&Path>) -> 
                         false
                     }
                 };
-                event(log_path, if result { "HOST_STOPPED" } else { "HOST_STOP_UNCERTAIN" });
+                event(
+                    log_path,
+                    if result {
+                        "HOST_STOPPED"
+                    } else {
+                        "HOST_STOP_UNCERTAIN"
+                    },
+                );
                 break if result { 0 } else { 1 };
             }
             Err(RecvTimeoutError::Timeout) => {

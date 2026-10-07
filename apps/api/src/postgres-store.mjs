@@ -217,6 +217,31 @@ export class PostgresStore {
     }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
   }
 
+  async createCatalogBootstrapSnapshot({snapshotId,businessId,staffId,deviceId,sessionId,authorizationHash,manifest,records,createdAt,expiresAt}){
+    return this.transaction(async tx=>{
+      await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`api-bootstrap:${businessId}:${sessionId}`]);
+      await tx.client.query('DELETE FROM api_business_bootstrap_snapshots WHERE expires_at<=$1',[createdAt]);
+      await tx.client.query(`DELETE FROM api_business_bootstrap_snapshots WHERE snapshot_id IN (SELECT snapshot_id FROM api_business_bootstrap_snapshots WHERE business_id=$1 AND session_id=$2 ORDER BY created_at DESC,snapshot_id OFFSET 3)`,[businessId,sessionId]);
+      await tx.client.query(`INSERT INTO api_business_bootstrap_snapshots(snapshot_id,business_id,staff_id,device_id,session_id,authorization_hash,schema_version,high_water_cursor,record_count,manifest,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12)`,[snapshotId,businessId,staffId,deviceId,sessionId,authorizationHash,manifest.schemaVersion,manifest.highWaterCursor,manifest.recordCount,JSON.stringify(manifest),createdAt,expiresAt]);
+      for(let offset=0;offset<records.length;offset+=500){
+        const batch=records.slice(offset,offset+500).map((projection,index)=>({ordinal:offset+index,collection:projection.collection,recordId:projection.id,projection}));
+        await tx.client.query(`INSERT INTO api_business_bootstrap_snapshot_records(snapshot_id,ordinal,collection,record_id,projection) SELECT $1,(item->>'ordinal')::integer,item->>'collection',item->>'recordId',item->'projection' FROM jsonb_array_elements($2::jsonb) AS item`,[snapshotId,JSON.stringify(batch)]);
+      }
+      return {snapshotId,recordCount:records.length};
+    });
+  }
+
+  async catalogBootstrapPage({snapshotId,businessId,staffId,deviceId,sessionId,authorizationHash,after,at}){
+    const {rows:metadataRows}=await this.pool.query(`SELECT manifest,expires_at AS "expiresAt" FROM api_business_bootstrap_snapshots WHERE snapshot_id=$1 AND business_id=$2 AND staff_id=$3 AND device_id=$4 AND session_id=$5 AND authorization_hash=$6`,[snapshotId,businessId,staffId,deviceId,sessionId,authorizationHash]);
+    const metadata=metadataRows[0];if(!metadata||metadata.expiresAt<=at)return null;
+    const manifest=typeof metadata.manifest==='string'?JSON.parse(metadata.manifest):metadata.manifest;
+    if(!Number.isSafeInteger(after)||after<0||after>=manifest.recordCount||after%manifest.pageSize!==0)return null;
+    const pageIndex=after/manifest.pageSize,{rows}=await this.pool.query(`SELECT ordinal,projection FROM api_business_bootstrap_snapshot_records WHERE snapshot_id=$1 AND ordinal >= $2 AND ordinal < $3 ORDER BY ordinal`,[snapshotId,after,Math.min(after+manifest.pageSize,manifest.recordCount)]);
+    const records=rows.map(row=>typeof row.projection==='string'?JSON.parse(row.projection):row.projection),nextOrdinal=after+records.length;
+    if(records.length!==Math.min(manifest.pageSize,manifest.recordCount-after))throw new Error('Stored API bootstrap page is incomplete.');
+    return {snapshotId,afterOrdinal:after,nextOrdinal,hasMore:nextOrdinal<manifest.recordCount,pageIndex,sha256:manifest.pageHashes[pageIndex],records};
+  }
+
   async authenticateSession(tokenHash, deviceId, now = new Date()) {
     const {rows} = await this.pool.query(`
       SELECT s.business_id AS "businessId", s.staff_id AS "staffId", d.id AS "deviceId",
@@ -253,23 +278,38 @@ export class PostgresStore {
     return rows.map(row=>({...row,createdAt:row.createdAt.toISOString(),expiresAt:row.expiresAt.toISOString(),revokedAt:row.revokedAt?.toISOString()??null,expired:row.expiresAt<=at}));
   }
 
-  async rotateRefreshToken({tokenHash,nextRefreshTokenId,nextRefreshTokenHash,nextRefreshExpiresAt,nextAccessTokenId,nextAccessTokenHash,nextAccessExpiresAt,at}){
+  async rotateRefreshToken({expectedSessionId,tokenHash,nextRefreshTokenId,nextRefreshTokenHash,nextRefreshExpiresAt,nextAccessTokenId,nextAccessTokenHash,nextAccessExpiresAt,at}){
     return this.transaction(async tx=>{
-      const {rows}=await tx.client.query(`SELECT t.id AS "tokenId",t.used_at AS "usedAt",t.revoked_at AS "tokenRevokedAt",t.expires_at AS "tokenExpiresAt",f.id AS "familyId",f.business_id AS "businessId",f.staff_id AS "staffId",f.session_id AS "sessionId",f.expires_at AS "familyExpiresAt",f.revoked_at AS "familyRevokedAt",s.revoked_at AS "sessionRevokedAt",s.device_id AS "deviceId",p.active AS "staffActive",p.must_change_password AS "mustChangePassword",p.display_name AS "displayName",d.revoked_at AS "deviceRevokedAt" FROM api_refresh_tokens t JOIN api_refresh_families f ON f.id=t.family_id JOIN api_staff_sessions s ON s.id=f.session_id JOIN api_staff_profiles p ON p.business_id=f.business_id AND p.staff_id=f.staff_id LEFT JOIN api_enrolled_devices d ON d.business_id=s.business_id AND d.id=s.device_id WHERE t.token_hash=$1 FOR UPDATE OF t,f,s`,[tokenHash]);
-      const row=rows[0];if(!row)return {kind:'INVALID'};
-      if(row.usedAt&&!row.familyRevokedAt&&!row.sessionRevokedAt){
+      const {rows:located}=await tx.client.query('SELECT t.id AS "tokenId",t.family_id AS "familyId",f.session_id AS "sessionId" FROM api_refresh_tokens t JOIN api_refresh_families f ON f.id=t.family_id WHERE t.token_hash=$1 AND f.session_id=$2',[tokenHash,expectedSessionId]);
+      const location=located[0];if(!location)return {kind:'INVALID'};
+      const {rows:sessions}=await tx.client.query('SELECT id AS "sessionId",revoked_at AS "sessionRevokedAt",device_id AS "deviceId",business_id AS "businessId",staff_id AS "staffId" FROM api_staff_sessions WHERE id=$1 FOR UPDATE',[location.sessionId]);
+      const {rows:families}=await tx.client.query('SELECT id AS "familyId",expires_at AS "familyExpiresAt",revoked_at AS "familyRevokedAt" FROM api_refresh_families WHERE id=$1 FOR UPDATE',[location.familyId]);
+      const {rows:tokens}=await tx.client.query('SELECT id AS "tokenId",used_at AS "usedAt",rotated_to_token_id AS "rotatedToTokenId",revoked_at AS "tokenRevokedAt",expires_at AS "tokenExpiresAt" FROM api_refresh_tokens WHERE id=$1 FOR UPDATE',[location.tokenId]);
+      const session=sessions[0],family=families[0],token=tokens[0];if(!session||!family||!token)return {kind:'INVALID'};
+      const {rows:profiles}=await tx.client.query('SELECT active AS "staffActive",must_change_password AS "mustChangePassword",display_name AS "displayName" FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2',[session.businessId,session.staffId]);
+      const {rows:devices}=session.deviceId?await tx.client.query('SELECT revoked_at AS "deviceRevokedAt" FROM api_enrolled_devices WHERE business_id=$1 AND id=$2',[session.businessId,session.deviceId]):{rows:[{deviceRevokedAt:null}]};
+      const row={...token,...family,...session,...profiles[0],...(devices[0]||{})};
+      const retryWindow=row.usedAt&&at.getTime()>=row.usedAt.getTime()&&at.getTime()-row.usedAt.getTime()<=30_000;
+      if(row.usedAt&&!retryWindow&&!row.familyRevokedAt&&!row.sessionRevokedAt){
         await tx.client.query('UPDATE api_refresh_families SET revoked_at=$2 WHERE id=$1 AND revoked_at IS NULL',[row.familyId,at]);
         await tx.client.query('UPDATE api_staff_sessions SET revoked_at=$2 WHERE id=$1 AND revoked_at IS NULL',[row.sessionId,at]);
         const commandId=randomUUID();await tx.client.query(`INSERT INTO api_session_events(business_id,id,session_id,staff_id,event_type,before_state,after_state,command_id,actor_staff_id,actor_device_id,occurred_at) VALUES($1,$2,$3,$4,'REVOKED',$5::jsonb,$6::jsonb,$7,$4,NULL,$8)`,[row.businessId,randomUUID(),row.sessionId,row.staffId,JSON.stringify({revokedAt:null,cause:'REFRESH_TOKEN_REPLAY'}),JSON.stringify({revokedAt:at.toISOString(),cause:'REFRESH_TOKEN_REPLAY'}),commandId,at]);
         return {kind:'REPLAY'};
       }
-      if(row.usedAt||row.tokenRevokedAt||row.familyRevokedAt||row.sessionRevokedAt||row.tokenExpiresAt<=at||row.familyExpiresAt<=at||!row.staffActive||row.deviceRevokedAt)return {kind:'INVALID'};
-      const accessExpiry=new Date(Math.min(nextAccessExpiresAt.getTime(),row.familyExpiresAt.getTime())),refreshExpiry=new Date(Math.min(nextRefreshExpiresAt.getTime(),row.familyExpiresAt.getTime()));
-      await tx.client.query('UPDATE api_refresh_tokens SET used_at=$2 WHERE id=$1 AND used_at IS NULL',[row.tokenId,at]);
-      await tx.client.query('INSERT INTO api_refresh_tokens(id,family_id,token_hash,issued_at,expires_at) VALUES($1,$2,$3,$4,$5)',[nextRefreshTokenId,row.familyId,nextRefreshTokenHash,at,refreshExpiry]);
+      if((row.usedAt&&!retryWindow)||row.tokenRevokedAt||row.familyRevokedAt||row.sessionRevokedAt||row.tokenExpiresAt<=at||row.familyExpiresAt<=at||!row.staffActive||row.deviceRevokedAt)return {kind:'INVALID'};
+      const accessExpiry=new Date(Math.min(nextAccessExpiresAt.getTime(),row.familyExpiresAt.getTime()));let refreshTokenId=nextRefreshTokenId,refreshExpiry=new Date(Math.min(nextRefreshExpiresAt.getTime(),row.familyExpiresAt.getTime()));
+      if(row.usedAt){
+        if(!row.rotatedToTokenId)return {kind:'INVALID'};
+        const {rows:successors}=await tx.client.query('SELECT id AS "tokenId",expires_at AS "tokenExpiresAt",revoked_at AS "tokenRevokedAt" FROM api_refresh_tokens WHERE id=$1 AND family_id=$2 FOR UPDATE',[row.rotatedToTokenId,row.familyId]);
+        const successor=successors[0];if(!successor||successor.tokenRevokedAt||successor.tokenExpiresAt<=at)return {kind:'INVALID'};
+        refreshTokenId=successor.tokenId;refreshExpiry=successor.tokenExpiresAt;
+      }else{
+        await tx.client.query('INSERT INTO api_refresh_tokens(id,family_id,token_hash,issued_at,expires_at) VALUES($1,$2,$3,$4,$5)',[nextRefreshTokenId,row.familyId,nextRefreshTokenHash,at,refreshExpiry]);
+        await tx.client.query('UPDATE api_refresh_tokens SET used_at=$2,rotated_to_token_id=$3 WHERE id=$1 AND used_at IS NULL',[row.tokenId,at,nextRefreshTokenId]);
+      }
       await tx.client.query('INSERT INTO api_access_tokens(id,business_id,staff_id,session_id,token_hash,issued_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7)',[nextAccessTokenId,row.businessId,row.staffId,row.sessionId,nextAccessTokenHash,at,accessExpiry]);
       const {rows:permissionRows}=await tx.client.query('SELECT permission FROM api_staff_permissions WHERE business_id=$1 AND staff_id=$2 ORDER BY permission',[row.businessId,row.staffId]);
-      return {kind:'ROTATED',sessionId:row.sessionId,businessId:row.businessId,staffId:row.staffId,displayName:row.displayName,permissions:permissionRows.map(item=>item.permission),mustChangePassword:row.mustChangePassword,accessExpiresAt:accessExpiry,refreshExpiresAt:refreshExpiry};
+      return {kind:row.usedAt?'RETRIED':'ROTATED',refreshTokenId,sessionId:row.sessionId,businessId:row.businessId,staffId:row.staffId,displayName:row.displayName,permissions:permissionRows.map(item=>item.permission),mustChangePassword:row.mustChangePassword,accessExpiresAt:accessExpiry,refreshExpiresAt:refreshExpiry};
     });
   }
 
@@ -363,9 +403,11 @@ export class PostgresStore {
 
   async revokeSession(tokenHash,at=new Date()) {
     return this.transaction(async tx=>{
-      const {rows}=await tx.client.query('SELECT id FROM api_staff_sessions WHERE token_hash=$1 UNION SELECT session_id AS id FROM api_access_tokens WHERE token_hash=$1',[tokenHash]);
-      if(!rows.length)return false;
-      const sessionIds=rows.map(row=>row.id);await tx.client.query('UPDATE api_staff_sessions SET revoked_at=$2 WHERE id=ANY($1::uuid[]) AND revoked_at IS NULL',[sessionIds,at]);await tx.client.query('UPDATE api_refresh_families SET revoked_at=$2 WHERE session_id=ANY($1::uuid[]) AND revoked_at IS NULL',[sessionIds,at]);return true;
+      const {rows}=await tx.client.query('SELECT s.id,s.business_id AS "businessId",s.staff_id AS "staffId",s.device_id AS "deviceId",s.revoked_at AS "revokedAt" FROM api_staff_sessions s WHERE s.token_hash=$1 OR s.id IN (SELECT session_id FROM api_access_tokens WHERE token_hash=$1) FOR UPDATE',[tokenHash]);
+      if(!rows.length)return {revoked:false};
+      const sessionIds=rows.map(row=>row.id);await tx.client.query('UPDATE api_staff_sessions SET revoked_at=$2 WHERE id=ANY($1::uuid[]) AND revoked_at IS NULL',[sessionIds,at]);await tx.client.query('UPDATE api_refresh_families SET revoked_at=$2 WHERE session_id=ANY($1::uuid[]) AND revoked_at IS NULL',[sessionIds,at]);
+      for(const session of rows)if(!session.revokedAt){const commandId=randomUUID();await tx.client.query(`INSERT INTO api_session_events(business_id,id,session_id,staff_id,event_type,before_state,after_state,command_id,actor_staff_id,actor_device_id,occurred_at) VALUES($1,$2,$3,$4,'REVOKED',$5::jsonb,$6::jsonb,$7,$4,$8,$9)`,[session.businessId,randomUUID(),session.id,session.staffId,JSON.stringify({revokedAt:null}),JSON.stringify({revokedAt:at.toISOString(),cause:'LOGOUT'}),commandId,session.deviceId,at]);}
+      return {revoked:true,sessionId:rows[0].id};
     });
   }
 

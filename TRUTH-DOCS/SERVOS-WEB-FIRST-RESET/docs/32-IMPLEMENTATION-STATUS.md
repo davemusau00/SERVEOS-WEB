@@ -10,6 +10,9 @@ The verification-first continuation below supersedes earlier test-deferral and s
 - Durable domain rejections/conflicts are retained; infrastructure errors remain unresolved and replayable. Change records are explicit, and location-balance revisions guard reviewed inventory commands against ABA changes.
 - Complete production browser rerun: **88 passed**, 4 skipped (dedicated real API scenario runs separately). GitHub Actions YAML parses and requires the API browser gate, but hosted CI green is **unverified**.
 - Next business gates: receiving and exact movement reversal with immutable physical-state evidence and later-activity blockers, then online POS, consumption, payments/tills and printing. Procurement/rooms expansion, production writers and cutover remain gated.
+- Source-only auth continuation adds migration 061 to bind a consumed refresh token to one successor. A response-loss retry now re-derives and returns that same successor, preventing the previous implementation from creating competing children. Migrations 060-061 and auth runtime behavior have not been executed or verified.
+- Hosted CI run #274 for remote commit `871f542` reported a frontend parse failure in `supplier-return-commands.mjs:22` from nested single quotes in its SQL, plus bridge formatting failures on Linux and Windows. The current worktree uses a template literal and has had `cargo fmt` applied to both bridge manifests. These changes and current local HEAD have not been run through local checks or CI.
+- API bootstrap now carries a deterministic, permission-filtered manifest (schema, high-water cursor, collection counts and SHA-256); the PWA verifies record shape, uniqueness, counts and hash before the existing atomic snapshot replacement. Paged transport and durable temporary staging remain open. This source change is unverified.
 
 ## Baseline captured for this checkout
 
@@ -962,16 +965,17 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added migration 059 for append-only session revocation evidence. Authenticated staff can list only their own latest 100 sessions and revoke another session belonging to the same staff profile; the current session must use Sign out and cannot be revoked through this endpoint.
 - Added API endpoints and PWA session dialog with session/device IDs, created/expiry/revocation state and explicit revocation confirmation. Session listing is read-only; access tokens remain only in the in-memory auth closure, and no refresh credential is persisted.
 - Password changes now compare the current credential inside the database transaction, retain the initiating session, revoke every other active staff session, and append revocation evidence with `PASSWORD_CHANGED` cause.
-- This does not yet implement rotating refresh tokens, cookie sessions, token-family replay detection or automatic access-token renewal. No tests, migration, API, concurrency, reload or browser checks were run.
+- Session expiry/rotation behavior is tracked in the later rotating API access/refresh section below. No tests, migration, API, concurrency, reload or browser checks were run.
 
 ### Initial-admin setup secret lifecycle (source only)
 
 - On startup, the API checks whether staff setup has already completed and removes `INITIAL_ADMIN_SETUP_SECRET` from its process environment when an Admin profile exists. Successful one-time setup also removes it immediately; the database's existing one-Admin bootstrap fence remains authoritative after restarts.
 - This is source behavior only. Deployment secret-store cleanup, startup behavior, concurrent setup and restart acceptance remain unverified.
 
-### Rotating API access/refresh sessions (source only; migration unapplied)
+### Rotating API access/refresh sessions (source only; migrations unapplied)
 
-- Migration 060 adds hashed access-token rows, refresh families and single-use hashed refresh tokens; existing access sessions are copied into the new token table so their current expiry remains valid.
-- API login issues a 15-minute bearer access token and a 30-day HttpOnly SameSite refresh cookie bounded by a 90-day family. Rotation creates a new refresh token and access token. Reuse of a consumed token revokes the family and session and appends replay evidence; session/device/staff revocation also invalidates refresh through the parent session.
-- The PWA keeps access tokens in memory, sends the refresh cookie only with credentialed API requests, coordinates refresh calls with Web Locks where supported, and retries one 401 request with the refreshed bearer. SSE authentication also refreshes once. No refresh token is written to IndexedDB or localStorage.
-- This source has not been tested or run. Migration, cookie/CORS/HTTPS deployment, cross-tab behavior, refresh replay, expiry, logout, session/password/device revocation, SSE reconnect and browser acceptance remain unverified.
+- Migration 060 adds hashed access-token rows, refresh families and hashed refresh tokens; existing access sessions are copied into the new token table so their current expiry remains valid. Migration 061 links each consumed refresh token to exactly one successor.
+- API login issues a 15-minute bearer access token and a 30-day HttpOnly SameSite refresh cookie bounded by a 90-day family. A retry within 30 seconds re-derives the same successor and issues a fresh access token, preventing response-loss retries from creating competing child tokens. Reuse after the recovery window revokes the family and session and appends replay evidence; session/device/staff revocation also revokes refresh families.
+- Refresh cookies are named and path-scoped to their session ID, and the rotation route binds the presented token to that same session. This keeps simultaneous staff sign-ins on a shared terminal from overwriting or crossing refresh credentials.
+- The PWA keeps access tokens in memory, sends the refresh cookie only with credentialed API requests, serializes refresh calls across tabs with Web Locks, and retries one 401 request with the refreshed bearer. SSE authentication also refreshes once. No refresh token is written to IndexedDB or localStorage.
+- This source has not been tested or run. Migrations 060-061, cookie/CORS/HTTPS deployment, cross-tab behavior, refresh replay/retry, expiry, logout, session/password/device revocation, SSE reconnect and browser acceptance remain unverified.

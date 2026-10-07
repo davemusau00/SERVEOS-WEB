@@ -14,6 +14,7 @@ export interface WebSession {
 export interface WebGuidanceProgress {guideId:string;guideVersion:number;state:'IN_PROGRESS'|'COMPLETED'|'DISMISSED';currentStepId:string|null;completedStepIds:string[];updatedAt?:string}
 export type BusinessRecord=RecordVersion & {data:Record<string,unknown>;archived:boolean};
 export type Rpc=(path:string,body?:unknown)=>Promise<any>;
+const stableSnapshotJson=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(stableSnapshotJson).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${stableSnapshotJson((value as Record<string,unknown>)[key])}`).join(',')}}`;
 interface SnapshotPage {cursor:number;policyVersion:string;records:BusinessRecord[];hasMore:boolean;afterCollection:string;afterId:string}
 export const allowed=(session:WebSession,permission:string)=>session.permissions.includes('*')||session.permissions.includes(permission);
 
@@ -56,7 +57,17 @@ export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnTy
   const queued=await store.queue();
   if(queued.some(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN'))throw new Error('Saved API commands must be recovered before rebuilding this device projection.');
   const bootstrap=await client.bootstrapCatalog();
-  if(bootstrap.protocolVersion!==1||!Number.isSafeInteger(bootstrap.cursor)||bootstrap.cursor<0)throw new Error('API catalog bootstrap is invalid');
+  if(bootstrap.protocolVersion!==1||!Number.isSafeInteger(bootstrap.cursor)||bootstrap.cursor<0||!Array.isArray(bootstrap.records)||!bootstrap.manifest||bootstrap.manifest.schemaVersion!==1||bootstrap.manifest.highWaterCursor!==bootstrap.cursor||bootstrap.manifest.recordCount!==bootstrap.records.length||!/^[a-f0-9]{64}$/.test(bootstrap.manifest.sha256)||!bootstrap.manifest.collectionCounts||typeof bootstrap.manifest.collectionCounts!=='object'||Array.isArray(bootstrap.manifest.collectionCounts))throw new Error('API catalog bootstrap manifest is invalid');
+  const collectionCounts:Record<string,number>={},identities=new Set<string>();
+  for(const record of bootstrap.records){
+    if(!record||typeof record.collection!=='string'||!record.collection||typeof record.id!=='string'||!record.id||!Number.isSafeInteger(record.version)||record.version<1||!record.data||typeof record.data!=='object'||Array.isArray(record.data)||typeof record.archived!=='boolean')throw new Error('API catalog bootstrap contains an invalid record');
+    const key=`${record.collection}\u0000${record.id}`;if(identities.has(key))throw new Error('API catalog bootstrap contains a duplicate record');identities.add(key);collectionCounts[record.collection]=(collectionCounts[record.collection]||0)+1;
+  }
+  const countsMatch=Object.keys(collectionCounts).length===Object.keys(bootstrap.manifest.collectionCounts).length&&Object.entries(collectionCounts).every(([collection,count])=>bootstrap.manifest.collectionCounts[collection]===count);
+  if(!countsMatch)throw new Error('API catalog bootstrap collection counts do not match');
+  const manifestPayload={protocolVersion:bootstrap.protocolVersion,schemaVersion:bootstrap.manifest.schemaVersion,highWaterCursor:bootstrap.manifest.highWaterCursor,recordCount:bootstrap.manifest.recordCount,collectionCounts:bootstrap.manifest.collectionCounts,records:bootstrap.records};
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(stableSnapshotJson(manifestPayload)));
+  const computedHash=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');if(computedHash!==bootstrap.manifest.sha256)throw new Error('API catalog bootstrap hash does not match its manifest');
   await store.replaceSnapshot(bootstrap.records,bootstrap.cursor,policyVersion);
   return {cursor:bootstrap.cursor,records:bootstrap.records.length,policyVersion,reused:false};
 }

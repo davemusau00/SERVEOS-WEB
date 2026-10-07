@@ -46,6 +46,8 @@ Recommended pattern:
 
 Do not store long-lived refresh tokens in `localStorage`.
 
+Current API source uses 15-minute opaque bearer access tokens and an HttpOnly, SameSite refresh cookie scoped to one session ID and its refresh route. Refresh tokens are stored as hashes, rotate on use, and belong to a fixed 90-day session family. Reuse after the 30-second response-loss/concurrency window revokes the family. The PWA holds access tokens in memory and coordinates refresh through Web Locks. These source behaviors remain unverified until the migration, API and browser gates pass.
+
 ## 4. Terminal authentication
 
 Online:
@@ -277,3 +279,7 @@ Before production:
 - backup encryption/access review;
 - no database public exposure;
 - TLS grade/manual verification.
+
+## Refresh rotation response-loss behavior
+
+Migration 061 links every consumed refresh token to one successor. The API derives that successor from the presented parent token and its stored successor ID, then stores only the successor hash. A retry within the 30-second recovery window returns the same successor and issues a fresh access token; it cannot create a second child. Reuse after the recovery window revokes the refresh family and staff session. This is source behavior only until migrations 060-061 and the refresh concurrency/replay acceptance suite pass.

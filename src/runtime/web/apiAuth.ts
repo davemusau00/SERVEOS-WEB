@@ -14,9 +14,9 @@ export interface ApiAuthenticatedDeviceSession {
 
 /** Complete the API-native web sign-in lifecycle without placing the bearer in persistent web storage. */
 export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName:string;password:string;newPassword?:string;fetcher?:typeof fetch}):Promise<ApiAuthenticatedDeviceSession>{
-  let token:string|undefined;let device:string|undefined;
-  const makeClient=()=>createServOSApiClient({baseUrl:input.apiOrigin,accessToken:()=>token,setAccessToken:value=>{token=value},deviceId:()=>device,fetcher:input.fetcher});
-  const client=makeClient();let login=await client.login(input.loginName,input.password);token=login.accessToken;
+  let token:string|undefined,sessionId:string|undefined,device:string|undefined;
+  const makeClient=()=>createServOSApiClient({baseUrl:input.apiOrigin,accessToken:()=>token,setAccessToken:value=>{token=value},sessionId:()=>sessionId,deviceId:()=>device,fetcher:input.fetcher});
+  const client=makeClient();let login=await client.login(input.loginName,input.password);token=login.accessToken;sessionId=login.sessionId;
   try{
     if(login.mustChangePassword){
       if(!input.newPassword)throw new Error('This account requires a new password. Enter it in the setup field and sign in again.');
@@ -28,9 +28,9 @@ export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName
     const identity=await getOrCreateWebDeviceIdentity(profile.businessId);device=identity.deviceId;
     await enrollWebDeviceWithApi(input.apiOrigin,token,profile.businessId,profile.staffId,identity);
     return {client,identity,login,profile,signOut:async()=>{
-      try{await client.logout()}finally{token=undefined;device=undefined;login.accessToken=''}
+      try{await client.logout()}finally{token=undefined;sessionId=undefined;device=undefined;login.accessToken=''}
     }};
-  }catch(error){try{await client.logout().catch(()=>undefined)}finally{token=undefined;device=undefined;login.accessToken=''}throw error}
+  }catch(error){try{await client.logout().catch(()=>undefined)}finally{token=undefined;sessionId=undefined;device=undefined;login.accessToken=''}throw error}
 }
 
 /** Open isolated API-authority IndexedDB and install its records[] catalog projection. */

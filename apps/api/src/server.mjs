@@ -27,7 +27,7 @@ import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
 import {PostgresStore} from './postgres-store.mjs';
-import {createHash, createPrivateKey, createPublicKey, randomBytes, randomUUID, scrypt as scryptCallback, sign as signBytes, timingSafeEqual, verify as verifySignature} from 'node:crypto';
+import {createHash, createHmac, createPrivateKey, createPublicKey, randomBytes, randomUUID, scrypt as scryptCallback, sign as signBytes, timingSafeEqual, verify as verifySignature} from 'node:crypto';
 import {promisify} from 'node:util';
 import {catalogCommandRegistry} from './catalog-commands.mjs';
 import {readConfig} from './config.mjs';
@@ -38,10 +38,12 @@ const json = (res, status, value) => {
 };
 const scrypt=promisify(scryptCallback);
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ACCESS_TOKEN_TTL=15*60_000,REFRESH_TOKEN_TTL=30*24*60*60_000,REFRESH_FAMILY_TTL=90*24*60*60_000,REFRESH_COOKIE='servos_refresh';
+const ACCESS_TOKEN_TTL=15*60_000,REFRESH_TOKEN_TTL=30*24*60*60_000,REFRESH_FAMILY_TTL=90*24*60*60_000,REFRESH_COOKIE_PREFIX='servos_refresh_';
+const refreshCookieName=sessionId=>`${REFRESH_COOKIE_PREFIX}${sessionId}`;
+const deriveRotatedRefreshToken=(parentToken,childTokenId)=>createHmac('sha256',Buffer.from(parentToken,'base64url')).update(`serveos-refresh-rotation:${childTokenId}`).digest('base64url');
 const cookieValue=(req,name)=>String(req.headers.cookie||'').split(';').map(part=>part.trim()).find(part=>part.startsWith(`${name}=`))?.slice(name.length+1)||'';
-const refreshCookie=(token,maxAge,secure)=>`${REFRESH_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/v1/auth/; Max-Age=${Math.max(0,Math.floor(maxAge/1000))}${secure?'; Secure':''}`;
-const clearRefreshCookie=secure=>refreshCookie('',0,secure);
+const refreshCookie=(token,maxAge,secure,sessionId)=>`${refreshCookieName(sessionId)}=${token}; HttpOnly; SameSite=Strict; Path=/v1/auth/sessions/${sessionId}/refresh; Max-Age=${Math.max(0,Math.floor(maxAge/1000))}${secure?'; Secure':''}`;
+const clearRefreshCookie=(secure,sessionId)=>refreshCookie('',0,secure,sessionId);
 const secureRequest=req=>process.env.NODE_ENV==='production'||Boolean(req.socket.encrypted)||req.headers['x-forwarded-proto']==='https';
 const encodeCreditStatementCursor=value=>Buffer.from(JSON.stringify({v:1,h:value.highWater,b:value.before}),'utf8').toString('base64url');
 function decodeCreditStatementCursor(value){
@@ -128,15 +130,18 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const token=randomBytes(32).toString('base64url'),refreshToken=randomBytes(32).toString('base64url'),sessionId=randomUUID(),refreshFamilyId=randomUUID(),accessExpiresAt=new Date(now.getTime()+ACCESS_TOKEN_TTL),refreshExpiresAt=new Date(now.getTime()+REFRESH_TOKEN_TTL),sessionExpiresAt=new Date(now.getTime()+REFRESH_FAMILY_TTL);const result=await store.authenticatePassword({loginName,password,at:now,verifyPassword,sessionId,accessTokenId:randomUUID(),accessTokenHash:createHash('sha256').update(token).digest('hex'),accessExpiresAt,refreshFamilyId,refreshTokenId:randomUUID(),refreshTokenHash:createHash('sha256').update(refreshToken).digest('hex'),refreshExpiresAt,sessionExpiresAt});
         if(!result){await verifyPassword(password,dummyCredentialHash);await store.recordLoginFailure(buckets,now);throw new ApiProblem(401,'AUTH_INVALID','The staff login or password is not valid.');}
         await store.clearLoginFailures(buckets);
-        res.setHeader('set-cookie',refreshCookie(refreshToken,REFRESH_TOKEN_TTL,secureRequest(req)));
+        res.setHeader('set-cookie',refreshCookie(refreshToken,REFRESH_TOKEN_TTL,secureRequest(req),sessionId));
         return json(res,200,{accessToken:token,...result});
       }
-      if(req.method==='POST'&&url.pathname==='/v1/auth/refresh'){
+      const refreshPath=url.pathname.match(/^\/v1\/auth\/sessions\/([0-9a-f-]{36})\/refresh$/i);
+      if(req.method==='POST'&&refreshPath){
         if(!origin||req.headers.origin!==origin)throw new ApiProblem(403,'ORIGIN_DENIED','Refresh requires the registered application origin.');
-        const oldRefreshToken=cookieValue(req,REFRESH_COOKIE);if(!/^[A-Za-z0-9_-]{40,100}$/.test(oldRefreshToken)){res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req)));throw new ApiProblem(401,'REFRESH_REQUIRED','Sign in again to continue.');}
-        const now=new Date(),accessToken=randomBytes(32).toString('base64url'),nextRefreshToken=randomBytes(32).toString('base64url');const rotated=await store.rotateRefreshToken({tokenHash:createHash('sha256').update(oldRefreshToken).digest('hex'),nextRefreshTokenId:randomUUID(),nextRefreshTokenHash:createHash('sha256').update(nextRefreshToken).digest('hex'),nextRefreshExpiresAt:new Date(now.getTime()+REFRESH_TOKEN_TTL),nextAccessTokenId:randomUUID(),nextAccessTokenHash:createHash('sha256').update(accessToken).digest('hex'),nextAccessExpiresAt:new Date(now.getTime()+ACCESS_TOKEN_TTL),at:now});
-        if(rotated.kind!=='ROTATED'){res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req)));throw new ApiProblem(401,rotated.kind==='REPLAY'?'REFRESH_REPLAY':'REFRESH_INVALID','Your sign-in session ended. Sign in again.');}
-        res.setHeader('set-cookie',refreshCookie(nextRefreshToken,rotated.refreshExpiresAt.getTime()-now.getTime(),secureRequest(req)));
+        const refreshSessionId=refreshPath[1];if(!uuidPattern.test(refreshSessionId))throw new ApiProblem(400,'VALIDATION_FAILED','The refresh session ID is invalid.');
+        const oldRefreshToken=cookieValue(req,refreshCookieName(refreshSessionId));if(!/^[A-Za-z0-9_-]{40,100}$/.test(oldRefreshToken)){res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req),refreshSessionId));throw new ApiProblem(401,'REFRESH_REQUIRED','Sign in again to continue.');}
+        const now=new Date(),accessToken=randomBytes(32).toString('base64url'),nextRefreshTokenId=randomUUID(),nextRefreshToken=deriveRotatedRefreshToken(oldRefreshToken,nextRefreshTokenId);const rotated=await store.rotateRefreshToken({expectedSessionId:refreshSessionId,tokenHash:createHash('sha256').update(oldRefreshToken).digest('hex'),nextRefreshTokenId,nextRefreshTokenHash:createHash('sha256').update(nextRefreshToken).digest('hex'),nextRefreshExpiresAt:new Date(now.getTime()+REFRESH_TOKEN_TTL),nextAccessTokenId:randomUUID(),nextAccessTokenHash:createHash('sha256').update(accessToken).digest('hex'),nextAccessExpiresAt:new Date(now.getTime()+ACCESS_TOKEN_TTL),at:now});
+        if(rotated.kind!=='ROTATED'&&rotated.kind!=='RETRIED'){res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req),refreshSessionId));throw new ApiProblem(401,rotated.kind==='REPLAY'?'REFRESH_REPLAY':'REFRESH_INVALID','Your sign-in session ended. Sign in again.');}
+        const responseRefreshToken=rotated.refreshTokenId===nextRefreshTokenId?nextRefreshToken:deriveRotatedRefreshToken(oldRefreshToken,rotated.refreshTokenId);
+        res.setHeader('set-cookie',refreshCookie(responseRefreshToken,rotated.refreshExpiresAt.getTime()-now.getTime(),secureRequest(req),refreshSessionId));
         return json(res,200,{accessToken,sessionId:rotated.sessionId,businessId:rotated.businessId,staffId:rotated.staffId,displayName:rotated.displayName,permissions:rotated.permissions,mustChangePassword:rotated.mustChangePassword,expiresAt:rotated.accessExpiresAt.toISOString()});
       }
       if(req.method==='POST'&&url.pathname==='/v1/setup/initial-admin'){
@@ -155,9 +160,9 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if(req.method==='POST'&&url.pathname==='/v1/auth/logout'){
         const authorization=req.headers.authorization;if(typeof authorization!=='string'||!authorization.startsWith('Bearer '))throw new ApiProblem(401,'AUTH_REQUIRED','A staff session is required.');
-        const revoked=await store.revokeSession(createHash('sha256').update(authorization.slice(7)).digest('hex'));
-        res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req)));
-        return json(res,200,{revoked});
+        const result=await store.revokeSession(createHash('sha256').update(authorization.slice(7)).digest('hex'));
+        if(result.sessionId)res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req),result.sessionId));
+        return json(res,200,{revoked:result.revoked});
       }
       if(req.method==='POST'&&url.pathname==='/v1/auth/password'){
         const actor=await authenticateStaffSession(req,store);const input=await readJson(req);
@@ -179,7 +184,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if(req.method==='POST'&&revokeSessionPath){
         const actor=await authenticateStaffSession(req,store);if(!uuidPattern.test(revokeSessionPath[1]))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid session.');
         const revoked=await store.revokeOwnSession({businessId:actor.businessId,staffId:actor.staffId,sessionId:revokeSessionPath[1],currentSessionId:actor.sessionId,actorDeviceId:actor.deviceId||null,at:new Date()});
-        if(!revoked)throw new ApiProblem(404,'SESSION_UNAVAILABLE','This staff session is no longer available.');return json(res,200,{revoked:true});
+        if(!revoked)throw new ApiProblem(404,'SESSION_UNAVAILABLE','This staff session is no longer available.');res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req),revokeSessionPath[1]));return json(res,200,{revoked:true});
       }
       if (req.method === 'POST' && url.pathname === '/v1/devices/enrollment-challenges') {
         const actor = await authenticateUnenrolledStaffSession(req, store);
@@ -298,7 +303,11 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const actor = await authenticate(req);
         if (!['*','procurement.view','procurement.manage','procurement.receive','procurement.pay','suppliers.manage','catalog.view','catalog.manage','pos.sell','order.fire','order.void','order.discount','order.comp','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','kds.update','business.configure','order.refund','payment.reverse','reports.view','accounting.view','audit.view','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
         const bootstrap=await store.catalogBootstrap(actor.businessId);
-        return json(res,200,{protocolVersion:1,...bootstrap,records:filterRecords(actor,bootstrap.records)});
+        const records=filterRecords(actor,bootstrap.records).sort((left,right)=>left.collection===right.collection?(left.id<right.id?-1:left.id>right.id?1:0):(left.collection<right.collection?-1:1));
+        const wireRecords=JSON.parse(JSON.stringify(records));const collectionCounts=Object.fromEntries([...records.reduce((counts,record)=>counts.set(record.collection,(counts.get(record.collection)||0)+1),new Map()).entries()].sort(([left],[right])=>left<right?-1:left>right?1:0));
+        const manifest={schemaVersion:1,highWaterCursor:bootstrap.cursor,recordCount:wireRecords.length,collectionCounts};
+        const sha256=createHash('sha256').update(stableJson({protocolVersion:1,...manifest,records:wireRecords})).digest('hex');
+        return json(res,200,{protocolVersion:1,cursor:bootstrap.cursor,manifest:{...manifest,sha256},records:wireRecords});
       }
       if (req.method === 'POST' && url.pathname === '/v1/commands') {
         const actor = await authenticate(req);

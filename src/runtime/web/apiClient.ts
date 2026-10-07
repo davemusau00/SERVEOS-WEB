@@ -2,7 +2,7 @@ export interface ApiCommandEnvelope {commandId:string;name:string;payload:Record
 export interface ApiCommandOutcome {kind:'CONFIRMED'|'REJECTED'|'CONFLICT';commandId:string;cursor?:number;result?:unknown;error?:{code:string;message:string;retryable:boolean}}
 export interface ApiChangePage {protocolVersion:1;cursor:number;highWater:number;hasMore:boolean;changes:Array<{sequence:number;commandId:string;actorId?:string;deviceId?:string;occurredAt:string;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}>}
 export interface ApiCatalogItem {id:string;categoryId:string|null;name:string;sku:string|null;basePriceMinor:number;currency:string;trackInventory:boolean;version:number;createdAt:string}
-export interface ApiCatalogBootstrap {protocolVersion:number;cursor:number;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}
+export interface ApiCatalogBootstrap {protocolVersion:1;cursor:number;manifest:{schemaVersion:1;highWaterCursor:number;recordCount:number;collectionCounts:Record<string,number>;sha256:string};records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}
 export interface ApiCustomerCreditStatementPage {protocolVersion:1;customerId:string;items:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>;hasMore:boolean;nextCursor:string|null}
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
 export interface ApiStaffSession {sessionId:string;deviceId:string|null;createdAt:string;expiresAt:string;revokedAt:string|null;current:boolean;deviceRevoked:boolean;expired:boolean}
@@ -14,14 +14,15 @@ export class ApiOutcomeUnknown extends Error {
  constructor(readonly commandId:string){super('The API response was lost. Check this same command ID before creating another command.');this.name='ApiOutcomeUnknown'}
 }
 
-export interface ApiClientOptions {baseUrl:string;accessToken:()=>string|undefined;setAccessToken:(token:string)=>void;deviceId:()=>string|undefined;fetcher?:typeof fetch}
-export function createServOSApiClient({baseUrl,accessToken,setAccessToken,deviceId,fetcher=fetch}:ApiClientOptions){
+export interface ApiClientOptions {baseUrl:string;accessToken:()=>string|undefined;setAccessToken:(token:string)=>void;sessionId:()=>string|undefined;deviceId:()=>string|undefined;fetcher?:typeof fetch}
+export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessionId,deviceId,fetcher=fetch}:ApiClientOptions){
  const url=new URL(baseUrl);
  if(url.protocol!=='https:'&&url.hostname!=='localhost'&&url.hostname!=='127.0.0.1')throw new Error('ServOS API requires HTTPS');
  let refreshInFlight:Promise<void>|undefined;
  const refreshAccessToken=async()=>{
-  const rotate=async()=>{const response=await fetcher(new URL('/v1/auth/refresh',url),{method:'POST',credentials:'include',cache:'no-store',signal:AbortSignal.timeout(20000)});const raw=await response.text();let body:{accessToken?:string;error?:{code?:string;message?:string}}={};try{body=raw?JSON.parse(raw):{}}catch{if(response.ok)throw new Error('The refresh response was invalid.')}if(!response.ok||typeof body.accessToken!=='string')throw new ApiHttpError(response.status||401,body.error?.code||'REFRESH_FAILED',body.error?.message||'Your sign-in session ended. Sign in again.');setAccessToken(body.accessToken)};
-  if(!refreshInFlight){const locks=typeof navigator!=='undefined'?navigator.locks:undefined;refreshInFlight=Promise.resolve(locks?locks.request('serveos-api-refresh',rotate):rotate()).finally(()=>{refreshInFlight=undefined})}await refreshInFlight;
+  const rotate=async()=>{const currentSessionId=sessionId();if(!currentSessionId)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in to ServOS to continue.');const response=await fetcher(new URL(`/v1/auth/sessions/${encodeURIComponent(currentSessionId)}/refresh`,url),{method:'POST',credentials:'include',cache:'no-store',signal:AbortSignal.timeout(20000)});const raw=await response.text();let body:{accessToken?:string;sessionId?:string;error?:{code?:string;message?:string}}={};try{body=raw?JSON.parse(raw):{}}catch{if(response.ok)throw new Error('The refresh response was invalid.')}if(!response.ok||typeof body.accessToken!=='string')throw new ApiHttpError(response.status||401,body.error?.code||'REFRESH_FAILED',body.error?.message||'Your sign-in session ended. Sign in again.');if(body.sessionId!==currentSessionId)throw new ApiHttpError(401,'REFRESH_SESSION_MISMATCH','This browser session changed. Sign in again.');setAccessToken(body.accessToken)};
+  if(typeof navigator==='undefined'||!navigator.locks)throw new ApiHttpError(401,'AUTH_REFRESH_COORDINATION_UNAVAILABLE','This browser cannot safely renew the sign-in session. Sign in again from a supported browser.');
+  if(!refreshInFlight)refreshInFlight=navigator.locks.request('serveos-api-refresh',rotate).finally(()=>{refreshInFlight=undefined});await refreshInFlight;
  };
  const request=async<T>(path:string,init:RequestInit={},requireDevice=true):Promise<T>=>{
   const token=accessToken();if(!token)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in to ServOS to continue.');
@@ -29,7 +30,7 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,device
   if(requireDevice){const id=deviceId();if(!id)throw new ApiHttpError(401,'DEVICE_REQUIRED','Enroll this device before continuing.');headers.set('x-serveos-device-id',id)}
   let response:Response;
   const send=()=>fetcher(new URL(path,url),{...init,headers,credentials:'include',cache:'no-store',signal:init.signal||AbortSignal.timeout(20000)});
-  try{response=await send();if(response.status===401&&path!=='/v1/auth/refresh'&&path!=='/v1/auth/login'){await refreshAccessToken();const current=accessToken();if(!current)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in to ServOS to continue.');headers.set('authorization',`Bearer ${current}`);response=await send()}}
+  try{response=await send();if(response.status===401&&!path.endsWith('/refresh')&&path!=='/v1/auth/login'){await refreshAccessToken();const current=accessToken();if(!current)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in to ServOS to continue.');headers.set('authorization',`Bearer ${current}`);response=await send()}}
   catch(error){throw error}
   const raw=await response.text();let body:unknown;
   try{body=raw?JSON.parse(raw):{}}catch(error){if(response.ok)throw error;body={}}

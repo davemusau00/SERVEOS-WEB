@@ -107,9 +107,11 @@ Known blocker:
 
 ```text
 frontend
-  npm ci        PASS
-  npm run lint  FAIL
+npm ci        PASS
+npm run lint  FAIL
 ```
+
+The latest observed hosted run on `reset/vps-platform` (`871f542`, workflow run #274) reported frontend parser errors at `apps/api/src/supplier-return-commands.mjs:22`; the embedded SQL string used conflicting JavaScript single quotes. The local source now uses a template literal. The same run failed Print Bridge formatting on Linux and Windows; `cargo fmt` has now been applied to `apps/print-bridge` and `crates/servos-printer-transport`. These corrections are unverified and have not been pushed; the current same-commit matrix remains open.
 
 ## Immediate rule
 
@@ -1731,7 +1733,7 @@ The sprint ends with a production system, not with a large diff.
 - Added migration 059 for append-only session revocation evidence. Authenticated staff can list only their own latest 100 sessions and revoke another session belonging to the same staff profile; the current session must use Sign out and cannot be revoked through this endpoint.
 - Added API endpoints and PWA session dialog with session/device IDs, created/expiry/revocation state and explicit revocation confirmation. Session listing is read-only; access tokens remain only in the in-memory auth closure, and no refresh credential is persisted.
 - Password changes now compare the current credential inside the database transaction, retain the initiating session, revoke every other active staff session, and append revocation evidence with `PASSWORD_CHANGED` cause.
-- This does not yet implement rotating refresh tokens, cookie sessions, token-family replay detection or automatic access-token renewal. No tests, migration, API, concurrency, reload or browser checks were run.
+- Refresh rotation, session cookies and family replay handling are now implemented in source under the later rotating access/refresh section; migration and behavior remain unverified. No tests, migration, API, concurrency, reload or browser checks were run.
 
 ### Initial-admin setup secret lifecycle (source only)
 
@@ -1740,7 +1742,19 @@ The sprint ends with a production system, not with a large diff.
 
 ### Rotating API access/refresh sessions (source only; migration unapplied)
 
-- Migration 060 adds hashed access-token rows, refresh families and single-use hashed refresh tokens; existing access sessions are copied into the new token table so their current expiry remains valid.
-- API login issues a 15-minute bearer access token and a 30-day HttpOnly SameSite refresh cookie bounded by a 90-day family. Rotation creates a new refresh token and access token. Reuse of a consumed token revokes the family and session and appends replay evidence; session/device/staff revocation also invalidates refresh through the parent session.
-- The PWA keeps access tokens in memory, sends the refresh cookie only with credentialed API requests, coordinates refresh calls with Web Locks where supported, and retries one 401 request with the refreshed bearer. SSE authentication also refreshes once. No refresh token is written to IndexedDB or localStorage.
-- This source has not been tested or run. Migration, cookie/CORS/HTTPS deployment, cross-tab behavior, refresh replay, expiry, logout, session/password/device revocation, SSE reconnect and browser acceptance remain unverified.
+- Migration 060 adds hashed access-token rows, refresh families and single-use hashed refresh tokens; existing access sessions are copied into the new token table so their current expiry remains valid. Migration 061 links each consumed token to its one successor.
+- API login issues a 15-minute bearer access token and a 30-day HttpOnly SameSite refresh cookie bounded by a 90-day family. Rotation creates one hashed successor per token. A retry within 30 seconds deterministically re-derives and returns that same successor while issuing a fresh access token, so response loss cannot fork a refresh chain. Reuse after the recovery window revokes the family and session and appends replay evidence; session/device/staff revocation also revokes refresh families.
+- Refresh cookies are named and path-scoped to their session ID, and the rotation route binds the presented token to that same session. This keeps simultaneous staff sign-ins on a shared terminal from overwriting or crossing refresh credentials.
+- The PWA keeps access tokens in memory, sends the refresh cookie only with credentialed API requests, serializes refresh calls across tabs with Web Locks, and retries one 401 request with the refreshed bearer. SSE authentication also refreshes once. No refresh token is written to IndexedDB or localStorage.
+- Source only: migrations 060 and 061 have not been applied. No tests, builds, API requests, migration, cookie/CORS/HTTPS deployment, cross-tab behavior, refresh replay, expiry, logout, session/password/device revocation, SSE reconnect or browser acceptance were run; all remain unverified.
+
+### Current frontend CI parser repair (source only; verification deferred)
+
+- The latest observed hosted run for remote commit `871f542` reported parser errors at `apps/api/src/supplier-return-commands.mjs:22` because an SQL literal containing single-quoted statuses was wrapped in a JavaScript single-quoted string. The query now uses a template literal.
+- That hosted run also recorded failures in browser and PostgreSQL API jobs. Their causes and the outcome of current local HEAD `14308b8` are not established. `cargo fmt` was applied to both workflow targets, but no formatter check, tests, lint, build or hosted CI were run for these working-tree corrections; same-commit green remains a stop gate.
+
+### API bootstrap manifest verification (source only; verification deferred)
+
+- The authenticated API bootstrap is derived from a repeatable-read PostgreSQL snapshot and its ordered high-water cursor. It now emits a deterministic SHA-256 manifest with schema version, record count and per-collection counts after permission filtering.
+- Before the existing atomic IndexedDB replacement, the PWA validates record identities/shape, rejects duplicates, checks counts and recomputes the manifest hash. Unresolved commands remain protected by both preflight and the replacement transaction.
+- Paged delivery, durable temporary staging, interrupted-page resume and large-snapshot activation are still outstanding. No tests, lint, build, migration or API/browser execution ran for this source slice.

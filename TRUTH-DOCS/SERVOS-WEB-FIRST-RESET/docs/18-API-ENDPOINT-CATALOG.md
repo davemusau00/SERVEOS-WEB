@@ -1,6 +1,6 @@
 # 18 — API Endpoint Catalog
 
-This is the proposed external HTTP surface for ServOS 1.0. Exact response fields are generated from `packages/contracts`; this file defines intent and ownership.
+This catalog records the API surface. The Auth routes below are present in source; forgotten-password/reset and administrative cross-staff session management remain future work.
 
 ## 1. Health
 
@@ -16,14 +16,15 @@ GET /health/ready
 
 ```text
 POST /v1/auth/login
-POST /v1/auth/refresh
 POST /v1/auth/logout
-POST /v1/auth/password/forgot
-POST /v1/auth/password/reset
-GET  /v1/session
-GET  /v1/sessions
-DELETE /v1/sessions/:id
+POST /v1/auth/password
+GET  /v1/auth/session
+GET  /v1/auth/sessions
+POST /v1/auth/sessions/:id/revoke
+POST /v1/auth/sessions/:id/refresh
 ```
+
+Login returns a short-lived in-memory bearer and sets the refresh cookie. Refresh requires the configured PWA `Origin`; own-session listing and revocation are scoped to the authenticated staff identity. The active current session is ended through logout, not the other-session revoke route.
 
 ## 3. Device enrollment
 
@@ -70,7 +71,15 @@ GET  /v1/offline-grants/current
 
 Issuance is restricted and policy-driven.
 
-## 7. Business/settings reads
+## 7. Bootstrap and recovery
+
+```text
+GET /v1/bootstrap/catalog
+```
+
+The API returns a permission-filtered repeatable-read snapshot with protocol/schema versions, high-water cursor, record and collection counts, and a SHA-256 manifest hash. The PWA verifies the manifest before replacing its IndexedDB projection. The endpoint still returns all records in one response; paged delivery and resumable staging remain open.
+
+## 8. Business/settings reads
 
 ```text
 GET /v1/business
@@ -82,7 +91,7 @@ GET /v1/service-areas
 
 Mutations remain commands such as `business.updateIdentity`, `settings.updateReceipt`, etc.
 
-## 8. Catalog queries
+## 9. Catalog queries
 
 ```text
 GET /v1/catalog/items
@@ -101,7 +110,7 @@ Suggested filters:
 - stocked;
 - outlet/service area.
 
-## 9. Inventory queries
+## 10. Inventory queries
 
 ```text
 GET /v1/inventory/stock
@@ -112,7 +121,7 @@ GET /v1/inventory/count-sessions/:id
 GET /v1/inventory/alerts
 ```
 
-## 10. POS queries
+## 11. POS queries
 
 ```text
 GET /v1/pos/menu
@@ -124,7 +133,7 @@ GET /v1/receipts
 GET /v1/receipts/:id
 ```
 
-## 11. Payments/finance reads
+## 12. Payments/finance reads
 
 ```text
 GET /v1/payments
@@ -134,7 +143,7 @@ GET /v1/credit/accounts
 GET /v1/credit/accounts/:id/statement
 ```
 
-## 12. Procurement
+## 13. Procurement
 
 ```text
 GET /v1/suppliers
