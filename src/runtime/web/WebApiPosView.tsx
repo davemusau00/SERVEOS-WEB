@@ -102,12 +102,12 @@ export function WebApiPosView({records,session,disabled,command,queue,deviceId,r
      const customer=reviewed.find(row=>row.collection==='customers'&&row.id===customerId&&!row.archived);if(!customer)throw new Error('Choose a current named customer.');
      operation='order.assignCustomer';payload={orderId:id,customerId:customer.id,expectedVersions:[baseline(reviewedOrder),baseline(customer)]};
     }else if(editor.kind==='CREDIT'){
-     const linkedCustomerId=String(reviewedOrder.data.customerId||''),account=reviewed.find(row=>row.collection==='customerCreditAccounts'&&row.id===linkedCustomerId&&!row.archived);
-     if(!linkedCustomerId||!account||account.data.status!=='ACTIVE')throw new Error('Assign a named customer with an active credit account first.');
+     const linkedCustomerId=String(reviewedOrder.data.customerId||''),customer=reviewed.find(row=>row.collection==='customers'&&row.id===linkedCustomerId&&!row.archived),account=reviewed.find(row=>row.collection==='customerCreditAccounts'&&row.id===linkedCustomerId&&!row.archived);
+     if(!linkedCustomerId||!customer||!account||account.data.status!=='ACTIVE')throw new Error('Assign a current named customer with an active credit account first.');
      const amountMinor=Number(reviewedOrder.data.grandTotalMinor)-Number(reviewedOrder.data.amountPaidMinor)-Number(reviewedOrder.data.amountCreditedMinor||0);
      if(!Number.isSafeInteger(amountMinor)||amountMinor<=0||Number(account.data.balanceMinor)+amountMinor>Number(account.data.limitMinor))throw new Error('The exact order balance must fit within the customer credit limit. Manager override is not available on this API yet.');
      if(voidReason.trim().length<3)throw new Error('Enter a credit-charge reason of at least 3 characters.');
-     operation='credit.charge';payload={id:editor.id,orderId:id,customerId:linkedCustomerId,amountMinor,reason:voidReason.trim(),expectedVersions:[baseline(reviewedOrder),baseline(account)]};
+     operation='credit.charge';payload={id:editor.id,orderId:id,customerId:linkedCustomerId,amountMinor,reason:voidReason.trim(),expectedVersions:[baseline(reviewedOrder),baseline(customer),baseline(account)]};
     }else if(editor.kind==='ADD'){
      if(!editor.product||!settings)throw new Error('Refresh the selected product and business tax settings.');
      operation='order.addItem';payload={orderId:id,itemId:editor.id,productId:editor.product.id,quantity:Number(quantity),note:preparationNote,courseName:course,portionId:portion||undefined,modifierIds,expectedVersions:[baseline(reviewedOrder),baseline(editor.product),baseline(settings)]};
