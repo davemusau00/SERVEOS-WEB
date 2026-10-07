@@ -1689,3 +1689,9 @@ The sprint ends with a production system, not with a large diff.
 - Close-day generation now identifies customer-credit charges and their charge reversals through the originating order's till, requires one linked journal per entry, and reconciles net accounts receivable against net sales revenue, VAT and levy.
 - The immutable report separates charged-to-account, reversed and net accrued sales from tender and cash collection. Browser and bridge layouts label the figures as accruals, not cash received; older immutable reports remain renderable. Unresolved-command diagnostics include credit charges.
 - No tests, formatting, lint, builds, migrations, PostgreSQL, renderer execution or hardware checks were run. Verification remains deferred.
+
+### Customer-credit statement reconciliation (source only; verification deferred)
+
+- Added migration 054 for immutable statement comparisons, open discrepancies and append-only one-time resolution evidence. Online reconciliation serializes with account ledger commands, checks the reviewed account revision and never mutates customer credit balances. Manager-only variance dispositions require credit management/write-off permission.
+- Added permission-filtered bootstrap records, API command registration and the supported PWA account comparison, exception resolution and history UI. The PWA command dependency resolver now includes the reviewed account version.
+- Tests, builds, migrations, PostgreSQL and browser execution remain deferred. Full statement pagination and manager step-up remain outstanding.
