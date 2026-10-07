@@ -221,7 +221,7 @@ export class PostgresStore {
     return this.transaction(async tx=>{
       await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`api-bootstrap:${businessId}:${sessionId}`]);
       await tx.client.query('DELETE FROM api_business_bootstrap_snapshots WHERE expires_at<=$1',[createdAt]);
-      await tx.client.query(`DELETE FROM api_business_bootstrap_snapshots WHERE snapshot_id IN (SELECT snapshot_id FROM api_business_bootstrap_snapshots WHERE business_id=$1 AND session_id=$2 ORDER BY created_at DESC,snapshot_id OFFSET 3)`,[businessId,sessionId]);
+      await tx.client.query(`DELETE FROM api_business_bootstrap_snapshots WHERE snapshot_id IN (SELECT snapshot_id FROM api_business_bootstrap_snapshots WHERE business_id=$1 AND session_id=$2 ORDER BY created_at DESC,snapshot_id OFFSET 2)`,[businessId,sessionId]);
       await tx.client.query(`INSERT INTO api_business_bootstrap_snapshots(snapshot_id,business_id,staff_id,device_id,session_id,authorization_hash,schema_version,high_water_cursor,record_count,manifest,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12)`,[snapshotId,businessId,staffId,deviceId,sessionId,authorizationHash,manifest.schemaVersion,manifest.highWaterCursor,manifest.recordCount,JSON.stringify(manifest),createdAt,expiresAt]);
       for(let offset=0;offset<records.length;offset+=500){
         const batch=records.slice(offset,offset+500).map((projection,index)=>({ordinal:offset+index,collection:projection.collection,recordId:projection.id,projection}));
@@ -242,9 +242,15 @@ export class PostgresStore {
     return {snapshotId,afterOrdinal:after,nextOrdinal,hasMore:nextOrdinal<manifest.recordCount,pageIndex,sha256:manifest.pageHashes[pageIndex],records};
   }
 
+  async catalogBootstrapManifest({snapshotId,businessId,staffId,deviceId,sessionId,authorizationHash,at}){
+    const {rows}=await this.pool.query(`SELECT manifest,expires_at AS "expiresAt" FROM api_business_bootstrap_snapshots WHERE snapshot_id=$1 AND business_id=$2 AND staff_id=$3 AND device_id=$4 AND session_id=$5 AND authorization_hash=$6`,[snapshotId,businessId,staffId,deviceId,sessionId,authorizationHash]);
+    const row=rows[0];if(!row||row.expiresAt<=at)return null;
+    return typeof row.manifest==='string'?JSON.parse(row.manifest):row.manifest;
+  }
+
   async authenticateSession(tokenHash, deviceId, now = new Date()) {
     const {rows} = await this.pool.query(`
-      SELECT s.business_id AS "businessId", s.staff_id AS "staffId", d.id AS "deviceId",
+      SELECT s.business_id AS "businessId", s.staff_id AS "staffId", s.id AS "sessionId", d.id AS "deviceId",
              COALESCE(array_agg(p.permission) FILTER (WHERE p.permission IS NOT NULL), '{}') AS permissions
       FROM api_staff_sessions s
       JOIN api_access_tokens a ON a.session_id=s.id AND a.token_hash=$1 AND a.revoked_at IS NULL AND a.expires_at>$3
@@ -253,7 +259,7 @@ export class PostgresStore {
       JOIN api_staff_profiles f ON f.business_id=s.business_id AND f.staff_id=s.staff_id AND f.active AND NOT f.must_change_password
       WHERE s.revoked_at IS NULL AND s.expires_at > $3 AND s.device_id=d.id
         AND d.revoked_at IS NULL
-      GROUP BY s.business_id, s.staff_id, d.id
+      GROUP BY s.business_id, s.staff_id, s.id, d.id
     `, [tokenHash, deviceId, now]);
     return rows[0] ?? null;
   }

@@ -1,8 +1,11 @@
+import type {BootstrapManifest,OfflineGrantEnvelope} from './BusinessStore';
+
 export interface ApiCommandEnvelope {commandId:string;name:string;payload:Record<string,unknown>;expectedVersions:Record<string,number>;offlineGrantId?:string}
 export interface ApiCommandOutcome {kind:'CONFIRMED'|'REJECTED'|'CONFLICT';commandId:string;cursor?:number;result?:unknown;error?:{code:string;message:string;retryable:boolean}}
 export interface ApiChangePage {protocolVersion:1;cursor:number;highWater:number;hasMore:boolean;changes:Array<{sequence:number;commandId:string;actorId?:string;deviceId?:string;occurredAt:string;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}>}
 export interface ApiCatalogItem {id:string;categoryId:string|null;name:string;sku:string|null;basePriceMinor:number;currency:string;trackInventory:boolean;version:number;createdAt:string}
-export interface ApiCatalogBootstrap {protocolVersion:1;cursor:number;manifest:{schemaVersion:1;highWaterCursor:number;recordCount:number;collectionCounts:Record<string,number>;sha256:string};records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}
+export interface ApiCatalogBootstrapManifest {protocolVersion:2;snapshotId:string;expiresAt:string;cursor:number;manifest:BootstrapManifest}
+export interface ApiCatalogBootstrapPage {protocolVersion:2;snapshotId:string;afterOrdinal:number;nextOrdinal:number;hasMore:boolean;pageIndex:number;sha256:string;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}
 export interface ApiCustomerCreditStatementPage {protocolVersion:1;customerId:string;items:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>;hasMore:boolean;nextCursor:string|null}
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
 export interface ApiStaffSession {sessionId:string;deviceId:string|null;createdAt:string;expiresAt:string;revokedAt:string|null;current:boolean;deviceRevoked:boolean;expired:boolean}
@@ -69,9 +72,10 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   changes(after:number,limit=200){return request<ApiChangePage>(`/v1/sync/changes?after=${encodeURIComponent(after)}&limit=${encodeURIComponent(limit)}`)},
   catalogItems(search=''){return request<{items:ApiCatalogItem[]}>(`/v1/catalog/items?search=${encodeURIComponent(search)}`)},
   customerCreditStatement(customerId:string,cursor?:string,limit=100){const query=new URLSearchParams({limit:String(limit)});if(cursor)query.set('cursor',cursor);return request<ApiCustomerCreditStatementPage>(`/v1/customer-credit/accounts/${encodeURIComponent(customerId)}/statement?${query}`)},
-  bootstrapCatalog(){return request<ApiCatalogBootstrap>('/v1/bootstrap/catalog')},
+  bootstrapCatalog(snapshotId?:string){return request<ApiCatalogBootstrapManifest>(snapshotId?`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}`:'/v1/bootstrap/catalog')},
+  bootstrapCatalogPage(snapshotId:string,after:number){return request<ApiCatalogBootstrapPage>(`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}/pages?after=${encodeURIComponent(after)}`)},
   enrollmentChallenge(){return request<{challengeId:string;challenge:string;issuedAt:string;expiresAt:string}>('/v1/devices/enrollment-challenges',{method:'POST'},false)},
   enrollDevice(body:{challengeId:string;deviceId:string;publicKey:JsonWebKey;signature:string}){return request<{deviceId:string;businessId:string;createdAt:string}>('/v1/devices/enroll',{method:'POST',body:JSON.stringify(body)},false)},
-  issueOfflineGrant(input:{allowedCommands?:string[];maxCommands?:number;durationMinutes?:number}){return request<import('./BusinessStore').OfflineGrantEnvelope>('/v1/offline-grants',{method:'POST',body:JSON.stringify(input)})},
+  issueOfflineGrant(input:{allowedCommands?:string[];maxCommands?:number;durationMinutes?:number}){return request<OfflineGrantEnvelope>('/v1/offline-grants',{method:'POST',body:JSON.stringify(input)})},
  };
 }

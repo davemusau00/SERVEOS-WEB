@@ -299,15 +299,35 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const page=await store.customerCreditStatementPage(actor.businessId,customerId,{...cursor,limit});
         return json(res,200,{protocolVersion:1,customerId,items:filterRecords(actor,page.items),hasMore:page.hasMore,nextCursor:page.hasMore&&page.before?encodeCreditStatementCursor(page):null});
       }
-      if (req.method === 'GET' && url.pathname === '/v1/bootstrap/catalog') {
+      const bootstrapPageMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/bootstrap\/catalog\/([0-9a-f-]{36})\/pages$/i);
+      const bootstrapSnapshotMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/bootstrap\/catalog\/([0-9a-f-]{36})$/i);
+      if (req.method === 'GET' && (url.pathname === '/v1/bootstrap/catalog'||bootstrapSnapshotMatch||bootstrapPageMatch)) {
         const actor = await authenticate(req);
         if (!['*','procurement.view','procurement.manage','procurement.receive','procurement.pay','suppliers.manage','catalog.view','catalog.manage','pos.sell','order.fire','order.void','order.discount','order.comp','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','kds.update','business.configure','order.refund','payment.reverse','reports.view','accounting.view','audit.view','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
+        const authorizationHash=createHash('sha256').update(stableJson([...actor.permissions].sort())).digest('hex');
+        if(bootstrapPageMatch){
+          const snapshotId=bootstrapPageMatch[1],afterRaw=url.searchParams.get('after')??'0';
+          if(!uuidPattern.test(snapshotId)||!/^\d+$/.test(afterRaw)||!Number.isSafeInteger(Number(afterRaw)))throw new ApiProblem(400,'VALIDATION_FAILED','Bootstrap page cursor is invalid.');
+          const page=await store.catalogBootstrapPage({snapshotId,businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId,sessionId:actor.sessionId,authorizationHash,after:Number(afterRaw),at:new Date()});
+          if(!page)throw new ApiProblem(404,'BOOTSTRAP_SNAPSHOT_EXPIRED','This business snapshot expired or its authorization changed. Start a new snapshot.');
+          return json(res,200,{protocolVersion:2,...page});
+        }
+        if(bootstrapSnapshotMatch){
+          const snapshotId=bootstrapSnapshotMatch[1];
+          if(!uuidPattern.test(snapshotId))throw new ApiProblem(400,'VALIDATION_FAILED','Bootstrap snapshot identity is invalid.');
+          const manifest=await store.catalogBootstrapManifest({snapshotId,businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId,sessionId:actor.sessionId,authorizationHash,at:new Date()});
+          if(!manifest)throw new ApiProblem(404,'BOOTSTRAP_SNAPSHOT_EXPIRED','This business snapshot expired or its authorization changed. Start a new snapshot.');
+          return json(res,200,{protocolVersion:2,snapshotId,expiresAt:manifest.expiresAt,cursor:manifest.highWaterCursor,manifest});
+        }
         const bootstrap=await store.catalogBootstrap(actor.businessId);
-        const records=filterRecords(actor,bootstrap.records).sort((left,right)=>left.collection===right.collection?(left.id<right.id?-1:left.id>right.id?1:0):(left.collection<right.collection?-1:1));
-        const wireRecords=JSON.parse(JSON.stringify(records));const collectionCounts=Object.fromEntries([...records.reduce((counts,record)=>counts.set(record.collection,(counts.get(record.collection)||0)+1),new Map()).entries()].sort(([left],[right])=>left<right?-1:left>right?1:0));
-        const manifest={schemaVersion:1,highWaterCursor:bootstrap.cursor,recordCount:wireRecords.length,collectionCounts};
-        const sha256=createHash('sha256').update(stableJson({protocolVersion:1,...manifest,records:wireRecords})).digest('hex');
-        return json(res,200,{protocolVersion:1,cursor:bootstrap.cursor,manifest:{...manifest,sha256},records:wireRecords});
+        const records=JSON.parse(JSON.stringify(filterRecords(actor,bootstrap.records).sort((left,right)=>left.collection===right.collection?(left.id<right.id?-1:left.id>right.id?1:0):(left.collection<right.collection?-1:1))));
+        const pageSize=250,pageHashes=[];
+        for(let offset=0;offset<records.length;offset+=pageSize)pageHashes.push(createHash('sha256').update(stableJson({afterOrdinal:offset,nextOrdinal:Math.min(offset+pageSize,records.length),records:records.slice(offset,offset+pageSize)})).digest('hex'));
+        const collectionCounts=Object.fromEntries([...records.reduce((counts,record)=>counts.set(record.collection,(counts.get(record.collection)||0)+1),new Map()).entries()].sort(([left],[right])=>left<right?-1:left>right?1:0));
+        const snapshotId=randomUUID(),createdAt=new Date(),expiresAt=new Date(createdAt.getTime()+10*60_000).toISOString(),core={protocolVersion:2,snapshotId,expiresAt,schemaVersion:2,highWaterCursor:bootstrap.cursor,recordCount:records.length,collectionCounts,pageSize,pageCount:pageHashes.length,pageHashes};
+        const manifest={...core,sha256:createHash('sha256').update(stableJson(core)).digest('hex')};
+        await store.createCatalogBootstrapSnapshot({snapshotId,businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId,sessionId:actor.sessionId,authorizationHash,manifest,records,createdAt,expiresAt:new Date(expiresAt)});
+        return json(res,200,{protocolVersion:2,snapshotId,expiresAt,cursor:bootstrap.cursor,manifest});
       }
       if (req.method === 'POST' && url.pathname === '/v1/commands') {
         const actor = await authenticate(req);

@@ -11,6 +11,8 @@ export interface LocalBusinessDocument {id:string;type:string;documentNumber:str
 export type LocalPrintState='QUEUED'|'SENDING'|'SENT_TO_SPOOLER'|'DELIVERY_UNCERTAIN'|'FAILED'|'CANCELLED';
 export interface LocalPrintJob {id:string;documentId:string;printerRole:string;copies:number;state:LocalPrintState;createdAt:string;updatedAt:string;attempt:number;errorCode?:string}
 export interface OfflineGrantEnvelope {grantId:string;businessId:string;deviceId:string;staffId:string;issuedAt:string;expiresAt:string;policyVersion:number;allowedCommands:string[];maxCommands:number;usedCommands?:number;keyVersion:string;signature:string;scope?:Record<string,unknown>}
+export interface BootstrapManifest {protocolVersion:2;snapshotId:string;expiresAt:string;schemaVersion:2;highWaterCursor:number;recordCount:number;collectionCounts:Record<string,number>;pageSize:number;pageCount:number;pageHashes:string[];sha256:string}
+export interface BootstrapStageState {snapshotId:string;expiresAt:string;policyVersion:string;manifest:BootstrapManifest;nextOrdinal:number;collectionCounts:Record<string,number>}
 export type CommandAuthority='SUPABASE'|'API';
 const request=<T>(value:IDBRequest<T>)=>new Promise<T>((resolve,reject)=>{value.onsuccess=()=>resolve(value.result);value.onerror=()=>reject(value.error||new Error('Storage request failed'))});
 const stableJson=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(stableJson).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${stableJson((value as Record<string,unknown>)[key])}`).join(',')}}`;
@@ -25,7 +27,7 @@ export class BusinessStore {
   static async open(scope:string,deviceId:string,actorId:string,serverSequence=0,commandAuthority:CommandAuthority='SUPABASE'):Promise<BusinessStore>{
     if(!scope||!deviceId||!actorId||!Number.isSafeInteger(serverSequence)||serverSequence<0)throw new Error('Valid business, device, actor and sequence are required');
     const databaseName=commandAuthority==='API'?`servos-api-v1:${scope}:${deviceId}:${actorId}`:`servos-v2:${scope}:${deviceId}:${actorId}`;
-    const opening=indexedDB.open(databaseName,4);
+    const opening=indexedDB.open(databaseName,5);
     opening.onupgradeneeded=()=>{
       const db=opening.result;
       if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta');
@@ -36,6 +38,7 @@ export class BusinessStore {
       if(!db.objectStoreNames.contains('documents'))db.createObjectStore('documents',{keyPath:'id'});
       if(!db.objectStoreNames.contains('printJobs')){const jobs=db.createObjectStore('printJobs',{keyPath:'id'});jobs.createIndex('state','state',{unique:false});jobs.createIndex('createdAt','createdAt',{unique:false});}
       if(!db.objectStoreNames.contains('printEvents')){const events=db.createObjectStore('printEvents',{keyPath:'id'});events.createIndex('jobId','jobId',{unique:false});}
+      if(!db.objectStoreNames.contains('bootstrapStage')){const stage=db.createObjectStore('bootstrapStage',{keyPath:['snapshotId','ordinal']});stage.createIndex('snapshotIdentity',['snapshotId','record.collection','record.id'],{unique:true});}
     };
     const db=await new Promise<IDBDatabase>((resolve,reject)=>{
       let abandoned=false;
@@ -116,6 +119,70 @@ export class BusinessStore {
   }
   async cursor():Promise<number>{return this.transaction(['meta'],'readonly',async tx=>(await request(tx.objectStore('meta').get('cursor')) as number|undefined)||0)}
   async policyVersion():Promise<string|undefined>{return this.transaction(['meta'],'readonly',tx=>request(tx.objectStore('meta').get('policyVersion')))}
+  async pendingBootstrap():Promise<BootstrapStageState|undefined>{return this.transaction(['meta'],'readonly',tx=>request(tx.objectStore('meta').get('bootstrapStage')))}
+  async beginBootstrap(snapshotId:string,expiresAt:string,policyVersion:string,manifest:BootstrapManifest):Promise<number>{
+    if(this.commandAuthority!=='API'||snapshotId!==manifest.snapshotId||expiresAt!==manifest.expiresAt||!policyVersion)throw new Error('Invalid API bootstrap staging request');
+    return this.transaction(['meta','queue','bootstrapStage'],'readwrite',async tx=>{
+      const queued=await request(tx.objectStore('queue').getAll()) as QueuedCommand[];
+      if(queued.some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN'))throw new Error('Recover saved API command outcomes before rebuilding this projection.');
+      const meta=tx.objectStore('meta'),previous=await request(meta.get('bootstrapStage')) as BootstrapStageState|undefined;
+      if(previous&&previous.snapshotId===snapshotId&&previous.policyVersion===policyVersion&&previous.manifest.sha256===manifest.sha256&&previous.expiresAt===expiresAt)return previous.nextOrdinal;
+      await request(tx.objectStore('bootstrapStage').clear());
+      const state:BootstrapStageState={snapshotId,expiresAt,policyVersion,manifest,nextOrdinal:0,collectionCounts:{}};
+      await request(meta.put(state,'bootstrapStage'));return 0;
+    });
+  }
+  async stageBootstrapPage(snapshotId:string,afterOrdinal:number,records:Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>):Promise<number>{
+    if(!Array.isArray(records))throw new Error('Invalid API bootstrap page');
+    return this.transaction(['meta','bootstrapStage'],'readwrite',async tx=>{
+      const meta=tx.objectStore('meta'),state=await request(meta.get('bootstrapStage')) as BootstrapStageState|undefined;
+      if(!state||state.snapshotId!==snapshotId||state.nextOrdinal!==afterOrdinal||Date.parse(state.expiresAt)<=Date.now())throw new Error('API bootstrap staging state changed or expired.');
+      const expected=Math.min(state.manifest.pageSize,state.manifest.recordCount-afterOrdinal);
+      if(afterOrdinal<0||afterOrdinal>=state.manifest.recordCount||records.length!==expected)throw new Error('API bootstrap page length does not match the manifest.');
+      const stage=tx.objectStore('bootstrapStage'),counts={...state.collectionCounts};
+      for(let index=0;index<records.length;index++){
+        const record=records[index];
+        if(!record.collection||!record.id||!Number.isSafeInteger(record.version)||record.version<1||!record.data||typeof record.data!=='object'||Array.isArray(record.data)||typeof record.archived!=='boolean')throw new Error('API bootstrap page contains an invalid record.');
+        await request(stage.add({snapshotId,ordinal:afterOrdinal+index,record}));counts[record.collection]=(counts[record.collection]||0)+1;
+      }
+      const nextOrdinal=afterOrdinal+records.length;await request(meta.put({...state,nextOrdinal,collectionCounts:counts},'bootstrapStage'));return nextOrdinal;
+    });
+  }
+  async stagedBootstrapPage(snapshotId:string,afterOrdinal:number,pageSize:number):Promise<Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>>{
+    return this.transaction(['meta','bootstrapStage'],'readonly',async tx=>{
+      const state=await request(tx.objectStore('meta').get('bootstrapStage')) as BootstrapStageState|undefined;
+      if(!state||state.snapshotId!==snapshotId||!Number.isSafeInteger(afterOrdinal)||afterOrdinal<0||!Number.isSafeInteger(pageSize)||pageSize<1||afterOrdinal>=state.nextOrdinal)throw new Error('API bootstrap staged page is unavailable.');
+      const end=Math.min(afterOrdinal+pageSize,state.nextOrdinal),rows=await request(tx.objectStore('bootstrapStage').getAll(IDBKeyRange.bound([snapshotId,afterOrdinal],[snapshotId,end-1]))) as Array<{snapshotId:string;ordinal:number;record:RecordVersion & {data:Record<string,unknown>;archived:boolean}}>;
+      if(rows.length!==end-afterOrdinal||rows.some((row,index)=>row.snapshotId!==snapshotId||row.ordinal!==afterOrdinal+index))throw new Error('API bootstrap staged page is incomplete.');
+      return rows.map(row=>row.record);
+    });
+  }
+  async clearBootstrapStage(snapshotId?:string):Promise<void>{
+    await this.transaction(['meta','bootstrapStage'],'readwrite',async tx=>{
+      const meta=tx.objectStore('meta'),state=await request(meta.get('bootstrapStage')) as BootstrapStageState|undefined;
+      if(snapshotId&&state?.snapshotId!==snapshotId)return;
+      await request(tx.objectStore('bootstrapStage').clear());await request(meta.delete('bootstrapStage'));
+    });
+  }
+  async activateBootstrap(snapshotId:string):Promise<void>{
+    await this.transaction(['records','meta','queue','bootstrapStage'],'readwrite',async tx=>{
+      const meta=tx.objectStore('meta'),state=await request(meta.get('bootstrapStage')) as BootstrapStageState|undefined;
+      if(!state||state.snapshotId!==snapshotId||state.nextOrdinal!==state.manifest.recordCount||Date.parse(state.expiresAt)<=Date.now())throw new Error('API bootstrap snapshot is incomplete or expired.');
+      const queued=await request(tx.objectStore('queue').getAll()) as QueuedCommand[];
+      if(queued.some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN'))throw new Error('Recover saved API command outcomes before rebuilding this projection.');
+      const keys=Object.keys(state.collectionCounts),expectedKeys=Object.keys(state.manifest.collectionCounts);
+      if(keys.length!==expectedKeys.length||keys.some(key=>state.collectionCounts[key]!==state.manifest.collectionCounts[key]))throw new Error('API bootstrap collection counts do not match the manifest.');
+      const currentCursor=(await request(meta.get('cursor')) as number|undefined)||0;
+      if(state.manifest.highWaterCursor<currentCursor)throw new Error('API bootstrap snapshot is older than this browser projection.');
+      const stage=tx.objectStore('bootstrapStage');
+      const rows=await request(stage.getAll(IDBKeyRange.bound([snapshotId,0],[snapshotId,Number.MAX_SAFE_INTEGER]))) as Array<{snapshotId:string;ordinal:number;record:RecordVersion & {data:Record<string,unknown>;archived:boolean}}>
+      if(rows.length!==state.manifest.recordCount||rows.some((row,index)=>row.snapshotId!==snapshotId||row.ordinal!==index))throw new Error('API bootstrap staged record sequence is incomplete.');
+      const target=tx.objectStore('records');await request(target.clear());
+      for(const row of rows)await request(target.put(row.record));
+      await request(meta.put(state.manifest.highWaterCursor,'cursor'));await request(meta.put(state.policyVersion,'policyVersion'));
+      await request(stage.clear());await request(meta.delete('bootstrapStage'));
+    });
+  }
   async replaceSnapshot(records:Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>,cursor:number,policyVersion:string){
     if(!Array.isArray(records)||!Number.isSafeInteger(cursor)||cursor<0||!policyVersion)throw new Error('Invalid authorized snapshot');
     await this.transaction(['records','meta','queue'],'readwrite',async tx=>{
