@@ -4,6 +4,12 @@ ALTER TABLE inventory_movements
   DROP CONSTRAINT IF EXISTS inventory_movements_business_id_source_command_id_key;
 CREATE INDEX IF NOT EXISTS inventory_movements_source_command_idx
   ON inventory_movements (business_id, source_command_id);
+CREATE INDEX IF NOT EXISTS inventory_movements_stock_occurred_idx
+  ON inventory_movements (business_id,stock_item_id,occurred_at DESC);
+CREATE INDEX IF NOT EXISTS inventory_movements_location_idx
+  ON inventory_movements (business_id,location_id);
+CREATE INDEX IF NOT EXISTS inventory_balances_location_idx
+  ON inventory_location_balances (business_id,location_id);
 
 CREATE TABLE IF NOT EXISTS inventory_stock_counts (
   business_id uuid NOT NULL REFERENCES businesses(id),
@@ -26,6 +32,8 @@ CREATE TABLE IF NOT EXISTS inventory_stock_counts (
 );
 CREATE INDEX IF NOT EXISTS inventory_stock_counts_business_created_idx
   ON inventory_stock_counts (business_id,created_at DESC,id);
+CREATE INDEX IF NOT EXISTS inventory_stock_counts_location_idx
+  ON inventory_stock_counts (business_id,location_id,created_at DESC);
 
 CREATE TABLE IF NOT EXISTS inventory_stock_count_rows (
   business_id uuid NOT NULL,
