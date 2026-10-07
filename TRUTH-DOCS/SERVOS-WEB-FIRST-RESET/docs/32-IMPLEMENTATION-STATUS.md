@@ -979,3 +979,10 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Refresh cookies are named and path-scoped to their session ID, and the rotation route binds the presented token to that same session. This keeps simultaneous staff sign-ins on a shared terminal from overwriting or crossing refresh credentials.
 - The PWA keeps access tokens in memory, sends the refresh cookie only with credentialed API requests, serializes refresh calls across tabs with Web Locks, and retries one 401 request with the refreshed bearer. SSE authentication also refreshes once. No refresh token is written to IndexedDB or localStorage.
 - This source has not been tested or run. Migrations 060-061, cookie/CORS/HTTPS deployment, cross-tab behavior, refresh replay/retry, expiry, logout, session/password/device revocation, SSE reconnect and browser acceptance remain unverified.
+
+### API bootstrap paging and atomic activation (source only; verification deferred, 2026-10-08)
+
+- Migration 062 stores ten-minute bootstrap manifests and ordered projection rows. Snapshot access is bound to business, staff, enrolled device, session and a hash of current permissions; creation removes expired snapshots and bounds retained snapshots per session.
+- API bootstrap protocol v2 returns deterministic collection counts, fixed page boundaries, page SHA-256 values and a manifest hash, with authenticated manifest-resume and page routes. The records originate from a repeatable-read PostgreSQL snapshot at the recorded high-water cursor.
+- IndexedDB v5 stores a resumable temporary page set. The PWA validates the manifest and each page, rereads and rehashes staged pages after interruption, validates collection totals, protects unresolved commands and cursor monotonicity, then atomically swaps the projection and cursor. The API browser fixture now follows protocol v2; it was updated but not run.
+- No migration, tests, lint, build, API/PostgreSQL execution or browser acceptance ran for this slice. Reload resume, response loss, storage failure, authorization changes during transfer and large snapshots remain unverified.
