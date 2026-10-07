@@ -94,4 +94,21 @@ test('PostgreSQL API lifecycle, catalog writes, replay, and ordered change feed'
   const refreshedCount={...countCommand,commandId:randomUUID(),payload:{...countCommand.payload,expectedBalanceVersions:{[`${openingStockId}:${locationId}`]:3}}};
   assert.equal((await executeCommand({db:store,command:refreshedCount,actor:countActor,registry:catalogCommandRegistry})).kind,'CONFIRMED');
 
+  const destinationId=randomUUID();
+  assert.equal((await executeCommand({db:store,actor,registry:catalogCommandRegistry,command:{commandId:randomUUID(),name:'stockLocation.save',expectedVersions:{[`stockLocations:${destinationId}`]:0},payload:{id:destinationId,data:{name:'Transfer destination',code:`DST-${destinationId.slice(0,6)}`,type:'STORE'}}}})).kind,'CONFIRMED');
+  const movementActor={...actor,permissions:['*']};
+  const transfer={commandId:randomUUID(),name:'inventory.transfer',expectedVersions:{[`stockItems:${openingStockId}`]:2,[`stockLocations:${locationId}`]:1,[`stockLocations:${destinationId}`]:1},payload:{stockItemId:openingStockId,locationId,toLocationId:destinationId,quantity:2,reason:'Reviewed transfer',expectedBalanceVersions:{[`${openingStockId}:${locationId}`]:3,[`${openingStockId}:${destinationId}`]:0}}};
+  const transferred=await executeCommand({db:store,command:transfer,actor:movementActor,registry:catalogCommandRegistry});
+  assert.equal(transferred.kind,'CONFIRMED');
+  assert.deepEqual(await executeCommand({db:store,command:transfer,actor:movementActor,registry:catalogCommandRegistry}),transferred);
+  const waste={commandId:randomUUID(),name:'inventory.waste',expectedVersions:{[`stockItems:${openingStockId}`]:3,[`stockLocations:${locationId}`]:1},payload:{stockItemId:openingStockId,locationId,quantity:1,reason:'Reviewed waste',expectedBalanceVersions:{[`${openingStockId}:${locationId}`]:4}}};
+  assert.equal((await executeCommand({db:store,command:waste,actor:movementActor,registry:catalogCommandRegistry})).kind,'CONFIRMED');
+  const adjustment={commandId:randomUUID(),name:'inventory.adjust',expectedVersions:{[`stockItems:${openingStockId}`]:4,[`stockLocations:${locationId}`]:1},payload:{stockItemId:openingStockId,locationId,expectedQuantity:2,countedQty:4,expectedBaseUnit:'kg',expectedSealedContainerSize:0,reason:'Reviewed correction',expectedBalanceVersions:{[`${openingStockId}:${locationId}`]:5}}};
+  assert.equal((await executeCommand({db:store,command:adjustment,actor:movementActor,registry:catalogCommandRegistry})).kind,'CONFIRMED');
+  const staleMovement={...waste,commandId:randomUUID(),expectedVersions:{[`stockItems:${openingStockId}`]:5,[`stockLocations:${locationId}`]:1},payload:{...waste.payload,expectedBalanceVersions:{[`${openingStockId}:${locationId}`]:5}}};
+  assert.equal((await executeCommand({db:store,command:staleMovement,actor:movementActor,registry:catalogCommandRegistry})).kind,'CONFLICT');
+  const balances=(await pool.query('SELECT location_id,quantity::text,version::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2',[businessId,openingStockId])).rows;
+  assert.deepEqual(balances.find(row=>row.location_id===locationId),{location_id:locationId,quantity:'4.000000',version:'6'});
+  assert.deepEqual(balances.find(row=>row.location_id===destinationId),{location_id:destinationId,quantity:'2.000000',version:'1'});
+
 });

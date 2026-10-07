@@ -1,5 +1,16 @@
 # 32 — Web-First Reset Implementation Status
 
+## Current verification checkpoint ? 2026-10-07
+
+The verification-first continuation below supersedes earlier test-deferral and stale pending-status notes.
+
+- Local lint and builds pass; root tests: **218/218**; API/PostgreSQL tests: **19/19, zero skips**.
+- Cloud-v2 disposable PostgreSQL suite passes; complete preview browser matrix: **52 passed**, with the dedicated real API case skipped in this matrix and passing separately.
+- Real Playwright/API/PostgreSQL acceptance passes, including login/enrollment, catalog mutation, fresh sign-in after reload, missed remote change recovery, full stocktake, authoritative balance version and IndexedDB/outbox checks, with zero legacy RPC calls.
+- Durable domain rejections/conflicts are retained; infrastructure errors remain unresolved and replayable. Change records are explicit, and location-balance revisions guard reviewed inventory commands against ABA changes.
+- Corrected production browser matrix is still running. GitHub Actions YAML parses and requires the API browser gate, but hosted CI green is **unverified**.
+- Next business gates: receiving and exact movement reversal with immutable physical-state evidence and later-activity blockers, then online POS, consumption, payments/tills and printing. Procurement/rooms expansion, production writers and cutover remain gated.
+
 ## Baseline captured for this checkout
 
 - Branch: `reset/vps-platform`
