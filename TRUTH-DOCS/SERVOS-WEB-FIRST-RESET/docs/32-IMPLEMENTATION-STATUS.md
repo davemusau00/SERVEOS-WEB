@@ -741,3 +741,11 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Extended receipt command uniqueness to preserve one direct receipt per command while permitting distinct accepted GRN lines within one atomic command. Canonical posting passes the source line identity to storage.
 - PO projections now derive cumulative delivered/accepted/rejected quantities from immutable GRN lines. Permission-filtered goods-receipt projections join bootstrap.
 - No migrations, tests, builds or runtime execution ran. GRN validation/command/UI, over-receive permissions, immutable documents and financial posting remain unfinished.
+
+
+## Final sprint continuation - atomic canonical GRN receiving command (source only)
+
+- Added online procurement.receive with reviewed PO/policy/location/stock/balance versions, per-delivery duplicate checks, delivered=accepted+rejected conservation, whole-package rules and permission/acknowledgement-gated over-receiving.
+- Accepted lines call the shared inventory receipt primitive inside the GRN transaction; rejected-only lines post no stock. Frozen purchase costs use cumulative rounding deltas across partial receipts, preserving total cost reconciliation. Current base-unit/container identity must match purchased stock identity.
+- The command creates immutable GRN/document/line evidence, linked inventory receipts, cumulative PO status/version/events and an office print job atomically. It does not fabricate an invoice, supplier payment or provider success.
+- No tests, builds, migrations or runtime execution ran. GRN operator UI/renderers, purchase accrual/payable finance, returns, concurrency/replay/rollback and physical acceptance remain unfinished.

@@ -1,3 +1,4 @@
+import {goodsReceiptCommandRegistry} from './goods-receipt-commands.mjs';
 import {purchaseOrderCommandRegistry} from './purchase-order-commands.mjs';
 import {supplierCommandRegistry} from './supplier-commands.mjs';
 import {checkBridgeClaim} from './bridge-authorization.mjs';
@@ -275,7 +276,7 @@ async function main() {
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
-  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...supplierCommandRegistry,...purchaseOrderCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
+  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...supplierCommandRegistry,...purchaseOrderCommandRegistry,...goodsReceiptCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
   server.listen(config.port, config.host, () => console.log(JSON.stringify({event: 'api_started', port: config.port, environment: config.nodeEnv, logLevel: config.logLevel})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
   process.on('SIGTERM', shutdown);
