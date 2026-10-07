@@ -1,4 +1,5 @@
-import React,{useRef,useState} from 'react';
+import type {QueuedCommand} from './BusinessStore';
+import React,{useEffect,useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
 import {inventoryRevisions} from './inventoryRevisions';
@@ -11,13 +12,21 @@ const money=(value:unknown)=>(Number(value||0)/100).toLocaleString('en-KE',{styl
 type Editor={kind:'CREATE'|'ADD'|'EDIT'|'FIRE';id:string;reviewed:BusinessRecord[];order?:BusinessRecord;product?:BusinessRecord;line?:Record<string,unknown>};
 const baseline=(row:BusinessRecord)=>({collection:row.collection,id:row.id,version:row.version});
 
-export function WebApiPosView({records,session,disabled,command}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command}){
+export function WebApiPosView({records,session,disabled,command,queue}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;queue:QueuedCommand[]}){
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived);
  const orders=records.filter(row=>row.collection==='orders'&&!row.archived);
  const [outletId,setOutletId]=useState(outlets[0]?.id||''),[orderId,setOrderId]=useState(''),[query,setQuery]=useState('');
  const [editor,setEditor]=useState<Editor|null>(null),[name,setName]=useState(''),[quantity,setQuantity]=useState('1'),[portion,setPortion]=useState(''),[destination,setDestination]=useState('COUNTER');
  const [busy,setBusy]=useState(false),[pending,setPending]=useState(false),[message,setMessage]=useState('');
+ const [pendingCommandId,setPendingCommandId]=useState('');
  const inFlight=useRef(false);
+ useEffect(()=>{
+  if(!pendingCommandId)return;const saved=queue.find(entry=>entry.id===pendingCommandId);
+  if(!saved||['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(saved.state))return;
+  setPending(false);setPendingCommandId('');
+  if(saved.state==='SYNCHRONIZED'){if(saved.command.operation==='order.create')setOrderId(String(saved.command.payload.id));setEditor(null);setMessage('The original order action confirmed after recovery.');}
+  else setMessage(saved.result?.error?.message||'The original action did not confirm. Close this review and reopen it using current order information.');
+ },[queue,pendingCommandId]);
  const order=orders.find(row=>row.id===orderId);
  const products=records.filter(row=>row.collection==='products'&&!row.archived&&(!Array.isArray(row.data.outletIds)||!row.data.outletIds.length||row.data.outletIds.includes(outletId)));
  const visible=products.filter(row=>`${row.data.name||''} ${row.data.code||''}`.toLowerCase().includes(query.toLowerCase()));
@@ -57,7 +66,7 @@ export function WebApiPosView({records,session,disabled,command}:{records:Busine
    }
    const outcome=await command(operation,'orders',id,payload);
    if(isCommandConfirmed(outcome)){if(editor.kind==='CREATE')setOrderId(id);setEditor(null);setMessage('Order action confirmed.');}
-   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPending(true);setMessage('message' in outcome?outcome.message:'The original order action is saved. Recover its outcome in Activity before submitting again.');}
+   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN'){setPending(true);setPendingCommandId(outcome.commandId);}setMessage('message' in outcome?outcome.message:'The original order action is saved. Recover its outcome in Activity before submitting again.');}
   }catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{inFlight.current=false;setBusy(false)}
  };
  const field='mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2';

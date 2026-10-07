@@ -248,3 +248,11 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added outlet create/edit/archive/reactivation to API Settings. Editors pin the reviewed outlet and storage projections; unresolved outlet commands join the configuration submission hold. Outlet bootstrap now retains archived tombstones so reactivation remains available after reload.
 - Inline configuration editors now expose a dialog boundary for the existing Service Worker update hold, preventing activation while these forms are open.
 - No tests/lint/build/database/browser execution ran. Deferred acceptance includes create/edit/archive/reactivate/reload, stale storage/outlet revisions, opening-order/till races, permissions/isolation, response loss and safe updates. Online POS/till operator wiring and the remaining sprint phases remain outstanding.
+
+
+## Final sprint continuation ? online PWA order workspace (source only)
+
+- Added a dedicated API POS workspace for counter/takeaway order opening, outlet-filtered product/barcode selection, portion/quantity review, unfired-line edit/removal and stock-consuming fire. Legacy POS rendering remains confined to legacy authority mode.
+- Review forms capture order/product/settings/location/balance baselines and submit canonical API operations. Unresolved order outbox entries hold repeat operations; original outcomes recover through Activity and release the local hold when terminal. Stale/conflicted intent remains visible for deliberate review rather than being silently overwritten.
+- Centralized API workspace navigation for desktop/mobile/hash entry, including permission-gated POS and Settings. API order commands require connectivity; offline POS remains a later bounded-grant phase.
+- No tests/lint/build/browser execution ran. Deferred acceptance includes concurrent terminal edits, barcode/portion selection, stale and ABA fire revisions, duplicate clicks/response loss/restart, navigation/viewports, zero legacy calls, stock/document reconciliation and safe updates. Payment/till UI, advanced POS operations and all later sprint phases remain outstanding.
