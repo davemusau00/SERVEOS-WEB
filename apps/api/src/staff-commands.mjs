@@ -51,8 +51,9 @@ const update=async({tx,command,actor,at})=>{
  const prior=await staffRecord(tx.client,actor.businessId,p.staffId,true);if(!prior||prior.archived)throw new ApiProblem(409,'STAFF_UNAVAILABLE','This staff profile is no longer active.');
  const name=cleanText(p.displayName,1,160,'Staff name'),role=cleanText(p.role,1,40,'Role');
  if(role!==prior.data.role)requirePermission(actor,'staff.change_role');
+ if(prior.data.role==='Admin'&&role!=='Admin'){const count=await tx.client.query("SELECT count(*)::int AS count FROM api_staff_profiles WHERE business_id=$1 AND role='Admin' AND active AND staff_id<>$2",[actor.businessId,p.staffId]);if(count.rows[0].count===0)throw new ApiProblem(409,'LAST_ADMIN','Keep at least one active Admin account.');}
  if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.trim().length>300)fail('Enter a staff-change reason.');
- const permissions=assignedPermissions(role,p.permissions,actor);const next=await tx.bumpEntityVersion(actor.businessId,'employees',p.staffId,expected);
+ const permissions=role==='Admin'&&prior.data.role==='Admin'?['*']:assignedPermissions(role,p.permissions,actor);const next=await tx.bumpEntityVersion(actor.businessId,'employees',p.staffId,expected);
  await tx.client.query('UPDATE api_staff_profiles SET display_name=$3,role=$4,updated_at=$5 WHERE business_id=$1 AND staff_id=$2',[actor.businessId,p.staffId,name,role,at]);
  await tx.client.query('DELETE FROM api_staff_permissions WHERE business_id=$1 AND staff_id=$2',[actor.businessId,p.staffId]);for(const permission of permissions)await tx.client.query('INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,$3)',[actor.businessId,p.staffId,permission]);
  const value=await staffRecord(tx.client,actor.businessId,p.staffId),reason=p.reason.trim();
