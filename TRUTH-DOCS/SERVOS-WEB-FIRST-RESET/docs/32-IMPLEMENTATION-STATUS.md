@@ -95,3 +95,17 @@
 - Local disposable PostgreSQL and API processes were stopped; the disposable Docker database container remains available for another run and contains test-only records.
 
 Production use is not enabled by this slice. See roadmap phases 0–17 and gate production activation on their evidence.
+
+
+## 2026-10-07 verification-first continuation
+
+The latest pasted review supersedes the earlier sprint-end test deferral. POS, procurement, and rooms expansion remain gated on the requested foundation evidence.
+
+- Fixed the nullable active Service Worker access; lint and production build passed locally. Root JavaScript/source suite passed 216/216 after updating obsolete CI/update/offline assertions.
+- Corrected API submission to use the pinned reviewed expected versions, including retained drafts, rather than silently replacing them with current projection versions.
+- CI evidence now includes API PostgreSQL job conclusions and required same-run database log artifacts. Hosted workflow conclusions have not been verified in this continuation.
+- Infrastructure errors and HTTP 5xx command failures no longer persist terminal REJECTED outcomes. They retain unresolved PROCESSING identity and propagate request failure, allowing the original immutable command to recover. Domain rejection/conflict remains durable.
+- API suite passed 17/17 with zero skips against a newly created disposable PostgreSQL 16 container. Added rollback-before-commit, recovery with the same UUID, and confirmed replay checks in PostgreSQL, plus two transient-failure unit cases. This does not prove production database readiness or recovery after an actual database/network crash.
+- Cloud-v2 disposable PostgreSQL suite passed, including canonical migrations, reconciliation/attestation and real room race. Fixed its outdated weighted-cost assertion to compare the precise fractional cost rate introduced by the later bottle-cost migration; posted monetary total behavior was not changed.
+- Browser acceptance is under repair: configured a fixture API origin, followed actual entry navigation, made password matching exact, and returned the generated browser device identity from the enrollment fixture. Reload requires fresh authentication because bearer credentials are intentionally memory-only. Mocked browser evidence and real API/PostgreSQL end-to-end acceptance remain separate gates.
+- UI audit and docs checks passed their command exits; operator audit findings remain UNREVIEWED. Full browser matrices, hosted CI green, stock balance/location ABA versioning, explicit handler records contracts, receive/reversal, and real backend browser proof remain outstanding.

@@ -15,7 +15,7 @@ test('API login, catalog command, reload projection, and reconnect change feed',
   if(url.pathname==='/v1/devices/enrollment-challenges')return respond({challengeId:'a1000000-0000-4000-8000-000000000006',challenge:'challenge',issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+300000).toISOString()});
   if(url.pathname==='/v1/devices/enroll'){deviceId=JSON.parse(request.postData()||'{}').deviceId;return respond({deviceId,businessId,createdAt:new Date().toISOString()},201);}
   if(url.pathname==='/v1/bootstrap/catalog')return respond({protocolVersion:1,cursor,records:[{collection:'stockItems',id:stockId,version:stockVersion,data:{name:stockName,code:'COF',baseUnit:'kg',barcode:null,barcodeAliases:[],scanUnitQuantity:1,reorderLevel:2,averageUnitCostMinor:900,purchasePackages:[]},archived:false}]});
-  if(url.pathname==='/v1/sync/changes')return respond({protocolVersion:1,cursor,highWater:cursor,hasMore:false,changes:feed});
+  if(url.pathname==='/v1/sync/changes')return respond({protocolVersion:1,cursor,highWater:cursor,hasMore:false,changes:feed.filter(change=>change.sequence>Number(url.searchParams.get('after')||0))});
   if(url.pathname==='/v1/commands'&&request.method()==='POST'){
    const command=JSON.parse(request.postData()||'{}');stockVersion++;stockName=String(command.payload.data.name);cursor++;const record={collection:'stockItems',id:stockId,version:stockVersion,data:{name:stockName,code:'COF',baseUnit:'kg',barcode:null,barcodeAliases:[],scanUnitQuantity:1,reorderLevel:2,averageUnitCostMinor:900,purchasePackages:[]},archived:false};
    feed.push({sequence:cursor,commandId:command.commandId,actorId:staffId,deviceId,occurredAt:new Date().toISOString(),records:[record]});
@@ -25,29 +25,32 @@ test('API login, catalog command, reload projection, and reconnect change feed',
   if(url.pathname==='/v1/auth/logout')return respond({revoked:true});
   return respond({error:{code:'NOT_FOUND',message:'Unknown fixture path'}},404);
  });
- await page.goto('/');
- await page.getByRole('button',{name:'Remote management',exact:true}).click();
- await page.getByRole('button',{name:'ServOS API workspace'}).click();
- await page.getByLabel('Staff login').fill('admin');
- await page.getByLabel('Password',{exact:true}).fill('test-password');
- await page.getByRole('button',{name:'Sign in'}).click();
- await expect(page.getByText('Workspace ready')).toBeVisible();
+ const signIn=async()=>{
+  if(await page.getByRole('button',{name:'Remote management',exact:true}).isVisible())await page.getByRole('button',{name:'Remote management',exact:true}).click();
+  await page.getByRole('button',{name:'ServOS API workspace'}).click();
+  await page.getByLabel('Staff login').fill('admin');
+  await page.getByLabel('Password',{exact:true}).fill('test-password');
+  await page.getByRole('button',{name:'Sign in',exact:true}).click();
+  await expect(page.getByText('Workspace ready')).toBeVisible();
+  await page.getByRole('button',{name:'Catalog',exact:true}).click();
+ };
+ await page.goto('/');await signIn();
  await expect(page.getByText('Coffee beans',{exact:true})).toBeVisible();
- await page.getByRole('button',{name:'Catalog',exact:true}).click();
  await page.getByRole('button',{name:'Edit',exact:true}).first().click();
  const nameInput=page.getByLabel('Name');
  await nameInput.fill('Coffee beans updated');
  await page.getByRole('button',{name:'Save',exact:true}).click();
- await expect(page.getByText('Saved and synchronized.')).toBeVisible({timeout:10000}).catch(async()=>expect(page.getByText('Coffee beans updated',{exact:true})).toBeVisible());
+ await expect(page.getByText('Saved and synchronized.',{exact:true})).toBeVisible({timeout:10000});
  await expect(page.getByText('Coffee beans updated',{exact:true})).toBeVisible();
- await page.reload();
- await expect(page.getByText('Workspace ready')).toBeVisible();
+ await page.reload();await signIn();
  await expect(page.getByText('Coffee beans updated',{exact:true})).toBeVisible();
  offline=true;await page.context().setOffline(true);
- await expect(page.getByText(/Online/)).toHaveCount(0).catch(()=>undefined);
+ await expect(page.getByText('Offline ? saved changes only',{exact:true})).toBeVisible();
+ stockName='Coffee beans from another device';stockVersion++;cursor++;
+ feed.push({sequence:cursor,commandId:'a1000000-0000-4000-8000-000000000007',actorId:staffId,deviceId,occurredAt:new Date().toISOString(),records:[{collection:'stockItems',id:stockId,version:stockVersion,data:{name:stockName,code:'COF',baseUnit:'kg'},archived:false}]});
  offline=false;await page.context().setOffline(false);
  await page.getByRole('button',{name:'Synchronize'}).click();
- await expect(page.getByText('Coffee beans updated',{exact:true})).toBeVisible();
+ await expect(page.getByText('Coffee beans from another device',{exact:true})).toBeVisible();
  expect(cursor).toBeGreaterThan(1);
 });
 
