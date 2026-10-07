@@ -46,11 +46,11 @@ test('API login, catalog command, reload projection, and reconnect change feed',
  await page.reload();await signIn();
  await expect(page.getByText('Coffee beans updated',{exact:true})).toBeVisible();
  offline=true;await page.context().setOffline(true);
- await expect(page.getByText('Offline ? saved changes only',{exact:true})).toBeVisible();
+ await expect(page.getByText(/^Offline .* saved changes only/)).toBeVisible();
  stockName='Coffee beans from another device';stockVersion++;cursor++;
  feed.push({sequence:cursor,commandId:'a1000000-0000-4000-8000-000000000007',actorId:staffId,deviceId,occurredAt:new Date().toISOString(),records:[{collection:'stockItems',id:stockId,version:stockVersion,data:{name:stockName,code:'COF',baseUnit:'kg'},archived:false}]});
  offline=false;await page.context().setOffline(false);
- await page.getByRole('button',{name:'Synchronize'}).click();
+ await page.getByRole('button',{name:'Synchronize',exact:true}).first().click();
  await expect(page.getByText('Coffee beans from another device',{exact:true})).toBeVisible();
  expect(cursor).toBeGreaterThan(1);
 });

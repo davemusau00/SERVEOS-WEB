@@ -40,3 +40,6 @@ PATCH_*_README.md
 release/
 native-out.txt
 native-all.txt
+
+# Isolated real API browser acceptance bundle
+/dist-api-test/
