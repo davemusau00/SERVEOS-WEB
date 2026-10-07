@@ -360,3 +360,41 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - API portion validation now bounds option count, requires unique bounded IDs and names, safe integer prices, positive quantities with at most six decimals, and boolean whole-container flags. Stock snapshot creation rejects a claimed whole-container option without valid linked bottle tracking. POS displays selected portion names and stock quantities during selection.
 - Modifiers, price rules, customer/table/room assignment, course/round workflows and manager approval delegation remain outstanding; the new controls do not expose those unsupported actions.
 - No tests, lint, builds, migration or browser execution ran. Deferred gates include catalog edit preservation, exact minor-unit round trips, stale reviews, duplicate portion IDs, malformed quantities, unavailable outlets, recipe/batch/direct/serving/bottle consumption, physical bottle conservation, ticket/receipt snapshots, browser layouts and response-loss recovery.
+
+
+## Final sprint continuation - product modifiers (source only)
+
+- Added migration 031 with versioned product modifier definitions and indexed tenant-scoped stock-reference foreign keys. Active product consumption lookup includes modifier references, preserving stock configuration/archive dependency guards.
+- Catalog saves validate bounded unique modifier IDs/names, signed safe minor-unit price deltas, unique stock references and signed base-unit ingredient changes with six-decimal precision. Referenced stock must be active; older callers omitting modifiers preserve existing definitions.
+- API product bootstrap/feed carries modifiers. Catalog controls edit names, signed KES prices and stock ingredient changes; decimal input converts at the command boundary. POS captures selected IDs and previews the reviewed option price, with duplicate/unknown selections rejected by the API.
+- Order add freezes modifier definitions, adjusted price, original base price in its event and final ingredient consumption. Price addition and ingredient adjustments use integer/BigInt intermediates. Native nonnegative price-floor behavior is preserved; negative resulting ingredient consumption is refused. Whole-bottle consumption cannot become fractional sealed stock through a modifier.
+- Quantity edits preserve frozen option pricing/consumption. Fire, ticket and receipt snapshots use the frozen selections; later product edits cannot reinterpret the old sale.
+- No tests, lint, builds, migrations or browser execution ran. Deferred gates include duplicate/unknown selections, stale product reviews, decimal and signed boundaries, zero-price floors, ingredient removal/addition/over-removal, unavailable stock, reference guards, bottle conservation, replay/response loss, bootstrap/reload/feed and ticket/receipt layouts. Price rules, course/rounds, service assignment and delegated manager approvals remain outstanding.
+
+
+## Final sprint continuation - held courses and selective fire (source only)
+
+- Added migration 032 for bounded course labels and explicit fired timestamps. Historical timestamps remain unknown instead of being inferred from mutable line update times.
+- Existing add/update commands accept course labels on draft lines, retaining before/after evidence and preserving omitted labels. Fired lines remain immutable to ordinary edits.
+- Existing `order.fire` now accepts a course filter and/or a unique explicit draft-line selection. Missing, already-fired, foreign-order or course-mismatched selected lines conflict before stock changes. No selection retains the existing all-draft behavior.
+- Selected lines alone consume stock and transition to FIRED. Unselected draft lines remain held; events retain selected and held IDs. Immutable KOT/BOT snapshots now record actual FIRED state and timestamp instead of carrying their pre-transition DRAFT state.
+- PWA fire review offers individual line selection, select-all and named-course shortcuts using captured order/stock/balance revisions. Remaining held lines are explicit; empty selections cannot submit. Course labels render in order lines and business documents.
+- Existing API and payment-panel checks continue to prevent collecting money while draft lines remain. Zero-value auto-completion still requires all active lines to be fired.
+- No tests, lint, build, migrations or browser execution ran. Deferred acceptance includes mixed held/fired courses, stale and foreign line selection, exact selected-stock deductions, concurrent fire, replay/response loss, held-line edits, zero-price orders, payment guards and immutable routed ticket content/layout. Preparation/KDS state, rounds, service assignment and later sprint phases remain outstanding.
+
+
+## Final sprint continuation - preparation pass (source only)
+
+- Added migration 033 and existing canonical `order.kds` under `kds.update`. Preparation advances FIRED -> PREPARING -> READY -> SERVED with reviewed order versions and audited line/station evidence. Void/missing orders, stale versions, invalid selections and skipped/backward transitions are refused.
+- Preparation status is separate from financial line state: these transitions do not consume stock, alter prices/taxes, change payment eligibility or regenerate tickets. Paid/completed orders can still finish preparation; voided orders cannot.
+- New fire records preparation status, actor and timestamp. Historical FIRED lines retain known fired status without fabricated preparation times/actors.
+- Added permission-filtered API bootstrap/feed access and a PWA preparation pass with kitchen/bar/rooms station selection, notes/modifiers/course display, served filter, single-line advance and original-command recovery. It explicitly identifies the loaded-history scope rather than claiming a complete production queue.
+- No tests, lint, build, migration or browser execution ran. Deferred gates include role isolation, stale multi-terminal transitions, station/item mismatch, paid-before-served orders, void races, stock/money invariance, replay/response loss, reload/feed and touch layouts. Complete paginated station history, rounds, service assignment and later sprint phases remain outstanding.
+
+
+## Final sprint continuation - recover all live POS obligations (source only)
+
+- Removed the global latest-1000 order cap from operational recovery. Bootstrap now includes every OPEN/FIRED order and every nonvoid order with unfinished preparation, including paid/completed sales awaiting service. Only recent closed history remains capped at 1000.
+- Explicit order-ID projection lookups no longer inherit the history cap. Added migration 034 indexes for recent closed history and unfinished preparation lookup; the existing bootstrap snapshot/cursor boundary and permission filtering remain in use.
+- Preparation UI describes the recovery/history distinction. Preparation-update-only roles can use the same audited preparation-document print actions as preparation viewers.
+- No tests, lint, build, migration or browser execution ran. Deferred acceptance includes more than 1000 newer closed orders, old open/paid-unserved orders, void exclusion, served transitions, reload/rebuild/change-feed convergence, role filtering and query performance. This does not complete generalized paginated history or bounded bootstrap streaming, which remain required for large datasets.
