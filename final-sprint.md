@@ -1677,3 +1677,15 @@ green CI
 If any later phase exposes a broken earlier invariant, repair the invariant, add regression evidence, then continue.
 
 The sprint ends with a production system, not with a large diff.
+
+### Customer-credit Print Bridge layouts (source only; verification deferred)
+
+- Added strict office-role renderers for customer payment acknowledgements, write-off notices and reversal notices, and a receipt-role renderer for immutable customer credit invoices. Invoice output reconciles original order lines separately from the partial customer-account charge and its allocated tax; payment acknowledgements preserve cashier-confirmed/manual wording. QR is suppressed under the current sales-receipt-only QR policy.
+- Added these document types to the Rust request allowlist, typed PWA bridge contract, submission gate, UI action and renderer dispatch. Unsupported layouts retain browser printing.
+- No tests, formatting, lint, builds, migrations, API/PostgreSQL, bridge execution or printer checks were run. Verification remains deferred; CI and physical hardware gates remain open.
+
+### Till-attributed customer-credit sales accrual (source only; verification deferred)
+
+- Close-day generation now identifies customer-credit charges and their charge reversals through the originating order's till, requires one linked journal per entry, and reconciles net accounts receivable against net sales revenue, VAT and levy.
+- The immutable report separates charged-to-account, reversed and net accrued sales from tender and cash collection. Browser and bridge layouts label the figures as accruals, not cash received; older immutable reports remain renderable. Unresolved-command diagnostics include credit charges.
+- No tests, formatting, lint, builds, migrations, PostgreSQL, renderer execution or hardware checks were run. Verification remains deferred.

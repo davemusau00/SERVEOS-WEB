@@ -30,3 +30,5 @@ pub mod goods_receipt_rendering;
 pub mod supplier_payment_rendering;
 
 pub mod supplier_return_rendering;
+
+pub mod customer_credit_rendering;

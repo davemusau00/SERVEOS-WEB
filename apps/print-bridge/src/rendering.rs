@@ -69,6 +69,7 @@ pub fn prepare_document(input:&ValidatedAction)->Result<PreparedDocument,String>
   "GOODS_RECEIPT"=>crate::goods_receipt_rendering::prepare_goods_receipt(input),
   "PURCHASE_ORDER"=>crate::purchase_order_rendering::prepare_purchase_order(input),
   "CLOSE_DAY_REPORT"=>crate::close_day_rendering::prepare_close_day(input),
+  "CUSTOMER_CREDIT_INVOICE"|"CUSTOMER_CREDIT_PAYMENT_ACKNOWLEDGEMENT"|"CUSTOMER_CREDIT_WRITE_OFF_NOTICE"|"CUSTOMER_CREDIT_REVERSAL_NOTICE"=>crate::customer_credit_rendering::prepare_customer_credit(input),
   "SALES_RECEIPT"|"PAYMENT_ACKNOWLEDGEMENT"|"REFUND_RECEIPT"=>crate::financial_rendering::prepare_financial_document(input),
   "KOT"|"BOT"=>prepare_preparation_ticket(input),
   "KOT_CANCEL"|"BOT_CANCEL"|"ORDER_VOID_NOTICE"=>prepare_void_notice(input),

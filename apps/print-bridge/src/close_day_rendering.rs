@@ -23,6 +23,11 @@ pub fn prepare_close_day(input:&ValidatedAction)->Result<PreparedDocument,String
  let settled=&snapshot["settledSales"];lines.push("SETTLED SALES".into());let count=amount(settled,"receiptCount")?;if count<0{return Err("Invalid settled receipt count".into());}lines.push(format!("Receipts: {count}"));
  amounts(&mut lines,settled,&[("grossMinor","Gross"),("netMinor","Net"),("vatMinor","VAT"),("levyMinor","Levy")])?;
  let gross=amount(settled,"grossMinor")?;if i128::from(amount(settled,"netMinor")?)+i128::from(amount(settled,"vatMinor")?)+i128::from(amount(settled,"levyMinor")?)!=i128::from(gross){return Err("Issued settled taxes do not reconcile".into());}
+ if let Some(credit_sales)=snapshot.get("customerCreditSales"){
+  let charge_count=amount(credit_sales,"chargeCount")?;let reversal_count=amount(credit_sales,"reversalCount")?;let charged=amount(credit_sales,"chargedMinor")?;let reversed=amount(credit_sales,"reversedMinor")?;let net=amount(credit_sales,"expectedNetMinor")?;
+  if charge_count<0||reversal_count<0||charged<0||reversed<0||i128::from(charged)-i128::from(reversed)!=i128::from(net)||amount(credit_sales,"entryCount")?!=amount(credit_sales,"journalCount")?||net!=amount(credit_sales,"arNetMinor")?||i128::from(amount(credit_sales,"revenueNetMinor")?)+i128::from(amount(credit_sales,"vatNetMinor")?)+i128::from(amount(credit_sales,"levyNetMinor")?)!=i128::from(net){return Err("Customer credit sales and AR/revenue/tax evidence do not reconcile".into());}
+  lines.push("CUSTOMER CREDIT SALES / ACCRUAL (NOT CASH RECEIVED)".into());lines.push(format!("Charges: {charge_count} - Reversals: {reversal_count}"));amounts(&mut lines,credit_sales,&[("chargedMinor","Charged to accounts"),("reversedMinor","Charge reversals"),("expectedNetMinor","Net account sales"),("revenueNetMinor","Net sales revenue"),("vatNetMinor","Net VAT"),("levyNetMinor","Net levy")])?;
+ }else{lines.push("Customer credit sales accrual unavailable in this report version.".into());}
  lines.push("COLLECTIONS".into());amounts(&mut lines,&snapshot["sales"],&[("receivedMinor","Received"),("returnedMinor","Returned"),("netReceivedMinor","Net received")])?;
  let tenders=snapshot.get("paymentsByTender").and_then(Value::as_array).ok_or("Missing issued report tenders")?;if tenders.len()>500{return Err("Report tenders exceed bounds".into());}
  for tender in tenders{lines.push(format!("{} - {}",text(tender,"method",true)?,text(tender,"name",true)?));amounts(&mut lines,tender,&[("receivedMinor","Received"),("returnedMinor","Returned"),("netMinor","Net")])?;}
@@ -33,7 +38,7 @@ pub fn prepare_close_day(input:&ValidatedAction)->Result<PreparedDocument,String
   let mut credit_total=0i64;let mut cash_total=0i64;
   lines.push("CUSTOMER CREDIT COLLECTIONS".into());
   for entry in credit_entries{
-   let method=text(entry,"method",true)?;if !["CASH","MPESA","CARD"].contains(&method.as_str()){return Err("Unsupported customer-credit collection method".into());}
+   let method=text(entry,"method",true)?;if !["CASH","MPESA","CARD","BANK"].contains(&method.as_str()){return Err("Unsupported customer-credit collection method".into());}
    let name=text(entry,"name",true)?;let count=amount(entry,"settlementCount")?;if count<0{return Err("Invalid customer-credit settlement count".into());}
    let received=amount(entry,"receivedMinor")?;if received<0{return Err("Invalid customer-credit collection amount".into());}
    credit_total=credit_total.checked_add(received).ok_or("Customer-credit total exceeds bounds")?;
@@ -54,7 +59,7 @@ pub fn prepare_close_day(input:&ValidatedAction)->Result<PreparedDocument,String
  let diagnostics=&snapshot["operationalDiagnostics"];lines.push("BUSINESS DIAGNOSTICS AT GENERATION".into());lines.push(format!("Observed: {}",timestamp(diagnostics,"observedAt")?));
  for (key,label) in [("openOrderCount","Open orders"),("unassignedZeroReceiptCount","Zero-value receipts without till attribution"),("unresolvedMoneyCommandCount","Unresolved money commands")]{let value=amount(diagnostics,key)?;if value<0{return Err("Invalid report diagnostic count".into());}lines.push(format!("{label}: {value}"));}
  amounts(&mut lines,diagnostics,&[("openOrderOutstandingMinor","Outstanding")])?;
- lines.push("Customer-credit collections are reported separately; credit-sale accrual is not included.".into());
+ lines.push("Customer-credit sales are accruals, not received tender. Customer-credit collections are reported separately.".into());
  lines.push("Room and folio exposure unavailable until that API domain migrates.".into());
  let footer_start=lines.len();lines.extend(crate::document_text::multiline(business,"footer",2000)?);
  let logo=crate::document_text::embedded_png(business,"logoPngDataUrl")?;
