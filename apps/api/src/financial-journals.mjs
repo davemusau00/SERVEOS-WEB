@@ -44,7 +44,7 @@ export async function remainingPaymentBasis(db,businessId,orderId,order){
  return {orderTotals,posted,remaining};
 }
 
-const headers=`id,source_type AS "sourceType",source_id AS "sourceId",payment_id AS "paymentId",refund_id AS "refundId",original_journal_id AS "originalJournalId",currency,total_debit_minor AS "totalDebitMinor",total_credit_minor AS "totalCreditMinor",basis_snapshot AS "basisSnapshot",source_command_id AS "sourceCommandId",staff_id AS "staffId",device_id AS "deviceId",occurred_at AS "occurredAt"`;
+const headers=`id,source_type AS "sourceType",source_id AS "sourceId",payment_id AS "paymentId",refund_id AS "refundId",customer_credit_entry_id AS "customerCreditEntryId",original_journal_id AS "originalJournalId",currency,total_debit_minor AS "totalDebitMinor",total_credit_minor AS "totalCreditMinor",basis_snapshot AS "basisSnapshot",source_command_id AS "sourceCommandId",staff_id AS "staffId",device_id AS "deviceId",occurred_at AS "occurredAt"`;
 async function projected(db,businessId,rows){
  if(!rows.length)return [];
  const lines=await db.query(`SELECT journal_id AS "journalId",line_number AS "lineNumber",account_code AS "accountCode",account_ref AS "accountRef",debit_minor AS "debitMinor",credit_minor AS "creditMinor" FROM financial_journal_lines WHERE business_id=$1 AND journal_id=ANY($2::uuid[]) ORDER BY journal_id,line_number`,[businessId,rows.map(row=>row.id)]);
@@ -85,6 +85,18 @@ export async function postFinancialJournal(tx,{actor,command,at,paymentId,refund
  for(const [index,line] of lines.entries()){
   const debit=(line.code==='ASSET_TENDER')!==reversing;
   await tx.client.query(`INSERT INTO financial_journal_lines(business_id,journal_id,line_number,account_code,account_ref,debit_minor,credit_minor) VALUES($1,$2,$3,$4,$5,$6,$7)`,[actor.businessId,id,index+1,line.code,line.ref,debit?line.amount:0,debit?0:line.amount]);
+ }
+ return (await projected(tx.client,actor.businessId,rows))[0];
+}
+
+export async function postCustomerCreditJournal(tx,{actor,command,at,entry,sourceType,originalJournalId=null,lines,basisSnapshot}){
+ if(!['CUSTOMER_CREDIT_CHARGE','CUSTOMER_CREDIT_SETTLEMENT','CUSTOMER_CREDIT_WRITE_OFF','CUSTOMER_CREDIT_REVERSAL'].includes(sourceType)||!Array.isArray(lines)||!lines.length||lines.length>4)throw new ApiProblem(500,'INVALID_CREDIT_JOURNAL','Customer credit journal configuration is invalid.');
+ const amount=entry.amountMinor;if(!Number.isSafeInteger(amount)||amount<=0)throw new ApiProblem(409,'CREDIT_JOURNAL_AMOUNT_INVALID','Customer credit journal amount needs reconciliation.');
+ const id=randomUUID();
+ const {rows}=await tx.client.query(`INSERT INTO financial_journals(business_id,id,source_type,source_id,payment_id,refund_id,customer_credit_entry_id,original_journal_id,currency,total_debit_minor,total_credit_minor,basis_snapshot,source_command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,NULL,NULL,$4,$5,'KES',$6,$6,$7::jsonb,$8,$9,$10,$11) RETURNING ${headers}`,[actor.businessId,id,sourceType,entry.id,originalJournalId,amount,JSON.stringify(basisSnapshot),command.commandId,actor.staffId,actor.deviceId,at]);
+ for(const [index,line] of lines.entries()){
+  if(!['ASSET_TENDER','REVENUE_SALES','LIABILITY_VAT','LIABILITY_LEVY','ASSET_CUSTOMER_AR','EXPENSE_BAD_DEBT'].includes(line.code)||!Number.isSafeInteger(line.debitMinor)||!Number.isSafeInteger(line.creditMinor))throw new ApiProblem(500,'INVALID_CREDIT_JOURNAL_LINE','Customer credit journal lines are invalid.');
+  await tx.client.query(`INSERT INTO financial_journal_lines(business_id,journal_id,line_number,account_code,account_ref,debit_minor,credit_minor) VALUES($1,$2,$3,$4,$5,$6,$7)`,[actor.businessId,id,index+1,line.code,line.ref??null,line.debitMinor,line.creditMinor]);
  }
  return (await projected(tx.client,actor.businessId,rows))[0];
 }

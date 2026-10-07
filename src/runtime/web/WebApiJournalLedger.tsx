@@ -4,7 +4,7 @@ import type {BusinessRecord} from './session';
 const object=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
 const text=(value:unknown)=>typeof value==='string'?value:'';
 const money=(value:unknown)=>Number.isSafeInteger(value)?new Intl.NumberFormat('en-KE',{style:'currency',currency:'KES'}).format(Number(value)/100):'Unavailable';
-const names:Record<string,string>={ASSET_TENDER:'Tender asset',REVENUE_SALES:'Sales revenue',LIABILITY_VAT:'VAT payable',LIABILITY_LEVY:'Levy payable'};
+const names:Record<string,string>={ASSET_TENDER:'Tender asset',REVENUE_SALES:'Sales revenue',LIABILITY_VAT:'VAT payable',LIABILITY_LEVY:'Levy payable',ASSET_CUSTOMER_AR:'Customer receivable',EXPENSE_BAD_DEBT:'Bad debt expense'};
 
 export function WebApiJournalLedger({records}:{records:BusinessRecord[]}){
  const [query,setQuery]=useState(''),[selected,setSelected]=useState('');
