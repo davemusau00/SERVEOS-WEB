@@ -552,3 +552,33 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added recovery responses and local job lookup constrained to the originating business/device/bridge pairing. Local job UUID knowledge alone does not permit reading another pairing's delivery evidence.
 - Local retry/cancel actions explicitly require API review. Transport and database errors produce bounded reconciliation responses without exposing tokens, snapshots or printer destinations.
 - No tests, compilation, network or hardware execution ran. Trusted pairing persistence, HTTPS listener, PWA transport/UI, authoritative outcome reporting and financial document rendering remain incomplete. Stored responses preserve original observations; fresh status lookup is needed for later startup recovery changes.
+
+
+## Final sprint continuation - PWA bridge transport/recovery evidence (source only)
+
+- Added typed signed HTTPS bridge transport with exact approved origin, omitted credentials, refused redirects, bounded streamed JSON responses and one HTTP attempt. No staff bearer, printer destination or raw print bytes is sent.
+- IndexedDB records request identity and scope before fetch. Response loss, timeout and completion-storage failure retain unresolved evidence and instruct recovery before retry or browser fallback. Tokens, document snapshots and private keys are excluded from this tracking store.
+- Recovery signs a new REQUEST_STATUS action for the original request, requiring matching bridge/business/device/origin evidence. It never resends SUBMIT or renews an API claim.
+- No tests, build or runtime calls ran. Transport is not yet wired into operator print controls; approved pairing configuration, matching HTTPS service route/CORS, strict response schemas, evidence management and authoritative outcome reporting remain outstanding.
+
+
+## Final sprint continuation - validated bridge responses and recovery listing (source only)
+
+- PWA bridge responses now validate the supported discriminated states, delivery identities/hashes, safe revisions/attempts, bounded details, explicit no-replay recovery policy and bounded nested completion responses before persistence.
+- Added IndexedDB evidence schema version 2 with a compound pairing-scope/time index and bounded newest-first lookup for recovery after reload. Evidence remains retained across logout; scoped queries require the matching configured bridge and device.
+- No tests, builds or runtime execution ran. Operator recovery UI, pairing/service hosting and authoritative outcome reporting remain outstanding; bridge transport acceptance still does not prove physical delivery.
+
+
+## Final sprint continuation - operator bridge recovery controls (source only)
+
+- Wired retained Print Bridge submission recovery into API Settings for the current enrolled device. The screen shows request identity, saved bridge origin and outcome; network lookup requires an explicit operator action.
+- Recovery queries the original request, then offers a separate current-delivery lookup when a local attempt is known. It never submits print bytes, retries or switches to browser fallback. Saved completion observations remain distinct from later delivery state.
+- No tests, builds or runtime execution ran. Full submission controls, pairing/HTTPS hosting, recovery pagination, authoritative outcome reporting and hardware acceptance remain outstanding.
+
+
+## Final sprint continuation - trusted local bridge pairing configuration (source only)
+
+- Added bounded installer-file configuration for one bridge/business, pinned API public key and HTTPS origin, approved printer routes and up to 100 locally approved device public keys.
+- Each pairing retains explicit approval timestamp/reason and revocation state. Duplicate device IDs, private JWK fields, mismatched business/bridge/origin and revoked devices fail closed before dispatch. Empty pairing configuration grants no access.
+- Documented installer ACL ownership, independent key verification, per-request configuration reload and in-flight revocation limits. CORS origin permission is distinct from signature authorization.
+- No tests, builds, file provisioning, network or hardware execution ran. HTTPS listener, actual local approval workflow/installer, PWA submission wiring and API outcome reporting remain outstanding.
