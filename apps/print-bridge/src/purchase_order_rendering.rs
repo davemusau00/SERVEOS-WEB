@@ -3,12 +3,12 @@ use crate::{actions::{BridgeAction,PrinterRole,ValidatedAction},rendering::Prepa
 use chrono::{DateTime,FixedOffset};
 use serde_json::Value;
 use uuid::Uuid;
-fn text(value:&Value,key:&str,required:bool)->Result<String,String>{match value.get(key){None|Some(Value::Null) if !required=>Ok(String::new()),Some(Value::String(raw)) if raw.len()<=2000&&!raw.chars().any(|c|c.is_control())&&(!required||!raw.trim().is_empty())=>Ok(raw.clone()),_=>Err(format!("Invalid purchase document {key}"))}}
-fn identity(value:&Value,key:&str)->Result<String,String>{let raw=text(value,key,true)?;if Uuid::parse_str(&raw).map(|id|id.to_string()!=raw).unwrap_or(true){return Err("Invalid purchase document identity".into());}Ok(raw)}
-fn amount(value:&Value,key:&str)->Result<i64,String>{value.get(key).and_then(Value::as_i64).filter(|n|(0..=9007199254740991).contains(n)).ok_or_else(||format!("Invalid purchase amount {key}"))}
-fn money(value:i64)->String{format!("{}.{:02}",value/100,value%100)}
+pub(crate) fn text(value:&Value,key:&str,required:bool)->Result<String,String>{match value.get(key){None|Some(Value::Null) if !required=>Ok(String::new()),Some(Value::String(raw)) if raw.len()<=2000&&!raw.chars().any(|c|c.is_control())&&(!required||!raw.trim().is_empty())=>Ok(raw.clone()),_=>Err(format!("Invalid purchase document {key}"))}}
+pub(crate) fn identity(value:&Value,key:&str)->Result<String,String>{let raw=text(value,key,true)?;if Uuid::parse_str(&raw).map(|id|id.to_string()!=raw).unwrap_or(true){return Err("Invalid purchase document identity".into());}Ok(raw)}
+pub(crate) fn amount(value:&Value,key:&str)->Result<i64,String>{value.get(key).and_then(Value::as_i64).filter(|n|(0..=9007199254740991).contains(n)).ok_or_else(||format!("Invalid purchase amount {key}"))}
+pub(crate) fn money(value:i64)->String{format!("{}.{:02}",value/100,value%100)}
 fn quantity(value:&Value,key:&str)->Result<(i128,String),String>{let number=value.get(key).and_then(Value::as_f64).filter(|n|n.is_finite()&&*n>0.0&&*n<=1e9).ok_or("Invalid purchase quantity")?;let scaled=number*1e6;if (scaled-scaled.round()).abs()>0.0001{return Err("Unsupported purchase quantity precision".into());}let formatted=format!("{number:.6}");Ok((scaled.round() as i128,formatted.trim_end_matches('0').trim_end_matches('.').to_string()))}
-fn time(value:&Value,key:&str)->Result<String,String>{let issued=text(value,key,true)?;let time=DateTime::parse_from_rfc3339(&issued).map_err(|_|"Invalid purchase document timestamp")?;Ok(time.with_timezone(&FixedOffset::east_opt(10800).ok_or("Invalid local time zone")?).format("%Y-%m-%d %H:%M:%S EAT").to_string())}
+pub(crate) fn time(value:&Value,key:&str)->Result<String,String>{let issued=text(value,key,true)?;let time=DateTime::parse_from_rfc3339(&issued).map_err(|_|"Invalid purchase document timestamp")?;Ok(time.with_timezone(&FixedOffset::east_opt(10800).ok_or("Invalid local time zone")?).format("%Y-%m-%d %H:%M:%S EAT").to_string())}
 pub fn prepare_purchase_order(input:&ValidatedAction)->Result<PreparedDocument,String>{
  let document=match input.action(){BridgeAction::Submit{document,printer_role:PrinterRole::Office,..} if document.document_type=="PURCHASE_ORDER"=>document,_=>return Err("Purchase order requires office printer role".into())};
  let snapshot:Value=serde_json::from_str(&document.canonical_snapshot).map_err(|_|"Invalid immutable purchase snapshot")?;

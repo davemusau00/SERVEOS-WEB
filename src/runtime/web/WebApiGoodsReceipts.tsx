@@ -1,3 +1,5 @@
+import {WebDocumentQueue} from './WebDocumentQueue';
+import type {ApiAuthenticatedDeviceSession} from './apiAuth';
 import React,{useEffect,useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import type {QueuedCommand} from './BusinessStore';
@@ -9,8 +11,8 @@ const obj=(v:unknown):Record<string,unknown>=>v&&typeof v==='object'&&!Array.isA
 const input='mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2';
 const button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
 const quantity=(value:string)=>{if(!/^\d+(?:\.\d{1,6})?$/.test(value)||Number(value)>1e9)throw new Error('Use non-negative quantities with at most six decimals.');return Number(value);};
-export function WebApiGoodsReceipts({records,session,queue,disabled,command}:{records:BusinessRecord[];session:WebSession;queue:QueuedCommand[];disabled:boolean;command:(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>}){
- const [review,setReview]=useState<Review|null>(null),[location,setLocation]=useState(''),[reference,setReference]=useState(''),[reason,setReason]=useState(''),[over,setOver]=useState(false),[ack,setAck]=useState(false),[busy,setBusy]=useState(false),[pending,setPending]=useState(''),[message,setMessage]=useState('');const submitting=useRef(false);
+export function WebApiGoodsReceipts({records,session,queue,disabled,command,apiAuth,readRecords}:{apiAuth:ApiAuthenticatedDeviceSession;readRecords:()=>Promise<BusinessRecord[]>;records:BusinessRecord[];session:WebSession;queue:QueuedCommand[];disabled:boolean;command:(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>}){
+ const [review,setReview]=useState<Review|null>(null),[location,setLocation]=useState(''),[reference,setReference]=useState(''),[reason,setReason]=useState(''),[over,setOver]=useState(false),[ack,setAck]=useState(false),[busy,setBusy]=useState(false),[pending,setPending]=useState(''),[message,setMessage]=useState('');const submitting=useRef(false);const [documentId,setDocumentId]=useState('');
  const unresolved=queue.some(row=>row.command.operation.startsWith('procurement.')&&['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(row.state));
  const blocked=disabled||busy||unresolved||Boolean(pending),receive=allowed(session,'procurement.receive');
  useEffect(()=>{if(!pending)return;const result=queue.find(row=>row.id===pending);if(!result||!['SYNCHRONIZED','REJECTED','CONFLICT'].includes(result.state))return;setPending('');setReview(null);setMessage(result.state==='SYNCHRONIZED'?'Original goods receipt confirmed.':result.result?.error?.message||'Review the latest purchase order before another receiving action.');},[pending,queue]);
@@ -34,6 +36,7 @@ export function WebApiGoodsReceipts({records,session,queue,disabled,command}:{re
  <label className="block">Receiving reason<textarea required minLength={3} maxLength={500} className={input} value={reason} onChange={event=>setReason(event.target.value)}/></label><label className="block"><input type="checkbox" checked={ack} onChange={event=>setAck(event.target.checked)}/> I reviewed the physical delivery, accepted quantities, rejections and receiving location.</label>
  <button className={button} disabled={!ack}>Confirm reviewed goods receipt</button></fieldset><button type="button" className={button} disabled={busy||Boolean(pending)} onClick={()=>setReview(null)}>Close</button></form>}
  {message&&<p role="status">{message}</p>}
- <h3 className="font-bold">Confirmed goods receipts</h3>{records.filter(row=>row.collection==='goodsReceipts').map(row=><article key={row.id} className="rounded border border-slate-700 p-3"><p>{String(row.data.documentNumber)} - {String(row.data.deliveryReference)}</p><p>Accepted value KES {(Number(row.data.acceptedTotalMinor)/100).toFixed(2)}</p></article>)}
+ <h3 className="font-bold">Confirmed goods receipts</h3>{records.filter(row=>row.collection==='goodsReceipts').map(row=><article key={row.id} className="rounded border border-slate-700 p-3"><p>{String(row.data.documentNumber)} - {String(row.data.deliveryReference)}</p><p>Accepted value KES {(Number(row.data.acceptedTotalMinor)/100).toFixed(2)}</p><button className={button} disabled={busy} onClick={()=>setDocumentId(String(row.data.documentId))}>GRN document and printing</button></article>)}
+ {documentId&&<WebDocumentQueue key={documentId} records={records.filter(row=>row.collection==='businessDocuments'&&row.id===documentId||row.collection==='printJobs'&&row.data.documentId===documentId)} actorId={session.actorId} deviceId={apiAuth.identity.deviceId} disabled={disabled||busy||Boolean(review)} command={command} readRecords={readRecords} queue={queue} apiAuth={apiAuth}/>}
  </section>;
 }

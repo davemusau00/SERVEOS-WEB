@@ -749,3 +749,16 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Accepted lines call the shared inventory receipt primitive inside the GRN transaction; rejected-only lines post no stock. Frozen purchase costs use cumulative rounding deltas across partial receipts, preserving total cost reconciliation. Current base-unit/container identity must match purchased stock identity.
 - The command creates immutable GRN/document/line evidence, linked inventory receipts, cumulative PO status/version/events and an office print job atomically. It does not fabricate an invoice, supplier payment or provider success.
 - No tests, builds, migrations or runtime execution ran. GRN operator UI/renderers, purchase accrual/payable finance, returns, concurrency/replay/rollback and physical acceptance remain unfinished.
+
+### Procurement GRN operator workflow (source only; verification deferred)
+
+- Added API-only purchase delivery review for issued/partially received POs, with frozen PO/catalog/balance revisions, stable GRN identity, delivered/accepted/rejected quantities, rejection reasons, bottle physical quantities, receiving location and delivery reference.
+- Explicit receiving acknowledgement and permission-bound over-receive review precede the normal command/outbox submission. Pending/unknown procurement commands block additional receiving and PO transitions; recovered terminal outcomes close the stale receiving editor.
+- Added immutable GOODS_RECEIPT browser rendering and the existing audited document/print queue to confirmed GRNs. No supplier invoice, payable or payment is implied.
+- No tests, builds, migrations, runtime, printer or deployment checks performed; all remain deferred. Bridge GRN rendering, supplier invoice/payment/return workflows and production gates remain open.
+
+### GRN Print Bridge layout (source only; verification deferred)
+
+- Added GOODS_RECEIPT typed bridge submission and office-route renderer with immutable identity/schema/currency checks, unique line identities, delivered/accepted/rejected and package/base conservation, accepted-value control total, rejection and operator provenance. Partial-delivery cost remains the API cumulative rounding delta.
+- Uses existing bounded logo/footer pipeline, signed claim validation and durable delivery journal. No QR payment prompt or supplier invoice/payment assertion. Browser fallback remains available.
+- Compilation, tests, actual delivery, hardware layouts and end-to-end bridge acceptance remain unverified and deferred.

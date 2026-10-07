@@ -264,7 +264,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
   if(updateHold.current)return {kind:'BLOCKED',message:'ServOS is preparing an update. Wait for this workspace to restart.'};
   const apiCatalogCommand=['product.save','stockItem.save','stockLocation.save','catalog.createWithOpeningStock'].includes(operation);const apiCountCommand=['inventory.countLocation','inventory.countSelected'].includes(operation);const apiInventoryCommand=['inventory.transfer','inventory.waste','inventory.adjust','inventory.produceBatch','inventory.reverseMovement','inventory.receive','inventory.policy.save'].includes(operation);
   const apiProcurementCommand=['procurement.saveDraft','procurement.approve','procurement.issue','procurement.receive'].includes(operation);
-  if(apiAuth&&apiProcurementCommand&&!navigator.onLine)return {kind:'BLOCKED',message:'Connect before submitting a purchase order draft.'};
+  if(apiAuth&&apiProcurementCommand&&!navigator.onLine)return {kind:'BLOCKED',message:'Connect before submitting a procurement action.'};
   const apiSupplierCommand=operation==='supplier.save';
   if(apiAuth&&apiSupplierCommand&&!navigator.onLine)return {kind:'BLOCKED',message:'Connect before changing shared supplier details.'};
   const apiPrintCommand=['print.claim','print.report','print.confirm','print.retry','print.cancel'].includes(operation);
@@ -363,7 +363,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
  {ready&&tab==='Catalog'&&<WebCatalogView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Inventory'&&<WebInventoryView records={records} session={session} disabled={disabled} command={submit} apiAuthority={Boolean(apiAuth)}/>}
  {ready&&tab==='Procurement'&&apiAuth&&<WebApiPurchaseOrders apiAuth={apiAuth} readRecords={async()=>await store.current?.records()||[]} records={records} session={session} queue={queue} disabled={disabled} command={submit}/>}
- {ready&&tab==='Procurement'&&apiAuth&&<WebApiGoodsReceipts records={records} session={session} queue={queue} disabled={disabled} command={submit}/>}
+ {ready&&tab==='Procurement'&&apiAuth&&<WebApiGoodsReceipts apiAuth={apiAuth} readRecords={async()=>await store.current?.records()||[]} records={records} session={session} queue={queue} disabled={disabled} command={submit}/>}
  {ready&&tab==='Procurement'&&apiAuth&&<WebApiSuppliers records={records} session={session} queue={queue} disabled={disabled} command={submit}/>}
  {ready&&tab==='Procurement'&&!apiAuth&&<WebProcurementView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Front Desk'&&<WebFrontDeskView records={records} session={session} disabled={disabled} command={submit}/>}
