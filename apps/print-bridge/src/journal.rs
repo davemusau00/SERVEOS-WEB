@@ -4,7 +4,8 @@ use sha2::{Digest,Sha256};
 use std::path::Path;
 use uuid::Uuid;
 
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug,serde::Serialize)]
+#[serde(rename_all="camelCase")]
 pub struct JobStatus {
  pub job_id:String,
  pub envelope_hash:String,
@@ -170,7 +171,8 @@ impl PrintJournal {
 }
 
 /// Reconciliation is read-only. Missing delivery means no journaled transport began.
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug,serde::Serialize)]
+#[serde(rename_all="camelCase")]
 pub struct RequestAttemptStatus {pub local_job_id:String,pub delivery:Option<JobStatus>}
 impl PrintJournal {
  /// Commit the request/attempt association before enqueue or transport. Never re-execute a link.
@@ -188,5 +190,14 @@ impl PrintJournal {
   job_id(original_id)?;
   let local_id:Option<String>=self.connection.query_row("SELECT a.local_job_id FROM local_request_attempts a JOIN local_bridge_requests r ON r.request_id=a.request_id WHERE r.request_id=?1 AND r.bridge_id=?2 AND r.business_id=?3 AND r.device_id=?4",params![original_id,authorization.bridge_id(),authorization.business_id(),authorization.device_id()],|row|row.get(0)).optional().map_err(error)?;
   match local_id{None=>Ok(None),Some(local_job_id)=>{let delivery=status(&self.connection,&local_job_id)?;Ok(Some(RequestAttemptStatus{local_job_id,delivery}))}}
+ }
+}
+
+impl PrintJournal {
+ /// Local job IDs are not bearer capabilities: require the originating pairing scope.
+ pub fn scoped_job_status(&self,authorization:&VerifiedRequest,local_id:&str)->Result<Option<JobStatus>,String>{
+  job_id(local_id)?;
+  let permitted:bool=self.connection.query_row("SELECT EXISTS(SELECT 1 FROM local_request_attempts a JOIN local_bridge_requests r ON r.request_id=a.request_id WHERE a.local_job_id=?1 AND r.bridge_id=?2 AND r.business_id=?3 AND r.device_id=?4)",params![local_id,authorization.bridge_id(),authorization.business_id(),authorization.device_id()],|row|row.get(0)).map_err(error)?;
+  if permitted{status(&self.connection,local_id)}else{Ok(None)}
  }
 }

@@ -544,3 +544,11 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - A fresh signed request can inspect an older request's associated delivery evidence within the same business/device/bridge scope. Missing linked delivery, queued, active and uncertain outcomes remain explicit; none authorizes replay. Restart recovery continues to mark interrupted SENDING as DELIVERY_UNCERTAIN.
 - Linkage and enqueue are separate durable commits: interruption between them leaves linked evidence with no delivery record and prevents automatic execution. This is conservative recovery, not an automatic retry policy.
 - Tests, compilation and runtime execution remain deferred. Listener response serialization, completion reconciliation, API outcome reporting, pairing and PWA wiring still require implementation and final acceptance.
+
+
+## Final sprint continuation - authenticated bridge dispatcher (source only)
+
+- Added dispatcher verification, typed action parsing, durable receipt, API attestation/live check, delivery and durable JSON completion. Completed request replay returns its exact saved response; interrupted requests return scoped reconciliation evidence without execution.
+- Added recovery responses and local job lookup constrained to the originating business/device/bridge pairing. Local job UUID knowledge alone does not permit reading another pairing's delivery evidence.
+- Local retry/cancel actions explicitly require API review. Transport and database errors produce bounded reconciliation responses without exposing tokens, snapshots or printer destinations.
+- No tests, compilation, network or hardware execution ran. Trusted pairing persistence, HTTPS listener, PWA transport/UI, authoritative outcome reporting and financial document rendering remain incomplete. Stored responses preserve original observations; fresh status lookup is needed for later startup recovery changes.
