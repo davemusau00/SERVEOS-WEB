@@ -582,3 +582,10 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Each pairing retains explicit approval timestamp/reason and revocation state. Duplicate device IDs, private JWK fields, mismatched business/bridge/origin and revoked devices fail closed before dispatch. Empty pairing configuration grants no access.
 - Documented installer ACL ownership, independent key verification, per-request configuration reload and in-flight revocation limits. CORS origin permission is distinct from signature authorization.
 - No tests, builds, file provisioning, network or hardware execution ran. HTTPS listener, actual local approval workflow/installer, PWA submission wiring and API outcome reporting remain outstanding.
+
+
+## Final sprint continuation - exclusive bridge worker entry point (source only)
+
+- Added serial private stdio worker binary holding the exclusive journal session throughout its lifetime. Bounded, correlated messages support origin preflight and authenticated dispatch; protocol output contains no transport diagnostics or secret material.
+- Approved configuration reloads before every message, including preflight. Invalid replacement fails closed rather than retaining stale device approvals; malformed/oversized/truncated framing terminates the worker.
+- Documented host ownership, private pipes, no automatic replay after worker loss and recovery requirements. No compilation, dependency resolution, tests or worker execution ran. HTTPS host/installer, PWA submission controls and API outcome reporting remain outstanding.

@@ -12,3 +12,5 @@ pub mod api_client;
 pub mod delivery;
 
 pub mod dispatcher;
+
+pub mod config;

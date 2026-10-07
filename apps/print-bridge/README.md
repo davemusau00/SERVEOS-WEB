@@ -1,6 +1,6 @@
 # ServOS Print Bridge foundation
 
-This is a library, not an exposed local service or an installed bridge. It has no ServOS API credentials, PostgreSQL access or business mutation code.
+This contains a library and private stdio worker; it is not yet an exposed HTTPS service or installed bridge. It has no ServOS API credentials, PostgreSQL access or business mutation code.
 
 ## Local delivery journal
 
@@ -70,3 +70,39 @@ SUBMIT requires the API authorization returned by a bridge-bound `print.claim`. 
 The API private JWK remains server-only. Do not trust request-provided API public keys or discover a replacement pin from an untrusted endpoint. Provision pins and rotate them through approved installer configuration.
 
 An attestation proves issuance at claim time, not continuing claim ownership. The future dispatcher must recheck live claim/revocation state and expiry immediately before transport (or implement an explicitly accepted lease policy). This is especially relevant to voided orders and reviewed retries. No transport is enabled until that boundary is implemented.
+
+
+### Trusted pairing configuration (source only)
+
+`ApprovedConfiguration` loads bounded UTF-8 installer-owned JSON. Schema version 1 requires
+`bridgeId`, `businessId`, exact HTTPS `apiOrigin`, `apiKeyId`, public P-256 `apiPublicKey`,
+`printerConfigurationJson` (the exact printer configuration JSON as a string), and `devices`.
+Each approved device requires `deviceId`, exact HTTPS PWA `origin`, public P-256 `publicKey`,
+RFC3339 `approvedAt`, bounded `approvalReason`, and explicit boolean `revoked`.
+Private JWK fields are rejected. Duplicate device identities are rejected, including revoked entries.
+An empty devices array is allowed and grants no access. Keep revoked entries as approval evidence.
+
+Provision this file locally with installer/service-account ACLs. No browser request may create,
+replace or approve it. Keys must be independently verified against enrolled API/PWA identities;
+merely receiving a public key from a browser is insufficient approval. The future HTTPS host must
+reload the trusted configuration before each dispatch, fail closed on invalid/revoked configuration,
+and serialize access to the exclusive BridgeSession. `permits_origin` is preflight policy only.
+An in-flight transport cannot be recalled by configuration revocation; reconcile its delivery state.
+No listener, installer, local approval UI or automatic configuration watcher is activated by this module.
+
+
+### Private worker entry point (source only)
+
+The Rust binary takes approved configuration and persistent journal paths as its two arguments.
+It holds one BridgeSession for its lifetime and accepts serial newline-delimited JSON on stdin:
+`{"messageId":"<canonical UUID>","operation":{"operation":"PREFLIGHT","httpOrigin":"https://pwa.example"}}`
+or an inner `DISPATCH` operation with `httpOrigin` and signed `request`. Responses echo the
+messageId and contain `ok` plus application `body`, or a generic refusal/unresolved code.
+Configuration is reloaded for every message. Invalid/revoked configuration never falls back to a
+previous loaded pairing. Malformed, oversized or truncated framing terminates the worker rather
+than attempting to guess message boundaries. Stdout is reserved for protocol responses.
+
+The future HTTPS host must own this child process, use private pipes, correlate responses,
+serialize requests, bound queued work and fail closed after worker exit. It must never automatically
+restart and resend an in-flight request. A worker interruption during transport requires journal
+recovery and an original-request status query. No worker execution or compilation has run yet.
