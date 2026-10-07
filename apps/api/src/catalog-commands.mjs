@@ -141,7 +141,7 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   for(const packageBarcode of packageBarcodes)if(await tx.findStockBarcode(actor.businessId,packageBarcode,stockId))throw new ApiProblem(409,'DUPLICATE_REFERENCE','A package barcode is already assigned to another stock item.');
   const stockVersion = await tx.bumpEntityVersion(actor.businessId, 'stockItems', stockId, 0);
   await tx.saveStockItem({businessId:actor.businessId,staffId:actor.staffId,id:stockId,name,code,baseUnit,barcode,barcodeAliases:[],scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages,version:stockVersion});
-  let productResult = null;
+  let productResult = null;const openingMovements=[];
   if (product && typeof product === 'object') {
     const productId = product.id ?? `${id}:product`;
     const productData = {...product, stockItemId: product.stockItemId || (product.inventoryType === 'BATCH' ? stockId : null)};
@@ -161,8 +161,9 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
     await tx.assertExpectedVersions(actor.businessId,{[`stockLocations:${locationId}`]:locationExpected});
     await tx.createOpeningStockMovement({businessId:actor.businessId,id:movementId,stockItemId:stockId,locationId,quantity,commandId:command.commandId,staffId:actor.staffId,at});
     await tx.upsertInventoryBalance({businessId:actor.businessId,stockItemId:stockId,locationId,quantityDelta:quantity});
+    openingMovements.push(await tx.inventoryMovementProjection(actor.businessId,movementId));
   }
-  return {collection:'stockItems',id:stockId,version:stockVersion,data:{name,code,baseUnit,barcode,scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages},product:productResult,openingQuantity:startingQuantity};
+  return {collection:'stockItems',id:stockId,version:stockVersion,data:{name,code,baseUnit,barcode,scanUnitQuantity,reorderLevel,averageUnitCostMinor,sealedContainerSize,purchasePackages},product:productResult,openingQuantity:startingQuantity,openingMovements};
 };
 
 const inventoryCount = async ({tx,command,actor,at})=>{
@@ -322,3 +323,25 @@ export const catalogCommandRegistry = new Map([
     },
   }],
 ]);
+
+
+// Every registered handler names its changed projections explicitly. Business value
+// objects may contain arbitrary nested data without accidentally publishing records.
+const changeRecords=new Map([
+ ['stockItem.save',async(value,{tx,actor,command})=>[await tx.stockRecordProjection(actor.businessId,command.payload.id)]],
+ ['stockLocation.save',async value=>[value]],
+ ['product.save',async value=>[value]],
+ ['catalog.item.create',async value=>[value]],
+ ['catalog.createWithOpeningStock',async(value,{tx,actor})=>[await tx.stockRecordProjection(actor.businessId,value.id),...(value.product?[value.product]:[]),...value.openingMovements]],
+ ['inventory.countLocation',async value=>[value.count,...value.stockItems,...value.stockMovements]],
+ ['inventory.countSelected',async value=>[value.count,...value.stockItems,...value.stockMovements]],
+ ['inventory.transfer',async value=>[value.stockItem,...value.stockMovements]],
+ ['inventory.waste',async value=>[value.stockItem,...value.stockMovements]],
+ ['inventory.adjust',async value=>[value.adjustment,value.stockItem,...value.stockMovements]],
+ ['inventory.produceBatch',async value=>[value.batch,value.outputStockItem,...value.ingredientStockItems,...value.stockMovements]],
+]);
+for(const [name,definition] of catalogCommandRegistry){
+ const handler=definition.handler,project=changeRecords.get(name);
+ if(!project)throw new Error(`Missing explicit change projection for ${name}`);
+ definition.handler=async context=>{const value=await handler(context);const records=(await project(value,context)).map(record=>({...record,archived:record.archived===true}));return {value,records};};
+}

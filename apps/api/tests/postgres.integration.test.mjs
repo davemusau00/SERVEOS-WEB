@@ -65,4 +65,17 @@ test('PostgreSQL API lifecycle, catalog writes, replay, and ordered change feed'
   assert.deepEqual(page.changes.map(change=>change.sequence),[1,2,3,4]);
   assert.equal(page.highWater,4);
   assert.equal(page.changes.reduce((sum,change)=>sum+change.records.length,0),4);
+  const openingStockId=randomUUID(),openingProductId=randomUUID(),openingMovementId=randomUUID();
+  const opening={commandId:randomUUID(),name:'catalog.createWithOpeningStock',expectedVersions:{[`stockItems:${openingStockId}`]:0,[`products:${openingProductId}`]:0,[`stockLocations:${locationId}`]:1,[`stockMovements:${openingMovementId}`]:0},payload:{id:openingStockId,stockItem:{id:openingStockId,name:'Opening tea',code:`TEA-${openingStockId.slice(0,6)}`,baseUnit:'kg',averageUnitCostMinor:400},product:{id:openingProductId,name:'Opening cup',code:`CUP-${openingProductId.slice(0,6)}`,priceMinor:200,category:'TEA',routeTo:'BAR'},locationId,startingQuantity:5,openingMovementId}};
+  const openingResult=await executeCommand({db:store,command:opening,actor,registry:catalogCommandRegistry});
+  assert.equal(openingResult.kind,'CONFIRMED');
+  const openingChanges=(await store.changesAfter(businessId,4,20)).changes;
+  assert.equal(openingChanges.length,1);
+  assert.deepEqual(new Set(openingChanges[0].records.map(record=>record.collection)),new Set(['stockItems','products','stockMovements']));
+  assert.equal(openingChanges[0].records.find(record=>record.id===openingStockId).data.currentStock[locationId],5);
+  const editOpening={commandId:randomUUID(),name:'stockItem.save',expectedVersions:{[`stockItems:${openingStockId}`]:1},payload:{id:openingStockId,data:{...opening.payload.stockItem,name:'Opening tea renamed'}}};
+  assert.equal((await executeCommand({db:store,command:editOpening,actor,registry:catalogCommandRegistry})).kind,'CONFIRMED');
+  const editChanges=(await store.changesAfter(businessId,5,20)).changes;
+  assert.equal(editChanges[0].records[0].data.currentStock[locationId],5,'master edits must retain stock balances in changed projections');
+
 });

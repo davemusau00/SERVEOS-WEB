@@ -115,7 +115,14 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
       });
     }
 
-    const result = await definition.handler({tx, command, actor, at: now()});
+    const handled = await definition.handler({tx, command, actor, at: now()});
+    if(!handled||!Object.hasOwn(handled,'value')||!Array.isArray(handled.records))throw new ApiProblem(500,'INVALID_HANDLER_RESULT','Command handler must return value and records.');
+    const {value:result,records}=handled;
+    const recordKeys=new Set();
+    for(const record of records){
+      if(!record||typeof record.collection!=='string'||!record.collection||typeof record.id!=='string'||!record.id||!Number.isSafeInteger(record.version)||record.version<1||!isObject(record.data)||typeof record.archived!=='boolean')throw new ApiProblem(500,'INVALID_HANDLER_RECORD','Command handler returned an invalid change record.');
+      const key=`${record.collection}:${record.id}`;if(recordKeys.has(key))throw new ApiProblem(500,'DUPLICATE_HANDLER_RECORD','Command handler returned duplicate change records.');recordKeys.add(key);
+    }
     const cursor = await tx.nextChangeCursor(actor.businessId);
     const outcome = {kind: 'CONFIRMED', commandId: command.commandId, result, cursor};
     await tx.updateCommandOutcome({
@@ -128,7 +135,7 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
       at: now(),
     });
     await tx.insertAudit({businessId: actor.businessId, commandId: command.commandId, name: command.name, actor, at: now(),eventType:'CONFIRMED'});
-    const records=[];const collectRecords=value=>{if(Array.isArray(value)){for(const item of value)collectRecords(item);return}if(!value||typeof value!=='object')return;const candidate=value;if(typeof candidate.collection==='string'&&typeof candidate.id==='string'&&Number.isSafeInteger(candidate.version)&&candidate.data&&typeof candidate.data==='object'){records.push({collection:candidate.collection,id:candidate.id,version:candidate.version,data:candidate.data,archived:candidate.archived===true});return}if(Array.isArray(candidate.records))collectRecords(candidate.records);for(const [key,item] of Object.entries(candidate))if(key!=='records')collectRecords(item)};collectRecords(result);
+
     await tx.insertChange({businessId: actor.businessId, cursor, commandId: command.commandId, name: command.name, result:{sequence:cursor,commandId:command.commandId,actorId:actor.staffId,deviceId:actor.deviceId,occurredAt:now().toISOString(),records}, at: now()});
     return outcome;
     });

@@ -69,6 +69,7 @@ test.describe('transactional browser with PostgreSQL',()=>{
    const calls:Record<string,string>={
     servos_is_manager:'to_jsonb(public.servos_is_manager())',
     servos_v2_session:'public.servos_v2_session()',
+    servos_v2_inventory_capabilities:'public.servos_v2_inventory_capabilities()',
     servos_v2_register_device:`public.servos_v2_register_device((p->>'device_id')::uuid,p->>'label',p->>'kind')`,
     servos_v2_snapshot:`public.servos_v2_snapshot(p->>'after_collection',p->>'after_id',(p->>'expected_cursor')::bigint,p->>'expected_policy',(p->>'page_size')::integer)`,
     servos_v2_execute:`public.servos_v2_execute(p->'command')`,
@@ -211,41 +212,35 @@ test.describe('transactional browser with PostgreSQL',()=>{
   await page.getByRole('button',{name:'Staff & devices',exact:true}).click();await expect(page.getByRole('heading',{name:'Staff, approvals and devices'})).toBeVisible();await expect(page.getByText('Browser Owner',{exact:true})).toBeVisible();await expect(page.getByText('Browser Manager',{exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Trusted devices'})).toBeVisible();expect(await page.getByText('Browser workstation',{exact:true}).count()).toBeGreaterThanOrEqual(2);
   await context2.close();
  });
- test('web inventory count retains every row, blocks unknown scans, and commits one reviewed location count',async({page})=>{
+ test('web selected inventory count retains rows, blocks unknown scans, and commits one reviewed count',async({page})=>{
   await signIn(page,'inventory@example.test');
   await page.getByRole('button',{name:'Inventory',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Stock',exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Count stock',exact:true}).click();
-  const dialog=page.getByRole('dialog',{name:'Physical stock count'});
-  await dialog.locator('select').nth(0).selectOption('web-count-a');
-  await dialog.getByLabel('Physical quantity').fill('4');
-  await dialog.locator('select').nth(0).selectOption('web-count-b');
-  await dialog.getByLabel('Physical quantity').fill('0');
-  await page.reload();
-  await signIn(page,'inventory@example.test');
+  await page.getByRole('button',{name:'Quick count',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Quick count',exact:true});
+  await dialog.getByRole('button',{name:'Web POS Stock',exact:true}).click();
+  await dialog.getByRole('checkbox',{name:'Counted Water',exact:true}).check();
+  await dialog.getByRole('checkbox',{name:'Counted Juice',exact:true}).check();
+  await dialog.getByRole('button',{name:'Start selected count',exact:true}).click();
+  await dialog.getByLabel('Counted quantity for Counted Water',{exact:true}).fill('4');
+  await dialog.getByLabel('Counted quantity for Counted Juice',{exact:true}).fill('0');
+  await dialog.getByRole('button',{name:'Close dialog',exact:true}).click();
+  await page.reload();await signIn(page,'inventory@example.test');
   await page.getByRole('button',{name:'Inventory',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Resume count',exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Resume count',exact:true}).click();
-  const resumed=page.getByRole('dialog',{name:'Physical stock count'});
-  await resumed.locator('select').nth(0).selectOption('web-count-b');
-  await expect(resumed.getByLabel('Physical quantity')).toHaveValue('0');
-  await resumed.locator('select').nth(0).selectOption('web-count-a');
-  await expect(resumed.getByLabel('Physical quantity')).toHaveValue('4');
-  const dialogAfterReload=resumed;
-  await dialogAfterReload.getByLabel('Scan barcode / SKU').fill('UNKNOWN-000');
-  await dialogAfterReload.getByRole('button',{name:'Apply typed barcode',exact:true}).click();
-  await expect(dialogAfterReload.getByRole('button',{name:/Review and confirm/})).toBeDisabled();
-  await dialogAfterReload.getByRole('button',{name:'Remove',exact:true}).click();
-  await expect(dialogAfterReload.getByRole('button',{name:/Review and confirm/})).toBeEnabled();
-  await dialogAfterReload.getByRole('button',{name:'Review and confirm',exact:true}).click();
-  await expect(dialogAfterReload).toBeVisible();
-  await dialogAfterReload.getByRole('button',{name:'Close dialog',exact:true}).click();
-  const synchronize=page.getByLabel('Synchronize').first();
-  await expect(synchronize).toBeEnabled();
-  await synchronize.dispatchEvent('click');
+  await page.getByRole('button',{name:'Quick count',exact:true}).click();
+  await dialog.getByRole('button',{name:'Web POS Stock',exact:true}).click();
+  await expect(dialog.getByLabel('Counted quantity for Counted Water',{exact:true})).toHaveValue('4');
+  await expect(dialog.getByLabel('Counted quantity for Counted Juice',{exact:true})).toHaveValue('0');
+  await dialog.getByRole('button',{name:'Continuous scanner session',exact:true}).click();
+  await dialog.getByLabel('Scan a barcode',{exact:true}).fill('UNKNOWN-000');
+  await dialog.getByLabel('Scan a barcode',{exact:true}).press('Enter');
+  await expect(dialog.getByRole('button',{name:'Review count',exact:true})).toBeDisabled();
+  await dialog.getByRole('button',{name:'Dismiss mistaken scan',exact:true}).click();
+  await dialog.getByRole('button',{name:'Review count',exact:true}).click();
+  await dialog.getByRole('button',{name:'Confirm Count',exact:true}).click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button',{name:'Close dialog',exact:true}).click();
+  await page.getByLabel('Synchronize',{exact:true}).first().click();
   await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='stockCounts';").trim(),{timeout:15000}).toBe('1');
-  await expect.poll(()=>sql("select count(*) from servos_v2.records where collection='stockCounts';").trim()).toBe('1');
-  await expect(page.getByRole('button',{name:'Resume count',exact:true})).toHaveCount(0);
   expect(sql("select data->'currentStock'->>'web-pos-stock' from servos_v2.records where collection='stockItems' and id='web-count-a';").trim()).toBe('4');
   expect(sql("select count(*) from servos_v2.records where collection='stockMovements' and data->>'movementType'='COUNT_ADJUSTMENT';").trim()).toBe('1');
  });

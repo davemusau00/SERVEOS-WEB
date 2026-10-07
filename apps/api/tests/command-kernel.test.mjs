@@ -4,7 +4,8 @@ import {ApiProblem, executeCommand, validateCommandEnvelope} from '../src/comman
 
 const actor = {businessId: 'business-1', staffId: 'staff-1', deviceId: 'device-1', permissions: ['catalog.create']};
 const command = {commandId: '123e4567-e89b-42d3-a456-426614174000', name: 'catalog.item.create', payload: {name: 'Tea'}, expectedVersions: {}};
-const registry = new Map([['catalog.item.create', {permission: 'catalog.create', offlinePolicy: 'ONLINE_ONLY', handler: async () => ({itemId: 'item-1'})}]]);
+const handlerResult=value=>({value,records:[]});
+const registry = new Map([['catalog.item.create', {permission: 'catalog.create', offlinePolicy: 'ONLINE_ONLY', handler: async () => handlerResult({itemId: 'item-1'})}]]);
 
 function memoryStore() {
   const commands = new Map();
@@ -54,7 +55,7 @@ test('commits outcome, audit, and ordered change as one transaction', async () =
 test('replays the same ID and payload without executing the handler twice', async () => {
   const db = memoryStore();
   let calls = 0;
-  const counted = new Map([['catalog.item.create', {...registry.get('catalog.item.create'), handler: async () => ({call: ++calls})}]]);
+  const counted = new Map([['catalog.item.create', {...registry.get('catalog.item.create'), handler: async () => handlerResult({call: ++calls})}]]);
   const first = await executeCommand({db, command, actor, registry: counted});
   const replay = await executeCommand({db, command, actor, registry: counted});
   assert.deepEqual(replay, first);
@@ -92,7 +93,7 @@ test('persists permission rejection and requires a grant only when an offline at
 
 test('persists version conflicts and replays the same conflict after response loss', async () => {
   const db=memoryStore();let calls=0;
-  const conflictRegistry=new Map([['catalog.item.create',{permission:'catalog.create',offlinePolicy:'ONLINE_ONLY',handler:async()=>{calls++;return {};}}]]);
+  const conflictRegistry=new Map([['catalog.item.create',{permission:'catalog.create',offlinePolicy:'ONLINE_ONLY',handler:async()=>{calls++;return handlerResult({});}}]]);
   db.transaction=async work=>work({...{
     getCommand:async(businessId,id)=>db.commands.get(`${businessId}:${id}`)??null,
     lockCommandKey:async()=>{},nextChangeCursor:async()=>1,updateCommandOutcome:async()=>{},insertAudit:async()=>{},insertChange:async()=>{},consumeOfflineGrant:async()=>{},
@@ -121,7 +122,7 @@ test('checks expected versions before the domain handler runs', async () => {
   });
   const commandWithVersion = {...command, expectedVersions: {'items:tea': 3}};
   let handled = false;
-  const versioned = new Map([['catalog.item.create', {permission: 'catalog.create', offlinePolicy: 'ONLINE_ONLY', handler: async () => { handled = true; return {}; }}]]);
+  const versioned = new Map([['catalog.item.create', {permission: 'catalog.create', offlinePolicy: 'ONLINE_ONLY', handler: async () => { handled = true; return handlerResult({}); }}]]);
   await executeCommand({db, command: commandWithVersion, actor, registry: versioned});
   assert.equal(checked, true);
   assert.equal(handled, true);
@@ -130,7 +131,7 @@ test('checks expected versions before the domain handler runs', async () => {
 for(const failure of [new Error('connection lost'),new ApiProblem(503,'DATABASE_UNAVAILABLE','Unavailable')]){
   test(`transient ${failure.code || 'infrastructure'} failure preserves command identity for recovery`,async()=>{
     const db=memoryStore();let calls=0;
-    const recovering=new Map([['catalog.item.create',{...registry.get('catalog.item.create'),handler:async()=>{if(++calls===1)throw failure;return {itemId:'recovered'};}}]]);
+    const recovering=new Map([['catalog.item.create',{...registry.get('catalog.item.create'),handler:async()=>{if(++calls===1)throw failure;return handlerResult({itemId:'recovered'});}}]]);
     await assert.rejects(executeCommand({db,command,actor,registry:recovering}),error=>error===failure);
     const unresolved=db.commands.get(`business-1:${command.commandId}`);
     assert.equal(unresolved.status,'PROCESSING');assert.equal(unresolved.outcome,null);
@@ -141,3 +142,19 @@ for(const failure of [new Error('connection lost'),new ApiProblem(503,'DATABASE_
     assert.equal(calls,2);assert.equal(db.writes.filter(write=>write==='change').length,1);
   });
 }
+
+test('change feed publishes only explicit records, never record-shaped business values',async()=>{
+ const db=memoryStore();let change;
+ const record={collection:'stockItems',id:'stock',version:1,data:{name:'Tea'},archived:false};
+ const value={nested:{collection:'private',id:'hidden',version:1,data:{secret:'not a projection'}}};
+ const baseTransaction=db.transaction;db.transaction=work=>baseTransaction(tx=>work({...tx,insertChange:async entry=>{change=entry}}));
+ const explicit=new Map([[command.name,{...registry.get(command.name),handler:async()=>({value,records:[record]})}]]);
+ const outcome=await executeCommand({db,command,actor,registry:explicit});
+ assert.deepEqual(outcome.result,value);assert.deepEqual(change.result.records,[record]);
+});
+test('invalid handler record contract stays unresolved and does not confirm a command',async()=>{
+ const db=memoryStore();const malformed=new Map([[command.name,{...registry.get(command.name),handler:async()=>({value:{},records:[{collection:'stockItems'}]})}]]);
+ await assert.rejects(executeCommand({db,command,actor,registry:malformed}),{code:'INVALID_HANDLER_RECORD'});
+ assert.equal(db.commands.get(`business-1:${command.commandId}`).status,'PROCESSING');
+ assert.ok(!db.writes.includes('command'));assert.ok(!db.writes.includes('change'));
+});

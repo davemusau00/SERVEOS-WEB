@@ -200,14 +200,14 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   await page.evaluate(() => { window.location.hash = '/inventory'; });
   await expect(page.getByRole('heading', {name:'Inventory'})).toBeVisible();
   await page.getByRole('button', {name:'Count stock'}).click();
-  const count = page.getByRole('dialog', {name:'Count stock by location'});
+  const count = page.getByRole('dialog', {name:'Full stocktake'});
   await count.getByRole('button', {name:/Main Store/}).click();
   await count.getByLabel('Counted quantity for Whisky 350 stock').fill('0');
   await count.getByLabel('Counted quantity for Whisky 750 stock').fill('0');
   const countCalls = () => page.evaluate(() => ((window as any).__SERVOS_COMMANDS || []).filter((command:any) => command.operation === 'inventory.countLocation'));
   expect(await countCalls()).toHaveLength(0);
-  await count.getByRole('button', {name:'Review Count'}).click();
-  await expect(count.getByText('2 items at Main Store. Stock changes only after you confirm.')).toBeVisible();
+  await count.getByRole('button', {name:'Review count'}).click();
+  await expect(count.getByText('2 / 2 counted. Stock changes only after confirmation.')).toBeVisible();
   expect(await countCalls()).toHaveLength(0);
   await count.getByRole('button', {name:'Confirm Count'}).click();
   await expect(count).toHaveCount(0);
@@ -216,28 +216,29 @@ test('native checkout, location count, and resumable scanner draft', async ({ pa
   expect(committedCounts[0].payload.rows).toHaveLength(2);
 
   await page.getByRole('button', {name:'Count stock'}).click();
-  const scannerCount = page.getByRole('dialog', {name:'Count stock by location'});
+  const scannerCount = page.getByRole('dialog', {name:'Full stocktake'});
   await scannerCount.getByRole('button', {name:/Main Store/}).click();
   await scannerCount.getByRole('button', {name:/Continuous scanner session/}).click();
-  const scannerInput = scannerCount.getByLabel('Scan a barcode or stock code');
+  const scannerInput = scannerCount.getByLabel('Scan a barcode',{exact:true});
   await scannerInput.pressSequentially('WHISKY-350-STOCK', {delay:8});
   await scannerInput.press('Enter');
-  await expect(scannerCount.getByRole('status').filter({hasText:'Whisky 350 stock'})).toContainText('Whisky 350 stock +350 ml');
+  await expect(scannerCount.getByLabel('Counted quantity for Whisky 350 stock')).toHaveValue('350');
   await scannerInput.pressSequentially('UNKNOWN-BOTTLE-42', {delay:8});
   await scannerInput.press('Enter');
-  await expect(scannerCount.getByRole('heading', {name:'Unknown barcodes'})).toBeVisible();
-  await scannerCount.getByLabel('Assign UNKNOWN-BOTTLE-42 to stock item').selectOption('whisky-750-stock');
-  await scannerCount.getByRole('button', {name:'Assign',exact:true}).click();
-  await expect(scannerCount.getByRole('status').filter({hasText:'Assigned'})).toContainText('Assigned 1 scan to Whisky 750 stock');
+  await expect(scannerCount.getByText(/UNKNOWN-BOTTLE-42/)).toBeVisible();
+  await expect(scannerCount.getByRole('button',{name:'Review count',exact:true})).toBeDisabled();
+  await scannerCount.getByRole('button',{name:'Dismiss mistaken scan',exact:true}).click();
+  await scannerInput.fill('WHISKY-750-STOCK');await scannerInput.press('Enter');
+  await expect(scannerCount.getByLabel('Counted quantity for Whisky 750 stock')).toHaveValue('750');
   await page.waitForFunction(() => Boolean((window as any).__SERVOS_COUNT_DRAFTS?.main?.counts?.['whisky-350-stock'] === 350 && (window as any).__SERVOS_COUNT_DRAFTS?.main?.counts?.['whisky-750-stock'] === 750));
-  await scannerCount.getByRole('button', {name:'Close count'}).click();
+  await scannerCount.getByRole('button', {name:'Close dialog'}).click();
 
   await page.getByRole('button', {name:'Count stock'}).click();
-  const resumedCount = page.getByRole('dialog', {name:'Count stock by location'});
+  const resumedCount = page.getByRole('dialog', {name:'Full stocktake'});
   await resumedCount.getByRole('button', {name:/Main Store/}).click();
   await resumedCount.getByRole('button', {name:/Continuous scanner session/}).click();
-  await expect(resumedCount.getByLabel('Scanner count for Whisky 350 stock')).toHaveValue('350');
-  await expect(resumedCount.getByLabel('Scanner count for Whisky 750 stock')).toHaveValue('750');
+  await expect(resumedCount.getByLabel('Counted quantity for Whisky 350 stock')).toHaveValue('350');
+  await expect(resumedCount.getByLabel('Counted quantity for Whisky 750 stock')).toHaveValue('750');
   expect(await countCalls()).toHaveLength(1);
 });
 
