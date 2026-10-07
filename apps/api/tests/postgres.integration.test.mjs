@@ -78,4 +78,20 @@ test('PostgreSQL API lifecycle, catalog writes, replay, and ordered change feed'
   const editChanges=(await store.changesAfter(businessId,5,20)).changes;
   assert.equal(editChanges[0].records[0].data.currentStock[locationId],5,'master edits must retain stock balances in changed projections');
 
+  assert.equal(editChanges[0].records[0].data.balanceVersions[locationId],1);
+  // Preserve the stock master version and quantity while changing the balance twice.
+  await store.transaction(async tx=>{
+    await tx.setInventoryBalance({businessId,stockItemId:openingStockId,locationId,quantity:4});
+    await tx.setInventoryBalance({businessId,stockItemId:openingStockId,locationId,quantity:5});
+  });
+  const countActor={...actor,permissions:[...actor.permissions,'inventory.count']};
+  const countCommand={commandId:randomUUID(),name:'inventory.countSelected',expectedVersions:{[`stockItems:${openingStockId}`]:2,[`stockLocations:${locationId}`]:1},payload:{locationId,scope:'SELECTED',selectedStockItemIds:[openingStockId],reason:'Reviewed count',expectedBalanceVersions:{[`${openingStockId}:${locationId}`]:1},rows:[{stockItemId:openingStockId,expectedQuantity:5,countedQuantity:5}]}};
+  const staleCount=await executeCommand({db:store,command:countCommand,actor:countActor,registry:catalogCommandRegistry});
+  assert.equal(staleCount.kind,'CONFLICT');assert.equal(staleCount.error.code,'VERSION_CONFLICT');
+  assert.deepEqual(await executeCommand({db:store,command:countCommand,actor:countActor,registry:catalogCommandRegistry}),staleCount);
+  const missingRevision={...countCommand,commandId:randomUUID(),payload:{...countCommand.payload,expectedBalanceVersions:{}}};
+  assert.equal((await executeCommand({db:store,command:missingRevision,actor:countActor,registry:catalogCommandRegistry})).error.code,'BALANCE_VERSION_REQUIRED');
+  const refreshedCount={...countCommand,commandId:randomUUID(),payload:{...countCommand.payload,expectedBalanceVersions:{[`${openingStockId}:${locationId}`]:3}}};
+  assert.equal((await executeCommand({db:store,command:refreshedCount,actor:countActor,registry:catalogCommandRegistry})).kind,'CONFIRMED');
+
 });

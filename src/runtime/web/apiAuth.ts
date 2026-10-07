@@ -39,7 +39,7 @@ export async function openApiBusinessStore(session:ApiAuthenticatedDeviceSession
   try{
     // Recover durable commands before installing a replacement projection.
     // An initialized projection is reused, including an empty zero-cursor catalog.
-    if(await store.policyVersion()!=='api-catalog-v1'&&await store.hasPending())await synchronizeStore(store,createApiCloudTransport(session.client));
+    if(await store.policyVersion()!=='api-catalog-v2'&&await store.hasPending())await synchronizeStore(store,createApiCloudTransport(session.client));
     await loadApiCatalogSnapshot(store,session.client);return store;
   }catch(error){store.close();throw error}
 }

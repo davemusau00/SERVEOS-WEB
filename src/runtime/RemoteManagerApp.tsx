@@ -139,7 +139,7 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
   const activeCollection = collections.find(item => item.id === collection);
 
   if(accountLink) return <RemoteAccountAccess url={url} publishableKey={key} link={accountLink} onDone={()=>setAccountLink(null)}/>;
-  if(apiSession&&apiStore)return <WebBusinessApp initialSession={{businessId:apiSession.profile.businessId,actorId:apiSession.profile.staffId,enabled:true,permissions:apiSession.profile.permissions,policyVersion:'api-catalog-v1',lifecycleStage:'LIVE'}} rpc={async()=>{throw new Error('This workflow has not migrated to the API authority.')}} apiAuth={apiSession} apiStore={apiStore} onSignOut={()=>void signOutApi()}/>;
+  if(apiSession&&apiStore)return <WebBusinessApp initialSession={{businessId:apiSession.profile.businessId,actorId:apiSession.profile.staffId,enabled:true,permissions:apiSession.profile.permissions,policyVersion:'api-catalog-v2',lifecycleStage:'LIVE'}} rpc={async()=>{throw new Error('This workflow has not migrated to the API authority.')}} apiAuth={apiSession} apiStore={apiStore} onSignOut={()=>void signOutApi()}/>;
   if (!auth) return <div className="min-h-screen bg-slate-950 text-white grid place-items-center p-5"><form className="w-full max-w-md space-y-4 rounded-3xl border border-slate-800 bg-slate-900 p-7 shadow-2xl" onSubmit={async e => {
     e.preventDefault(); setBusy(true); setError('');
     try {

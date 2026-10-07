@@ -23,7 +23,7 @@ export interface GuidanceProgress {
 export interface InventoryCountDraft {
   sessionId: string;
   revision: number;
-  baseline: Record<string, { name: string; baseUnit: string; scanUnitQuantity: number; expectedQuantity: number; containerSize?: number | null; consumptionRoutes?: string; version?: number }>;
+  baseline: Record<string, { name: string; baseUnit: string; scanUnitQuantity: number; expectedQuantity: number; balanceVersion?: number; containerSize?: number | null; consumptionRoutes?: string; version?: number }>;
   pendingCommand?: { id: string; operation?: string; payload: Record<string, unknown> };
   entries?: Record<string, CountEntry>;
   expectedVersions?: RecordVersion[];

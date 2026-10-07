@@ -46,7 +46,7 @@ export async function loadAuthorizedSnapshot(store:BusinessStore,rpc:Rpc,session
 }
 
 /** Install the API's records[] bootstrap into the same IndexedDB projection consumed by PWA workflows. */
-export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnType<typeof createServOSApiClient>,policyVersion='api-catalog-v1'){
+export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnType<typeof createServOSApiClient>,policyVersion='api-catalog-v2'){
   const localCursor=await store.cursor();
   const localPolicy=await store.policyVersion();
   const localRecords=await store.records();

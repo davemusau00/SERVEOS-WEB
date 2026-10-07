@@ -56,10 +56,11 @@ test('IndexedDB queue preserves identity across reload and rolls back incomplete
     const transport={execute:async(command:any)=>{calls.push(command.id);if(calls.length===1)throw new Error('Response lost');return{commandId:command.id,status:'SYNCHRONIZED',recordVersions:[]}},pull:async()=>({cursor:0,hasMore:false,changes:[]})};
     try{await synchronizeStore(store,transport)}catch{}
     const retained=await store.hasPending();const afterLostResponse=(await store.queue()).map((entry:any)=>({id:entry.id,state:entry.state}));await synchronizeStore(store,transport);
-    let gap=false;try{await store.applyPage({cursor:3,hasMore:false,changes:[{sequence:1,records:[{collection:'customers',id:'c1',version:1,data:{name:'One'},archived:false}]},{sequence:3,records:[]}]})}catch{gap=true}
+    const change=(sequence:number,records:any[])=>({sequence,commandId:`change-${sequence}`,actorId:'actor',deviceId:'device',occurredAt:'2026-10-07T10:00:00Z',records});
+    let gap=false;try{await store.applyPage({cursor:3,highWater:3,hasMore:false,changes:[change(1,[{collection:'customers',id:'c1',version:1,data:{name:'One'},archived:false}]),change(3,[])]})}catch{gap=true}
     const afterGap=await store.records();const cursorAfterGap=await store.cursor();
-    await store.applyPage({cursor:1,hasMore:false,changes:[{sequence:1,records:[{collection:'customers',id:'c1',version:1,data:{name:'One'},archived:false}]}]});
-    await store.applyPage({cursor:2,hasMore:false,changes:[{sequence:2,records:[{collection:'customers',id:'c1',version:2,data:{name:'One'},archived:true}]}]});
+    await store.applyPage({cursor:1,highWater:1,hasMore:false,changes:[change(1,[{collection:'customers',id:'c1',version:1,data:{name:'One'},archived:false}])]});
+    await store.applyPage({cursor:2,highWater:2,hasMore:false,changes:[change(2,[{collection:'customers',id:'c1',version:2,data:{name:'One'},archived:true}])]});
     const records=await store.records();const queue=await store.queue();store.close();
     return{ids:pending.map((p:any)=>p.id),retained,afterLostResponse,calls,gap,afterGap,cursorAfterGap,records,states:queue.map((q:any)=>q.state)};
   });
