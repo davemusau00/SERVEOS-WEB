@@ -64,6 +64,7 @@ pub fn prepare_preparation_ticket(input:&ValidatedAction)->Result<PreparedDocume
 pub fn prepare_document(input:&ValidatedAction)->Result<PreparedDocument,String>{
  let kind=match input.action(){BridgeAction::Submit{document,..}=>document.document_type.as_str(),_=>return Err("Rendering requires submit".into())};
  match kind{
+  "SUPPLIER_RETURN_NOTE"=>crate::supplier_return_rendering::prepare_supplier_return(input),
   "SUPPLIER_PAYMENT_VOUCHER"=>crate::supplier_payment_rendering::prepare_supplier_payment(input),
   "GOODS_RECEIPT"=>crate::goods_receipt_rendering::prepare_goods_receipt(input),
   "PURCHASE_ORDER"=>crate::purchase_order_rendering::prepare_purchase_order(input),

@@ -42,7 +42,7 @@ impl ValidatedAction {
   match &action{
    BridgeAction::Submit{job_id,claimed_job_revision,copies,document,..}=>{
     if !id(job_id)||!id(&document.id)||*claimed_job_revision<1||!(1..=2).contains(copies)||document.layout_version!=1{return Err("Print job identity, copies, claim revision or layout is invalid".into());}
-    if !["SUPPLIER_PAYMENT_VOUCHER","GOODS_RECEIPT","PURCHASE_ORDER","SALES_RECEIPT","PAYMENT_ACKNOWLEDGEMENT","REFUND_RECEIPT","KOT","BOT","KOT_CANCEL","BOT_CANCEL","ORDER_VOID_NOTICE","CLOSE_DAY_REPORT"].contains(&document.document_type.as_str())||document.document_number.is_empty()||document.document_number.len()>160||document.document_number.chars().any(|c|c.is_control()){return Err("Document type/number is not supported".into());}
+    if !["SUPPLIER_RETURN_NOTE","SUPPLIER_PAYMENT_VOUCHER","GOODS_RECEIPT","PURCHASE_ORDER","SALES_RECEIPT","PAYMENT_ACKNOWLEDGEMENT","REFUND_RECEIPT","KOT","BOT","KOT_CANCEL","BOT_CANCEL","ORDER_VOID_NOTICE","CLOSE_DAY_REPORT"].contains(&document.document_type.as_str())||document.document_number.is_empty()||document.document_number.len()>160||document.document_number.chars().any(|c|c.is_control()){return Err("Document type/number is not supported".into());}
     if document.hash.len()!=64||!document.hash.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b))||document.canonical_snapshot.is_empty()||document.canonical_snapshot.len()>768*1024{return Err("Document hash/snapshot bounds are invalid".into());}
     let actual=format!("{:x}",Sha256::digest(document.canonical_snapshot.as_bytes()));
     if actual!=document.hash{return Err("Immutable document snapshot hash did not match".into());}

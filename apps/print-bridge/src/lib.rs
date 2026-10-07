@@ -28,3 +28,5 @@ pub mod purchase_order_rendering;
 pub mod goods_receipt_rendering;
 
 pub mod supplier_payment_rendering;
+
+pub mod supplier_return_rendering;

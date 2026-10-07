@@ -822,3 +822,15 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Payable projections/payment bounds now account for applied supplier credits. Supplier credit-note projections are permission-filtered. Applying an unused supplier credit to another payable/refund remains open. Migration 045 also expands the guarded return lifecycle to partial and complete credit-note matching.
 
 - Follow-up: added PWA return credit-note review with unique reference/date/amount, frozen return/payable versions and explicit comparison acknowledgement. It shows applied and unapplied supplier credit separately; unresolved procurement outcomes block further receiving, matching, returns and PO changes.
+
+### Applying unapplied supplier credit (source only; migration unapplied)
+
+- Migration 046 adds immutable same-supplier credit application evidence with tenant-scoped credit/payable foreign keys and source command uniqueness.
+- Added online `supplierCredit.apply`: reviewed credit-balance and payable versions, available-credit and due-balance bounds, same-supplier validation, immutable allocation row and balanced AP debit/supplier-credit asset credit journal.
+- Credit note and application projections expose remaining available balances through the API change feed. PWA procurement UI allows an operator to allocate excess supplier credit to another payable for that supplier; it does not initiate a cash refund.
+- Tests, migration execution, builds and runtime remain deferred. Supplier-credit cash refund and broader finance close/report integration remain open.
+
+### Supplier return Print Bridge layout (source only)
+
+- Added typed office routing for SUPPLIER_RETURN_NOTE with return/supplier/GRN identities, unique lines, package/base-unit conservation, condition, line and total estimated-credit reconciliation, dispatch/acknowledgement provenance and bounded business logo/footer.
+- The layout states physical return evidence only and suppresses payment QR. Browser fallback remains available. Bridge compilation, print transport, target-printer layout and physical acknowledgement remain unverified/deferred.

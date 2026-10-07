@@ -18,7 +18,7 @@ export async function submitDocumentToBridge(input:{auth:ApiAuthenticatedDeviceS
  const {auth,bridge,job,document,command,readRecords}=input;
  if(bridge.businessId!==auth.profile.businessId||job.collection!=='printJobs'||document.collection!=='businessDocuments'||job.data.documentId!==document.id||job.data.state!=='QUEUED')throw new Error('Review the current queued job and issued document before bridge printing.');
  // Current renderer acceptance is intentionally explicit; refuse before claiming unsupported layouts.
- if(document.data.layoutVersion!==1||!['SUPPLIER_PAYMENT_VOUCHER','GOODS_RECEIPT','PURCHASE_ORDER','CLOSE_DAY_REPORT','SALES_RECEIPT','PAYMENT_ACKNOWLEDGEMENT','REFUND_RECEIPT','KOT','BOT','KOT_CANCEL','BOT_CANCEL','ORDER_VOID_NOTICE'].includes(String(document.data.type)))throw new Error('This document requires browser printing until its bridge layout is supported.');
+ if(document.data.layoutVersion!==1||!['SUPPLIER_RETURN_NOTE','SUPPLIER_PAYMENT_VOUCHER','GOODS_RECEIPT','PURCHASE_ORDER','CLOSE_DAY_REPORT','SALES_RECEIPT','PAYMENT_ACKNOWLEDGEMENT','REFUND_RECEIPT','KOT','BOT','KOT_CANCEL','BOT_CANCEL','ORDER_VOID_NOTICE'].includes(String(document.data.type)))throw new Error('This document requires browser printing until its bridge layout is supported.');
  const outcome=await command('print.claim','printJobs',job.id,{jobId:job.id,bridgeId:bridge.bridgeId,expectedVersions:[{collection:'printJobs',id:job.id,version:job.version}]});
  if(outcome.kind!=='CONFIRMED')return {kind:'CLAIM_UNRESOLVED',outcome};
  // Attestation is deliberately absent from shared feed. Retrieve the original command outcome.
