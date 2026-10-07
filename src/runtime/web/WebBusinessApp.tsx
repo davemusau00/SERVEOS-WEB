@@ -93,6 +93,21 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
  const updateBoundaryGeneration=useRef(0);
  const updateBoundaryWorker=useRef<ServiceWorker|null>(null);
  const activeSyncCycles=useRef(0);
+ useEffect(()=>{
+  if(!apiAuth||!apiStore)return;
+  let stopped=false;let controller:AbortController|undefined;let timer:ReturnType<typeof setTimeout>|undefined;
+  const connect=async()=>{
+   if(stopped||controller||!navigator.onLine||document.visibilityState!=='visible')return;
+   controller=new AbortController();const signal=controller.signal;
+   try{await apiAuth.client.watchChanges(await apiStore.cursor(),()=>{
+    if(!stopped&&!updateHold.current&&activeSyncCycles.current===0)void syncRef.current().catch(error=>{if(!stopped)setError(operatorError(error))});
+   },signal)}catch{/* Periodic ordered pulls remain active when notifications fail. */}
+   finally{controller=undefined;if(!stopped)timer=setTimeout(()=>void connect(),5000)}
+  };
+  const resume=()=>{if(timer)clearTimeout(timer);if(!navigator.onLine||document.visibilityState!=='visible')controller?.abort();else void connect()};
+  window.addEventListener('online',resume);window.addEventListener('offline',resume);document.addEventListener('visibilitychange',resume);void connect();
+  return()=>{stopped=true;if(timer)clearTimeout(timer);controller?.abort();window.removeEventListener('online',resume);window.removeEventListener('offline',resume);document.removeEventListener('visibilitychange',resume)};
+ },[apiAuth,apiStore]);
  const refresh=async()=>{if(!store.current)return;const [r,q,d]=await Promise.all([store.current.records(),store.current.queue(),store.current.drafts()]);const displayQueue=q.map(entry=>({...entry,command:{...entry.command,payload:redactSensitiveData(entry.command.payload) as Record<string,unknown>},result:entry.result?redactSensitiveData(entry.result) as NonNullable<QueuedCommand['result']>:undefined}));setRecords(r);setQueue(displayQueue);setDrafts(d)};
   useEffect(()=>{
   let stopped=false;let needsSnapshot=true;let automatic:ReturnType<typeof startAutomaticSync>|undefined;let opened:BusinessStore|undefined;

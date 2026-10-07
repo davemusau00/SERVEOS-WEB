@@ -90,7 +90,12 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
   const generation = useRef(0);
   const clearSession = () => { generation.current++;  authRef.current = null; setAuth(null); setCloudSession(null); setRows([]); setRequests([]); setSelected(null); setLastSeen(null); };
   const signOut = async () => { setBusy(true); try { if(authRef.current) await remoteAuthCall(url,key,'logout?scope=global',undefined,authRef.current.access_token); clearSession(); setError(''); } catch(cause) { setError(String(cause)); } finally {setBusy(false);} };
-  const signOutApi=async()=>{setBusy(true);try{await apiSession?.signOut();setApiStore(current=>{current?.close();return null});setApiSession(null);setPassword('');setNewPassword('');setError('')}catch(cause){setError(String(cause))}finally{setBusy(false)}};
+  const signOutApi=async()=>{
+    setBusy(true);setError('');
+    try{await apiSession?.signOut()}
+    catch{setError('Signed out on this browser. Server session revocation could not be confirmed; the server session remains subject to its expiry.')}
+    finally{setApiStore(current=>{current?.close();return null});setApiSession(null);setPassword('');setNewPassword('');setBusy(false)}
+  };
   const recover = async () => { if(!email.trim()) { setError('Enter your account email first.'); return; } setBusy(true); setError(''); try { await remoteAuthCall(url,key,`recover?redirect_to=${encodeURIComponent(window.location.origin + window.location.pathname)}`,{email:email.trim()}); setAccountNotice('If this address has an account, recovery instructions have been sent.'); } catch(cause) { setError(String(cause)); } finally {setBusy(false);} };
   const request = async (path: string, body?: unknown) => {
     if (!authRef.current) throw new Error('Sign in first');

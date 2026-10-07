@@ -50,7 +50,9 @@ export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnTy
   const localCursor=await store.cursor();
   const localPolicy=await store.policyVersion();
   const localRecords=await store.records();
-  if(localCursor>0&&localPolicy===policyVersion&&localRecords.length>0)return {cursor:localCursor,records:localRecords.length,policyVersion,reused:true};
+  // replaceSnapshot writes this policy marker atomically with records/cursor.
+  // Cursor zero and an empty catalog are both valid initialized projections.
+  if(localPolicy===policyVersion)return {cursor:localCursor,records:localRecords.length,policyVersion,reused:true};
   const queued=await store.queue();
   if(queued.some(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN'))throw new Error('Saved API commands must be recovered before rebuilding this device projection.');
   const bootstrap=await client.bootstrapCatalog();

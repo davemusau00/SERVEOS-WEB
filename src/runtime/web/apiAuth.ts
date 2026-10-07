@@ -2,6 +2,7 @@ import {createServOSApiClient,type ApiStaffLogin} from './apiClient';
 import {enrollWebDeviceWithApi,getOrCreateWebDeviceIdentity,type WebDeviceIdentity} from './deviceIdentity';
 import {BusinessStore} from './BusinessStore';
 import {loadApiCatalogSnapshot} from './session';
+import {createApiCloudTransport,synchronizeStore} from './sync';
 
 export interface ApiAuthenticatedDeviceSession {
   client:ReturnType<typeof createServOSApiClient>;
@@ -26,12 +27,19 @@ export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName
     if(!profile.permissions.includes('*')&&!profile.permissions.includes('devices.register')&&!profile.permissions.includes('devices.manage'))throw new Error('This staff account needs device registration approval before sign-in can continue.');
     const identity=await getOrCreateWebDeviceIdentity(profile.businessId);device=identity.deviceId;
     await enrollWebDeviceWithApi(input.apiOrigin,token,profile.businessId,profile.staffId,identity);
-    return {client,identity,login,profile,signOut:async()=>{await client.logout();token=undefined;device=undefined}};
-  }catch(error){await client.logout().catch(()=>undefined);token=undefined;device=undefined;throw error}
+    return {client,identity,login,profile,signOut:async()=>{
+      try{await client.logout()}finally{token=undefined;device=undefined;login.accessToken=''}
+    }};
+  }catch(error){try{await client.logout().catch(()=>undefined)}finally{token=undefined;device=undefined;login.accessToken=''}throw error}
 }
 
 /** Open isolated API-authority IndexedDB and install its records[] catalog projection. */
 export async function openApiBusinessStore(session:ApiAuthenticatedDeviceSession){
   const store=await BusinessStore.open(session.profile.businessId,session.identity.deviceId,session.profile.staffId,0,'API');
-  try{await loadApiCatalogSnapshot(store,session.client);return store}catch(error){store.close();throw error}
+  try{
+    // Recover durable commands before installing a replacement projection.
+    // An initialized projection is reused, including an empty zero-cursor catalog.
+    if(await store.policyVersion()!=='api-catalog-v1'&&await store.hasPending())await synchronizeStore(store,createApiCloudTransport(session.client));
+    await loadApiCatalogSnapshot(store,session.client);return store;
+  }catch(error){store.close();throw error}
 }

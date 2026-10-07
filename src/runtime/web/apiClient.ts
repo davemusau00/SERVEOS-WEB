@@ -45,6 +45,16 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
    catch(error){if(error instanceof ApiHttpError&&error.status<500)throw error;throw new ApiOutcomeUnknown(command.commandId)}
   },
   commandStatus(commandId:string){return request<{commandId:string;status:'RECEIVED'|'PROCESSING'|'CONFIRMED'|'REJECTED'|'CONFLICT';outcome?:ApiCommandOutcome;error?:ApiCommandOutcome['error']}>(`/v1/commands/${encodeURIComponent(commandId)}`)},
+  async watchChanges(after:number,onChange:()=>void,signal:AbortSignal){
+   const token=accessToken(),device=deviceId();if(!token||!device)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in and enroll this device before watching changes.');
+   const response=await fetcher(new URL(`/v1/sync/stream?after=${encodeURIComponent(after)}`,url),{headers:{authorization:`Bearer ${token}`,'x-serveos-device-id':device,accept:'text/event-stream'},cache:'no-store',signal});
+   if(!response.ok)throw new ApiHttpError(response.status,'STREAM_UNAVAILABLE','Change notifications are unavailable.');
+   if(!response.body||!response.headers.get('content-type')?.includes('text/event-stream'))throw new Error('Invalid change notification stream');
+   const reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';
+   try{while(!signal.aborted){const {value,done}=await reader.read();if(done)return;buffer+=decoder.decode(value,{stream:true});if(buffer.length>65536)throw new Error('Change notification frame exceeds limit');
+    let match:RegExpExecArray|null;while((match=/\r?\n\r?\n/.exec(buffer))){const frame=buffer.slice(0,match.index);buffer=buffer.slice(match.index+match[0].length);if(frame.split(/\r?\n/).some(line=>line==='event: changes'))onChange();}
+   }}finally{await reader.cancel().catch(()=>undefined);reader.releaseLock()}
+  },
   changes(after:number,limit=200){return request<ApiChangePage>(`/v1/sync/changes?after=${encodeURIComponent(after)}&limit=${encodeURIComponent(limit)}`)},
   catalogItems(search=''){return request<{items:ApiCatalogItem[]}>(`/v1/catalog/items?search=${encodeURIComponent(search)}`)},
   bootstrapCatalog(){return request<ApiCatalogBootstrap>('/v1/bootstrap/catalog')},

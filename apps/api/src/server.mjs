@@ -192,20 +192,28 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         if (cursor > initial.highWater) throw new ApiProblem(409, 'CURSOR_AHEAD', 'The requested cursor is ahead of this business change feed.');
         res.writeHead(200, {'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no', ...(req.headers.origin && origin ? {'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true', vary: 'Origin'} : {})});
         res.write(': connected\n\n');
-        const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 20_000);
+        let closed=false;let polling=false;
+        const heartbeat = setInterval(() => {if(!closed&&!res.writableNeedDrain)res.write(': keepalive\n\n')}, 20_000);
         const poll = setInterval(async () => {
+          if(closed||polling||res.writableNeedDrain)return;
+          polling=true;
           try {
-            const page = await store.changesAfter(actor.businessId, cursor, 100);
-            if (page.changes.length) {
-              cursor = page.cursor;
+            const currentActor=await authenticate(req);
+            if(currentActor.businessId!==actor.businessId||currentActor.staffId!==actor.staffId||currentActor.deviceId!==actor.deviceId)throw new ApiProblem(401,'AUTH_REQUIRED','The stream session changed.');
+            if(closed)return;
+            const page = await store.changesAfter(actor.businessId, cursor, 1);
+            if(closed)return;
+            if (page.highWater>cursor) {
+              cursor = page.highWater;
               res.write(`event: changes\ndata: ${JSON.stringify({cursor})}\n\n`);
             }
           } catch {
+            if(closed)return;
             res.write('event: unavailable\ndata: {}\n\n');
             res.end();
-          }
+          }finally{polling=false}
         }, 2_000);
-        res.on('close', () => { clearInterval(heartbeat); clearInterval(poll); });
+        res.on('close', () => { closed=true;clearInterval(heartbeat); clearInterval(poll); });
         return;
       }
       if (req.method === 'GET' && url.pathname === '/v1/catalog/items') {
