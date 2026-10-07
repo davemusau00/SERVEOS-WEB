@@ -781,3 +781,27 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Registered online-only `supplierPayable.matchInvoice` under procurement.manage with reviewed payable version, business procurement serialization, duplicate supplier invoice protection and exact accepted-GRN line matching.
 - Requires invoice/date/due-date/reason and complete line quantities, frozen unit costs and cumulative rounded line amounts; mismatches require a separate reviewed correction. Captures invoice evidence/provenance and transitions RECEIVED_UNINVOICED to MATCHED_UNPAID. No duplicate inventory/liability journal or payment is posted.
 - Migration 041 freezes receiving liability identity and matched invoice evidence, requires monotonically reviewed payable versions and constrains invoice/payment status consistency. Operator UI, settlement and returns/corrections remain outstanding. Tests/builds/migrations/runtime deferred.
+
+### PWA supplier invoice review (source only)
+
+- Added API procurement payables list with outstanding values, matched invoice reference/due date and explicit GRN-based invoice review. Operator enters billed quantities, unit costs, line amounts, total, dates and review reason against frozen accepted evidence.
+- Submits supplierPayable.matchInvoice through normal API command/outbox permission and online boundaries with pinned payable version. Pending/unknown procurement or invoice actions block further receiving/matching/PO changes; original terminal recovery closes stale invoice review.
+- No payment is implied. Tests/builds/runtime/migrations remain deferred. Settlement and supplier returns remain unfinished.
+
+### Manual supplier settlement API (source only)
+
+- Migration 042 and online procurement.pay command add immutable supplier payments, method/reference deduplication, actual payment time, reviewed account/payable versions, explicit actual-payment confirmation and outstanding-balance bounds.
+- Atomically transitions matched liabilities through PARTIALLY_PAID/PAID and posts AP debit/tender credit; emits payment/payable/journal projections. Bank/M-Pesa are manually confirmed facts, never provider success. Cash requires explicit petty-cash-outside-POS confirmation, preserving native behavior without silently consuming till cash.
+- Settlement UI, documents/reversals and supplier returns remain outstanding. All migrations, tests/builds and runtime checks remain deferred.
+
+### PWA supplier settlement review (source only)
+
+- Added matched/partially paid invoice settlement entry with frozen payable/account revisions, stable payment identity, actual paid time/reference, outstanding-bound amount and explicit money-already-paid acknowledgement.
+- Cash additionally requires petty cash outside POS confirmation. UI states that recording does not initiate a bank/M-Pesa transfer. Normal API/outbox flow enforces procurement.pay and online submission; original uncertain payment recovery blocks replacement actions.
+- Displays immutable supplier payment history. Settlement documents, reversal/return workflows and physical acceptance remain open; tests/builds/migrations/runtime deferred.
+
+### Supplier payment vouchers (source only)
+
+- Supplier payment now atomically issues an immutable office voucher with original supplier identity, invoice/payment/account facts, actual paid time, operator provenance and before/after payable control totals. Migration 043 links payment evidence to its document; historical vouchers are not fabricated.
+- Added browser voucher rendering and existing audited print queue access from supplier payment history. Explicit manual external confirmation or petty-cash-outside-POS wording; payment QR suppressed.
+- Dedicated bridge voucher layout remains outstanding; browser fallback supported in source. All migrations/tests/builds/runtime/physical checks remain deferred.
