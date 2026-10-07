@@ -4,6 +4,7 @@ import {customerCommandRegistry} from './customer-commands.mjs';
 import {customerCreditCommandRegistry} from './customer-credit-commands.mjs';
 import {customerCreditReconciliationCommandRegistry} from './customer-credit-reconciliation-commands.mjs';
 import {managerApprovalCommandRegistry} from './manager-approvals.mjs';
+import {staffCommandRegistry} from './staff-commands.mjs';
 import {supplierReturnCommandRegistry} from './supplier-return-commands.mjs';
 import {supplierPaymentCommandRegistry} from './supplier-payment-commands.mjs';
 import {supplierInvoiceCommandRegistry} from './supplier-invoice-commands.mjs';
@@ -302,7 +303,7 @@ async function main() {
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
-  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...customerCommandRegistry,...customerCreditCommandRegistry,...customerCreditReconciliationCommandRegistry,...managerApprovalCommandRegistry,...supplierCommandRegistry,...purchaseOrderCommandRegistry,...goodsReceiptCommandRegistry,...supplierInvoiceCommandRegistry,...supplierPaymentCommandRegistry,...supplierReturnCommandRegistry,...supplierCreditCommandRegistry,...supplierCreditApplicationCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
+  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...customerCommandRegistry,...customerCreditCommandRegistry,...customerCreditReconciliationCommandRegistry,...staffCommandRegistry,...managerApprovalCommandRegistry,...supplierCommandRegistry,...purchaseOrderCommandRegistry,...goodsReceiptCommandRegistry,...supplierInvoiceCommandRegistry,...supplierPaymentCommandRegistry,...supplierReturnCommandRegistry,...supplierCreditCommandRegistry,...supplierCreditApplicationCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
   server.listen(config.port, config.host, () => console.log(JSON.stringify({event: 'api_started', port: config.port, environment: config.nodeEnv, logLevel: config.logLevel})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
   process.on('SIGTERM', shutdown);

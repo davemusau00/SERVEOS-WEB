@@ -18,6 +18,8 @@ import {paymentAccountProjections} from './payment-accounts.mjs';
 import {tillProjections} from './till-commands.mjs';
 import {documentProjections} from './business-documents.mjs';
 import {orderProjections} from './pos-commands.mjs';
+import {staffProjections} from './staff-commands.mjs';
+const redactCommandSecrets=value=>Array.isArray(value)?value.map(redactCommandSecrets):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).filter(([key])=>!/(?:password|secret|token|credential|pin)/i.test(key)).map(([key,item])=>[key,redactCommandSecrets(item)])):value;
 const receiptProjection = row => {
   const data={...row,receivedAt:row.receivedAt.toISOString()};
   for(const key of ['quantity','baseQuantity','totalCostMinor','unitCostMinor','beforeAverageCostMinor','afterAverageCostMinor','sealedContainers','openQuantity'])data[key]=row[key]===null?null:Number(row[key]);
@@ -59,7 +61,7 @@ export class PostgresStore {
       await tx.lockCommandKey(businessId,commandId);
       const existing=await tx.getCommand(businessId,commandId);
       if(existing)return existing;
-      const {rows}=await tx.client.query(`INSERT INTO api_commands(business_id,command_id,command_name,payload_hash,staff_id,device_id,status,received_at,updated_at,request) VALUES($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$7,$8::jsonb) RETURNING status,outcome,error,payload_hash AS "payloadHash",staff_id AS "staffId",device_id AS "deviceId"`,[businessId,commandId,name,payloadHash,actor.staffId,actor.deviceId,at,JSON.stringify(request)]);
+      const {rows}=await tx.client.query(`INSERT INTO api_commands(business_id,command_id,command_name,payload_hash,staff_id,device_id,status,received_at,updated_at,request) VALUES($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$7,$8::jsonb) RETURNING status,outcome,error,payload_hash AS "payloadHash",staff_id AS "staffId",device_id AS "deviceId"`,[businessId,commandId,name,payloadHash,actor.staffId,actor.deviceId,at,JSON.stringify(redactCommandSecrets(request))]);
       return rows[0];
     });
   }
@@ -207,6 +209,7 @@ export class PostgresStore {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       const {rows}=await client.query('SELECT cursor FROM business_change_cursors WHERE business_id=$1',[businessId]);
       const records=await this.catalogProjection(businessId,client);
+      records.push(...await staffProjections(client,businessId));
       await client.query('COMMIT');return {cursor:Number(rows[0]?.cursor??0),records};
     }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
   }
@@ -284,6 +287,7 @@ export class PostgresStore {
       await tx.client.query('INSERT INTO businesses(id,name) VALUES($1,$2)',[businessId,businessName]);
       await tx.client.query('INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password,created_at,updated_at) VALUES($1,$2,$3,$4,\'Admin\',$5,true,$6,$6)',[businessId,staffId,loginName,displayName,credentialHash,at]);
       for(const permission of permissions)await tx.client.query('INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,$3)',[businessId,staffId,permission]);
+      await tx.client.query("INSERT INTO business_entity_versions(business_id,entity_type,entity_id,version) VALUES($1,'employees',$2,1)",[businessId,staffId]);
       return true;
     });
   }
