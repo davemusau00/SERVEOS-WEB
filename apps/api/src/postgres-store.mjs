@@ -280,6 +280,7 @@ export class PostgresStore {
       if(sessionId===currentSessionId){const error=new Error('Use Sign out to end the current session.');error.status=409;error.code='CURRENT_SESSION_REVOKE';throw error;}
       if(prior.revokedAt)return true;
       await tx.client.query('UPDATE api_staff_sessions SET revoked_at=$4 WHERE business_id=$1 AND staff_id=$2 AND id=$3 AND revoked_at IS NULL',[businessId,staffId,sessionId,at]);
+      await tx.client.query('UPDATE api_refresh_families SET revoked_at=$2 WHERE session_id=$1 AND revoked_at IS NULL',[sessionId,at]);
       const commandId=randomUUID();await tx.client.query(`INSERT INTO api_session_events(business_id,id,session_id,staff_id,event_type,before_state,after_state,command_id,actor_staff_id,actor_device_id,occurred_at) VALUES($1,$2,$3,$4,'REVOKED',$5::jsonb,$6::jsonb,$7,$8,$9,$10)`,[businessId,randomUUID(),sessionId,staffId,JSON.stringify({revokedAt:null,deviceId:prior.deviceId}),JSON.stringify({revokedAt:at.toISOString(),deviceId:prior.deviceId}),commandId,staffId,actorDeviceId,at]);
       return true;
     });
@@ -350,6 +351,7 @@ export class PostgresStore {
       const {rows:sessions}=await tx.client.query('SELECT id,device_id AS "deviceId" FROM api_staff_sessions WHERE business_id=$1 AND staff_id=$2 AND id<>$3 AND revoked_at IS NULL FOR UPDATE',[businessId,staffId,currentSessionId]);
       if(!sessions.length)return true;
       await tx.client.query('UPDATE api_staff_sessions SET revoked_at=$4 WHERE business_id=$1 AND staff_id=$2 AND id<>$3 AND revoked_at IS NULL',[businessId,staffId,currentSessionId,at]);
+      const revokedSessionIds=sessions.map(session=>session.id);await tx.client.query('UPDATE api_refresh_families SET revoked_at=$2 WHERE session_id=ANY($1::uuid[]) AND revoked_at IS NULL',[revokedSessionIds,at]);
       for(const session of sessions){const commandId=randomUUID();await tx.client.query(`INSERT INTO api_session_events(business_id,id,session_id,staff_id,event_type,before_state,after_state,command_id,actor_staff_id,actor_device_id,occurred_at) VALUES($1,$2,$3,$4,'REVOKED',$5::jsonb,$6::jsonb,$7,$8,$9,$10)`,[businessId,randomUUID(),session.id,staffId,JSON.stringify({revokedAt:null,deviceId:session.deviceId}),JSON.stringify({revokedAt:at.toISOString(),deviceId:session.deviceId,cause:'PASSWORD_CHANGED'}),commandId,staffId,actorDeviceId||null,at]);}
       return true;
     });

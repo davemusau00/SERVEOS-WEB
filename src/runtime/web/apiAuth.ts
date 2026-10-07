@@ -15,7 +15,7 @@ export interface ApiAuthenticatedDeviceSession {
 /** Complete the API-native web sign-in lifecycle without placing the bearer in persistent web storage. */
 export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName:string;password:string;newPassword?:string;fetcher?:typeof fetch}):Promise<ApiAuthenticatedDeviceSession>{
   let token:string|undefined;let device:string|undefined;
-  const makeClient=()=>createServOSApiClient({baseUrl:input.apiOrigin,accessToken:()=>token,deviceId:()=>device,fetcher:input.fetcher});
+  const makeClient=()=>createServOSApiClient({baseUrl:input.apiOrigin,accessToken:()=>token,setAccessToken:value=>{token=value},deviceId:()=>device,fetcher:input.fetcher});
   const client=makeClient();let login=await client.login(input.loginName,input.password);token=login.accessToken;
   try{
     if(login.mustChangePassword){

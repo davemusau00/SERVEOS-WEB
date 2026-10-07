@@ -14,16 +14,22 @@ export class ApiOutcomeUnknown extends Error {
  constructor(readonly commandId:string){super('The API response was lost. Check this same command ID before creating another command.');this.name='ApiOutcomeUnknown'}
 }
 
-export interface ApiClientOptions {baseUrl:string;accessToken:()=>string|undefined;deviceId:()=>string|undefined;fetcher?:typeof fetch}
-export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetch}:ApiClientOptions){
+export interface ApiClientOptions {baseUrl:string;accessToken:()=>string|undefined;setAccessToken:(token:string)=>void;deviceId:()=>string|undefined;fetcher?:typeof fetch}
+export function createServOSApiClient({baseUrl,accessToken,setAccessToken,deviceId,fetcher=fetch}:ApiClientOptions){
  const url=new URL(baseUrl);
  if(url.protocol!=='https:'&&url.hostname!=='localhost'&&url.hostname!=='127.0.0.1')throw new Error('ServOS API requires HTTPS');
+ let refreshInFlight:Promise<void>|undefined;
+ const refreshAccessToken=async()=>{
+  const rotate=async()=>{const response=await fetcher(new URL('/v1/auth/refresh',url),{method:'POST',credentials:'include',cache:'no-store',signal:AbortSignal.timeout(20000)});const raw=await response.text();let body:{accessToken?:string;error?:{code?:string;message?:string}}={};try{body=raw?JSON.parse(raw):{}}catch{if(response.ok)throw new Error('The refresh response was invalid.')}if(!response.ok||typeof body.accessToken!=='string')throw new ApiHttpError(response.status||401,body.error?.code||'REFRESH_FAILED',body.error?.message||'Your sign-in session ended. Sign in again.');setAccessToken(body.accessToken)};
+  if(!refreshInFlight){const locks=typeof navigator!=='undefined'?navigator.locks:undefined;refreshInFlight=Promise.resolve(locks?locks.request('serveos-api-refresh',rotate):rotate()).finally(()=>{refreshInFlight=undefined})}await refreshInFlight;
+ };
  const request=async<T>(path:string,init:RequestInit={},requireDevice=true):Promise<T>=>{
   const token=accessToken();if(!token)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in to ServOS to continue.');
   const headers=new Headers(init.headers);headers.set('authorization',`Bearer ${token}`);if(init.body!==undefined)headers.set('content-type','application/json');
   if(requireDevice){const id=deviceId();if(!id)throw new ApiHttpError(401,'DEVICE_REQUIRED','Enroll this device before continuing.');headers.set('x-serveos-device-id',id)}
   let response:Response;
-  try{response=await fetcher(new URL(path,url),{...init,headers,cache:'no-store',signal:init.signal||AbortSignal.timeout(20000)})}
+  const send=()=>fetcher(new URL(path,url),{...init,headers,credentials:'include',cache:'no-store',signal:init.signal||AbortSignal.timeout(20000)});
+  try{response=await send();if(response.status===401&&path!=='/v1/auth/refresh'&&path!=='/v1/auth/login'){await refreshAccessToken();const current=accessToken();if(!current)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in to ServOS to continue.');headers.set('authorization',`Bearer ${current}`);response=await send()}}
   catch(error){throw error}
   const raw=await response.text();let body:unknown;
   try{body=raw?JSON.parse(raw):{}}catch(error){if(response.ok)throw error;body={}}
@@ -32,7 +38,7 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
  };
  return {
   async login(loginName:string,password:string):Promise<ApiStaffLogin>{
-   const response=await fetcher(new URL('/v1/auth/login',url),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({loginName,password}),cache:'no-store',signal:AbortSignal.timeout(20000)});
+   const response=await fetcher(new URL('/v1/auth/login',url),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({loginName,password}),credentials:'include',cache:'no-store',signal:AbortSignal.timeout(20000)});
    const body=await response.json();if(!response.ok){const problem=body?.error;throw new ApiHttpError(response.status,problem?.code||'AUTH_INVALID',problem?.message||'Sign-in failed.')}return body as ApiStaffLogin;
   },
   async initialAdminSetup(input:{businessId:string;staffId:string;businessName:string;displayName:string;loginName:string;password:string},setupSecret:string){
@@ -50,8 +56,8 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
   },
   commandStatus(commandId:string){return request<{commandId:string;status:'RECEIVED'|'PROCESSING'|'CONFIRMED'|'REJECTED'|'CONFLICT';outcome?:ApiCommandOutcome;error?:ApiCommandOutcome['error']}>(`/v1/commands/${encodeURIComponent(commandId)}`)},
   async watchChanges(after:number,onChange:()=>void,signal:AbortSignal){
-   const token=accessToken(),device=deviceId();if(!token||!device)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in and enroll this device before watching changes.');
-   const response=await fetcher(new URL(`/v1/sync/stream?after=${encodeURIComponent(after)}`,url),{headers:{authorization:`Bearer ${token}`,'x-serveos-device-id':device,accept:'text/event-stream'},cache:'no-store',signal});
+   let token=accessToken();const device=deviceId();if(!token||!device)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in and enroll this device before watching changes.');
+   const streamUrl=new URL(`/v1/sync/stream?after=${encodeURIComponent(after)}`,url),stream=()=>fetcher(streamUrl,{headers:{authorization:`Bearer ${token}`,'x-serveos-device-id':device,accept:'text/event-stream'},credentials:'include',cache:'no-store',signal});let response=await stream();if(response.status===401){await refreshAccessToken();token=accessToken()||'';if(!token)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in and enroll this device before watching changes.');response=await stream()}
    if(!response.ok)throw new ApiHttpError(response.status,'STREAM_UNAVAILABLE','Change notifications are unavailable.');
    if(!response.body||!response.headers.get('content-type')?.includes('text/event-stream'))throw new Error('Invalid change notification stream');
    const reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';
