@@ -23,6 +23,7 @@ const duplicateCheck = async (tx, table, businessId, code, barcode, id) => {
 };
 
 const stockItemSave = async ({tx, command, actor, at}) => {
+  await tx.lockInventoryCatalog(actor.businessId);
   const {id, data} = command.payload;
   if (!uuid(id) || !data || typeof data !== 'object' || Array.isArray(data)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Stock item payload is malformed.');
   const expected = expectedVersion(command, 'stockItems', id);
@@ -66,6 +67,7 @@ const stockLocationSave=async({tx,command,actor})=>{
 };
 
 const productSave = async ({tx, command, actor, at}) => {
+  await tx.lockInventoryCatalog(actor.businessId);
   const {id, data} = command.payload;
   if (!uuid(id) || !data || typeof data !== 'object' || Array.isArray(data)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Product payload is malformed.');
   const expected = expectedVersion(command, 'products', id);
@@ -112,6 +114,7 @@ const productSave = async ({tx, command, actor, at}) => {
 };
 
 const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
+  await tx.lockInventoryCatalog(actor.businessId);
   const {id, stockItem: stock, product, locationId, startingQuantity = 0, openingMovementId} = command.payload;
   const stockId = stock?.id ?? id;
   if (!uuid(id) || !stock || typeof stock !== 'object' || !uuid(stockId) || !uuid(locationId)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Opening stock setup requires valid stock item and location IDs.');
@@ -163,6 +166,7 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
 };
 
 const inventoryCount = async ({tx,command,actor,at})=>{
+  await tx.lockInventoryCatalog(actor.businessId);
   const p=command.payload;const selected=command.name==='inventory.countSelected';const locationId=p.locationId;
   if(!uuid(locationId)||!await tx.requireStockLocation(actor.businessId,locationId))throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected stock location is missing or archived.');
   const rows=p.rows;if(!Array.isArray(rows)||rows.length<1||rows.length>5000)throw new ApiProblem(400,'VALIDATION_FAILED','A count must include between 1 and 5000 stock items.');
@@ -175,18 +179,89 @@ const inventoryCount = async ({tx,command,actor,at})=>{
   const countRows=[],changedStock=[],movementRecords=[];let matches=0,short=0,over=0;
   for(const row of rows.slice().sort((a,b)=>a.stockItemId.localeCompare(b.stockItemId))){
     const expected=Number(row.expectedQuantity),counted=Number(row.countedQuantity);if(!Number.isFinite(expected)||expected<0||!Number.isFinite(counted)||counted<0)throw new ApiProblem(400,'VALIDATION_FAILED','Expected and counted stock quantities must be non-negative numbers.');
-    const balance=await tx.stockBalance(actor.businessId,row.stockItemId,locationId);if(Math.abs(balance-expected)>0.000001)throw new ApiProblem(409,'VERSION_CONFLICT','Stock changed while this count was open. Refresh the affected items and recount.');
+    const balance=await tx.stockBalance(actor.businessId,row.stockItemId,locationId);if(Math.abs(balance.quantity-expected)>0.000001)throw new ApiProblem(409,'VERSION_CONFLICT','Stock changed while this count was open. Refresh the affected items and recount.');
     const consumption=await tx.productConsumptionIds(actor.businessId,row.stockItemId);const expectedConsumption=Array.isArray(row.consumptionProductIds)?row.consumptionProductIds.slice().sort():null;if(expectedConsumption&&JSON.stringify(expectedConsumption)!==JSON.stringify(consumption))throw new ApiProblem(409,'VERSION_CONFLICT','Product stock usage changed while this count was open. Recount the affected item.');
     const stock=await tx.stockItemDetails(actor.businessId,row.stockItemId);const delta=Number((counted-expected).toFixed(6));if(row.measurementMethod!==undefined&&!['EXACT','ESTIMATED'].includes(row.measurementMethod))throw new ApiProblem(400,'VALIDATION_FAILED','Count measurement method is invalid.');
     let sealed=null,open=null;const bottleSize=stock.sealedContainerSize;
     if(bottleSize!==null){sealed=Number(row.countedSealedContainers);open=Number(row.countedOpenQuantity);if(stock.baseUnit!=='ml'||!Number.isInteger(sealed)||sealed<0||!Number.isFinite(open)||open<0||open>=bottleSize||Math.abs(counted-sealed*bottleSize-open)>0.000001)throw new ApiProblem(400,'VALIDATION_FAILED','Counted liquid must equal whole sealed containers plus open quantity below one container.');}
     else if((row.countedSealedContainers!==undefined&&row.countedSealedContainers!==null)||(row.countedOpenQuantity!==undefined&&row.countedOpenQuantity!==null))throw new ApiProblem(400,'VALIDATION_FAILED','Bottle quantities require configured ml stock.');
     if(delta===0)matches++;else if(delta<0)short++;else over++;
-    if(delta!==0){await tx.applyInventoryDelta({businessId:actor.businessId,stockItemId:row.stockItemId,locationId,quantityDelta:delta});const version=await tx.bumpEntityVersion(actor.businessId,'stockItems',row.stockItemId,stock.version);await tx.updateStockItemVersion(actor.businessId,row.stockItemId,version);const movementId=randomUUID();await tx.insertInventoryMovement({businessId:actor.businessId,id:movementId,stockItemId:row.stockItemId,locationId,quantityDelta:delta,reason,commandId:command.commandId,staffId:actor.staffId,at});movementRecords.push(await tx.inventoryMovementProjection(actor.businessId,movementId));changedStock.push(await tx.stockRecordProjection(actor.businessId,row.stockItemId));}
+    if(delta!==0||bottleSize!==null&&(balance.sealedContainers!==sealed||balance.openQuantity!==open)){await tx.setInventoryBalance({businessId:actor.businessId,stockItemId:row.stockItemId,locationId,quantity:counted,sealedContainers:sealed,openQuantity:open});const version=await tx.bumpEntityVersion(actor.businessId,'stockItems',row.stockItemId,stock.version);await tx.updateStockItemVersion(actor.businessId,row.stockItemId,version);if(delta!==0){const movementId=randomUUID();await tx.insertInventoryMovement({businessId:actor.businessId,id:movementId,stockItemId:row.stockItemId,locationId,quantityDelta:delta,reason,commandId:command.commandId,staffId:actor.staffId,at});movementRecords.push(await tx.inventoryMovementProjection(actor.businessId,movementId));}changedStock.push(await tx.stockRecordProjection(actor.businessId,row.stockItemId));}
     countRows.push({stockItemId:row.stockItemId,expectedQuantity:expected,countedQuantity:counted,variance:delta,countedSealedContainers:sealed,countedOpenQuantity:open,measurementMethod:row.measurementMethod||'EXACT',consumptionProductIds:consumption,name:stock.name,baseUnit:stock.baseUnit});
   }
   const id=`count-${command.commandId}`;await tx.insertStockCount({businessId:actor.businessId,id,scope:selected?'SELECTED':'FULL',locationId,selectedStockItemIds:selectedIds,rows:countRows,matches,short,over,reason,commandId:command.commandId,staffId:actor.staffId,at});
   return {count:{collection:'stockCounts',id,version:1,data:{scope:selected?'SELECTED':'FULL',locationId,selectedStockItemIds:selectedIds,itemCount:countRows.length,matches,short,over,reason,status:'COMMITTED',sourceCommandId:command.commandId,createdBy:actor.staffId,createdAt:at.toISOString(),rows:countRows},archived:false},stockItems:changedStock,stockMovements:movementRecords};
+};
+
+const inventoryMovement=async({tx,command,actor,at})=>{
+  const p=command.payload;const isTransfer=command.name==='inventory.transfer';const stockItemId=p.stockItemId;const locationId=p.locationId;
+  if(!uuid(stockItemId)||!uuid(locationId))throw new ApiProblem(400,'VALIDATION_FAILED','A stock item and source location are required.');
+  const stock=await tx.stockItemDetails(actor.businessId,stockItemId);if(!await tx.requireStockLocation(actor.businessId,locationId))throw new ApiProblem(409,'RESOURCE_CONFLICT','The source stock location is missing or archived.');
+  const reason=text(p.reason,isTransfer?'Transfer reason':'Waste reason',500);const quantity=safeQuantity(p.quantity,'Movement quantity');if(quantity>1_000_000_000||Math.abs(quantity*1_000_000-Math.round(quantity*1_000_000))>0.0001)throw new ApiProblem(400,'VALIDATION_FAILED','Movement quantity must be at most one billion with no more than six decimal places.');
+  const size=stock.baseUnit==='ml'?stock.sealedContainerSize:null;let sealedMove=0;let openMove=quantity;
+  if(size!==null){if(!['SEALED','OPEN'].includes(p.disposition))throw new ApiProblem(400,'VALIDATION_FAILED','Choose sealed bottles or open liquid.');if(p.disposition==='SEALED'){sealedMove=quantity/size;if(!Number.isInteger(sealedMove))throw new ApiProblem(400,'VALIDATION_FAILED','Sealed bottle movement must contain whole bottles.');openMove=0;}}
+  const source=await tx.stockBalance(actor.businessId,stockItemId,locationId);const sourceState=size===null?null:source.sealedContainers===null?{sealed:Math.floor(source.quantity/size),open:Number((source.quantity-Math.floor(source.quantity/size)*size).toFixed(6))}:{sealed:source.sealedContainers,open:source.openQuantity};
+  if(size===null){if(source.quantity+0.000001<quantity)throw new ApiProblem(409,'RESOURCE_CONFLICT','There is not enough stock at the source location.');}
+  else if(p.disposition==='SEALED'&&sourceState.sealed*size+0.000001<quantity||p.disposition==='OPEN'&&sourceState.open+0.000001<quantity)throw new ApiProblem(409,'RESOURCE_CONFLICT','There is not enough stock in the selected physical state.');
+  let destination=null;let destinationState=null;let destinationId=null;
+  if(isTransfer){destinationId=p.toLocationId;if(!uuid(destinationId)||destinationId===locationId||!await tx.requireStockLocation(actor.businessId,destinationId))throw new ApiProblem(409,'RESOURCE_CONFLICT','Choose a different active destination location.');destination=await tx.stockBalance(actor.businessId,stockItemId,destinationId);if(size!==null){destinationState=destination.sealedContainers===null?{sealed:Math.floor(destination.quantity/size),open:Number((destination.quantity-Math.floor(destination.quantity/size)*size).toFixed(6))}:{sealed:destination.sealedContainers,open:destination.openQuantity};if(p.disposition==='OPEN'&&destinationState.open+quantity>=size-0.000001)throw new ApiProblem(409,'RESOURCE_CONFLICT','The destination would contain more than one open bottle.');}}
+  if(size===null){await tx.setInventoryBalance({businessId:actor.businessId,stockItemId,locationId,quantity:Number((source.quantity-quantity).toFixed(6))});if(isTransfer)await tx.setInventoryBalance({businessId:actor.businessId,stockItemId,locationId:destinationId,quantity:Number((destination.quantity+quantity).toFixed(6))});}
+  else{const nextSource={sealed:sourceState.sealed-sealedMove,open:Number((sourceState.open-openMove).toFixed(6))};if(nextSource.sealed<0||nextSource.open< -0.000001)throw new ApiProblem(409,'RESOURCE_CONFLICT','Movement exceeds the available bottle state.');const sourceQuantity=Number((nextSource.sealed*size+Math.max(0,nextSource.open)).toFixed(6));await tx.setInventoryBalance({businessId:actor.businessId,stockItemId,locationId,quantity:sourceQuantity,sealedContainers:nextSource.sealed,openQuantity:Math.max(0,nextSource.open)});if(isTransfer){const nextDestination={sealed:destinationState.sealed+sealedMove,open:Number((destinationState.open+openMove).toFixed(6))};await tx.setInventoryBalance({businessId:actor.businessId,stockItemId,locationId:destinationId,quantity:Number((nextDestination.sealed*size+nextDestination.open).toFixed(6)),sealedContainers:nextDestination.sealed,openQuantity:nextDestination.open});}}
+  const version=await tx.bumpEntityVersion(actor.businessId,'stockItems',stockItemId,stock.version);await tx.updateStockItemVersion(actor.businessId,stockItemId,version);
+  const movementType=isTransfer?'TRANSFER':'WASTE';const movementRecords=[];const movementIds=isTransfer?[{locationId,delta:-quantity,type:'TRANSFER_OUT'},{locationId:destinationId,delta:quantity,type:'TRANSFER_IN'}]:[{locationId,delta:-quantity,type:'WASTE'}];
+  for(const entry of movementIds){const movementId=randomUUID();await tx.insertInventoryMovement({businessId:actor.businessId,id:movementId,stockItemId,locationId:entry.locationId,quantityDelta:entry.delta,movementType:entry.type,reason,commandId:command.commandId,staffId:actor.staffId,at});movementRecords.push(await tx.inventoryMovementProjection(actor.businessId,movementId));}
+  return {stockItem:await tx.stockRecordProjection(actor.businessId,stockItemId),stockMovements:movementRecords,operation:movementType};
+};
+
+const inventoryAdjust=async({tx,command,actor,at})=>{
+  const p=command.payload;const stockItemId=p.stockItemId;const locationId=p.locationId;
+  if(!uuid(stockItemId)||!uuid(locationId))throw new ApiProblem(400,'VALIDATION_FAILED','A stock item and location are required.');
+  const reason=text(p.reason,'Correction reason',500);const stock=await tx.stockItemDetails(actor.businessId,stockItemId);
+  if(!await tx.requireStockLocation(actor.businessId,locationId))throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected stock location is missing or archived.');
+  const reviewedContainerSize=Number(p.expectedSealedContainerSize);if(p.expectedBaseUnit!==stock.baseUnit||!Number.isFinite(reviewedContainerSize)||Math.abs(reviewedContainerSize-(stock.sealedContainerSize??0))>0.000001)throw new ApiProblem(409,'VERSION_CONFLICT','Stock units changed since this correction was reviewed. Refresh and review it again.');
+  const expected=Number(p.expectedQuantity);const counted=safeQuantity(p.countedQty,'Corrected quantity',{allowZero:true});
+  if(!Number.isFinite(expected)||expected<0||counted>1_000_000_000||Math.abs(counted*1_000_000-Math.round(counted*1_000_000))>0.0001)throw new ApiProblem(400,'VALIDATION_FAILED','Provide valid quantities with no more than six decimal places.');
+  const before=await tx.stockBalance(actor.businessId,stockItemId,locationId);if(Math.abs(before.quantity-expected)>0.000001)throw new ApiProblem(409,'VERSION_CONFLICT','Stock changed since this correction was reviewed. Refresh and review it again.');
+  let beforeSealed=null,beforeOpen=null,afterSealed=null,afterOpen=null;
+  if(stock.sealedContainerSize!==null){const size=stock.sealedContainerSize;if(stock.baseUnit!=='ml')throw new ApiProblem(409,'RESOURCE_CONFLICT','Configured bottle stock must use ml.');beforeSealed=before.sealedContainers===null?Math.floor(before.quantity/size):before.sealedContainers;beforeOpen=before.openQuantity===null?Number((before.quantity-beforeSealed*size).toFixed(6)):before.openQuantity;const expectedSealed=Number(p.expectedSealedContainers),expectedOpen=Number(p.expectedOpenQuantity);if(!Number.isInteger(expectedSealed)||!Number.isFinite(expectedOpen)||Math.abs(expectedSealed-beforeSealed)>0.000001||Math.abs(expectedOpen-beforeOpen)>0.000001)throw new ApiProblem(409,'VERSION_CONFLICT','Bottle state changed since this correction was reviewed. Refresh and review it again.');afterSealed=Number(p.sealedContainers);afterOpen=Number(p.openQuantity);if(!Number.isInteger(afterSealed)||afterSealed<0||!Number.isFinite(afterOpen)||afterOpen<0||afterOpen>=size||Math.abs(counted-afterSealed*size-afterOpen)>0.000001)throw new ApiProblem(400,'VALIDATION_FAILED','Corrected liquid must equal whole sealed bottles plus open ml below one bottle.');}
+  else if(p.sealedContainers!==undefined||p.openQuantity!==undefined)throw new ApiProblem(400,'VALIDATION_FAILED','Bottle quantities require configured ml stock.');
+  const variance=Number((counted-before.quantity).toFixed(6));if(variance===0&&(beforeSealed===null||beforeSealed===afterSealed&&beforeOpen===afterOpen))throw new ApiProblem(400,'NO_CHANGE','The corrected balance matches the current physical stock.');
+  await tx.setInventoryBalance({businessId:actor.businessId,stockItemId,locationId,quantity:counted,sealedContainers:afterSealed,openQuantity:afterOpen});
+  const version=await tx.bumpEntityVersion(actor.businessId,'stockItems',stockItemId,stock.version);await tx.updateStockItemVersion(actor.businessId,stockItemId,version);
+  const adjustmentId=`adjustment-${command.commandId}`;await tx.insertStockAdjustment({businessId:actor.businessId,id:adjustmentId,stockItemId,locationId,beforeQuantity:before.quantity,afterQuantity:counted,beforeSealedContainers:beforeSealed,beforeOpenQuantity:beforeOpen,afterSealedContainers:afterSealed,afterOpenQuantity:afterOpen,reason,commandId:command.commandId,staffId:actor.staffId,at});
+  const movementRecords=[];if(variance!==0){const movementId=randomUUID();await tx.insertInventoryMovement({businessId:actor.businessId,id:movementId,stockItemId,locationId,quantityDelta:variance,movementType:'MANAGER_ADJUSTMENT',reason,commandId:command.commandId,staffId:actor.staffId,at});movementRecords.push(await tx.inventoryMovementProjection(actor.businessId,movementId));}
+  return {adjustment:{collection:'inventoryAdjustments',id:adjustmentId,version:1,data:{stockItemId,locationId,beforeQuantity:before.quantity,afterQuantity:counted,variance,beforeSealedContainers:beforeSealed,beforeOpenQuantity:beforeOpen,afterSealedContainers:afterSealed,afterOpenQuantity:afterOpen,reason,sourceCommandId:command.commandId,createdBy:actor.staffId,createdAt:at.toISOString()},archived:false},stockItem:await tx.stockRecordProjection(actor.businessId,stockItemId),stockMovements:movementRecords};
+};
+
+const inventoryProduceBatch=async({tx,command,actor,at})=>{
+  await tx.lockInventoryCatalog(actor.businessId);
+  const p=command.payload;const productId=p.recipeProductId;const outputId=p.outputStockItemId;const locationId=p.locationId;
+  if(!uuid(productId)||!uuid(outputId)||!uuid(locationId))throw new ApiProblem(400,'VALIDATION_FAILED','A saved recipe, output stock item and location are required.');
+  if(!await tx.requireStockLocation(actor.businessId,locationId))throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected stock location is missing or archived.');
+  const batchCount=p.batchCount;if(!Number.isSafeInteger(batchCount)||batchCount<1||batchCount>1000)throw new ApiProblem(400,'VALIDATION_FAILED','Batch count must be a whole number from 1 to 1000.');
+  const reason=text(p.reason,'Preparation note',180);if(reason.length<3)throw new ApiProblem(400,'VALIDATION_FAILED','Preparation note must be at least 3 characters.');
+  const product=await tx.batchRecipeDetails(actor.businessId,productId);
+  if(product.inventoryType!=='BATCH'||product.stockItemId!==outputId||!Number.isSafeInteger(product.recipeYield)||product.recipeYield<1||product.recipeYield>100000||!product.ingredients.length||product.ingredients.length>100)throw new ApiProblem(409,'RESOURCE_CONFLICT','The saved batch recipe is incomplete or changed. Review it before preparing.');
+  if(outputId===product.stockItemId&&product.ingredients.some(line=>line.stockItemId===outputId))throw new ApiProblem(400,'VALIDATION_FAILED','Finished stock cannot also be one of its ingredients.');
+  const inputIds=[...new Set(product.ingredients.map(line=>line.stockItemId))].sort();
+  if(inputIds.length!==product.ingredients.length||inputIds.includes(outputId))throw new ApiProblem(400,'VALIDATION_FAILED','Recipe ingredients must be unique and cannot include the finished stock item.');
+  const stocksById=new Map();for(const stockId of [...inputIds,outputId].sort())stocksById.set(stockId,await tx.stockItemDetails(actor.businessId,stockId));
+  const output=stocksById.get(outputId);
+  if(!['piece','portion'].includes(output.baseUnit.toLowerCase()))throw new ApiProblem(409,'RESOURCE_CONFLICT','Finished batch stock must use piece or portion units.');
+  const stockById=stocksById;
+  if(expectedVersion(command,'products',productId)!==product.version)throw new ApiProblem(409,'VERSION_CONFLICT','The batch recipe changed. Review it before preparing.');
+  if(expectedVersion(command,'stockItems',outputId)!==output.version)throw new ApiProblem(409,'VERSION_CONFLICT','Finished stock changed. Review the batch before preparing.');
+  const locationVersion=command.expectedVersions[`stockLocations:${locationId}`];if(!Number.isSafeInteger(locationVersion))throw new ApiProblem(400,'VALIDATION_FAILED','The reviewed stock location version is required.');
+  const outputQuantity=product.recipeYield*batchCount;if(!Number.isSafeInteger(outputQuantity)||outputQuantity<=0||outputQuantity>1_000_000_000)throw new ApiProblem(400,'VALIDATION_FAILED','Calculated batch output is invalid.');
+  const consumption=[];let totalCostMinor=0;
+  for(const line of product.ingredients){const stock=stockById.get(line.stockItemId);if(expectedVersion(command,'stockItems',line.stockItemId)!==stock.version)throw new ApiProblem(409,'VERSION_CONFLICT','An ingredient changed. Review the batch before preparing.');const quantity=line.quantity*product.recipeYield*batchCount;if(!Number.isFinite(quantity)||quantity<=0||quantity>1_000_000_000||Math.abs(quantity*1_000_000-Math.round(quantity*1_000_000))>0.0001)throw new ApiProblem(400,'VALIDATION_FAILED','Calculated ingredient usage is invalid.');const lineCost=Math.round(stock.averageUnitCostMinor*quantity);if(!Number.isSafeInteger(lineCost)||lineCost<0)throw new ApiProblem(400,'VALIDATION_FAILED','Ingredient cost is invalid; correct its stock cost before preparing.');totalCostMinor+=lineCost;consumption.push({stock,quantity,lineCost});}
+  if(!Number.isSafeInteger(totalCostMinor))throw new ApiProblem(400,'VALIDATION_FAILED','Calculated batch cost is invalid.');
+  const usage=[],movementRecords=[];const movementReason=`Batch preparation ${product.name} x ${batchCount}: ${reason}`;
+  for(const entry of consumption){const {stock,quantity,lineCost}=entry;const balance=await tx.stockBalance(actor.businessId,stock.id,locationId);if(balance.quantity+0.000001<quantity)throw new ApiProblem(409,'RESOURCE_CONFLICT',`There is not enough ${stock.name} at the selected location.`);let sealed=null,open=null;const size=stock.sealedContainerSize;if(size!==null){if(stock.baseUnit.toLowerCase()!=='ml')throw new ApiProblem(409,'RESOURCE_CONFLICT','Configured bottle stock must use ml.');const currentSealed=balance.sealedContainers===null?Math.floor(balance.quantity/size):balance.sealedContainers;const currentOpen=balance.openQuantity===null?Number((balance.quantity-currentSealed*size).toFixed(6)):balance.openQuantity;let remaining=Math.max(0,quantity-currentOpen);sealed= currentSealed-Math.ceil(remaining/size);open=remaining===0?Number((currentOpen-quantity).toFixed(6)):Number((Math.ceil(remaining/size)*size-remaining).toFixed(6));if(sealed<0||open<0||open>=size)throw new ApiProblem(409,'RESOURCE_CONFLICT','The ingredient bottle balance cannot cover this recipe usage.');const nextQuantity=Number((sealed*size+open).toFixed(6));await tx.setInventoryBalance({businessId:actor.businessId,stockItemId:stock.id,locationId,quantity:nextQuantity,sealedContainers:sealed,openQuantity:open});}else await tx.setInventoryBalance({businessId:actor.businessId,stockItemId:stock.id,locationId,quantity:Number((balance.quantity-quantity).toFixed(6))});const version=await tx.bumpEntityVersion(actor.businessId,'stockItems',stock.id,stock.version);await tx.updateStockItemVersion(actor.businessId,stock.id,version);const movementId=randomUUID();await tx.insertInventoryMovement({businessId:actor.businessId,id:movementId,stockItemId:stock.id,locationId,quantityDelta:-quantity,movementType:'BATCH_PREPARATION_INGREDIENT',reason:movementReason,commandId:command.commandId,staffId:actor.staffId,at});movementRecords.push(await tx.inventoryMovementProjection(actor.businessId,movementId));usage.push({stockItemId:stock.id,name:stock.name,quantity,unitCostMinor:stock.averageUnitCostMinor,totalCostMinor:lineCost});}
+  const outputBalance=await tx.stockBalance(actor.businessId,outputId,locationId);const existingTotal=await tx.totalStockQuantity(actor.businessId,outputId);const outputCostMinor=outputQuantity?Math.round(totalCostMinor/outputQuantity):0;const averageCostMinor=Math.round((existingTotal*output.averageUnitCostMinor+outputQuantity*outputCostMinor)/(existingTotal+outputQuantity));await tx.setInventoryBalance({businessId:actor.businessId,stockItemId:outputId,locationId,quantity:Number((outputBalance.quantity+outputQuantity).toFixed(6))});const outputVersion=await tx.bumpEntityVersion(actor.businessId,'stockItems',outputId,output.version);await tx.updateStockCostAndVersion(actor.businessId,outputId,averageCostMinor,outputVersion);
+  const movementId=randomUUID();await tx.insertInventoryMovement({businessId:actor.businessId,id:movementId,stockItemId:outputId,locationId,quantityDelta:outputQuantity,movementType:'BATCH_PREPARATION_OUTPUT',reason:movementReason,commandId:command.commandId,staffId:actor.staffId,at});movementRecords.push(await tx.inventoryMovementProjection(actor.businessId,movementId));
+  const id=command.commandId;await tx.insertBatchPreparation({businessId:actor.businessId,id,productId,outputStockItemId:outputId,locationId,batchCount,outputQuantity,ingredientUsage:usage,totalCostMinor,reason,commandId:command.commandId,staffId:actor.staffId,at});
+  return {batch:{collection:'inventoryBatchPreparations',id,version:1,data:{productId,productName:product.name,outputStockItemId:outputId,locationId,batchCount,outputQuantity,ingredientUsage:usage,totalCostMinor,reason,sourceCommandId:command.commandId,createdBy:actor.staffId,createdAt:at.toISOString()},archived:false},stockMovements:movementRecords,outputStockItem:await tx.stockRecordProjection(actor.businessId,outputId),ingredientStockItems:await Promise.all(inputIds.map(stockId=>tx.stockRecordProjection(actor.businessId,stockId)))};
 };
 
 export const catalogCommandRegistry = new Map([
@@ -196,6 +271,10 @@ export const catalogCommandRegistry = new Map([
   ['catalog.createWithOpeningStock', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:catalogCreateWithOpeningStock}],
   ['inventory.countLocation',{permission:'inventory.count',offlinePolicy:'ONLINE_ONLY',handler:inventoryCount}],
   ['inventory.countSelected',{permission:'inventory.count',offlinePolicy:'ONLINE_ONLY',handler:inventoryCount}],
+  ['inventory.transfer',{permission:'inventory.transfer',offlinePolicy:'ONLINE_ONLY',handler:inventoryMovement}],
+  ['inventory.waste',{permission:'inventory.waste',offlinePolicy:'ONLINE_ONLY',handler:inventoryMovement}],
+  ['inventory.adjust',{permission:'inventory.adjust',offlinePolicy:'ONLINE_ONLY',handler:inventoryAdjust}],
+  ['inventory.produceBatch',{permission:'inventory.adjust',offlinePolicy:'ONLINE_ONLY',handler:inventoryProduceBatch}],
   ['catalog.item.create', {
     permission: 'catalog.manage',
     offlinePolicy: 'ONLINE_ONLY',

@@ -51,6 +51,14 @@ export function resolveOperationDependencies(operation: string, collection: stri
     if (Array.isArray(productData?.outletIds)) for (const outletId of productData.outletIds) add('outlets', outletId);
     if (Array.isArray(productData?.outletIds)) for (const outletId of productData.outletIds) add('outlets', outletId);
   }
+  if (operation === 'inventory.produceBatch') {
+    add('products', payload.recipeProductId);
+    add('stockItems', payload.outputStockItemId);
+    const product = typeof payload.recipeProductId === 'string' ? byKey.get(key('products', payload.recipeProductId)) : undefined;
+    const ingredients = Array.isArray(product?.data.recipeIngredients) ? product.data.recipeIngredients : [];
+    for (const ingredient of ingredients) if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
+    add('stockLocations', payload.locationId);
+  }
   if (operation === 'roomStay.settings') add('property', 'property');
   const data = (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>;
   for (const [target, targetId] of [

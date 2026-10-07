@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 
-const MAX_COMMAND_BYTES = 256 * 1024;
+const MAX_COMMAND_BYTES = 2 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const stableJson = value => value === null || typeof value !== 'object'
   ? JSON.stringify(value)
@@ -30,6 +30,7 @@ export function validateCommandEnvelope(input) {
   if (!isObject(payload) || !isObject(expectedVersions)) {
     throw new ApiProblem(400, 'VALIDATION_FAILED', 'payload and expectedVersions must be objects.');
   }
+  if (Object.keys(expectedVersions).length > 10010) throw new ApiProblem(413, 'TOO_MANY_EXPECTED_VERSIONS', 'Command includes too many reviewed resources.');
   const bytes = Buffer.byteLength(JSON.stringify(input));
   if (bytes > MAX_COMMAND_BYTES) throw new ApiProblem(413, 'PAYLOAD_TOO_LARGE', 'Command payload exceeds the allowed size.');
   if (offlineGrantId !== undefined && (typeof offlineGrantId !== 'string' || !UUID.test(offlineGrantId))) {
