@@ -589,3 +589,34 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added serial private stdio worker binary holding the exclusive journal session throughout its lifetime. Bounded, correlated messages support origin preflight and authenticated dispatch; protocol output contains no transport diagnostics or secret material.
 - Approved configuration reloads before every message, including preflight. Invalid replacement fails closed rather than retaining stale device approvals; malformed/oversized/truncated framing terminates the worker.
 - Documented host ownership, private pipes, no automatic replay after worker loss and recovery requirements. No compilation, dependency resolution, tests or worker execution ran. HTTPS host/installer, PWA submission controls and API outcome reporting remain outstanding.
+
+
+## Final sprint continuation - loopback HTTPS Print Bridge host (source only)
+
+- Added Node HTTPS adapter using installer-provisioned TLS and a private Rust worker. Exact local Host and approved PWA Origin, JSON-only bounded bodies, credential refusal, scoped CORS/private-network preflight and a bounded serial worker queue guard the sole request route.
+- HTTP disconnects never release an active worker operation for overlapping transport. Worker exit fails closed without automatic restart or replay; saved request identities remain the recovery path. TLS, executable/configuration and journal paths require local provisioning.
+- No host/worker execution, dependency resolution, builds, tests, certificate provisioning or printer checks ran. Installer/service recovery, browser TLS/private-network acceptance, PWA submission controls and authoritative outcome reporting remain outstanding.
+
+
+## Final sprint continuation - API claim to PWA bridge submission orchestration (source only)
+
+- Added submission orchestration through the existing persisted command callback, original command-status lookup for the private attestation, current shared claim ownership/version checks, and canonical immutable snapshot hash verification.
+- Unsupported bridge layouts are refused before claiming. Supported preparation/void documents submit a typed signed bridge action exactly once; unresolved API claims never trigger bridge submission or a replacement claim.
+- Recorded transport acceptance remains shared DELIVERY_UNCERTAIN pending physical confirmation. Known local pre-output failure can report PREPARATION_FAILED; absent/refused/recovery evidence leaves the original SENDING claim for explicit reconciliation. Reporting uses the normal durable command path.
+- No tests, build or runtime execution ran. Operator submission controls/approved bridge selection, service installation, recovery-to-API reporting and physical acceptance remain outstanding.
+
+
+## Final sprint continuation - PWA bridge selection and document submission controls (source only)
+
+- Added device-scoped local bridge selection in API Settings with explicit installed-identity approval acknowledgement and public enrollment identity display for local provisioning. This preference grants no authority on the service.
+- Wired supported preparation/void document submission into Activity and selected-order print queues using API session, persisted claim flow and bridge orchestration. Financial documents retain browser printing pending supported bridge renderers.
+- Exposed scoped recovery controls in Activity for operators without configuration permission. Unknown claim/report outcomes retain their original command IDs and prevent another action for that job.
+- No tests, build, host or printer execution ran. Installer/pairing acceptance, recovery-to-API reporting, financial renderers and hardware/TLS verification remain outstanding.
+
+
+## Final sprint continuation - recovered bridge outcome reporting (source only)
+
+- Retained submission evidence now includes original API attempt/revision. Recovery derives the exact per-attempt local UUID and queries current scoped delivery status before reporting.
+- Operator-triggered reporting requires the original SENDING API attempt, revision, operator and device still to match. Known pre-output failure reports preparation failure; accepted/uncertain transport reports uncertain paper delivery. No recovery path confirms physical delivery or reprints.
+- Recovery reporting is blocked while any print command outcome remains pending/unknown and uses the existing persisted command path. Older evidence without attempt metadata requires manual shared-job review.
+- No tests, build, worker/HTTPS execution or hardware acceptance ran. Installation, financial renderers, complete browser/hardware acceptance and release gates remain outstanding.

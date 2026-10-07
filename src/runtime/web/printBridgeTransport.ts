@@ -6,7 +6,7 @@ import type {WebDeviceIdentity} from './deviceIdentity';
 export interface ApprovedBridge {bridgeId:string;businessId:string;origin:string}
 export interface BridgeRequestEvidence {
  requestId:string;bridgeId:string;businessId:string;deviceId:string;bridgeOrigin:string;
- action:BridgeAction['action'];apiJobId?:string;createdAt:string;
+ action:BridgeAction['action'];apiJobId?:string;apiAttempt?:number;claimedJobRevision?:number;createdAt:string;
  state:'UNRESOLVED'|'RESPONSE_RECORDED';response?:BridgeResponse;
 }
 function originOf(value:string):string{
@@ -50,9 +50,10 @@ async function boundedResponse(response:Response):Promise<BridgeResponse>{
 export async function sendBridgeAction(bridge:ApprovedBridge,identity:WebDeviceIdentity,action:BridgeAction):Promise<BridgeRequestEvidence>{
  const origin=originOf(bridge.origin);
  const signed=await signPrintBridgeRequest(identity,bridge.bridgeId,bridge.businessId,action);
+ let apiAttempt:number|undefined;if(action.action==='SUBMIT'){const claim=JSON.parse(action.authorization.payloadJson) as {attempt?:number};if(!Number.isSafeInteger(claim.attempt)||Number(claim.attempt)<1)throw new Error('Invalid API print attempt.');apiAttempt=claim.attempt;}
  const evidence:BridgeRequestEvidence={requestId:signed.requestId,bridgeId:bridge.bridgeId,businessId:bridge.businessId,
   deviceId:identity.deviceId,bridgeOrigin:origin,action:action.action,
-  ...(action.action==='SUBMIT'?{apiJobId:action.jobId}:{}),createdAt:new Date().toISOString(),state:'UNRESOLVED'};
+  ...(action.action==='SUBMIT'?{apiJobId:action.jobId,apiAttempt,claimedJobRevision:action.claimedJobRevision}:{}),createdAt:new Date().toISOString(),state:'UNRESOLVED'};
  // Commit before fetch. No claim token, document snapshot or private key is stored here.
  await save(evidence,true);
  try{

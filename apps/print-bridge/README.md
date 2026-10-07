@@ -106,3 +106,22 @@ The future HTTPS host must own this child process, use private pipes, correlate 
 serialize requests, bound queued work and fail closed after worker exit. It must never automatically
 restart and resend an in-flight request. A worker interruption during transport requires journal
 recovery and an original-request status query. No worker execution or compilation has run yet.
+
+
+### Local HTTPS host (source only, not started)
+
+`https-host.mjs` uses Node HTTPS and privately spawns the Rust worker. Provision absolute paths in
+`PRINT_BRIDGE_WORKER`, `PRINT_BRIDGE_CONFIG`, `PRINT_BRIDGE_JOURNAL`, `PRINT_BRIDGE_TLS_KEY`,
+and `PRINT_BRIDGE_TLS_CERT`; set `PRINT_BRIDGE_HTTPS_ORIGIN` to an exact trusted
+`https://localhost:<port>` or `https://127.0.0.1:<port>` origin on a dedicated port >=1024.
+The host binds IPv4 loopback only. TLS certificate name/chain must be accepted by target browsers;
+no certificate bypass or HTTP fallback is implemented. Installer must protect TLS private key,
+configuration, journal and executable directories with service-account ACLs.
+
+The only route is `/v1/requests` (POST and CORS OPTIONS). Exact Host, locally approved Origin,
+JSON content type, bounded body and current worker pairing policy are required. Browser credentials
+are refused. Private-network preflight is allowed only for an approved origin. Up to eight requests
+are admitted; worker operations remain serial even after HTTP response loss. Worker exit is terminal
+for this host instance: no restart/replay occurs. Restart requires deliberate service recovery, with
+original request identity retained by the PWA. Shutdown during output can leave uncertain delivery.
+No host execution, TLS/browser acceptance or printer validation has run; installation is still pending.
