@@ -19,11 +19,11 @@ export async function reconcileBridgeDelivery(input:{auth:ApiAuthenticatedDevice
  await retainBridgeObservation(evidence.requestId,result.requestId);
  if(result.response?.state!=='STATUS'||!result.response.delivery||result.response.delivery.jobId!==expectedId)throw new Error('No matching current local delivery evidence. Nothing was reported.');
  const delivery=result.response.delivery;
- const knownNoOutput=delivery.state==='FAILED'&&delivery.attempt===1;
+ const knownNoOutput=delivery.state==='FAILED';
  if(!knownNoOutput&&!['SENT_TO_SPOOLER','DELIVERY_UNCERTAIN'].includes(delivery.state))throw new Error('Local transport has no reportable terminal outcome. Review before retrying.');
  const job=(await readRecords()).find(row=>row.collection==='printJobs'&&row.id===evidence.apiJobId);
  if(!job||job.version!==evidence.claimedJobRevision||job.data.attempt!==evidence.apiAttempt||job.data.state!=='SENDING'||job.data.claimedBy!==auth.profile.staffId||job.data.claimedDeviceId!==auth.identity.deviceId)throw new Error('The API attempt changed or is already reported. Synchronize and review its current state.');
- return command('print.report','printJobs',job.id,{jobId:job.id,outcome:knownNoOutput?'PREPARATION_FAILED':'DELIVERY_UNCERTAIN',
-  ...(knownNoOutput?{transportStarted:false}:{}),reason:`Recovered bridge request ${evidence.requestId}: ${knownNoOutput?'known pre-output failure':'paper delivery requires operator confirmation'}.`,
+ return command('print.report','printJobs',job.id,{jobId:job.id,outcome:delivery.state,
+  ...(knownNoOutput?{transportStarted:false}:delivery.state==='SENT_TO_SPOOLER'?{transportStarted:true}:{}),reason:`Recovered bridge request ${evidence.requestId}: ${knownNoOutput?'known pre-output failure':delivery.state==='SENT_TO_SPOOLER'?'spooler accepted output; paper delivery is unconfirmed':'paper delivery requires operator confirmation'}.`,
   expectedVersions:[{collection:'printJobs',id:job.id,version:job.version}]});
 }

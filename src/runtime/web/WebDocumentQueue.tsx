@@ -56,7 +56,7 @@ export function WebDocumentQueue({records,actorId,deviceId,disabled,command,read
     if(!fresh||fresh.version!==job.version+1||fresh.data.state!=='SENDING'||fresh.data.claimedBy!==actorId||fresh.data.claimedDeviceId!==deviceId){setMessage('The claim confirmed but its shared view is not current. Synchronize before reviewing this attempt. Nothing was sent to the printer.');return;}
     try{await printBusinessDocument(document)}catch(error){
      const detail=error instanceof Error?error.message:'Document preparation failed.';
-     await send(fresh,'report',{outcome:'PREPARATION_FAILED',transportStarted:false,reason:detail.slice(0,500)});setMessage(detail);return;
+     await send(fresh,'report',{outcome:'FAILED',transportStarted:false,reason:detail.slice(0,500)});setMessage(detail);return;
     }
     if(!await send(fresh,'report',{outcome:'DELIVERY_UNCERTAIN',reason:'Browser print dialog opened; physical delivery requires operator confirmation.'}))return;
     setMessage('The browser print dialog cannot confirm paper delivery. Check the printer, then confirm delivery or review a possible duplicate before retrying.');

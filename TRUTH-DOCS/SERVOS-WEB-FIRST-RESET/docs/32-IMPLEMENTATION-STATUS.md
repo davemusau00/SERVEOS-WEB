@@ -864,3 +864,10 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added a dedicated Linux and Windows workflow matrix for the standalone bridge and printer transport. Each OS runs formatting, Clippy, unit tests and release builds for both Rust packages and uploads a separate evidence artifact.
 - Added the matrix result and both required artifacts to the same-commit CI evidence gate and release-candidate eligibility. Updated the sprint's required CI matrix accordingly.
 - Workflow execution is deferred; current-commit CI status is not claimed.
+
+### Print Bridge shared outcome mapping (source only)
+
+- API print reports now preserve `FAILED`, `SENT_TO_SPOOLER` and `DELIVERY_UNCERTAIN` as separate shared states. Spooler acceptance remains distinct from operator-confirmed paper delivery.
+- PWA bridge submission and reconciliation report the exact durable local terminal outcome. Every durable `FAILED` local attempt is recognized as a known pre-output failure regardless of attempt number; interrupted in-flight sends remain uncertain.
+- Browser preparation failures use the same shared `FAILED` state with explicit `transportStarted: false`. Existing queued `PREPARATION_FAILED` command payloads remain accepted for recovery compatibility.
+- No tests, lint, builds or runtime checks were run; verification remains deferred.

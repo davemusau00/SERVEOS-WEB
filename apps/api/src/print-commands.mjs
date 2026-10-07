@@ -50,10 +50,11 @@ const change=action=>async({tx,command,actor,at})=>{
   next='SENDING';attempt++;claimedBy=actor.staffId;device=actor.deviceId;claimedAt=at;
  }else if(action==='report'){
   if(job.state!=='SENDING'||claimedBy!==actor.staffId||device!==actor.deviceId)throw new ApiProblem(409,'PRINT_CLAIM_REQUIRED','Only the claiming operator/device can report this active attempt.');
-  // Browser print cannot prove delivery. FAILED is reserved for preparation failure before transport.
-  if(p.outcome==='PREPARATION_FAILED'){if(p.transportStarted!==false||note.length<3)fail('Confirm that printing never started and explain the preparation failure.');next='FAILED';}
-  else if(p.outcome==='DELIVERY_UNCERTAIN')next='DELIVERY_UNCERTAIN';
-  else fail('Choose preparation failed or delivery uncertain.');
+  // Spooler acceptance is a distinct durable state; no state here proves paper delivery.
+  if(p.outcome==='FAILED'||p.outcome==='PREPARATION_FAILED'){if(p.transportStarted!==false||note.length<3)fail('Confirm that printer output never started and explain the failure.');next='FAILED';}
+  else if(p.outcome==='SENT_TO_SPOOLER'){if(p.transportStarted!==true||note.length<3)fail('Confirm that printer transport accepted output and explain the delivery status.');next='SENT_TO_SPOOLER';}
+  else if(p.outcome==='DELIVERY_UNCERTAIN'){if(note.length<3)fail('Explain why physical delivery is uncertain.');next='DELIVERY_UNCERTAIN';}
+  else fail('Choose failed before output, sent to spooler, or delivery uncertain.');
  }else if(action==='confirm'){
   if(!['SENDING','SENT_TO_SPOOLER','DELIVERY_UNCERTAIN'].includes(job.state)||p.operatorConfirmedPrinted!==true||note.length<3)fail('Confirm that the document physically printed and record a reason.');
   next='CONFIRMED';

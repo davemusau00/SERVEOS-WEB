@@ -39,11 +39,11 @@ export async function submitDocumentToBridge(input:{auth:ApiAuthenticatedDeviceS
  // Missing/refused/recovery responses leave SENDING intact for explicit reconciliation.
  if(evidence.response?.state==='RECORDED'){
   const delivery=evidence.response.delivery;
-  const knownNoOutput=delivery.state==='FAILED'&&delivery.attempt===1;
-  if(knownNoOutput||['SENT_TO_SPOOLER','DELIVERY_UNCERTAIN'].includes(delivery.state)){
+  if(['FAILED','SENT_TO_SPOOLER','DELIVERY_UNCERTAIN'].includes(delivery.state)){
+   const knownNoOutput=delivery.state==='FAILED';
    const report=await command('print.report','printJobs',job.id,{jobId:job.id,
-    outcome:knownNoOutput?'PREPARATION_FAILED':'DELIVERY_UNCERTAIN',...(knownNoOutput?{transportStarted:false}:{}),
-    reason:knownNoOutput?'Bridge recorded failure before output; review before a new attempt.':'Bridge transport finished; physical paper delivery requires operator confirmation.',
+    outcome:delivery.state,...(knownNoOutput?{transportStarted:false}:delivery.state==='SENT_TO_SPOOLER'?{transportStarted:true}:{}),
+    reason:knownNoOutput?'Bridge recorded failure before output; review before a new attempt.':delivery.state==='SENT_TO_SPOOLER'?'Bridge transport accepted output; physical paper delivery remains unconfirmed.':'Bridge transport may have produced output; operator confirmation is required.',
     expectedVersions:[{collection:'printJobs',id:job.id,version:current.version}]});
    return {kind:'BRIDGE_RESPONSE',evidence,report};
   }
