@@ -8,6 +8,7 @@ export interface BridgeRequestEvidence {
  requestId:string;bridgeId:string;businessId:string;deviceId:string;bridgeOrigin:string;
  action:BridgeAction['action'];apiJobId?:string;apiAttempt?:number;claimedJobRevision?:number;createdAt:string;
  state:'UNRESOLVED'|'RESPONSE_RECORDED';response?:BridgeResponse;
+ latestObservation?:{requestId:string;createdAt:string;response:BridgeResponse};
 }
 function originOf(value:string):string{
  const url=new URL(value);
@@ -15,8 +16,8 @@ function originOf(value:string):string{
  return url.origin;
 }
 function openEvidence():Promise<IDBDatabase>{return new Promise((resolve,reject)=>{
- const request=indexedDB.open('servos-print-bridge-evidence',2);
- request.onupgradeneeded=()=>{const store=request.result.objectStoreNames.contains('requests')?request.transaction!.objectStore('requests'):request.result.createObjectStore('requests',{keyPath:'requestId'});if(!store.indexNames.contains('scopeTime'))store.createIndex('scopeTime',['businessId','deviceId','bridgeId','bridgeOrigin','createdAt','requestId']);};
+ const request=indexedDB.open('servos-print-bridge-evidence',3);
+ request.onupgradeneeded=()=>{const store=request.result.objectStoreNames.contains('requests')?request.transaction!.objectStore('requests'):request.result.createObjectStore('requests',{keyPath:'requestId'});if(!store.indexNames.contains('scopeTime'))store.createIndex('scopeTime',['businessId','deviceId','bridgeId','bridgeOrigin','createdAt','requestId']);if(!store.indexNames.contains('submissionTime'))store.createIndex('submissionTime',['businessId','deviceId','action','createdAt','requestId']);};
  request.onerror=()=>reject(request.error||new Error('Cannot open print recovery storage.'));
  request.onsuccess=()=>{request.result.onversionchange=()=>request.result.close();resolve(request.result);};
 });}
@@ -71,7 +72,8 @@ export async function sendBridgeAction(bridge:ApprovedBridge,identity:WebDeviceI
 export async function recoverBridgeRequest(bridge:ApprovedBridge,identity:WebDeviceIdentity,originalRequestId:string):Promise<BridgeRequestEvidence>{
  const original=await readBridgeRequestEvidence(originalRequestId);
  if(!original||original.bridgeId!==bridge.bridgeId||original.businessId!==bridge.businessId||original.deviceId!==identity.deviceId||original.bridgeOrigin!==originOf(bridge.origin))throw new Error('Original print request does not match this approved bridge/device.');
- return sendBridgeAction(bridge,identity,{action:'REQUEST_STATUS',originalRequestId});
+ const result=await sendBridgeAction(bridge,identity,{action:'REQUEST_STATUS',originalRequestId});
+ await retainBridgeObservation(originalRequestId,result.requestId);return result;
 }
 
 /** Scoped, newest-first recovery list; retain evidence rather than clearing it on logout. */
@@ -88,14 +90,55 @@ export async function listBridgeRequestEvidence(bridge:ApprovedBridge,identity:W
  });}finally{db.close();}
 }
 
-/** Discover retained requests for this enrolled device without contacting any saved origin. */
-export async function listDeviceBridgeEvidence(businessId:string,identity:WebDeviceIdentity):Promise<BridgeRequestEvidence[]>{
+export interface BridgeEvidenceCursor {createdAt:string;requestId:string}
+export interface BridgeEvidencePage {rows:BridgeRequestEvidence[];next?:BridgeEvidenceCursor}
+/** Bounded indexed SUBMIT pages, newest first across this device's approved bridges. */
+export async function listDeviceBridgeEvidence(businessId:string,identity:WebDeviceIdentity,before?:BridgeEvidenceCursor,limit=50):Promise<BridgeEvidencePage>{
+ if(!Number.isInteger(limit)||limit<1||limit>200)throw new Error('Print recovery page limit must be 1 to 200.');
+ if(before&&(!/^\d{4}-\d\d-\d\dT/.test(before.createdAt)||before.createdAt.length>40||!/^[0-9a-f-]{36}$/.test(before.requestId)))throw new Error('Invalid print recovery cursor.');
+ const scope=[businessId,identity.deviceId,'SUBMIT'];
  const db=await openEvidence();
  try{return await new Promise((resolve,reject)=>{
   const rows:BridgeRequestEvidence[]=[];
-  const range=IDBKeyRange.bound([businessId,identity.deviceId],[businessId,identity.deviceId,[]]);
-  const cursor=db.transaction('requests','readonly').objectStore('requests').index('scopeTime').openCursor(range);
-  cursor.onerror=()=>reject(cursor.error||new Error('Cannot read retained print requests.'));
-  cursor.onsuccess=()=>{const entry=cursor.result;if(!entry){resolve(rows.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));return;}rows.push(entry.value as BridgeRequestEvidence);entry.continue();};
+  const range=IDBKeyRange.bound([...scope,'',''],before?[...scope,before.createdAt,before.requestId]:[...scope,'\uffff','\uffff'],false,Boolean(before));
+  const cursor=db.transaction('requests','readonly').objectStore('requests').index('submissionTime').openCursor(range,'prev');
+  cursor.onerror=()=>reject(cursor.error||new Error('Cannot read retained print submissions.'));
+  cursor.onsuccess=()=>{
+   const entry=cursor.result;
+   if(!entry){resolve({rows});return;}
+   if(rows.length===limit){const last=rows[rows.length-1];resolve({rows,next:{createdAt:last.createdAt,requestId:last.requestId}});return;}
+   rows.push(entry.value as BridgeRequestEvidence);entry.continue();
+  };
  });}finally{db.close();}
+}
+
+/** Link already-persisted read-only responses without replacing original submission evidence. */
+export async function retainBridgeObservation(originalRequestId:string,observationRequestId:string):Promise<void>{
+ const db=await openEvidence();
+ try{await new Promise<void>((resolve,reject)=>{
+  const tx=db.transaction('requests','readwrite'),store=tx.objectStore('requests');
+  let problem:Error|undefined;
+  const originalRead=store.get(originalRequestId),observationRead=store.get(observationRequestId);
+  let completed=0;
+  const link=()=>{
+   if(++completed!==2)return;
+   const original=originalRead.result as BridgeRequestEvidence|undefined,observation=observationRead.result as BridgeRequestEvidence|undefined;
+   if(!original||original.action!=='SUBMIT'||!observation||!['STATUS','REQUEST_STATUS'].includes(observation.action)||!observation.response||observation.state!=='RESPONSE_RECORDED'||
+    ['businessId','deviceId','bridgeId','bridgeOrigin'].some(key=>original[key as keyof BridgeRequestEvidence]!==observation[key as keyof BridgeRequestEvidence])){
+    problem=new Error('Recovery observation does not match retained submission scope.');tx.abort();return;
+   }
+   const previous=original.latestObservation;
+   if(!previous||`${observation.createdAt}:${observation.requestId}`>`${previous.createdAt}:${previous.requestId}`){
+    store.put({...original,latestObservation:{requestId:observation.requestId,createdAt:observation.createdAt,response:parseBridgeResponse(observation.response)}});
+   }
+  };
+  originalRead.onsuccess=link;observationRead.onsuccess=link;
+  tx.oncomplete=()=>resolve();tx.onabort=()=>reject(problem||tx.error||new Error('Cannot retain recovered print observation.'));tx.onerror=()=>{};
+ });}finally{db.close();}
+}
+/** Recovery export contains retained submissions/observations, not print authority or device keys. */
+export async function exportBridgeRecoveryEvidence(businessId:string,identity:WebDeviceIdentity):Promise<{schemaVersion:1;businessId:string;deviceId:string;submissions:BridgeRequestEvidence[]}>{
+ const submissions:BridgeRequestEvidence[]=[];let cursor:BridgeEvidenceCursor|undefined;
+ do{const page=await listDeviceBridgeEvidence(businessId,identity,cursor,200);submissions.push(...page.rows);cursor=page.next;}while(cursor);
+ return {schemaVersion:1,businessId,deviceId:identity.deviceId,submissions};
 }

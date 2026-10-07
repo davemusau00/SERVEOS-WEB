@@ -657,3 +657,26 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added explicit bounded multiline handling for issued addresses and footers, preserving LF/CRLF while rejecting stray carriage returns and printer control codes. Financial and close-day layouts now preserve those business settings.
 - Financial tender rendering checks issued cash tender/change reconciliation and supported payment origins. External payments remain explicitly cashier-confirmed; unknown provider origins are refused rather than rendered as success. Refund method is now required and validated.
 - Updated standalone transport provenance for custom footer boundaries and ASCII-before-wrap handling. No tests, builds, runtime or hardware execution ran; renderer parity and physical acceptance remain deferred.
+
+
+## Final sprint continuation - bounded recovery pagination (source only)
+
+- Replaced unbounded device-wide evidence loading and the hidden 100-submission display cutoff with IndexedDB schema 3 indexed SUBMIT pagination, ordered by creation time/request ID across bridges for the current business/device.
+- Added explicit older-submission loading with stable exclusive cursors and duplicate suppression. Recovery components remount on business/device changes so prior device observations are not reused in another scope.
+- No tests, build or runtime execution ran. Final acceptance must cover legacy index upgrades, equal timestamps, page boundaries, concurrent inserts and retained old unresolved submissions.
+
+
+## Final sprint continuation - retained recovery observations and export (source only)
+
+- Read-only bridge recovery/status responses are now linked transactionally to the original submission while preserving its original response and unresolved state. Scope checks require matching business/device/bridge/origin, and late older observations cannot overwrite newer retained evidence.
+- Recovery screens restore the latest linked observation after reload. API reconciliation retains its fresh local status before attempting the shared report.
+- Workspace recovery export now includes paged bridge submission evidence and linked observations, excluding print tokens, snapshots and private keys. Export does not grant replay/print authority or constitute automatic restore.
+- No tests, build or runtime execution ran. Final acceptance must cover response-loss/storage failure, concurrent observation writes, reload and full recovery export.
+
+
+## Final sprint continuation - procurement supplier API foundation (source only)
+
+- Added migration 036 for tenant-scoped supplier identities, active-code uniqueness, bounded contact/tax/address/terms fields and version/provenance metadata. Added dedicated online-only supplier.save with reviewed versions, permission checks, transaction locking and standard audit/idempotency/change-feed handling.
+- Supplier projections join repeatable-read bootstrap and are filtered by supplier/procurement permission. No generic record replacement or Supabase mutation path was added.
+- Supplier archiving/restoration is deliberately unavailable until PO/payable blockers have their authoritative tables and reviewed workflows; save refuses archive fields. Legacy open-PO/payable archive behavior was inspected for preservation.
+- No migration, tests, builds or runtime execution ran. Procurement UI, PO/GRN/receiving, invoice/payable/payment/return workflows remain incomplete; offline POS remains disabled pending prerequisite verification.

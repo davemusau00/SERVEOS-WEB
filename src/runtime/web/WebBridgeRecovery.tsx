@@ -4,7 +4,7 @@ import type {CommandOutcome} from '../../types/transactions';
 import {reconcileBridgeDelivery} from './printBridgeReconciliation';
 import React,{useEffect,useRef,useState} from 'react';
 import type {WebDeviceIdentity} from './deviceIdentity';
-import {listDeviceBridgeEvidence,recoverBridgeRequest,sendBridgeAction,type BridgeRequestEvidence} from './printBridgeTransport';
+import {listDeviceBridgeEvidence,recoverBridgeRequest,sendBridgeAction,retainBridgeObservation,type BridgeEvidenceCursor,type BridgeRequestEvidence} from './printBridgeTransport';
 import type {BridgeResponse} from './printBridgeResponses';
 function unwrap(response:BridgeResponse|undefined):BridgeResponse|undefined{
  let value=response;for(let i=0;i<5&&value?.state==='COMPLETED';i++)value=value.response;return value;
@@ -25,14 +25,22 @@ function summary(response:BridgeResponse|undefined):string{
 }
 export function WebBridgeRecovery({businessId,identity,disabled,reporting}:{businessId:string;identity:WebDeviceIdentity;disabled:boolean;reporting?:{auth:ApiAuthenticatedDeviceSession;readRecords:()=>Promise<BusinessRecord[]>;command:(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>}}){
  const [rows,setRows]=useState<BridgeRequestEvidence[]>([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
+ const [next,setNext]=useState<BridgeEvidenceCursor|undefined>();
  const [observations,setObservations]=useState<Record<string,BridgeResponse>>({});const inFlight=useRef(false);
- useEffect(()=>{let active=true;setRows([]);setObservations({});void listDeviceBridgeEvidence(businessId,identity).then(value=>{if(active)setRows(value);}).catch(()=>{if(active)setMessage('Cannot open print recovery evidence. Preserve browser storage.');});return()=>{active=false;};},[businessId,identity]);
+ useEffect(()=>{let active=true;setRows([]);setNext(undefined);setObservations({});setBusy(true);void listDeviceBridgeEvidence(businessId,identity).then(value=>{if(active){setRows(value.rows);setNext(value.next);}}).catch(()=>{if(active)setMessage('Cannot open print recovery evidence. Preserve browser storage.');}).finally(()=>{if(active)setBusy(false);});return()=>{active=false;};},[businessId,identity]);
+ const loadOlder=async()=>{
+  if(!next||inFlight.current||busy)return;inFlight.current=true;setBusy(true);
+  try{const page=await listDeviceBridgeEvidence(businessId,identity,next);setRows(current=>{const known=new Set(current.map(row=>row.requestId));return [...current,...page.rows.filter(row=>!known.has(row.requestId))];});setNext(page.next);}
+  catch{setMessage('Cannot load older print evidence. Preserve browser storage and try again.');}
+  finally{inFlight.current=false;setBusy(false);}
+ };
  const check=async(row:BridgeRequestEvidence,delivery:boolean)=>{
   if(inFlight.current||disabled)return;inFlight.current=true;setBusy(true);setMessage('');
   try{
    const bridge={bridgeId:row.bridgeId,businessId:row.businessId,origin:row.bridgeOrigin};
-   const id=localId(observations[row.requestId]||row.response);
+   const id=localId(observations[row.requestId]||row.latestObservation?.response||row.response);
    const result=delivery&&id?await sendBridgeAction(bridge,identity,{action:'STATUS',jobId:id}):await recoverBridgeRequest(bridge,identity,row.requestId);
+   if(delivery&&id)await retainBridgeObservation(row.requestId,result.requestId);
    if(result.response)setObservations(current=>({...current,[row.requestId]:result.response!}));
   }catch(error){setMessage(error instanceof Error?error.message:'Recovery lookup failed. Preserve the original request.');}
   finally{inFlight.current=false;setBusy(false);}
@@ -47,13 +55,14 @@ export function WebBridgeRecovery({businessId,identity,disabled,reporting}:{busi
  return <section className="space-y-3 rounded-xl border border-slate-700 p-4" aria-label="Print Bridge recovery">
   <h3 className="font-bold">Print Bridge recovery</h3>
   <p className="text-sm text-slate-400">Check retained requests after a lost response or restart. Transport acceptance does not confirm paper delivery. These controls never reprint.</p>
-  {!submissions.length&&<p className="text-sm">No retained bridge submissions for this enrolled device.</p>}
-  {submissions.slice(0,100).map(row=>{const response=observations[row.requestId]||row.response;return <article className="space-y-2 rounded border border-slate-700 p-3" key={row.requestId}>
+  {!busy&&!submissions.length&&<p className="text-sm">No retained bridge submissions for this enrolled device.</p>}
+  {submissions.map(row=>{const response=observations[row.requestId]||row.latestObservation?.response||row.response;return <article className="space-y-2 rounded border border-slate-700 p-3" key={row.requestId}>
    <p className="break-all text-sm">Request {row.requestId}</p><p className="break-all text-xs text-slate-400">{row.bridgeOrigin} ? {row.createdAt}</p>
    <p className="text-sm" role="status">{summary(response)}</p>
    <div className="flex flex-wrap gap-2"><button type="button" className="rounded border border-slate-600 px-3 py-2 disabled:opacity-40" disabled={disabled||busy} onClick={()=>void check(row,false)}>Recover original request</button>
    {localId(response)&&<button type="button" className="rounded border border-slate-600 px-3 py-2 disabled:opacity-40" disabled={disabled||busy} onClick={()=>void check(row,true)}>Check current delivery</button>}{reporting&&row.apiAttempt&&<button type="button" className="rounded border border-slate-600 px-3 py-2 disabled:opacity-40" disabled={disabled||busy} onClick={()=>void report(row)}>Record recovered outcome in API</button>}</div>
   </article>;})}
+  {next&&<button type="button" className="rounded border border-slate-600 px-3 py-2 disabled:opacity-40" disabled={busy} onClick={()=>void loadOlder()}>Load older print submissions</button>}
   {message&&<p role="alert" className="break-words text-sm text-amber-200">{message}</p>}
  </section>;
 }
