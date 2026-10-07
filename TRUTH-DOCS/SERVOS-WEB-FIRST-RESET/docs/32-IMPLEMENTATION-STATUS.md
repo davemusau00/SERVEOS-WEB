@@ -986,3 +986,9 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - API bootstrap protocol v2 returns deterministic collection counts, fixed page boundaries, page SHA-256 values and a manifest hash, with authenticated manifest-resume and page routes. The records originate from a repeatable-read PostgreSQL snapshot at the recorded high-water cursor.
 - IndexedDB v5 stores a resumable temporary page set. The PWA validates the manifest and each page, rereads and rehashes staged pages after interruption, validates collection totals, protects unresolved commands and cursor monotonicity, then atomically swaps the projection and cursor. The API browser fixture now follows protocol v2; it was updated but not run.
 - No migration, tests, lint, build, API/PostgreSQL execution or browser acceptance ran for this slice. Reload resume, response loss, storage failure, authorization changes during transfer and large snapshots remain unverified.
+
+### Phase 0 local lint/format repair (2026-10-08; tests deferred)
+
+- `npm run lint` found `BusinessDocumentRenderer.tsx` rendering an `unknown` tax-reversal value as a React child. The conditional now converts the value to a boolean before rendering; the follow-up `npm run lint` passed.
+- Ran `cargo fmt` for `apps/print-bridge` and `crates/servos-printer-transport`; both corresponding `cargo fmt --check` commands passed.
+- No test suite, build, migration, API/PostgreSQL runtime, or browser suite was run. Local `HEAD` was `c624460`, one commit ahead of `origin/reset/vps-platform` at `a0684e2`; the render fix is uncommitted. The latest public run available was #274 on older commit `871f542`, whose frontend, API/PostgreSQL, browser preview/production, and both bridge jobs failed. Current-head CI remains unknown.

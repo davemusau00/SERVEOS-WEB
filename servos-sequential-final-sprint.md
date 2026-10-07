@@ -1,9 +1,10 @@
 # SERVOS FINAL SPRINT
-## Sequential Completion Plan — Updated to Live Head `3b0fb3b`
+## Sequential Completion Plan — Remote Head `a0684e2`, local head `c624460`
 
 **Repository:** `davemusau00/SERVEOS-WEB`  
 **Branch:** `reset/vps-platform`  
-**Current remote HEAD:** `3b0fb3b7cd7d200b907128938eeb6b6045e6441a`  
+**Current remote HEAD:** `a0684e20b64990e6420d6ec3aec5fa1379786c06`  
+**Current local HEAD:** `c6244600c2a71a12c142579d19d800d37c6dde8b` (one commit ahead)  
 **Branch position:** 159 commits ahead of `main`, 0 behind  
 **Checkpoint:** 2026-10-08  
 **Execution principle:** sequential domain completion, not parallel feature expansion
@@ -128,7 +129,9 @@ source/target reconciliation is mandatory
 
 This remains the immediate hard stop.
 
-The newest head is still running CI.
+## Live checkpoint — 2026-10-08
+
+Local `HEAD` is `c624460`; `origin/reset/vps-platform` is `a0684e2` and local is one commit ahead. The latest public Actions run visible is #274 on `871f542`, which predates the bootstrap work. Its frontend, API/PostgreSQL, browser preview/production and both Print Bridge jobs failed; the run summary still displays an overall `In progress` label. No run for the current local head is available as evidence.
 
 Known recent failures remain:
 
@@ -151,7 +154,9 @@ browser-preview
 browser-production
 ```
 
-The latest runs are still in progress, so these cannot yet be treated as fixed.
+The known source repairs have now been applied locally: the SQL parser issue is fixed, local `npm run lint` passes after correcting the refund-document render guard, and both Print Bridge targets pass local `cargo fmt --check`. This does not establish current-head CI status. The API/PostgreSQL and browser failures belong to old `871f542`; their detailed logs require GitHub authentication and have not been inspected. Do not infer a pass or failure for later commits without a same-commit run.
+
+Per the active instruction, test suites and builds remain deferred to the end of the development sprint. Phase 0 is still open until its full matrix is run on one exact head and the API/PostgreSQL plus browser failures are resolved.
 
 ## Required same-commit green matrix
 
