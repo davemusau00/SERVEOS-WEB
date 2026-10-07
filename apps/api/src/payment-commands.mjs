@@ -61,7 +61,7 @@ const record=split=>async({tx,command,actor,at})=>{
   }
   plans.push(plan);
  }
- const outstanding=order.data.grandTotalMinor-order.data.amountPaidMinor;
+ const outstanding=order.data.grandTotalMinor-order.data.amountPaidMinor-order.data.amountCreditedMinor;
  if(sum>outstanding||sum<=0||split&&sum!==outstanding)throw new ApiProblem(409,'PAYMENT_BALANCE_CONFLICT','Payment cannot exceed the outstanding balance; split tender must settle it exactly.');
  const references=plans.filter(plan=>plan.normalized).map(plan=>`${plan.account.method}:${plan.normalized}`);
  if(new Set(references).size!==references.length)fail('A split tender cannot reuse an external reference.');
@@ -84,7 +84,7 @@ const record=split=>async({tx,command,actor,at})=>{
    records.push({collection:'cashMovements',id,version:1,archived:false,data:{id,tillSessionId:p.tillSessionId,kind:'SALE',amountDeltaMinor:plan.amount,reason,sourceCommandId:command.commandId,staffId:actor.staffId,deviceId:actor.deviceId,occurredAt:at.toISOString()}});
   }
  }
- const paid=order.data.amountPaidMinor+sum,complete=paid===order.data.grandTotalMinor;
+ const paid=order.data.amountPaidMinor+sum,complete=paid+order.data.amountCreditedMinor===order.data.grandTotalMinor;
  const orderVersion=await tx.bumpEntityVersion(actor.businessId,'orders',p.orderId,baseline);
  await tx.client.query(`UPDATE pos_orders SET amount_paid_minor=$3,state=$4,version=$5,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,paid,complete?'COMPLETED':'FIRED',orderVersion,at]);
  const tillVersion=await tx.bumpEntityVersion(actor.businessId,'tillSessions',p.tillSessionId,Number(till.version));await tx.client.query('UPDATE till_sessions SET version=$3 WHERE business_id=$1 AND id=$2',[actor.businessId,p.tillSessionId,tillVersion]);
@@ -92,7 +92,7 @@ const record=split=>async({tx,command,actor,at})=>{
  const value=await orderProjection(tx.client,actor.businessId,p.orderId);records.push(value,await tillSessionProjection(tx.client,actor.businessId,p.tillSessionId));
  // This document acknowledges funds received; fiscal sales documents use tax snapshots.
  const documentId=randomUUID(),documentNumber=`PAY-${command.commandId}`;
- const snapshot={orderId:p.orderId,orderName:order.data.name,currency:order.data.currency,amountReceivedMinor:sum,orderTotalMinor:order.data.grandTotalMinor,amountPaidMinor:paid,balanceMinor:order.data.grandTotalMinor-paid,payments:records.filter(row=>row.collection==='payments').map(row=>row.data),issuedAt:at.toISOString()};
+ const snapshot={orderId:p.orderId,orderName:order.data.name,currency:order.data.currency,amountReceivedMinor:sum,orderTotalMinor:order.data.grandTotalMinor,amountPaidMinor:paid,amountCreditedMinor:order.data.amountCreditedMinor,balanceMinor:order.data.grandTotalMinor-paid-order.data.amountCreditedMinor,payments:records.filter(row=>row.collection==='payments').map(row=>row.data),issuedAt:at.toISOString()};
  const hash=documentHash(snapshot);
  await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'PAYMENT_ACKNOWLEDGEMENT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,documentId,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
  records.push({collection:'businessDocuments',id:documentId,version:1,archived:false,data:{id:documentId,type:'PAYMENT_ACKNOWLEDGEMENT',documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}});

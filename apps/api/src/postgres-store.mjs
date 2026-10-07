@@ -1,5 +1,6 @@
 import {supplierCreditBalanceProjections,supplierCreditApplicationProjections} from './supplier-credit-application-projections.mjs';
 import {customerProjections} from './customer-commands.mjs';
+import {customerCreditAccountProjections,customerCreditEntryProjections} from './customer-credit-commands.mjs';
 import {supplierCreditNoteProjections} from './supplier-credit-commands.mjs';
 import {supplierReturnProjections} from './supplier-return-projections.mjs';
 import {supplierPaymentProjections} from './supplier-payment-commands.mjs';
@@ -146,8 +147,12 @@ export class PostgresStore {
     const supplierCredits=await supplierCreditBalanceProjections(db,businessId);
     const supplierCreditApplications=await supplierCreditApplicationProjections(db,businessId);
     const customers=await customerProjections(db,businessId);
+    const customerCreditAccounts=await customerCreditAccountProjections(db,businessId);
+    const customerCreditEntries=await customerCreditEntryProjections(db,businessId);
     return [
       ...customers,
+      ...customerCreditAccounts,
+      ...customerCreditEntries,
       ...suppliers,
       ...purchaseOrders,
       ...goodsReceipts,

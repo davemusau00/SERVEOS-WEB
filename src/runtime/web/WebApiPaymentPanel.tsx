@@ -25,7 +25,7 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
   const accounts=records.filter(row=>row.collection==='paymentAccounts'&&!row.archived&&(row.data.method!=='MPESA'||allowed(session,'mpesa.record')));
   if(!accounts.length){setMessage('An authorized administrator must configure a payment account.');return;}
   const account=accounts.find(row=>row.data.method==='CASH')||accounts[0];
-  setReview({order,till,accounts});setTenders([draft(account.id,((Number(order.data.grandTotalMinor)-Number(order.data.amountPaidMinor))/100).toFixed(2))]);setMessage('');
+  setReview({order,till,accounts});setTenders([draft(account.id,((Number(order.data.grandTotalMinor)-Number(order.data.amountPaidMinor)-Number(order.data.amountCreditedMinor||0))/100).toFixed(2))]);setMessage('');
  };
  const patch=(id:string,values:Partial<Tender>)=>setTenders(old=>old.map(row=>row.id===id?{...row,...values}:row));
  const save=async(event:React.FormEvent)=>{
@@ -47,7 +47,7 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
     }
     return external;
    });
-   const sum=payments.reduce((total,row)=>total+row.amountMinor,0),balance=Number(review.order.data.grandTotalMinor)-Number(review.order.data.amountPaidMinor);
+   const sum=payments.reduce((total,row)=>total+row.amountMinor,0),balance=Number(review.order.data.grandTotalMinor)-Number(review.order.data.amountPaidMinor)-Number(review.order.data.amountCreditedMinor||0);
    if(!Number.isSafeInteger(sum)||sum>balance||payments.length>1&&sum!==balance)throw new Error('Payment cannot exceed the reviewed balance; split tenders must settle it exactly.');
    const operation=payments.length===1?'payment.record':'payment.split';
    const outcome=await command(operation,'orders',review.order.id,{orderId:review.order.id,tillSessionId:review.till.id,...(payments.length===1?payments[0]:{payments}),expectedVersions:[version(review.order),version(review.till),...Array.from(used.values(),version)]});
@@ -58,11 +58,12 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
  if(!order||!allowed(session,'payment.record')&&!allowed(session,'payment.split'))return null;
  const field='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2',button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
  let allocated:number|null=null;try{allocated=tenders.reduce((sum,row)=>sum+parseMoneyToMinor(row.amount),0)}catch{ /* Incomplete tender input remains reviewable. */ }
- const payable=order.data.state==='FIRED'&&Number(order.data.grandTotalMinor)>Number(order.data.amountPaidMinor)&&!(Array.isArray(order.data.items)&&order.data.items.some(row=>(row as Record<string,unknown>).state==='DRAFT'));
+ const balance=Number(order.data.grandTotalMinor)-Number(order.data.amountPaidMinor)-Number(order.data.amountCreditedMinor||0);
+ const payable=order.data.state==='FIRED'&&balance>0&&!(Array.isArray(order.data.items)&&order.data.items.some(row=>(row as Record<string,unknown>).state==='DRAFT'));
  return <section className="space-y-3 rounded-xl border border-slate-700 p-3">
   <button className={button} disabled={disabled||busy||Boolean(pendingId)||!payable||!allowed(session,'payment.record')} onClick={open}>Record payment for {String(order.data.name)}</button>
   {review&&<form role="dialog" aria-label="Review order payment" onSubmit={event=>void save(event)} className="space-y-3">
-   <h3 className="font-bold">{String(review.order.data.name)} · Reviewed balance {money(Number(review.order.data.grandTotalMinor)-Number(review.order.data.amountPaidMinor))}</h3>
+   <h3 className="font-bold">{String(review.order.data.name)} · Reviewed balance {money(Number(review.order.data.grandTotalMinor)-Number(review.order.data.amountPaidMinor)-Number(review.order.data.amountCreditedMinor||0))}</h3>
    {tenders.map(tender=>{
     const account=review.accounts.find(row=>row.id===tender.accountId),method=String(account?.data.method||'');let change:string='—';try{change=money(parseMoneyToMinor(tender.cashTendered)-parseMoneyToMinor(tender.amount))}catch{ /* Invalid entry is explained on submit. */ }
     return <fieldset key={tender.id} disabled={busy||Boolean(pendingId)} className="space-y-2 rounded border border-slate-700 p-3"><legend>Tender</legend>
@@ -78,7 +79,7 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
     </fieldset>;
    })}
    {allowed(session,'payment.split')&&<button type="button" className={button} disabled={busy||Boolean(pendingId)||tenders.length>=10} onClick={()=>setTenders(old=>[...old,draft(review.accounts[0]?.id)])}>Add split tender</button>}
-   <p className="text-sm">Allocated: {allocated===null?'Complete tender amounts':money(allocated)}{allocated!==null?` ? Remaining ${money(Number(review.order.data.grandTotalMinor)-Number(review.order.data.amountPaidMinor)-allocated)}`:''}</p>
+   <p className="text-sm">Allocated: {allocated===null?'Complete tender amounts':money(allocated)}{allocated!==null?` ? Remaining ${money(Number(review.order.data.grandTotalMinor)-Number(review.order.data.amountPaidMinor)-Number(review.order.data.amountCreditedMinor||0)-allocated)}`:''}</p>
    <p className="text-sm text-slate-400">Only confirmed payment outcomes settle the order. If a response is lost, recover the original payment in Activity.</p>
    <button className="rounded bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40" disabled={disabled||busy||Boolean(pendingId)}>Confirm received payment</button><button type="button" className={`${button} ml-2`} disabled={busy} onClick={()=>setReview(null)}>Close review</button>
   </form>}

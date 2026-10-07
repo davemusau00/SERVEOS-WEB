@@ -32,14 +32,14 @@ const total=(count,price)=>{
 };
 
 export async function orderProjections(db,businessId,ids=null){
- const {rows}=await db.query(`WITH recent_closed AS (SELECT id FROM pos_orders WHERE business_id=$1 AND state IN ('COMPLETED','VOIDED') ORDER BY updated_at DESC,id LIMIT 1000), pending_preparation AS (SELECT DISTINCT order_id FROM pos_order_lines WHERE business_id=$1 AND state='FIRED' AND preparation_status IN ('FIRED','PREPARING','READY')) SELECT id,current_round_no AS "currentRoundNo",outlet_id AS "outletId",stock_location_id AS "stockLocationId",name,business_snapshot AS "businessSnapshot",receipt_document_id AS "receiptDocumentId",service_destination AS "serviceDestination",service_reference AS "serviceReference",void_reason AS "voidReason",void_disposition AS "voidDisposition",voided_by AS "voidedBy",voided_at AS "voidedAt",state,currency,grand_total_minor AS "grandTotalMinor",amount_paid_minor AS "amountPaidMinor",refunded_amount_minor AS "refundedAmountMinor",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt" FROM pos_orders WHERE business_id=$1 AND (($2::uuid[] IS NOT NULL AND id=ANY($2)) OR ($2::uuid[] IS NULL AND (state IN ('OPEN','FIRED') OR (state<>'VOIDED' AND id IN (SELECT order_id FROM pending_preparation)) OR id IN (SELECT id FROM recent_closed)))) ORDER BY updated_at DESC,id`,[businessId,ids]);
+ const {rows}=await db.query(`WITH recent_closed AS (SELECT id FROM pos_orders WHERE business_id=$1 AND state IN ('COMPLETED','VOIDED') ORDER BY updated_at DESC,id LIMIT 1000), pending_preparation AS (SELECT DISTINCT order_id FROM pos_order_lines WHERE business_id=$1 AND state='FIRED' AND preparation_status IN ('FIRED','PREPARING','READY')) SELECT id,current_round_no AS "currentRoundNo",outlet_id AS "outletId",stock_location_id AS "stockLocationId",name,business_snapshot AS "businessSnapshot",receipt_document_id AS "receiptDocumentId",service_destination AS "serviceDestination",service_reference AS "serviceReference",customer_id AS "customerId",customer_name_snapshot AS "customerName",state,currency,grand_total_minor AS "grandTotalMinor",amount_paid_minor AS "amountPaidMinor",amount_credited_minor AS "amountCreditedMinor",refunded_amount_minor AS "refundedAmountMinor",void_reason AS "voidReason",void_disposition AS "voidDisposition",voided_by AS "voidedBy",voided_at AS "voidedAt",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt" FROM pos_orders WHERE business_id=$1 AND (($2::uuid[] IS NOT NULL AND id=ANY($2)) OR ($2::uuid[] IS NULL AND (state IN ('OPEN','FIRED') OR (state<>'VOIDED' AND id IN (SELECT order_id FROM pending_preparation)) OR id IN (SELECT id FROM recent_closed)))) ORDER BY updated_at DESC,id`,[businessId,ids]);
  if(!rows.length)return [];
  const lines=await db.query(`SELECT order_id AS "orderId",id,round_no AS "roundNo",product_id AS "productId",product_version AS "productVersion",product_snapshot AS "productSnapshot",portion_snapshot AS "portionSnapshot",modifier_snapshots AS "modifierSnapshots",notes,preparation_status AS "preparationStatus",preparation_updated_at AS "preparationUpdatedAt",preparation_updated_by AS "preparationUpdatedBy",course_name AS "courseName",fired_at AS "firedAt",tax_snapshot AS "taxSnapshot",net_minor AS "netMinor",vat_minor AS "vatMinor",levy_minor AS "levyMinor",quantity,unit_price_minor AS "unitPriceMinor",line_total_minor AS "lineTotalMinor",gross_minor AS "grossMinor",discount_basis_points AS "discountBasisPoints",discount_minor AS "discountMinor",comped,comp_reason AS "compReason",pricing_reason AS "pricingReason",void_previous_state AS "voidPreviousState",state FROM pos_order_lines WHERE business_id=$1 AND order_id=ANY($2::uuid[]) ORDER BY created_at,id`,[businessId,rows.map(row=>row.id)]);
  const grouped=new Map();
  for(const line of lines.rows){const list=grouped.get(line.orderId)||[];list.push(line);grouped.set(line.orderId,list)}
  return rows.map(row=>{
  const items=(grouped.get(row.id)||[]).map(line=>({...line,productVersion:Number(line.productVersion),firedAt:line.firedAt?.toISOString()??null,preparationUpdatedAt:line.preparationUpdatedAt?.toISOString()??null,netMinor:line.netMinor===null?null:Number(line.netMinor),vatMinor:line.vatMinor===null?null:Number(line.vatMinor),levyMinor:line.levyMinor===null?null:Number(line.levyMinor),quantity:Number(line.quantity),grossMinor:Number(line.grossMinor),discountMinor:Number(line.discountMinor),unitPriceMinor:Number(line.unitPriceMinor),lineTotalMinor:Number(line.lineTotalMinor),ingredientSnapshot:line.productSnapshot.ingredientSnapshot,portionSnapshot:line.portionSnapshot,name:line.productSnapshot.name,routeTo:line.productSnapshot.routeTo,stockFired:line.state==='FIRED'||line.voidPreviousState==='FIRED'}));
- return {collection:'orders',id:row.id,version:Number(row.version),archived:false,data:{...row,version:Number(row.version),grandTotalMinor:Number(row.grandTotalMinor),amountPaidMinor:Number(row.amountPaidMinor),refundedAmountMinor:Number(row.refundedAmountMinor),voidedAt:row.voidedAt?.toISOString()??null,createdAt:row.createdAt.toISOString(),updatedAt:row.updatedAt.toISOString(),items}};
+ return {collection:'orders',id:row.id,version:Number(row.version),archived:false,data:{...row,version:Number(row.version),grandTotalMinor:Number(row.grandTotalMinor),amountPaidMinor:Number(row.amountPaidMinor),amountCreditedMinor:Number(row.amountCreditedMinor),refundedAmountMinor:Number(row.refundedAmountMinor),voidedAt:row.voidedAt?.toISOString()??null,createdAt:row.createdAt.toISOString(),updatedAt:row.updatedAt.toISOString(),items}};
  });
 }
 export async function orderProjection(db,businessId,id){return (await orderProjections(db,businessId,[id]))[0]??null;}
@@ -51,10 +51,10 @@ async function result(tx,businessId,id){const value=await orderProjection(tx.cli
 async function editable(tx,command,actor,id,{allowPaid=false}={}){
  if(!uuid(id))fail('Choose an order.');
  const baseline=expected(command,'orders',id);
- const {rows}=await tx.client.query('SELECT state,version,current_round_no AS "currentRoundNo",amount_paid_minor AS "amountPaidMinor",outlet_id AS "outletId" FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,id]);
+ const {rows}=await tx.client.query('SELECT state,version,current_round_no AS "currentRoundNo",amount_paid_minor AS "amountPaidMinor",amount_credited_minor AS "amountCreditedMinor",outlet_id AS "outletId" FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,id]);
  if(!rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The order is missing.');
  if(Number(rows[0].version)!==baseline)throw new ApiProblem(409,'VERSION_CONFLICT','This order changed. Refresh and review your edit.');
- if(!allowPaid&&Number(rows[0].amountPaidMinor)>0)throw new ApiProblem(409,'PAID_ORDER_NOT_EDITABLE','Partly paid orders cannot be edited or repriced. Complete or refund their payments through the money workflow.');
+ if(!allowPaid&&(Number(rows[0].amountPaidMinor)>0||Number(rows[0].amountCreditedMinor)>0))throw new ApiProblem(409,'PAID_ORDER_NOT_EDITABLE','Partly paid or credited orders cannot be edited or repriced. Complete or reverse their money workflow first.');
  if(!['OPEN','FIRED'].includes(rows[0].state))throw new ApiProblem(409,'ORDER_NOT_EDITABLE','This order is closed.');
  return rows[0];
 }
@@ -72,7 +72,7 @@ async function finish(tx,command,actor,at,id,data){
 
 async function zeroReceipt(tx,command,actor,at,orderId){
  const order=await orderProjection(tx.client,actor.businessId,orderId),items=order.data.items.filter(line=>line.state!=='VOIDED');
- if(!order.data.businessSnapshot||!items.length||items.some(line=>!line.taxSnapshot||line.lineTotalMinor!==0||line.netMinor!==0||line.vatMinor!==0||line.levyMinor!==0)||order.data.amountPaidMinor!==0)throw new ApiProblem(409,'ZERO_RECEIPT_RECONCILIATION_FAILED','Zero-value sale needs original identity/tax evidence and no recorded payments.');
+ if(!order.data.businessSnapshot||!items.length||items.some(line=>!line.taxSnapshot||line.lineTotalMinor!==0||line.netMinor!==0||line.vatMinor!==0||line.levyMinor!==0)||order.data.amountPaidMinor!==0||order.data.amountCreditedMinor!==0)throw new ApiProblem(409,'ZERO_RECEIPT_RECONCILIATION_FAILED','Zero-value sale needs original identity/tax evidence and no recorded payments or credit.');
  const tills=await tx.client.query(`SELECT id FROM till_sessions WHERE business_id=$1 AND outlet_id=$2 AND operator_id=$3 AND device_id=$4 AND status='OPEN' FOR SHARE`,[actor.businessId,order.data.outletId,actor.staffId,actor.deviceId]);
  const cashier=await tx.client.query('SELECT display_name FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2',[actor.businessId,actor.staffId]);
  const discountTotalMinor=items.reduce((sum,line)=>sum+line.discountMinor,0);
@@ -90,7 +90,16 @@ const create=async({tx,command,actor,at})=>{
  if(!uuid(id)||!uuid(p.outletId)||typeof p.name!=='string'||!p.name.trim()||p.name.trim().length>120)fail('Order ID, outlet and a name of up to 120 characters are required.');
  if(expected(command,'orders',id)!==0)fail('A new order must have version zero.');
  // Service references will be enabled with their canonical table/customer/room registries.
- if(p.tableId||p.customerId||p.roomId||p.serviceReference)fail('Referenced service destinations are not yet available through the API.');
+ if(p.tableId||p.roomId||p.serviceReference)fail('Referenced service destinations are not yet available through the API.');
+ let customer=null;
+ if(p.customerId){
+  if(!uuid(p.customerId))fail('Choose a valid named customer.');
+  if(!actor.permissions.includes('*')&&!actor.permissions.includes('pos.open_tab'))throw new ApiProblem(403,'PERMISSION_DENIED','Opening an order for a named customer requires `pos.open_tab`.');
+  expected(command,'customers',p.customerId);
+  const found=await tx.client.query(`SELECT name FROM business_customers WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.customerId]);
+  if(!found.rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected customer is missing or archived. Refresh the customer list.');
+  customer=found.rows[0];
+ }
  const destination=p.serviceDestination??'COUNTER';if(!['COUNTER','TAKEAWAY'].includes(destination))fail('Choose counter or takeaway for an unassigned order.');
  const {rows}=await tx.client.query(`SELECT o.default_stock_location_id AS "locationId" FROM business_outlets o JOIN stock_locations l ON l.business_id=o.business_id AND l.id=o.default_stock_location_id AND l.archived_at IS NULL WHERE o.business_id=$1 AND o.id=$2 AND o.archived_at IS NULL FOR SHARE OF o,l`,[actor.businessId,p.outletId]);
  if(!rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The outlet needs an active stock location before opening an order.');
@@ -99,8 +108,24 @@ const create=async({tx,command,actor,at})=>{
  if(!settings)throw new ApiProblem(409,'TAX_CONFIGURATION_REQUIRED','Configure business identity and tax rates before trading.');
  if(expected(command,'businessSettings',actor.businessId)!==settings.version)throw new ApiProblem(409,'VERSION_CONFLICT','Business settings changed. Review them before opening the order.');
  const version=await tx.bumpEntityVersion(actor.businessId,'orders',id,0);
- await tx.client.query(`INSERT INTO pos_orders(business_id,id,outlet_id,stock_location_id,name,service_destination,version,created_by,device_id,created_at,updated_at,business_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11::jsonb)`,[actor.businessId,id,p.outletId,rows[0].locationId,p.name.trim(),destination,version,actor.staffId,actor.deviceId,at,JSON.stringify(settings)]);
- await event(tx,command,actor,at,id,version,{outletId:p.outletId,name:p.name.trim(),serviceDestination:destination});return result(tx,actor.businessId,id);
+ await tx.client.query(`INSERT INTO pos_orders(business_id,id,outlet_id,stock_location_id,name,service_destination,version,created_by,device_id,created_at,updated_at,business_snapshot,customer_id,customer_name_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11::jsonb,$12,$13)`,[actor.businessId,id,p.outletId,rows[0].locationId,p.name.trim(),destination,version,actor.staffId,actor.deviceId,at,JSON.stringify(settings),p.customerId??null,customer?.name??null]);
+ await event(tx,command,actor,at,id,version,{outletId:p.outletId,name:p.name.trim(),serviceDestination:destination,customerId:p.customerId??null});return result(tx,actor.businessId,id);
+};
+
+const assignCustomer=async({tx,command,actor,at})=>{
+ if(!actor.permissions.includes('*')&&!actor.permissions.includes('pos.open_tab'))throw new ApiProblem(403,'PERMISSION_DENIED','Customer assignment requires `pos.open_tab`.');
+ const p=command.payload;if(!uuid(p.orderId)||!uuid(p.customerId))fail('Choose a valid order and named customer.');
+ const version=expected(command,'orders',p.orderId);expected(command,'customers',p.customerId);
+ const customer=await tx.client.query(`SELECT name FROM business_customers WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.customerId]);
+ if(!customer.rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected customer is missing or archived. Refresh the customer list.');
+ const {rows}=await tx.client.query(`SELECT state,version,amount_paid_minor AS "amountPaidMinor",amount_credited_minor AS "amountCreditedMinor" FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE`,[actor.businessId,p.orderId]);
+ if(!rows.length||!['OPEN','FIRED'].includes(rows[0].state))throw new ApiProblem(409,'RESOURCE_CONFLICT','Only an open order can change customer.');
+ if(Number(rows[0].version)!==version)throw new ApiProblem(409,'VERSION_CONFLICT','The order changed. Refresh and review it.');
+ if(Number(rows[0].amountPaidMinor)>0||Number(rows[0].amountCreditedMinor)>0)throw new ApiProblem(409,'ORDER_ALREADY_SETTLED','Choose a customer before accepting payment or credit.');
+ const next=await tx.bumpEntityVersion(actor.businessId,'orders',p.orderId,version);
+ await tx.client.query(`UPDATE pos_orders SET customer_id=$3,customer_name_snapshot=$4,version=$5,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,p.customerId,customer.rows[0].name,next,at]);
+ await event(tx,command,actor,at,p.orderId,next,{customerId:p.customerId,customerName:customer.rows[0].name});
+ return result(tx,actor.businessId,p.orderId);
 };
 
 const add=async({tx,command,actor,at},{deferFinish=false}={})=>{
@@ -216,7 +241,7 @@ const voidOrder=async({tx,command,actor,at})=>{
  await tx.lockInventoryCatalog(actor.businessId);
  const p=command.payload;await editable(tx,command,actor,p.orderId,{allowPaid:true});
  const order=await orderProjection(tx.client,actor.businessId,p.orderId);
- if(order.data.amountPaidMinor!==0)throw new ApiProblem(409,'PAID_ORDER_CANNOT_VOID','A paid or partly paid order cannot be voided. Review its payment/refund workflow.');
+ if(order.data.amountPaidMinor!==0||order.data.amountCreditedMinor!==0)throw new ApiProblem(409,'PAID_ORDER_CANNOT_VOID','A paid or credited order cannot be voided. Review its payment or credit reversal workflow.');
  if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.trim().length>500)fail('Explain the void in 3 to 500 characters.');
  const reason=p.reason.trim(),fired=order.data.items.filter(line=>line.state==='FIRED');
  const disposition=fired.length?p.disposition:'NOT_FIRED';
@@ -345,3 +370,4 @@ posCommandRegistry.set('order.comp',{permission:'order.comp',offlinePolicy:'ONLI
 posCommandRegistry.set('order.kds',{permission:'kds.update',offlinePolicy:'ONLINE_ONLY',handler:preparation});
 
 posCommandRegistry.set('order.repeatRound',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:repeatRound});
+posCommandRegistry.set('order.assignCustomer',{permission:'pos.open_tab',offlinePolicy:'ONLINE_ONLY',handler:assignCustomer});

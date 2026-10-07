@@ -30,6 +30,7 @@ const baseline=(row:BusinessRecord)=>({collection:row.collection,id:row.id,versi
 
 export function WebApiPosView({records,session,disabled,command,queue,deviceId,readRecords,apiAuth}:{apiAuth?:ApiAuthenticatedDeviceSession;records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;queue:QueuedCommand[];deviceId:string;readRecords:()=>Promise<BusinessRecord[]>}){
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived);
+ const customers=records.filter(row=>row.collection==='customers'&&!row.archived);
  const orders=records.filter(row=>row.collection==='orders'&&!row.archived);
  const [outletId,setOutletId]=useState(outlets[0]?.id||''),[orderId,setOrderId]=useState(''),[query,setQuery]=useState('');
  const preferenceKey=`servos-pos-favorites:${session.businessId}:${session.actorId}`;
@@ -45,7 +46,7 @@ export function WebApiPosView({records,session,disabled,command,queue,deviceId,r
   const values={...(favoritePreferences.key===preferenceKey?favoritePreferences.values:{}),[row.id]:!favorite(row)};setFavoritePreferences({key:preferenceKey,values});
   try{localStorage.setItem(preferenceKey,JSON.stringify(values));}catch{setMessage('Favorite updated for this session. Browser storage could not save the preference.');}
  };
- const [editor,setEditor]=useState<Editor|null>(null),[name,setName]=useState(''),[quantity,setQuantity]=useState('1'),[portion,setPortion]=useState(''),[destination,setDestination]=useState('COUNTER');
+ const [editor,setEditor]=useState<Editor|null>(null),[name,setName]=useState(''),[customerId,setCustomerId]=useState(''),[quantity,setQuantity]=useState('1'),[portion,setPortion]=useState(''),[destination,setDestination]=useState('COUNTER');
  const [busy,setBusy]=useState(false),[pending,setPending]=useState(false),[message,setMessage]=useState('');
  const [pendingCommandId,setPendingCommandId]=useState('');
  const inFlight=useRef(false);
@@ -72,9 +73,9 @@ export function WebApiPosView({records,session,disabled,command,queue,deviceId,r
  const editable=order&&['OPEN','FIRED'].includes(String(order.data.state));
  const begin=(kind:Editor['kind'],product?:BusinessRecord,line?:Record<string,unknown>)=>{
   if(disabled||busy||pending||kind!=='CREATE'&&!editable)return;
-  if(['ADD','EDIT','REPEAT','DISCOUNT','COMP','COMP_ITEM'].includes(kind)&&Number(order?.data.amountPaidMinor)>0){setMessage('Price and line edits are blocked after a payment.');return;}
+  if(['ADD','EDIT','REPEAT','DISCOUNT','COMP','COMP_ITEM'].includes(kind)&&Number(order?.data.amountPaidMinor||0)+Number(order?.data.amountCreditedMinor||0)>0){setMessage('Price and line edits are blocked after a payment or credit charge.');return;}
   if(window.document.querySelector('[role="dialog"]')){setMessage('Finish the open review before starting another order action.');return;}
-  setEditor({kind,id:crypto.randomUUID(),reviewed:records,order,product,line});setName('');setDestination('COUNTER');setQuantity(String(line?.quantity||1));setPortion('');setVoidReason('');setCourse(String(line?.courseName||''));setFireLineIds(kind==='FIRE'?list(order?.data.items).filter(item=>item.state==='DRAFT').map(item=>String(item.id)):[]);setModifierIds([]);setPreparationNote(String(line?.notes||''));setDiscountPercent('');setDisposition(list(order?.data.items).some(item=>item.state==='FIRED')?'':'NOT_FIRED');setConfirmedDisposition(false);setMessage('');
+  setEditor({kind,id:crypto.randomUUID(),reviewed:records,order,product,line});setName('');setCustomerId('');setDestination('COUNTER');setQuantity(String(line?.quantity||1));setPortion('');setVoidReason('');setCourse(String(line?.courseName||''));setFireLineIds(kind==='FIRE'?list(order?.data.items).filter(item=>item.state==='DRAFT').map(item=>String(item.id)):[]);setModifierIds([]);setPreparationNote(String(line?.notes||''));setDiscountPercent('');setDisposition(list(order?.data.items).some(item=>item.state==='FIRED')?'':'NOT_FIRED');setConfirmedDisposition(false);setMessage('');
  };
  useBarcodeScanner({enabled:canSell&&!disabled&&!editor&&!busy&&!pending,onScan:code=>{
   const matches=products.filter(row=>barcodeEquals(String(row.data.barcode||''),code)||barcodeEquals(String(row.data.code||''),code));
@@ -90,7 +91,9 @@ export function WebApiPosView({records,session,disabled,command,queue,deviceId,r
     const outlet=reviewed.find(row=>row.collection==='outlets'&&row.id===outletId&&!row.archived);
     const storage=reviewed.find(row=>row.collection==='stockLocations'&&row.id===outlet?.data.defaultStockLocationId&&!row.archived);
     if(!settings||!outlet||!storage)throw new Error('Business settings and an outlet with an active storage place are required.');
-    operation='order.create';id=editor.id;payload={id,name:name.trim(),outletId,serviceDestination:destination,expectedVersions:[{collection:'orders',id,version:0},baseline(outlet),baseline(storage),baseline(settings)]};
+    const customer=customerId?reviewed.find(row=>row.collection==='customers'&&row.id===customerId&&!row.archived):undefined;
+    if(customerId&&!customer)throw new Error('The selected customer is no longer available. Refresh the customer list.');
+    operation='order.create';id=editor.id;payload={id,name:name.trim(),outletId,serviceDestination:destination,...(customer?{customerId:customer.id}:{}),expectedVersions:[{collection:'orders',id,version:0},baseline(outlet),baseline(storage),baseline(settings),...(customer?[baseline(customer)]:[])]};
    }else{
     const reviewedOrder=editor.order;if(!reviewedOrder)throw new Error('The reviewed order is missing.');id=reviewedOrder.id;
     if(editor.kind==='ADD'){
@@ -144,7 +147,7 @@ export function WebApiPosView({records,session,disabled,command,queue,deviceId,r
   {order&&<section aria-label="Selected order documents"><h3 className="font-bold">Issued documents for {String(order.data.name)}</h3>{orderDocuments.length?<WebDocumentQueue apiAuth={apiAuth} key={order.id} records={orderPrintRecords} actorId={session.actorId} deviceId={deviceId} queue={queue} disabled={disabled||busy||pending||Boolean(editor)} command={command} readRecords={readRecords}/>:<p className="text-sm text-slate-400">No issued documents loaded for this order. Fire or complete the order to issue the relevant documents.</p>}</section>}
   {editor&&<form role="dialog" aria-label="Review order action" onSubmit={event=>void submit(event)} className="space-y-3 rounded-xl border border-amber-700 p-4">
    <h3 className="font-bold">{editor.kind==='CREATE'?'Open order':editor.kind==='ADD'?String(editor.product?.data.name):editor.kind==='EDIT'?'Edit unfired line':editor.kind==='REPEAT'?'Repeat last recorded fired round':editor.kind==='VOID'?'Void unpaid order':editor.kind==='DISCOUNT'?'Discount eligible order lines':editor.kind==='COMP_ITEM'?'Comp selected line':editor.kind==='COMP'?'Comp whole order':'Fire reviewed order'}</h3>
-   {editor.kind==='CREATE'&&<><label className="block text-sm">Order name<input required maxLength={120} disabled={busy||pending} className={field} value={name} onChange={event=>setName(event.target.value)}/></label><label className="block text-sm">Service<select className={field} value={destination} disabled={busy||pending} onChange={event=>setDestination(event.target.value)}><option value="COUNTER">Counter</option><option value="TAKEAWAY">Takeaway</option></select></label></>}
+   {editor.kind==='CREATE'&&<><label className="block text-sm">Order name<input required maxLength={120} disabled={busy||pending} className={field} value={name} onChange={event=>setName(event.target.value)}/></label>{allowed(session,'pos.open_tab')&&<label className="block text-sm">Named customer (optional)<select className={field} value={customerId} disabled={busy||pending} onChange={event=>setCustomerId(event.target.value)}><option value="">No customer</option>{customers.map(customer=><option key={customer.id} value={customer.id}>{String(customer.data.name)}</option>)}</select></label>}<label className="block text-sm">Service<select className={field} value={destination} disabled={busy||pending} onChange={event=>setDestination(event.target.value)}><option value="COUNTER">Counter</option><option value="TAKEAWAY">Takeaway</option></select></label></>}
    {['ADD','EDIT'].includes(editor.kind)&&<label className="block text-sm">Quantity<input required type="number" min="0.000001" max="1000000" step="0.000001" className={field} disabled={busy||pending} value={quantity} onChange={event=>setQuantity(event.target.value)}/></label>}
    {editor.kind==='ADD'&&<p className="font-bold">Reviewed unit price with selected options: {previewPrice===null?'Review invalid option prices':money(previewPrice)}</p>}
    {editor.kind==='ADD'&&list(editor.product?.data.modifiers).length>0&&<fieldset disabled={busy||pending} className="space-y-2"><legend>Optional modifiers</legend>{list(editor.product?.data.modifiers).map(row=><label key={String(row.id)} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={modifierIds.includes(String(row.id))} onChange={event=>setModifierIds(current=>event.target.checked?[...current,String(row.id)]:current.filter(id=>id!==String(row.id)))}/>{String(row.name)} ({Number(row.priceDeltaMinor)>=0?'+':''}{money(row.priceDeltaMinor)})</label>)}</fieldset>}

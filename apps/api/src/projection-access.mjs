@@ -1,7 +1,8 @@
 const has=(actor,...permissions)=>actor.permissions?.includes('*')||permissions.some(permission=>actor.permissions?.includes(permission));
 export function visibleRecord(actor,record){
  const {collection,data}=record;
- if(collection==='customers')return has(actor,'customers.manage','credit.view','credit.charge','pos.sell','pos.open_tab');
+ if(collection==='customers')return has(actor,'customers.manage','credit.view','credit.manage','credit.charge','pos.sell','pos.open_tab');
+ if(collection==='customerCreditAccounts'||collection==='customerCreditEntries')return has(actor,'credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off');
  if(['purchaseOrders','goodsReceipts','supplierPayables','supplierPayments','supplierReturns','supplierCreditNotes','supplierCredits','supplierCreditApplications'].includes(collection))return has(actor,'procurement.view','procurement.manage','procurement.receive','procurement.pay');
  if(collection==='suppliers')return has(actor,'suppliers.manage','procurement.view','procurement.manage','procurement.receive','procurement.pay');
  if(collection==='journalEntries')return has(actor,'accounting.view','audit.view','reports.view');

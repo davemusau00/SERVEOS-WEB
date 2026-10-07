@@ -871,3 +871,17 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - PWA bridge submission and reconciliation report the exact durable local terminal outcome. Every durable `FAILED` local attempt is recognized as a known pre-output failure regardless of attempt number; interrupted in-flight sends remain uncertain.
 - Browser preparation failures use the same shared `FAILED` state with explicit `transportStarted: false`. Existing queued `PREPARATION_FAILED` command payloads remain accepted for recovery compatibility.
 - No tests, lint, builds or runtime checks were run; verification remains deferred.
+
+### API customer credit account terms (source only; migration unapplied)
+
+- Added migration 050 for tenant-scoped named-customer credit terms and append-only, command-linked term-review evidence. The API command uses expected account versions, `credit.manage`, integer minor-unit limits, 0–365 day terms, and an explicit reason; projections are permission-filtered and included in bootstrap/change feed.
+- Added an API-only Finance Controls account view for configuring account terms, showing derived balance, and reading a bounded statement. Closing requires a zero derived balance. Credit charging, settlement and write-offs remain unavailable.
+- Native behavior was inspected in `src-tauri/src/customer_credit.rs`. This slice does not port ledger charge, payments, FIFO allocation, reconciliation, write-off, POS order completion, till cash, M-Pesa, or journal behavior.
+- No tests, lint, builds, migrations or runtime checks were run. Migration and handler behavior remain unverified; the complete credit ledger and API POS charge path are still required before credit may be used operationally.
+
+### Customer credit ledger schema and read projection (source only; migration unapplied)
+
+- Migration 051 adds tenant-scoped immutable customer-credit entries with signed integer-minor balance deltas, positive amounts, source command identity, order/tender/reversal links and FIFO allocation snapshots. It adds named customer identity and credited amount columns to POS orders while constraining total paid plus credited against the order total.
+- API bootstrap exposes derived customer balances and a bounded recent statement projection with running balances. Finance Controls labels the statement read-only and states that no API charge or settlement can be posted yet.
+- API terms changes and future ledger commands serialize on a shared per-customer advisory lock; closing remains blocked whenever the derived ledger balance is nonzero.
+- The source now defines the ledger shape only. Charge, settlement, M-Pesa/till posting, journal integration, POS customer assignment, migration execution and all verification remain outstanding/deferred.
