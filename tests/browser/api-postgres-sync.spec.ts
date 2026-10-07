@@ -52,8 +52,20 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   await page.getByRole('button',{name:'Save',exact:true}).click();
   await expect(page.getByText('Saved and synchronized.',{exact:true})).toBeVisible();
   expect((await pool.query('SELECT name,version FROM stock_items WHERE business_id=$1 AND id=$2',[businessId,stockId])).rows[0]).toMatchObject({name:'Real coffee updated',version:'2'});
+  await page.getByRole('button',{name:'New product',exact:true}).click();
+  const productForm=page.getByRole('dialog',{name:'New product',exact:true});
+  await productForm.getByLabel('Name',{exact:true}).fill('Real brewed coffee');
+  await productForm.getByLabel('Code / SKU',{exact:true}).fill('REAL-BREW');
+  await productForm.getByLabel('Price (KES)',{exact:true}).fill('150.25');
+  await productForm.getByLabel('Tax class',{exact:true}).selectOption('B_0');
+  await productForm.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(productForm).toHaveCount(0);
+  await expect(page.getByText('Real brewed coffee',{exact:true})).toBeVisible();
+  const product=(await pool.query('SELECT id,name,price_minor::text,version::text FROM products WHERE business_id=$1 AND code=$2',[businessId,'REAL-BREW'])).rows[0];
+  expect(product).toMatchObject({name:'Real brewed coffee',price_minor:'15025',version:'1'});
   await page.reload();await signIn();
   await expect(page.getByText('Real coffee updated',{exact:true})).toBeVisible();
+  await expect(page.getByText('Real brewed coffee',{exact:true})).toBeVisible();
   await page.context().setOffline(true);
   await expect(page.getByText(/^Offline .* saved changes only/)).toBeVisible();
   expect((await executeCommand({db:store,command:command('Real remote change',2),actor,registry:catalogCommandRegistry})).kind).toBe('CONFIRMED');
@@ -74,9 +86,10 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
    return new Promise<any>((resolve,reject)=>{const opening=indexedDB.open(entry.name!);opening.onerror=()=>reject(opening.error);opening.onsuccess=()=>{const db=opening.result,tx=db.transaction(['records','queue'],'readonly');const records=tx.objectStore('records').getAll(),queue=tx.objectStore('queue').getAll();tx.oncomplete=()=>{resolve({records:records.result,queue:queue.result});db.close()};tx.onabort=()=>reject(tx.error)}});
   });
   expect(persisted.records.find((record:{id:string})=>record.id===stockId)).toMatchObject({version:4,data:{name:'Real remote change',balanceVersions:{[locationId]:1}}});
-  expect(persisted.queue).toHaveLength(2);expect(persisted.queue.every((entry:{state:string})=>entry.state==='SYNCHRONIZED')).toBe(true);
+  expect(persisted.records.find((record:{id:string})=>record.id===product.id)).toMatchObject({collection:'products',version:1,data:{name:'Real brewed coffee',priceMinor:15025}});
+  expect(persisted.queue).toHaveLength(3);expect(persisted.queue.every((entry:{state:string})=>entry.state==='SYNCHRONIZED')).toBe(true);
   expect(legacyRequests).toEqual([]);
-  expect((await pool.query('SELECT count(*)::int AS total FROM api_commands WHERE business_id=$1 AND status=$2',[businessId,'CONFIRMED'])).rows[0].total).toBe(5);
+  expect((await pool.query('SELECT count(*)::int AS total FROM api_commands WHERE business_id=$1 AND status=$2',[businessId,'CONFIRMED'])).rows[0].total).toBe(6);
  }finally{
   await page.goto('about:blank');
   if(server){const closingServer=server;closingServer.closeAllConnections();await new Promise<void>(resolve=>closingServer.close(()=>resolve()))}
