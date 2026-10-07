@@ -1,3 +1,5 @@
+import {reviewedBalance} from './inventory-review.mjs';
+import {postInventoryReceipt} from './inventory-receipt-posting.mjs';
 import {normalizeModifiers} from './product-modifiers.mjs';
 import {ApiProblem} from './command-kernel.mjs';
 import {randomUUID,createHash} from 'node:crypto';
@@ -178,14 +180,7 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
 };
 
 // Quantity equality cannot detect an A -> B -> A balance change.
-const reviewedBalance=async(tx,command,actor,stockItemId,locationId)=>{
- expectedVersion(command,'stockItems',stockItemId);expectedVersion(command,'stockLocations',locationId);
- const expected=command.payload.expectedBalanceVersions?.[`${stockItemId}:${locationId}`];
- if(!Number.isSafeInteger(expected)||expected<0)throw new ApiProblem(400,'BALANCE_VERSION_REQUIRED','The reviewed stock-location balance version is required.');
- const balance=await tx.stockBalance(actor.businessId,stockItemId,locationId);
- if(balance.version!==expected)throw new ApiProblem(409,'VERSION_CONFLICT','Stock moved after this balance was reviewed. Refresh and recount affected items.');
- return balance;
-};
+
 
 const inventoryCount = async ({tx,command,actor,at})=>{
   await tx.lockInventoryCatalog(actor.businessId);
@@ -272,22 +267,7 @@ const inventoryReceive=async({tx,command,actor,at})=>{
  const rawQuantity=quantity*(pack?.baseQuantity??1),baseQuantity=Number(rawQuantity.toFixed(6));
  if(!Number.isFinite(rawQuantity)||baseQuantity<=0||baseQuantity>1_000_000_000||Math.abs(rawQuantity-baseQuantity)>0.0000001)throw new ApiProblem(400,'VALIDATION_FAILED','Received stock exceeds supported quantity or precision.');
  const totalCostMinor=p.totalCostMinor;if(!Number.isSafeInteger(totalCostMinor)||totalCostMinor<0)throw new ApiProblem(400,'VALIDATION_FAILED','Receipt total must be an integer amount in minor currency units.');
- let sealed=null,open=null,nextSealed=null,nextOpen=null;
- if(stock.sealedContainerSize!==null){
-  const size=stock.sealedContainerSize;sealed=p.sealedContainers;open=p.openQuantity;
-  if(stock.baseUnit!=='ml'||!Number.isSafeInteger(sealed)||sealed<0||typeof open!=='number'||!Number.isFinite(open)||open<0||open>=size||Math.abs(sealed*size+open-baseQuantity)>0.000001)throw new ApiProblem(400,'VALIDATION_FAILED','Receipt quantity must reconcile to whole sealed bottles and open liquid below one bottle.');
-  if(before.quantity>0&&(before.sealedContainers===null||before.openQuantity===null))throw new ApiProblem(409,'PHYSICAL_STATE_REQUIRED','Record a physical bottle count before receiving into this balance.');
-  nextSealed=(before.sealedContainers??0)+sealed;nextOpen=Number(((before.openQuantity??0)+open).toFixed(6));
-  if(!Number.isSafeInteger(nextSealed)||nextOpen>=size)throw new ApiProblem(409,'RESOURCE_CONFLICT','Receiving would exceed the supported open-bottle state.');
- }else if(p.sealedContainers!==undefined||p.openQuantity!==undefined)throw new ApiProblem(400,'VALIDATION_FAILED','Sealed/open quantities require configured bottle stock.');
- const afterQuantity=Number((before.quantity+baseQuantity).toFixed(6));if(afterQuantity>1_000_000_000)throw new ApiProblem(400,'VALIDATION_FAILED','Resulting stock balance exceeds the quantity limit.');
- const averageCost=weightedCostRate(await tx.totalStockQuantity(actor.businessId,stockItemId),stock.averageUnitCostMinor,baseQuantity,totalCostMinor);
- const unitCostMinor=weightedCostRate(0,0,baseQuantity,totalCostMinor),id=randomUUID();
- await tx.insertInventoryReceipt({businessId:actor.businessId,id,stockItemId,locationId,sourceKey,sourceDocument,pack,quantity,baseQuantity,totalCostMinor,unitCostMinor,beforeCost:stock.averageUnitCostMinor,afterCost:averageCost,sealed,open,commandId:command.commandId,staffId:actor.staffId,at});
- await tx.setInventoryBalance({businessId:actor.businessId,stockItemId,locationId,quantity:afterQuantity,sealedContainers:nextSealed,openQuantity:nextOpen});
- const version=await tx.bumpEntityVersion(actor.businessId,'stockItems',stockItemId,stock.version);await tx.updateStockCostAndVersion(actor.businessId,stockItemId,averageCost,version);
- const movementId=randomUUID();await tx.insertInventoryMovement({businessId:actor.businessId,id:movementId,stockItemId,locationId,quantityDelta:baseQuantity,movementType:'RECEIPT',reason:reference,commandId:command.commandId,staffId:actor.staffId,at});
- return {receipt:await tx.inventoryReceiptProjection(actor.businessId,id),stockItem:await tx.stockRecordProjection(actor.businessId,stockItemId),stockMovement:await tx.inventoryMovementProjection(actor.businessId,movementId)};
+ return postInventoryReceipt({tx,command,actor,at,stockItemId,locationId,stock,before,quantity,baseQuantity,totalCostMinor,pack,sourceKey,sourceDocument,physical:p});
 };
 
 const inventoryReverseMovement=async({tx,command,actor,at})=>{

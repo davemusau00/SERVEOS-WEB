@@ -726,3 +726,10 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added office-role PURCHASE_ORDER bridge rendering with immutable supplier contact/tax/terms, package/base quantities, frozen item costs, delivery date, notes and approval/issue identities. Quantity/package/cost/total consistency is checked before transport.
 - PO logos use the shared PNG pipeline; payment QR is excluded. Typed browser/bridge contracts and document queue submission now support issued POs with existing signed claims, live checks and durable delivery evidence.
 - No tests, build, migration or runtime execution ran. Browser/thermal document parity, physical printing and GRN/canonical inventory receiving remain unfinished acceptance/development work.
+
+
+## Final sprint continuation - canonical receipt posting extraction (source only)
+
+- Extracted the existing reviewed-balance check and inventory receipt posting into shared transaction primitives. Direct inventory receiving retains its policy/source validation and delegates the same physical bottle, quantity-limit, weighted valuation, stock-version and movement writes.
+- The posting primitive accepts frozen purchase-unit inputs and stays inside the caller transaction, preparing GRN receiving to reuse canonical inventory semantics rather than create a parallel stock path. It is not registered as a command or independent authority boundary.
+- No tests, builds, migrations or runtime execution ran. Multi-line receipt evidence/schema, GRN command/UI, partial/rejected/over-receive behavior and reconciliation still require implementation and deferred acceptance.
