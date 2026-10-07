@@ -14,5 +14,6 @@ CREATE TABLE close_day_reports (
  FOREIGN KEY(business_id,document_id) REFERENCES business_documents(business_id,id)
 );
 CREATE INDEX close_day_reports_history_idx ON close_day_reports(business_id,generated_at DESC,id);
+CREATE INDEX business_documents_sales_source_idx ON business_documents(business_id,source_command_id) WHERE document_type='SALES_RECEIPT';
 CREATE TRIGGER close_day_reports_immutable BEFORE UPDATE OR DELETE ON close_day_reports
  FOR EACH ROW EXECUTE FUNCTION servos_reject_evidence_mutation();
