@@ -41,6 +41,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
     const opening = Number(payload.startingQuantity);
     if (Number.isFinite(opening) && opening > 0) add('stockMovements', typeof payload.openingMovementId === 'string'&&payload.openingMovementId.trim()?payload.openingMovementId:`${id}:opening`);
   }
+  if (operation === 'credit.reconcile') add('customerCreditAccounts', payload.customerId);
   if (operation === 'product.save') {
     const productData = payload.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : undefined;
     if (Array.isArray(productData?.recipeIngredients)) {
