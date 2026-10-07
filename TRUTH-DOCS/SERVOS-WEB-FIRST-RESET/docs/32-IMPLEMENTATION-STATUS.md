@@ -256,3 +256,11 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Review forms capture order/product/settings/location/balance baselines and submit canonical API operations. Unresolved order outbox entries hold repeat operations; original outcomes recover through Activity and release the local hold when terminal. Stale/conflicted intent remains visible for deliberate review rather than being silently overwritten.
 - Centralized API workspace navigation for desktop/mobile/hash entry, including permission-gated POS and Settings. API order commands require connectivity; offline POS remains a later bounded-grant phase.
 - No tests/lint/build/browser execution ran. Deferred acceptance includes concurrent terminal edits, barcode/portion selection, stale and ABA fire revisions, duplicate clicks/response loss/restart, navigation/viewports, zero legacy calls, stock/document reconciliation and safe updates. Payment/till UI, advanced POS operations and all later sprint phases remain outstanding.
+
+
+## Final sprint continuation ? PWA till controls (source only)
+
+- Added API POS till opening, paid-in/out, blind close count and manager variance-review forms. Each action pins its reviewed till/outlet/policy versions and requires connectivity. Opening/handling uses the current staff/device identity; an active till elsewhere is called out rather than silently reused.
+- Close entry hides expected drawer totals until the count is submitted. REVIEW_REQUIRED records show submitted count/expected/variance for authorized review; the API retains control of thresholds, ownership, order blockers and unresolved financial outcomes.
+- Till outbox uncertainty joins the POS repeat-submission hold, and the form recovers original terminal outcomes. Added the corresponding API shell permissions/bootstrap access and corrected order/variance projection access for authorized firing/payment/review staff. Settings money and percent entry now reuse the existing strict decimal parsers.
+- No tests/lint/build/database/browser execution ran. Deferred acceptance includes drawer conservation, blind-count presentation, ownership and scope, manager permission boundaries, response loss/restart, active order/financial command blockers and variance review. Tender-entry UI, advanced POS/finance operations and the remaining sprint phases remain outstanding.

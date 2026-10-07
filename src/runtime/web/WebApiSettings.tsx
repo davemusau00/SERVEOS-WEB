@@ -1,3 +1,4 @@
+import {parseMoneyToMinor,parsePercentToBasisPoints} from '../../utils/fiscal';
 import {WebOutletSettings} from './WebOutletSettings';
 import React,{useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
@@ -9,7 +10,7 @@ type Command=(operation:string,collection:string,id:string,payload:Record<string
 const input='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2';
 const button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
 const percent=(value:unknown)=>typeof value==='number'?String(value/100):'';
-const minor=(value:string|boolean)=>{const amount=typeof value==='string'&&value.trim()?Number(value)*100:NaN;if(!Number.isFinite(amount)||amount<0||!Number.isSafeInteger(Math.round(amount))||Math.abs(amount-Math.round(amount))>0.000001)throw new Error('Enter a non-negative value with at most two decimals.');return Math.round(amount);};
+const minor=(value:string|boolean)=>parseMoneyToMinor(value);
 
 export function WebApiSettings({records,session,disabled,command}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command}){
  const [editor,setEditor]=useState<Editor|null>(null),[reason,setReason]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(false);
@@ -29,7 +30,7 @@ export function WebApiSettings({records,session,disabled,command}:{records:Busin
   event.preventDefault();if(!editor||inFlight.current||pending||disabled)return;inFlight.current=true;setBusy(true);setMessage('');
   try{
    const v=editor.values;let operation:string,payload:Record<string,unknown>;
-   if(editor.kind==='BUSINESS'){operation='business.settings.save';const vat=minor(v.vatRatePct),levy=minor(v.levyRatePct);if(vat>10000||levy>10000)throw new Error('Tax rates must be between 0% and 100%.');payload={data:{businessName:v.businessName,address:v.address,contact:v.contact,taxPin:v.taxPin,footer:v.footer,vatRateBasisPoints:vat,levyRateBasisPoints:levy}};}
+   if(editor.kind==='BUSINESS'){operation='business.settings.save';const vat=parsePercentToBasisPoints(v.vatRatePct),levy=parsePercentToBasisPoints(v.levyRatePct);if(vat>10000||levy>10000)throw new Error('Tax rates must be between 0% and 100%.');payload={data:{businessName:v.businessName,address:v.address,contact:v.contact,taxPin:v.taxPin,footer:v.footer,vatRateBasisPoints:vat,levyRateBasisPoints:levy}};}
    else if(editor.kind==='TILL'){operation='till.policy.save';payload={scope:v.scope,varianceThresholdMinor:minor(v.varianceThreshold)};}
    else{operation='paymentAccount.save';payload={id:editor.id,data:{name:v.name,code:v.code,method:v.method,currency:'KES',referenceRequired:v.referenceRequired,archived:v.archived,...(v.method==='MPESA'?{mpesaMode:v.mpesaMode,mpesaNumber:v.mpesaNumber,...(v.mpesaMode==='PAYBILL'?{mpesaAccountReference:v.mpesaAccountReference}:{})}:{})}};}
    const outcome=await command(operation,editor.collection,editor.id,{...payload,reason:reason.trim(),expectedVersions:[{collection:editor.collection,id:editor.id,version:editor.version}]});

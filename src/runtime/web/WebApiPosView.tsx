@@ -1,3 +1,4 @@
+import {WebApiTillPanel} from './WebApiTillPanel';
 import type {QueuedCommand} from './BusinessStore';
 import React,{useEffect,useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
@@ -12,7 +13,7 @@ const money=(value:unknown)=>(Number(value||0)/100).toLocaleString('en-KE',{styl
 type Editor={kind:'CREATE'|'ADD'|'EDIT'|'FIRE';id:string;reviewed:BusinessRecord[];order?:BusinessRecord;product?:BusinessRecord;line?:Record<string,unknown>};
 const baseline=(row:BusinessRecord)=>({collection:row.collection,id:row.id,version:row.version});
 
-export function WebApiPosView({records,session,disabled,command,queue}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;queue:QueuedCommand[]}){
+export function WebApiPosView({records,session,disabled,command,queue,deviceId}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;queue:QueuedCommand[];deviceId:string}){
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived);
  const orders=records.filter(row=>row.collection==='orders'&&!row.archived);
  const [outletId,setOutletId]=useState(outlets[0]?.id||''),[orderId,setOrderId]=useState(''),[query,setQuery]=useState('');
@@ -34,6 +35,7 @@ export function WebApiPosView({records,session,disabled,command,queue}:{records:
  const editable=order&&['OPEN','FIRED'].includes(String(order.data.state));
  const begin=(kind:Editor['kind'],product?:BusinessRecord,line?:Record<string,unknown>)=>{
   if(disabled||busy||pending||kind!=='CREATE'&&!editable)return;
+  if(window.document.querySelector('[role="dialog"]')){setMessage('Finish the open review before starting another order action.');return;}
   setEditor({kind,id:crypto.randomUUID(),reviewed:records,order,product,line});setName('');setDestination('COUNTER');setQuantity(String(line?.quantity||1));setPortion('');setMessage('');
  };
  useBarcodeScanner({enabled:canSell&&!disabled&&!editor&&!busy&&!pending,onScan:code=>{
@@ -73,6 +75,7 @@ export function WebApiPosView({records,session,disabled,command,queue}:{records:
  const button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
  return <section className="space-y-4">
   <div className="flex flex-wrap items-end gap-3"><label className="min-w-48 text-sm">Outlet<select className={field} value={outletId} disabled={busy||Boolean(editor)} onChange={event=>{setOutletId(event.target.value);setOrderId('')}}><option value="">Select outlet…</option>{outlets.map(row=><option key={row.id} value={row.id}>{String(row.data.name)}</option>)}</select></label><button disabled={disabled||busy||pending||!canSell||!outletId} className={button} onClick={()=>begin('CREATE')}>Open order</button></div>
+  <WebApiTillPanel records={records} session={session} deviceId={deviceId} outletId={outletId} disabled={disabled||busy||pending||Boolean(editor)} command={command} queue={queue}/>
   <div className="grid gap-4 lg:grid-cols-[200px_1fr_350px]">
    <aside className="space-y-2"><h3 className="font-bold">Orders</h3>{orders.filter(row=>row.data.outletId===outletId).map(row=><button className={`${button} block w-full text-left ${orderId===row.id?'border-amber-400':''}`} key={row.id} disabled={busy||Boolean(editor)} onClick={()=>setOrderId(row.id)}>{String(row.data.name)}<span className="block text-xs text-slate-400">{String(row.data.state)} · {money(row.data.grandTotalMinor)}</span></button>)}</aside>
    <section><label className="block text-sm">Find product<input className={field} value={query} onChange={event=>setQuery(event.target.value)} placeholder="Name or code"/></label><div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-3">{visible.map(row=><button key={row.id} disabled={disabled||busy||pending||!editable||!canSell||Boolean(editor)} onClick={()=>begin('ADD',row)} className={`${button} min-h-20 text-left`}><b>{String(row.data.name)}</b><span className="block text-sm">{money(row.data.priceMinor)}</span></button>)}</div></section>
