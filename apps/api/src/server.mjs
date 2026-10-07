@@ -38,6 +38,11 @@ const json = (res, status, value) => {
 };
 const scrypt=promisify(scryptCallback);
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ACCESS_TOKEN_TTL=15*60_000,REFRESH_TOKEN_TTL=30*24*60*60_000,REFRESH_FAMILY_TTL=90*24*60*60_000,REFRESH_COOKIE='servos_refresh';
+const cookieValue=(req,name)=>String(req.headers.cookie||'').split(';').map(part=>part.trim()).find(part=>part.startsWith(`${name}=`))?.slice(name.length+1)||'';
+const refreshCookie=(token,maxAge,secure)=>`${REFRESH_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/v1/auth/; Max-Age=${Math.max(0,Math.floor(maxAge/1000))}${secure?'; Secure':''}`;
+const clearRefreshCookie=secure=>refreshCookie('',0,secure);
+const secureRequest=req=>process.env.NODE_ENV==='production'||Boolean(req.socket.encrypted)||req.headers['x-forwarded-proto']==='https';
 const encodeCreditStatementCursor=value=>Buffer.from(JSON.stringify({v:1,h:value.highWater,b:value.before}),'utf8').toString('base64url');
 function decodeCreditStatementCursor(value){
  if(typeof value!=='string'||value.length>512||! /^[A-Za-z0-9_-]+$/.test(value))throw new ApiProblem(400,'VALIDATION_FAILED','Statement cursor is invalid.');
@@ -120,10 +125,19 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         if(!loginName||loginName.length>200||password.length<8||password.length>1024)throw new ApiProblem(400,'VALIDATION_FAILED','Enter a valid staff login and password.');
         const now=new Date();const ip=String(req.socket.remoteAddress||'unknown');const buckets=[loginName.toLowerCase(),ip].map(value=>createHash('sha256').update(value).digest('hex'));
         if(!await store.checkLoginThrottle(buckets,now))throw new ApiProblem(429,'RATE_LIMITED','Too many sign-in attempts. Try again later.');
-        const token=randomBytes(32).toString('base64url');const result=await store.authenticatePassword({loginName,password,at:now,verifyPassword,sessionId:randomUUID(),tokenHash:createHash('sha256').update(token).digest('hex'),expiresAt:new Date(now.getTime()+12*60*60_000)});
+        const token=randomBytes(32).toString('base64url'),refreshToken=randomBytes(32).toString('base64url'),sessionId=randomUUID(),refreshFamilyId=randomUUID(),accessExpiresAt=new Date(now.getTime()+ACCESS_TOKEN_TTL),refreshExpiresAt=new Date(now.getTime()+REFRESH_TOKEN_TTL),sessionExpiresAt=new Date(now.getTime()+REFRESH_FAMILY_TTL);const result=await store.authenticatePassword({loginName,password,at:now,verifyPassword,sessionId,accessTokenId:randomUUID(),accessTokenHash:createHash('sha256').update(token).digest('hex'),accessExpiresAt,refreshFamilyId,refreshTokenId:randomUUID(),refreshTokenHash:createHash('sha256').update(refreshToken).digest('hex'),refreshExpiresAt,sessionExpiresAt});
         if(!result){await verifyPassword(password,dummyCredentialHash);await store.recordLoginFailure(buckets,now);throw new ApiProblem(401,'AUTH_INVALID','The staff login or password is not valid.');}
         await store.clearLoginFailures(buckets);
+        res.setHeader('set-cookie',refreshCookie(refreshToken,REFRESH_TOKEN_TTL,secureRequest(req)));
         return json(res,200,{accessToken:token,...result});
+      }
+      if(req.method==='POST'&&url.pathname==='/v1/auth/refresh'){
+        if(!origin||req.headers.origin!==origin)throw new ApiProblem(403,'ORIGIN_DENIED','Refresh requires the registered application origin.');
+        const oldRefreshToken=cookieValue(req,REFRESH_COOKIE);if(!/^[A-Za-z0-9_-]{40,100}$/.test(oldRefreshToken))throw new ApiProblem(401,'REFRESH_REQUIRED','Sign in again to continue.');
+        const now=new Date(),accessToken=randomBytes(32).toString('base64url'),nextRefreshToken=randomBytes(32).toString('base64url');const rotated=await store.rotateRefreshToken({tokenHash:createHash('sha256').update(oldRefreshToken).digest('hex'),nextRefreshTokenId:randomUUID(),nextRefreshTokenHash:createHash('sha256').update(nextRefreshToken).digest('hex'),nextRefreshExpiresAt:new Date(now.getTime()+REFRESH_TOKEN_TTL),nextAccessTokenId:randomUUID(),nextAccessTokenHash:createHash('sha256').update(accessToken).digest('hex'),nextAccessExpiresAt:new Date(now.getTime()+ACCESS_TOKEN_TTL),at:now});
+        if(rotated.kind!=='ROTATED'){res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req)));throw new ApiProblem(401,rotated.kind==='REPLAY'?'REFRESH_REPLAY':'REFRESH_INVALID','Your sign-in session ended. Sign in again.');}
+        res.setHeader('set-cookie',refreshCookie(nextRefreshToken,rotated.refreshExpiresAt.getTime()-now.getTime(),secureRequest(req)));
+        return json(res,200,{accessToken,sessionId:rotated.sessionId,businessId:rotated.businessId,staffId:rotated.staffId,displayName:rotated.displayName,permissions:rotated.permissions,mustChangePassword:rotated.mustChangePassword,expiresAt:rotated.accessExpiresAt.toISOString()});
       }
       if(req.method==='POST'&&url.pathname==='/v1/setup/initial-admin'){
         const setupSecret=req.headers['x-serveos-setup-secret'];
@@ -142,6 +156,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if(req.method==='POST'&&url.pathname==='/v1/auth/logout'){
         const authorization=req.headers.authorization;if(typeof authorization!=='string'||!authorization.startsWith('Bearer '))throw new ApiProblem(401,'AUTH_REQUIRED','A staff session is required.');
         const revoked=await store.revokeSession(createHash('sha256').update(authorization.slice(7)).digest('hex'));
+        res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req)));
         return json(res,200,{revoked});
       }
       if(req.method==='POST'&&url.pathname==='/v1/auth/password'){
@@ -149,7 +164,8 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         if(typeof input.currentPassword!=='string'||typeof input.newPassword!=='string'||input.newPassword.length<12||input.newPassword.length>1024)throw new ApiProblem(400,'VALIDATION_FAILED','The new password must contain at least 12 characters.');
         const profile=await store.staffCredential(actor.businessId,actor.staffId);
         if(!profile||!await verifyPassword(input.currentPassword,profile.credentialHash))throw new ApiProblem(401,'AUTH_INVALID','The current password is not valid.');
-        await store.updateCredential(actor.businessId,actor.staffId,await hashPassword(input.newPassword),new Date());
+        const changed=await store.changePassword({businessId:actor.businessId,staffId:actor.staffId,currentSessionId:actor.sessionId,actorDeviceId:actor.deviceId,currentHash:profile.credentialHash,newHash:await hashPassword(input.newPassword),at:new Date()});
+        if(!changed)throw new ApiProblem(409,'PASSWORD_CHANGED','The password changed in another session. Sign in again before trying once more.');
         return json(res,200,{changed:true});
       }
       if(req.method==='GET'&&url.pathname==='/v1/auth/session'){

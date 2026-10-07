@@ -1730,6 +1730,7 @@ The sprint ends with a production system, not with a large diff.
 
 - Added migration 059 for append-only session revocation evidence. Authenticated staff can list only their own latest 100 sessions and revoke another session belonging to the same staff profile; the current session must use Sign out and cannot be revoked through this endpoint.
 - Added API endpoints and PWA session dialog with session/device IDs, created/expiry/revocation state and explicit revocation confirmation. Session listing is read-only; access tokens remain only in the in-memory auth closure, and no refresh credential is persisted.
+- Password changes now compare the current credential inside the database transaction, retain the initiating session, revoke every other active staff session, and append revocation evidence with `PASSWORD_CHANGED` cause.
 - This does not yet implement rotating refresh tokens, cookie sessions, token-family replay detection or automatic access-token renewal. No tests, migration, API, concurrency, reload or browser checks were run.
 
 ### Initial-admin setup secret lifecycle (source only)

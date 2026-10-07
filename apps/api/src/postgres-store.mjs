@@ -222,10 +222,11 @@ export class PostgresStore {
       SELECT s.business_id AS "businessId", s.staff_id AS "staffId", d.id AS "deviceId",
              COALESCE(array_agg(p.permission) FILTER (WHERE p.permission IS NOT NULL), '{}') AS permissions
       FROM api_staff_sessions s
+      JOIN api_access_tokens a ON a.session_id=s.id AND a.token_hash=$1 AND a.revoked_at IS NULL AND a.expires_at>$3
       JOIN api_enrolled_devices d ON d.business_id = s.business_id AND d.staff_id = s.staff_id AND d.id = $2
       LEFT JOIN api_staff_permissions p ON p.business_id = s.business_id AND p.staff_id = s.staff_id
       JOIN api_staff_profiles f ON f.business_id=s.business_id AND f.staff_id=s.staff_id AND f.active AND NOT f.must_change_password
-      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $3 AND s.device_id=d.id
+      WHERE s.revoked_at IS NULL AND s.expires_at > $3 AND s.device_id=d.id
         AND d.revoked_at IS NULL
       GROUP BY s.business_id, s.staff_id, d.id
     `, [tokenHash, deviceId, now]);
@@ -237,10 +238,11 @@ export class PostgresStore {
       SELECT s.business_id AS "businessId", s.staff_id AS "staffId",s.id AS "sessionId",d.id AS "deviceId",f.must_change_password AS "mustChangePassword",
              COALESCE(array_agg(p.permission) FILTER (WHERE p.permission IS NOT NULL), '{}') AS permissions
       FROM api_staff_sessions s
+      JOIN api_access_tokens a ON a.session_id=s.id AND a.token_hash=$1 AND a.revoked_at IS NULL AND a.expires_at>$2
       JOIN api_staff_profiles f ON f.business_id=s.business_id AND f.staff_id=s.staff_id AND f.active
       LEFT JOIN api_enrolled_devices d ON d.business_id=s.business_id AND d.id=s.device_id AND d.revoked_at IS NULL
       LEFT JOIN api_staff_permissions p ON p.business_id = s.business_id AND p.staff_id = s.staff_id
-      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $2
+      WHERE s.revoked_at IS NULL AND s.expires_at > $2
       GROUP BY s.business_id, s.staff_id,s.id,d.id,f.must_change_password
     `, [tokenHash, now]);
     return rows[0] ?? null;
@@ -249,6 +251,26 @@ export class PostgresStore {
   async ownSessions({businessId,staffId,currentSessionId,at=new Date()}) {
     const {rows}=await this.pool.query(`SELECT s.id AS "sessionId",s.device_id AS "deviceId",s.created_at AS "createdAt",s.expires_at AS "expiresAt",s.revoked_at AS "revokedAt",(s.id=$3) AS current,(d.revoked_at IS NOT NULL) AS "deviceRevoked" FROM api_staff_sessions s LEFT JOIN api_enrolled_devices d ON d.business_id=s.business_id AND d.id=s.device_id WHERE s.business_id=$1 AND s.staff_id=$2 ORDER BY s.created_at DESC,s.id DESC LIMIT 100`,[businessId,staffId,currentSessionId]);
     return rows.map(row=>({...row,createdAt:row.createdAt.toISOString(),expiresAt:row.expiresAt.toISOString(),revokedAt:row.revokedAt?.toISOString()??null,expired:row.expiresAt<=at}));
+  }
+
+  async rotateRefreshToken({tokenHash,nextRefreshTokenId,nextRefreshTokenHash,nextRefreshExpiresAt,nextAccessTokenId,nextAccessTokenHash,nextAccessExpiresAt,at}){
+    return this.transaction(async tx=>{
+      const {rows}=await tx.client.query(`SELECT t.id AS "tokenId",t.used_at AS "usedAt",t.revoked_at AS "tokenRevokedAt",t.expires_at AS "tokenExpiresAt",f.id AS "familyId",f.business_id AS "businessId",f.staff_id AS "staffId",f.session_id AS "sessionId",f.expires_at AS "familyExpiresAt",f.revoked_at AS "familyRevokedAt",s.revoked_at AS "sessionRevokedAt",s.device_id AS "deviceId",p.active AS "staffActive",p.must_change_password AS "mustChangePassword",p.display_name AS "displayName",d.revoked_at AS "deviceRevokedAt" FROM api_refresh_tokens t JOIN api_refresh_families f ON f.id=t.family_id JOIN api_staff_sessions s ON s.id=f.session_id JOIN api_staff_profiles p ON p.business_id=f.business_id AND p.staff_id=f.staff_id LEFT JOIN api_enrolled_devices d ON d.business_id=s.business_id AND d.id=s.device_id WHERE t.token_hash=$1 FOR UPDATE OF t,f,s`,[tokenHash]);
+      const row=rows[0];if(!row)return {kind:'INVALID'};
+      if(row.usedAt&&!row.familyRevokedAt&&!row.sessionRevokedAt){
+        await tx.client.query('UPDATE api_refresh_families SET revoked_at=$2 WHERE id=$1 AND revoked_at IS NULL',[row.familyId,at]);
+        await tx.client.query('UPDATE api_staff_sessions SET revoked_at=$2 WHERE id=$1 AND revoked_at IS NULL',[row.sessionId,at]);
+        const commandId=randomUUID();await tx.client.query(`INSERT INTO api_session_events(business_id,id,session_id,staff_id,event_type,before_state,after_state,command_id,actor_staff_id,actor_device_id,occurred_at) VALUES($1,$2,$3,$4,'REVOKED',$5::jsonb,$6::jsonb,$7,$4,NULL,$8)`,[row.businessId,randomUUID(),row.sessionId,row.staffId,JSON.stringify({revokedAt:null,cause:'REFRESH_TOKEN_REPLAY'}),JSON.stringify({revokedAt:at.toISOString(),cause:'REFRESH_TOKEN_REPLAY'}),commandId,at]);
+        return {kind:'REPLAY'};
+      }
+      if(row.usedAt||row.tokenRevokedAt||row.familyRevokedAt||row.sessionRevokedAt||row.tokenExpiresAt<=at||row.familyExpiresAt<=at||!row.staffActive||row.deviceRevokedAt)return {kind:'INVALID'};
+      const accessExpiry=new Date(Math.min(nextAccessExpiresAt.getTime(),row.familyExpiresAt.getTime())),refreshExpiry=new Date(Math.min(nextRefreshExpiresAt.getTime(),row.familyExpiresAt.getTime()));
+      await tx.client.query('UPDATE api_refresh_tokens SET used_at=$2 WHERE id=$1 AND used_at IS NULL',[row.tokenId,at]);
+      await tx.client.query('INSERT INTO api_refresh_tokens(id,family_id,token_hash,issued_at,expires_at) VALUES($1,$2,$3,$4,$5)',[nextRefreshTokenId,row.familyId,nextRefreshTokenHash,at,refreshExpiry]);
+      await tx.client.query('INSERT INTO api_access_tokens(id,business_id,staff_id,session_id,token_hash,issued_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7)',[nextAccessTokenId,row.businessId,row.staffId,row.sessionId,nextAccessTokenHash,at,accessExpiry]);
+      const {rows:permissionRows}=await tx.client.query('SELECT permission FROM api_staff_permissions WHERE business_id=$1 AND staff_id=$2 ORDER BY permission',[row.businessId,row.staffId]);
+      return {kind:'ROTATED',sessionId:row.sessionId,businessId:row.businessId,staffId:row.staffId,displayName:row.displayName,permissions:permissionRows.map(item=>item.permission),mustChangePassword:row.mustChangePassword,accessExpiresAt:accessExpiry,refreshExpiresAt:refreshExpiry};
+    });
   }
 
   async revokeOwnSession({businessId,staffId,sessionId,currentSessionId,actorDeviceId,at}) {
@@ -263,7 +285,7 @@ export class PostgresStore {
     });
   }
 
-  async authenticatePassword({loginName,password,at,verifyPassword,sessionId,tokenHash,expiresAt}) {
+  async authenticatePassword({loginName,password,at,verifyPassword,sessionId,accessTokenId,accessTokenHash,accessExpiresAt,refreshFamilyId,refreshTokenId,refreshTokenHash,refreshExpiresAt,sessionExpiresAt}) {
     return this.transaction(async tx=>{
       const {rows}=await tx.client.query(`SELECT business_id AS "businessId",staff_id AS "staffId",display_name AS "displayName",credential_hash AS "credentialHash",failed_login_count AS "failedLoginCount",locked_until AS "lockedUntil",must_change_password AS "mustChangePassword" FROM api_staff_profiles WHERE lower(login_name)=lower($1) AND active FOR UPDATE`,[loginName]);
       const staff=rows[0];
@@ -274,9 +296,12 @@ export class PostgresStore {
         return null;
       }
       await tx.client.query('UPDATE api_staff_profiles SET failed_login_count=0,locked_until=NULL,updated_at=$3 WHERE business_id=$1 AND staff_id=$2',[staff.businessId,staff.staffId,at]);
-      await tx.client.query('INSERT INTO api_staff_sessions(id,business_id,staff_id,token_hash,created_at,expires_at,device_id) VALUES($1,$2,$3,$4,$5,$6,NULL)',[sessionId,staff.businessId,staff.staffId,tokenHash,at,expiresAt]);
+      await tx.client.query('INSERT INTO api_staff_sessions(id,business_id,staff_id,token_hash,created_at,expires_at,device_id) VALUES($1,$2,$3,$4,$5,$6,NULL)',[sessionId,staff.businessId,staff.staffId,accessTokenHash,at,sessionExpiresAt]);
+      await tx.client.query('INSERT INTO api_access_tokens(id,business_id,staff_id,session_id,token_hash,issued_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7)',[accessTokenId,staff.businessId,staff.staffId,sessionId,accessTokenHash,at,accessExpiresAt]);
+      await tx.client.query('INSERT INTO api_refresh_families(id,business_id,staff_id,session_id,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6)',[refreshFamilyId,staff.businessId,staff.staffId,sessionId,at,sessionExpiresAt]);
+      await tx.client.query('INSERT INTO api_refresh_tokens(id,family_id,token_hash,issued_at,expires_at) VALUES($1,$2,$3,$4,$5)',[refreshTokenId,refreshFamilyId,refreshTokenHash,at,refreshExpiresAt]);
       const {rows:permissions}=await tx.client.query('SELECT permission FROM api_staff_permissions WHERE business_id=$1 AND staff_id=$2 ORDER BY permission',[staff.businessId,staff.staffId]);
-      return {sessionId,businessId:staff.businessId,staffId:staff.staffId,displayName:staff.displayName,permissions:permissions.map(row=>row.permission),expiresAt:expiresAt.toISOString(),mustChangePassword:staff.mustChangePassword};
+      return {sessionId,businessId:staff.businessId,staffId:staff.staffId,displayName:staff.displayName,permissions:permissions.map(row=>row.permission),expiresAt:accessExpiresAt.toISOString(),mustChangePassword:staff.mustChangePassword};
     });
   }
 
@@ -318,22 +343,28 @@ export class PostgresStore {
     const result=await this.pool.query('SELECT EXISTS(SELECT 1 FROM api_staff_profiles) AS complete');return result.rows[0]?.complete===true;
   }
 
-  async changePassword({businessId,staffId,currentHash,newHash,at}) {
-    const {rows}=await this.pool.query('UPDATE api_staff_profiles SET credential_hash=$4,must_change_password=false,failed_login_count=0,locked_until=NULL,updated_at=$5 WHERE business_id=$1 AND staff_id=$2 AND credential_hash=$3 RETURNING staff_id',[businessId,staffId,currentHash,newHash,at]);
-    return rows.length>0;
+  async changePassword({businessId,staffId,currentSessionId,actorDeviceId,currentHash,newHash,at}) {
+    return this.transaction(async tx=>{
+      const {rows:changed}=await tx.client.query('UPDATE api_staff_profiles SET credential_hash=$4,must_change_password=false,failed_login_count=0,locked_until=NULL,updated_at=$5 WHERE business_id=$1 AND staff_id=$2 AND credential_hash=$3 RETURNING staff_id',[businessId,staffId,currentHash,newHash,at]);
+      if(!changed.length)return false;
+      const {rows:sessions}=await tx.client.query('SELECT id,device_id AS "deviceId" FROM api_staff_sessions WHERE business_id=$1 AND staff_id=$2 AND id<>$3 AND revoked_at IS NULL FOR UPDATE',[businessId,staffId,currentSessionId]);
+      if(!sessions.length)return true;
+      await tx.client.query('UPDATE api_staff_sessions SET revoked_at=$4 WHERE business_id=$1 AND staff_id=$2 AND id<>$3 AND revoked_at IS NULL',[businessId,staffId,currentSessionId,at]);
+      for(const session of sessions){const commandId=randomUUID();await tx.client.query(`INSERT INTO api_session_events(business_id,id,session_id,staff_id,event_type,before_state,after_state,command_id,actor_staff_id,actor_device_id,occurred_at) VALUES($1,$2,$3,$4,'REVOKED',$5::jsonb,$6::jsonb,$7,$8,$9,$10)`,[businessId,randomUUID(),session.id,staffId,JSON.stringify({revokedAt:null,deviceId:session.deviceId}),JSON.stringify({revokedAt:at.toISOString(),deviceId:session.deviceId,cause:'PASSWORD_CHANGED'}),commandId,staffId,actorDeviceId||null,at]);}
+      return true;
+    });
   }
 
   async staffCredential(businessId,staffId){
     const {rows}=await this.pool.query('SELECT display_name AS "displayName",credential_hash AS "credentialHash",must_change_password AS "mustChangePassword" FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2 AND active',[businessId,staffId]);return rows[0]??null;
   }
 
-  async updateCredential(businessId,staffId,credentialHash,at){
-    await this.pool.query('UPDATE api_staff_profiles SET credential_hash=$3,must_change_password=false,failed_login_count=0,locked_until=NULL,updated_at=$4 WHERE business_id=$1 AND staff_id=$2',[businessId,staffId,credentialHash,at]);
-  }
-
   async revokeSession(tokenHash,at=new Date()) {
-    const {rowCount}=await this.pool.query('UPDATE api_staff_sessions SET revoked_at=$2 WHERE token_hash=$1 AND revoked_at IS NULL',[tokenHash,at]);
-    return rowCount>0;
+    return this.transaction(async tx=>{
+      const {rows}=await tx.client.query('SELECT id FROM api_staff_sessions WHERE token_hash=$1 UNION SELECT session_id AS id FROM api_access_tokens WHERE token_hash=$1',[tokenHash]);
+      if(!rows.length)return false;
+      const sessionIds=rows.map(row=>row.id);await tx.client.query('UPDATE api_staff_sessions SET revoked_at=$2 WHERE id=ANY($1::uuid[]) AND revoked_at IS NULL',[sessionIds,at]);await tx.client.query('UPDATE api_refresh_families SET revoked_at=$2 WHERE session_id=ANY($1::uuid[]) AND revoked_at IS NULL',[sessionIds,at]);return true;
+    });
   }
 
   async issueDeviceEnrollmentChallenge({challengeId, challenge, businessId, staffId, issuedAt, expiresAt}) {
