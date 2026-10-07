@@ -52,7 +52,7 @@ export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnTy
   const localRecords=await store.records();
   if(localCursor>0&&localPolicy===policyVersion&&localRecords.length>0)return {cursor:localCursor,records:localRecords.length,policyVersion,reused:true};
   const queued=await store.queue();
-  if(localCursor>0&&queued.some(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN'))throw new Error('Saved API commands must be recovered before rebuilding this device projection.');
+  if(queued.some(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN'))throw new Error('Saved API commands must be recovered before rebuilding this device projection.');
   const bootstrap=await client.bootstrapCatalog();
   if(bootstrap.protocolVersion!==1||!Number.isSafeInteger(bootstrap.cursor)||bootstrap.cursor<0)throw new Error('API catalog bootstrap is invalid');
   await store.replaceSnapshot(bootstrap.records,bootstrap.cursor,policyVersion);

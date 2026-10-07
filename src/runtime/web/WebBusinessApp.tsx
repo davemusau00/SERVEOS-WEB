@@ -8,6 +8,7 @@ import {startAutomaticSync,subscribeSyncUpdates,synchronizeStore} from './sync';
 import {allowed,loadAuthorizedSnapshot,openWebDevice,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
 import {createApiCloudTransport} from './sync';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
+import {ApiHttpError} from './apiClient';
 import type {CommandOutcome} from '../../types/transactions';
 
 const WebCatalogView=React.lazy(()=>import('./WebCatalogInventory').then(module=>({default:module.WebCatalogView})));
@@ -63,6 +64,11 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
  const store=useRef<BusinessStore|null>(apiStore||null);const committedCommands=useRef(new Set<string>());const submitInFlight=useRef(false);const rpcRef=useRef(rpc);rpcRef.current=rpc;const sessionRef=useRef(session);sessionRef.current=session;const apiTransport=useRef(apiAuth?createApiCloudTransport(apiAuth.client):null);
  const syncRef=useRef<()=>Promise<void>>(async()=>{});
  const updateHold=useRef(false);
+ useEffect(()=>{
+  const closed=()=>{setReady(false);setError('Browser storage was closed or upgraded in another tab. Reopen this workspace before continuing. Do not clear browser data.');};
+  window.addEventListener('servos:storage-closed',closed);
+  return()=>window.removeEventListener('servos:storage-closed',closed);
+ },[]);
  const exportRecovery=async()=>{
   try{
    if(!store.current)throw new Error('The business workspace is not open.');
@@ -97,6 +103,10 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
     if(apiAuth&&apiStore){
       if(!opened){opened=apiStore;store.current=apiStore;}
       if(stopped)return;
+      const profile=await apiAuth.client.authSession();
+      if(profile.businessId!==opened.scope||profile.staffId!==opened.actorId||profile.mustChangePassword)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in again before continuing in this workspace.');
+      if(stopped)return;
+      const latest={...sessionRef.current,permissions:profile.permissions};sessionRef.current=latest;setSession(latest);
       await synchronizeStore(opened,apiTransport.current!);
       await refresh();if(!stopped){setReady(true);setError('')};return;
     }
@@ -113,6 +123,9 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
    }
    await synchronizeStore(opened,{execute:command=>rpcRef.current('rpc/servos_v2_execute',{command}),pull:cursor=>rpcRef.current('rpc/servos_v2_pull',{after_sequence:cursor,page_size:100})});
    if(!stopped){const currentQueue=await opened.queue();const synchronized=currentQueue.filter(entry=>entry.state==='SYNCHRONIZED');const currentDrafts=await opened.drafts();for(const entry of synchronized){for(const draft of currentDrafts)if(draft.supersedes===entry.id)await opened.discardDraft(draft.id)}const countKey=`servos-web-count:${latest.businessId}:${latest.actorId}`;for(const entry of synchronized){if(entry.command.operation==='inventory.countLocation'&&entry.command.payload.sessionId===countKey){localStorage.removeItem(countKey);localStorage.removeItem(`${countKey}:unknown`)}if(!committedCommands.current.has(entry.id)){committedCommands.current.add(entry.id);setCommittedOperation({id:entry.id,operation:entry.command.operation})}}await refresh();setReady(true);setError('')}
+    }catch(error){
+      if(apiAuth&&error instanceof ApiHttpError&&(error.status===401||error.status===403)&&!stopped){setReady(false);setRecords([]);}
+      throw error;
     }finally{activeSyncCycles.current--;}
   };
   syncRef.current=run;

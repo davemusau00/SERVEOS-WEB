@@ -20,11 +20,12 @@ export const redactSensitiveData=(value:unknown):unknown=>Array.isArray(value)?v
 
 /** Staged v2 store. Enqueuing master edits does not claim an offline sale commit. */
 export class BusinessStore {
+  private closed=false;
   private constructor(private db:IDBDatabase,readonly scope:string,readonly deviceId:string,readonly actorId:string,readonly commandAuthority:CommandAuthority){}
   static async open(scope:string,deviceId:string,actorId:string,serverSequence=0,commandAuthority:CommandAuthority='SUPABASE'):Promise<BusinessStore>{
     if(!scope||!deviceId||!actorId||!Number.isSafeInteger(serverSequence)||serverSequence<0)throw new Error('Valid business, device, actor and sequence are required');
     const databaseName=commandAuthority==='API'?`servos-api-v1:${scope}:${deviceId}:${actorId}`:`servos-v2:${scope}:${deviceId}:${actorId}`;
-    const opening=indexedDB.open(databaseName,3);
+    const opening=indexedDB.open(databaseName,4);
     opening.onupgradeneeded=()=>{
       const db=opening.result;
       if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta');
@@ -34,18 +35,27 @@ export class BusinessStore {
       if(!db.objectStoreNames.contains('offlineGrants'))db.createObjectStore('offlineGrants',{keyPath:'grantId'});
       if(!db.objectStoreNames.contains('documents'))db.createObjectStore('documents',{keyPath:'id'});
       if(!db.objectStoreNames.contains('printJobs')){const jobs=db.createObjectStore('printJobs',{keyPath:'id'});jobs.createIndex('state','state',{unique:false});jobs.createIndex('createdAt','createdAt',{unique:false});}
+      if(!db.objectStoreNames.contains('printEvents')){const events=db.createObjectStore('printEvents',{keyPath:'id'});events.createIndex('jobId','jobId',{unique:false});}
     };
-    const db=await request(opening);db.onversionchange=()=>db.close();
+    const db=await new Promise<IDBDatabase>((resolve,reject)=>{
+      let abandoned=false;
+      opening.onblocked=()=>{abandoned=true;reject(new Error('A ServOS tab is blocking the browser storage upgrade. Finish its work, close other ServOS tabs, and reopen this workspace. Do not clear browser data.'))};
+      opening.onerror=()=>reject(opening.error||new Error('Browser storage could not be opened'));
+      opening.onsuccess=()=>{if(abandoned){opening.result.close();return}resolve(opening.result)};
+    });
     if(!['SUPABASE','API'].includes(commandAuthority)){db.close();throw new Error('Unsupported command authority')}
     const store=new BusinessStore(db,scope,deviceId,actorId,commandAuthority);
+    db.onversionchange=()=>{store.close();if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('servos:storage-closed',{detail:{reason:'UPGRADE'}}))};
+    db.onclose=()=>{store.closed=true;if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('servos:storage-closed',{detail:{reason:'INTERRUPTED'}}))};
     try{await store.transaction(['meta','queue'],'readwrite',async tx=>{
       const saved=await request(tx.objectStore('meta').get('sequence')) as number|undefined;
       if(saved===undefined)await request(tx.objectStore('meta').put(serverSequence,'sequence'));
       else if(serverSequence>saved)throw new Error('Device history is ahead of this browser. Reconcile storage before queueing changes.');
     });return store;}catch(error){db.close();throw error;}
   }
-  close(){this.db.close();}
+  close(){this.closed=true;this.db.close();}
   private async transaction<T>(stores:string[],mode:IDBTransactionMode,run:(tx:IDBTransaction)=>Promise<T>):Promise<T>{
+    if(this.closed)throw new Error('Browser storage is closed. Reopen this ServOS workspace before continuing; do not clear browser data.');
     const tx=this.db.transaction(stores,mode);
     const done=new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||new Error('Storage transaction aborted'));tx.onerror=()=>{ /* onabort owns transaction rejection */ }});
     // Attach immediately so a request failure cannot leave an unhandled abort promise.
@@ -92,7 +102,7 @@ export class BusinessStore {
     await this.transaction(['queue'],'readwrite',async tx=>{
       const entries=tx.objectStore('queue');const entry=await request(entries.get(result.commandId)) as QueuedCommand|undefined;
       if(!entry)throw new Error('Acknowledgement has no matching command');
-      if(entry.result&&JSON.stringify(entry.result)!==JSON.stringify(result))throw new Error('Server changed an acknowledged result');
+      if(entry.result&&stableJson(entry.result)!==stableJson(result))throw new Error('Server changed an acknowledged result');
       await request(entries.put({...entry,state:result.status,result}));
     });
   }
@@ -106,11 +116,17 @@ export class BusinessStore {
   async cursor():Promise<number>{return this.transaction(['meta'],'readonly',async tx=>(await request(tx.objectStore('meta').get('cursor')) as number|undefined)||0)}
   async policyVersion():Promise<string|undefined>{return this.transaction(['meta'],'readonly',tx=>request(tx.objectStore('meta').get('policyVersion')))}
   async replaceSnapshot(records:Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>,cursor:number,policyVersion:string){
-    if(!Number.isSafeInteger(cursor)||cursor<0||!policyVersion)throw new Error('Invalid authorized snapshot');
-    await this.transaction(['records','meta'],'readwrite',async tx=>{
+    if(!Array.isArray(records)||!Number.isSafeInteger(cursor)||cursor<0||!policyVersion)throw new Error('Invalid authorized snapshot');
+    await this.transaction(['records','meta','queue'],'readwrite',async tx=>{
+      const currentCursor=(await request(tx.objectStore('meta').get('cursor')) as number|undefined)||0;
+      if(cursor<currentCursor)throw new Error('Snapshot is older than this browser projection. Refresh from the current API authority.');
+      if(this.commandAuthority==='API'){
+        const queued=await request(tx.objectStore('queue').getAll()) as QueuedCommand[];
+        if(queued.some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN'))throw new Error('Recover saved API command outcomes before rebuilding this projection.');
+      }
       const target=tx.objectStore('records');await request(target.clear());
       for(const record of records){
-        if(!record.collection||!record.id||!Number.isSafeInteger(record.version)||record.version<1)throw new Error('Invalid snapshot record');
+        if(!record.collection||!record.id||!Number.isSafeInteger(record.version)||record.version<1||!record.data||typeof record.data!=='object'||Array.isArray(record.data)||typeof record.archived!=='boolean')throw new Error('Invalid snapshot record');
         await request(target.add(record));
       }
       await request(tx.objectStore('meta').put(cursor,'cursor'));
@@ -119,16 +135,20 @@ export class BusinessStore {
   }
   async drafts():Promise<WorkflowDraft[]>{return this.transaction(['drafts'],'readonly',tx=>request(tx.objectStore('drafts').getAll()))}
   async applyPage(page:ChangePage){
+    if(!page||!Array.isArray(page.changes)||typeof page.hasMore!=='boolean')throw new Error('Invalid change page');
+    if(page.highWater!==undefined&&(!Number.isSafeInteger(page.highWater)||page.highWater<page.cursor))throw new Error('Change page exceeds its authoritative high-water cursor');
+    if(page.highWater!==undefined&&page.hasMore!==(page.cursor<page.highWater))throw new Error('Change page continuation disagrees with its high-water cursor');
     await this.transaction(['records','meta'],'readwrite',async tx=>{
       const meta=tx.objectStore('meta');let cursor=(await request(meta.get('cursor')) as number|undefined)||0;
       if(!Number.isSafeInteger(page.cursor)||page.cursor<0)throw new Error('Invalid change cursor');
       if(page.cursor<cursor)return;
       const records=tx.objectStore('records');
       for(const change of page.changes){
+        if(!Number.isSafeInteger(change.sequence)||change.sequence<1||!Array.isArray(change.records)||typeof change.commandId!=='string'||!change.commandId)throw new Error('Invalid ordered change entry');
         if(change.sequence<=cursor)continue;
         if(change.sequence!==cursor+1)throw new Error('Change-feed sequence gap; page retained for retry');
         for(const record of change.records){
-          if(!record.collection||!record.id||!Number.isSafeInteger(record.version)||record.version<1)throw new Error('Invalid record version');
+          if(!record.collection||!record.id||!Number.isSafeInteger(record.version)||record.version<1||!record.data||typeof record.data!=='object'||Array.isArray(record.data)||typeof record.archived!=='boolean')throw new Error('Invalid record version or projection');
           const previous=await request(records.get([record.collection,record.id]));
           if(previous&&previous.version>=record.version)throw new Error('Non-increasing record version');
           await request(records.put(record));
@@ -142,16 +162,16 @@ export class BusinessStore {
   async records():Promise<Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>>{return this.transaction(['records'],'readonly',tx=>request(tx.objectStore('records').getAll()))}
   async hasPending():Promise<boolean>{return (await this.queue()).some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN')}
   async recoveryEvidence(){
-    return this.transaction(['records','queue','drafts','meta','documents','printJobs'],'readonly',async tx=>{
+    return this.transaction(['records','queue','drafts','meta','documents','printJobs','printEvents'],'readonly',async tx=>{
       const read=(name:string)=>request(tx.objectStore(name).getAll());
-      const [records,commands,drafts,documents,printJobs,cursor,sequence]=await Promise.all([
-        read('records'),read('queue'),read('drafts'),read('documents'),read('printJobs'),
+      const [records,commands,drafts,documents,printJobs,printEvents,cursor,sequence]=await Promise.all([
+        read('records'),read('queue'),read('drafts'),read('documents'),read('printJobs'),read('printEvents'),
         request(tx.objectStore('meta').get('cursor')),request(tx.objectStore('meta').get('sequence')),
       ]);
       return redactSensitiveData({format:'servos-recovery-evidence',version:1,exportedAt:new Date().toISOString(),
         businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId,authority:this.commandAuthority,
         purpose:'Reconciliation evidence only. Redacted payloads must not be replayed or imported as commands.',
-        cursor:cursor||0,sequence:sequence||0,records,commands,drafts,documents,printJobs});
+        cursor:cursor||0,sequence:sequence||0,records,commands,drafts,documents,printJobs,printEvents});
     });
   }
   async guidanceProgress():Promise<import('./session').WebGuidanceProgress[]>{
@@ -218,20 +238,22 @@ export class BusinessStore {
   async businessDocuments():Promise<LocalBusinessDocument[]>{return this.transaction(['documents'],'readonly',tx=>request(tx.objectStore('documents').getAll()))}
   async enqueuePrintJob(job:Omit<LocalPrintJob,'state'|'createdAt'|'updatedAt'|'attempt'>):Promise<LocalPrintJob>{
     if(!job.id||!job.documentId||!job.printerRole||!Number.isSafeInteger(job.copies)||job.copies<1||job.copies>5)throw new Error('Print job request is invalid');
-    return this.transaction(['printJobs','documents'],'readwrite',async tx=>{
+    return this.transaction(['printJobs','documents','printEvents'],'readwrite',async tx=>{
       if(!await request(tx.objectStore('documents').get(job.documentId)))throw new Error('Print job must reference an issued BusinessDocument');
       const jobs=tx.objectStore('printJobs');const old=await request(jobs.get(job.id)) as LocalPrintJob|undefined;
       if(old){if(old.documentId!==job.documentId||old.printerRole!==job.printerRole||old.copies!==job.copies)throw new Error('Print job ID is already bound to a different document request');return old;}
-      const now=new Date().toISOString();const next:LocalPrintJob={...job,state:'QUEUED',createdAt:now,updatedAt:now,attempt:0};await request(jobs.add(next));return next;
+      const now=new Date().toISOString();const next:LocalPrintJob={...job,state:'QUEUED',createdAt:now,updatedAt:now,attempt:0};await request(jobs.add(next));
+      await request(tx.objectStore('printEvents').add({id:crypto.randomUUID(),jobId:job.id,documentId:job.documentId,fromState:null,toState:'QUEUED',attempt:0,actorId:this.actorId,deviceId:this.deviceId,occurredAt:now}));return next;
     });
   }
   async transitionPrintJob(id:string,state:LocalPrintState,confirmedPossibleDuplicate=false,errorCode?:string):Promise<LocalPrintJob>{
-    return this.transaction(['printJobs'],'readwrite',async tx=>{
+    return this.transaction(['printJobs','printEvents'],'readwrite',async tx=>{
       const jobs=tx.objectStore('printJobs');const current=await request(jobs.get(id)) as LocalPrintJob|undefined;if(!current)throw new Error('Print job was not found');
       const allowed:Record<LocalPrintState,LocalPrintState[]>={QUEUED:['SENDING','CANCELLED'],SENDING:['SENT_TO_SPOOLER','DELIVERY_UNCERTAIN','FAILED'],SENT_TO_SPOOLER:[],DELIVERY_UNCERTAIN:['SENDING','CANCELLED'],FAILED:['SENDING','CANCELLED'],CANCELLED:[]};
       if(!allowed[current.state].includes(state))throw new Error(`Invalid print transition ${current.state} to ${state}`);
       if(current.state==='DELIVERY_UNCERTAIN'&&state==='SENDING'&&!confirmedPossibleDuplicate)throw new Error('Confirm the document may already have printed before retrying');
-      const next={...current,state,updatedAt:new Date().toISOString(),attempt:current.attempt+(state==='SENDING'?1:0),...(errorCode?{errorCode}:{})};await request(jobs.put(next));return next;
+      const next={...current,state,updatedAt:new Date().toISOString(),attempt:current.attempt+(state==='SENDING'?1:0),...(errorCode?{errorCode}:{})};await request(jobs.put(next));
+      await request(tx.objectStore('printEvents').add({id:crypto.randomUUID(),jobId:id,documentId:current.documentId,fromState:current.state,toState:state,attempt:next.attempt,actorId:this.actorId,deviceId:this.deviceId,occurredAt:next.updatedAt,confirmedPossibleDuplicate,errorCode:errorCode||null}));return next;
     });
   }
   async printJobs():Promise<LocalPrintJob[]>{return this.transaction(['printJobs'],'readonly',tx=>request(tx.objectStore('printJobs').getAll()))}

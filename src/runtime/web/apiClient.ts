@@ -38,7 +38,7 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
    if(!response.ok){const body=await response.json().catch(()=>({}));throw new ApiHttpError(response.status,body?.error?.code||'SETUP_FAILED',body?.error?.message||'Initial setup failed.')}return response.json() as Promise<{created:true}>;
   },
   passwordChange(currentPassword:string,newPassword:string){return request<{changed:boolean}>('/v1/auth/password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})},false)},
-  authSession(){return request<{businessId:string;staffId:string;displayName:string;permissions:string[];mustChangePassword:boolean}>('/v1/auth/session')},
+  authSession(){return request<{businessId:string;staffId:string;displayName:string;permissions:string[];mustChangePassword:boolean}>('/v1/auth/session',{},false)},
   logout(){return request<{revoked:boolean}>('/v1/auth/logout',{method:'POST'},false)},
   async submitCommand(command:ApiCommandEnvelope):Promise<ApiCommandOutcome>{
    try{return await request<ApiCommandOutcome>('/v1/commands',{method:'POST',body:JSON.stringify(command)})}

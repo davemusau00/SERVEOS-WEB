@@ -126,7 +126,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if (req.method === 'POST' && url.pathname === '/v1/devices/enrollment-challenges') {
         const actor = await authenticateUnenrolledStaffSession(req, store);
         if(actor.mustChangePassword)throw new ApiProblem(403,'PASSWORD_CHANGE_REQUIRED','Change the initial password before enrolling this device.');
-        if (!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll this device.');
+        if (!actor.permissions?.includes('*')&&!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll this device.');
         const issuedAt = new Date();
         const challengeId = randomUUID();
         const challenge = randomBytes(32).toString('hex');
@@ -135,7 +135,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if (req.method === 'POST' && url.pathname === '/v1/devices/enroll') {
         const actor = await authenticateUnenrolledStaffSession(req, store);
         if(actor.mustChangePassword)throw new ApiProblem(403,'PASSWORD_CHANGE_REQUIRED','Change the initial password before enrolling this device.');
-        if (!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll this device.');
+        if (!actor.permissions?.includes('*')&&!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll this device.');
         const input = await readJson(req);
         const {challengeId, deviceId, publicKey, signature} = input;
         const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
