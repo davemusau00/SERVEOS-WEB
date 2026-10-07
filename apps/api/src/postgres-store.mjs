@@ -1,3 +1,4 @@
+import {goodsReceiptProjections} from './goods-receipt-projections.mjs';
 import {purchaseOrderProjections} from './purchase-order-commands.mjs';
 import {supplierProjections} from './supplier-commands.mjs';
 import {refundProjections} from './refund-commands.mjs';
@@ -131,9 +132,11 @@ export class PostgresStore {
     const closeDays=await closeDayProjections(db,businessId);
     const suppliers=await supplierProjections(db,businessId);
     const purchaseOrders=await purchaseOrderProjections(db,businessId);
+    const goodsReceipts=await goodsReceiptProjections(db,businessId);
     return [
       ...suppliers,
       ...purchaseOrders,
+      ...goodsReceipts,
       ...orders,
       ...documents,
       ...tills,
@@ -443,8 +446,8 @@ class PostgresTransaction {
   async saveInventoryPolicy({businessId,allowDirectReceipts,requireSupplierReference,requirePurchaseOrder,version,staffId,at}){
     await this.client.query(`INSERT INTO business_inventory_policy(business_id,allow_direct_receipts,require_supplier_reference,require_purchase_order,version,updated_by,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(business_id) DO UPDATE SET allow_direct_receipts=EXCLUDED.allow_direct_receipts,require_supplier_reference=EXCLUDED.require_supplier_reference,require_purchase_order=EXCLUDED.require_purchase_order,version=EXCLUDED.version,updated_by=EXCLUDED.updated_by,updated_at=EXCLUDED.updated_at`,[businessId,allowDirectReceipts,requireSupplierReference,requirePurchaseOrder,version,staffId,at]);
   }
-  async insertInventoryReceipt({businessId,id,stockItemId,locationId,sourceKey,sourceDocument,pack,quantity,baseQuantity,totalCostMinor,unitCostMinor,beforeCost,afterCost,sealed,open,commandId,staffId,at}){
-    await this.client.query(`INSERT INTO inventory_receipts(business_id,id,stock_item_id,location_id,source_key,source_document,purchase_package_id,purchase_package_snapshot,quantity_received,base_quantity,total_cost_minor,unit_cost_minor,before_average_cost_minor,after_average_cost_minor,received_sealed_containers,received_open_quantity,source_command_id,received_by,received_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,[businessId,id,stockItemId,locationId,sourceKey,JSON.stringify(sourceDocument),pack?.id??null,pack?JSON.stringify(pack):null,quantity,baseQuantity,totalCostMinor,unitCostMinor,beforeCost,afterCost,sealed,open,commandId,staffId,at]);
+  async insertInventoryReceipt({businessId,id,stockItemId,locationId,sourceKey,sourceDocument,pack,quantity,baseQuantity,totalCostMinor,unitCostMinor,beforeCost,afterCost,sealed,open,commandId,staffId,at,sourceLineId=null}){
+    await this.client.query(`INSERT INTO inventory_receipts(business_id,id,stock_item_id,location_id,source_key,source_document,purchase_package_id,purchase_package_snapshot,quantity_received,base_quantity,total_cost_minor,unit_cost_minor,before_average_cost_minor,after_average_cost_minor,received_sealed_containers,received_open_quantity,source_command_id,received_by,received_at,source_line_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,[businessId,id,stockItemId,locationId,sourceKey,JSON.stringify(sourceDocument),pack?.id??null,pack?JSON.stringify(pack):null,quantity,baseQuantity,totalCostMinor,unitCostMinor,beforeCost,afterCost,sealed,open,commandId,staffId,at,sourceLineId]);
   }
   async inventoryReceiptProjection(businessId,id){
     const {rows}=await this.client.query(`SELECT ${receiptColumns} FROM inventory_receipts WHERE business_id=$1 AND id=$2`,[businessId,id]);

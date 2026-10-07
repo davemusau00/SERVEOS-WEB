@@ -733,3 +733,11 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Extracted the existing reviewed-balance check and inventory receipt posting into shared transaction primitives. Direct inventory receiving retains its policy/source validation and delegates the same physical bottle, quantity-limit, weighted valuation, stock-version and movement writes.
 - The posting primitive accepts frozen purchase-unit inputs and stays inside the caller transaction, preparing GRN receiving to reuse canonical inventory semantics rather than create a parallel stock path. It is not registered as a command or independent authority boundary.
 - No tests, builds, migrations or runtime execution ran. Multi-line receipt evidence/schema, GRN command/UI, partial/rejected/over-receive behavior and reconciliation still require implementation and deferred acceptance.
+
+
+## Final sprint continuation - GRN evidence and multi-line posting schema (source only)
+
+- Added migration 039 for immutable GRN headers/lines, per-PO delivery-reference uniqueness, accepted/rejected conservation and accepted-line inventory receipt links. Rejected-only lines require no stock receipt; accepted lines require linked inventory evidence.
+- Extended receipt command uniqueness to preserve one direct receipt per command while permitting distinct accepted GRN lines within one atomic command. Canonical posting passes the source line identity to storage.
+- PO projections now derive cumulative delivered/accepted/rejected quantities from immutable GRN lines. Permission-filtered goods-receipt projections join bootstrap.
+- No migrations, tests, builds or runtime execution ran. GRN validation/command/UI, over-receive permissions, immutable documents and financial posting remain unfinished.
