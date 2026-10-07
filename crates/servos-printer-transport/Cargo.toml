@@ -1,0 +1,9 @@
+[package]
+name = "servos-printer-transport"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+base64 = "0.22"
+serde_json = "1"
