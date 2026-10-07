@@ -1701,3 +1701,9 @@ The sprint ends with a production system, not with a large diff.
 - Added migration 055 with a per-customer immutable entry sequence, historically backfilled in posting order. Added a bounded authenticated statement-page endpoint with a stable high-water cursor and running balances; the API PWA can refresh and load older pages.
 - POS now reads the customer credit account's authoritative projected balance instead of deriving it from the bounded recent-entry bootstrap. Credit-only staff are permitted to load the API bootstrap.
 - Tests, builds, migration execution, API requests and browser behavior remain deferred and unverified. Manager approval step-up remains outstanding.
+
+### API manager approvals (source only; migration unapplied)
+
+- Added migration 056 for hashed, five-minute, single-use approvals bound to recipient staff, action and exact target. Issuance is limited to an active Admin/Manager; consumption and its audit event occur in the same command transaction as the approved action.
+- Registered `managerApproval.issue` in the API and added API-mode PWA issuance. Customer credit limit exceptions and order discounts/comps now require an approval token when the operator lacks the corresponding elevated permission; write-off also accepts delegated approval. POS now collects the approval token for an over-limit credit charge.
+- This remains source-only. Approval-token handling in command result/outbox persistence, the API Admin/Manager setup path, migration execution, tests, authorization abuse cases and PWA workflows remain unverified.

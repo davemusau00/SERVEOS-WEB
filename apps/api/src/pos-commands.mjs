@@ -7,6 +7,7 @@ import {consumptionSnapshot,consumePhysical} from './pos-inventory.mjs';
 import {ApiProblem} from './command-kernel.mjs';
 import {weightedCostRate} from './inventory-costs.mjs';
 import {priceLine} from './pos-pricing.mjs';
+import {requireManagerApproval} from './manager-approvals.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
@@ -308,6 +309,8 @@ const voidOrder=async({tx,command,actor,at})=>{
 
 const reprice=kind=>async({tx,command,actor,at})=>{
  const p=command.payload;await editable(tx,command,actor,p.orderId);
+ const permission=kind==='discount'?'order.discount':'order.comp';
+ const approval=await requireManagerApproval({tx,actor,at,token:p.approvalToken,permission,target:p.orderId,command});
  if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.trim().length>500)fail('Explain the price adjustment in 3 to 500 characters.');
  if(kind==='discount'&&(!Number.isInteger(p.percentBasisPoints)||p.percentBasisPoints<1||p.percentBasisPoints>10000))fail('Discount must be greater than zero and at most 100 percent with two decimals.');
  if(kind==='compItem'&&!uuid(p.itemId))fail('Choose the exact line to comp.');
@@ -321,7 +324,7 @@ const reprice=kind=>async({tx,command,actor,at})=>{
   await tx.client.query(`UPDATE pos_order_lines SET gross_minor=$4,discount_minor=$5,line_total_minor=$6,net_minor=$7,vat_minor=$8,levy_minor=$9,discount_basis_points=$10,comped=$11,comp_reason=$12,pricing_reason=$13,updated_at=$14 WHERE business_id=$1 AND order_id=$2 AND id=$3`,[actor.businessId,p.orderId,line.id,price.grossMinor,price.discountMinor,price.lineTotalMinor,price.netMinor,price.vatMinor,price.levyMinor,bps,comped,comped?p.reason.trim():null,p.reason.trim(),at]);
   evidence.push({lineId:line.id,before:{grossMinor:line.grossMinor,discountMinor:line.discountMinor,lineTotalMinor:line.lineTotalMinor,discountBasisPoints:line.discountBasisPoints,comped:line.comped},after:{...price,discountBasisPoints:bps,comped}});
  }
- return finish(tx,command,actor,at,p.orderId,{reason:p.reason.trim(),adjustments:evidence,stockUnchanged:true});
+ return finish(tx,command,actor,at,p.orderId,{reason:p.reason.trim(),adjustments:evidence,managerApproval:approval,stockUnchanged:true});
 };
 
 const repeatRound=async({tx,command,actor,at})=>{
@@ -365,9 +368,9 @@ export const posCommandRegistry=new Map([
 posCommandRegistry.set('order.fire',{permission:'order.fire',offlinePolicy:'ONLINE_ONLY',handler:fire});
 posCommandRegistry.set('order.void',{permission:'order.void',offlinePolicy:'ONLINE_ONLY',handler:voidOrder});
 
-posCommandRegistry.set('order.discount',{permission:'order.discount',offlinePolicy:'ONLINE_ONLY',handler:reprice('discount')});
-posCommandRegistry.set('order.compItem',{permission:'order.comp',offlinePolicy:'ONLINE_ONLY',handler:reprice('compItem')});
-posCommandRegistry.set('order.comp',{permission:'order.comp',offlinePolicy:'ONLINE_ONLY',handler:reprice('comp')});
+posCommandRegistry.set('order.discount',{permission:'order.discount',approvalPermission:'order.discount',offlinePolicy:'ONLINE_ONLY',handler:reprice('discount')});
+posCommandRegistry.set('order.compItem',{permission:'order.comp',approvalPermission:'order.comp',offlinePolicy:'ONLINE_ONLY',handler:reprice('compItem')});
+posCommandRegistry.set('order.comp',{permission:'order.comp',approvalPermission:'order.comp',offlinePolicy:'ONLINE_ONLY',handler:reprice('comp')});
 
 posCommandRegistry.set('order.kds',{permission:'kds.update',offlinePolicy:'ONLINE_ONLY',handler:preparation});
 

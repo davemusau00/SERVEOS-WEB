@@ -5,6 +5,7 @@ import {documentHash} from './business-documents.mjs';
 import {queueDocumentPrint} from './print-commands.mjs';
 import {orderProjection} from './pos-commands.mjs';
 import {requireOpenTill,tillSessionProjection} from './till-commands.mjs';
+import {requireManagerApproval} from './manager-approvals.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
@@ -75,10 +76,11 @@ const charge=async({tx,command,actor,at})=>{
  const balance=Number(balanceRows[0].balance),limit=Number(account.limitMinor);
  if(!Number.isSafeInteger(balance)||!Number.isSafeInteger(limit)||!Number.isSafeInteger(balance+p.amountMinor))throw new ApiProblem(409,'CREDIT_BALANCE_RECONCILIATION_REQUIRED','Customer credit balance or limit exceeds supported amounts. Reconcile before charging.');
  const overLimit=balance+p.amountMinor>limit;
+ let limitOverride=null;
  if(overLimit){
-  if(!actor.permissions.includes('*')&&!actor.permissions.includes('credit.override_limit'))throw new ApiProblem(409,'CREDIT_LIMIT_EXCEEDED','The charge exceeds the configured credit limit. A manager with credit.override_limit must review it.');
   if(p.limitOverrideConfirmed!==true||typeof p.limitOverrideReason!=='string'||p.limitOverrideReason.trim().length<3||p.limitOverrideReason.trim().length>500||/[\u0000-\u001f\u007f]/u.test(p.limitOverrideReason))fail('Manager override requires an explicit confirmation and a reason from 3 to 500 characters.');
- }else if(p.limitOverrideConfirmed!==undefined||p.limitOverrideReason!==undefined)fail('Remove the manager override fields when the charge fits the configured limit.');
+  limitOverride=await requireManagerApproval({tx,actor,at,token:p.approvalToken,permission:'credit.override_limit',target:p.customerId,command});
+ }else if(p.limitOverrideConfirmed!==undefined||p.limitOverrideReason!==undefined||p.approvalToken!==undefined)fail('Remove manager override fields when the charge fits the configured limit.');
  const {rows:priorCharges}=await tx.client.query(`SELECT 1 FROM customer_credit_entries WHERE business_id=$1 AND order_id=$2 AND kind='CHARGE' LIMIT 1`,[actor.businessId,p.orderId]);
  if(priorCharges.length)throw new ApiProblem(409,'ORDER_ALREADY_CREDITED','This order already has a customer credit charge. Reconcile the original entry before continuing.');
  const accountVersion=await tx.bumpEntityVersion(actor.businessId,'customerCreditAccounts',p.customerId,reviewedAccount);
@@ -90,7 +92,7 @@ const charge=async({tx,command,actor,at})=>{
  const entry={id:p.id,customerId:p.customerId,kind:'CHARGE',amountMinor:p.amountMinor,balanceDeltaMinor:p.amountMinor,orderId:p.orderId,dueAt:dueAt.toISOString(),paymentMethod:null,reference:String(order.data.name||p.orderId).slice(0,160),allocations:[],reversesEntryId:null,reason:String(p.reason||'').trim(),actorId:actor.staffId,deviceId:actor.deviceId,sourceCommandId:command.commandId,occurredAt:at.toISOString()};
  await tx.client.query(`INSERT INTO customer_credit_entries(business_id,id,customer_id,kind,balance_delta_minor,amount_minor,order_id,due_at,reference,allocations,reason,actor_id,device_id,source_command_id,occurred_at) VALUES($1,$2,$3,'CHARGE',$4,$5,$6,$7,$8,'[]'::jsonb,$9,$10,$11,$12,$13)`,[actor.businessId,entry.id,entry.customerId,entry.balanceDeltaMinor,entry.amountMinor,entry.orderId,dueAt,entry.reference,entry.reason,actor.staffId,actor.deviceId,command.commandId,at]);
  const lines=[{code:'ASSET_CUSTOMER_AR',debitMinor:p.amountMinor,creditMinor:0},...Object.entries({REVENUE_SALES:allocation.netMinor,LIABILITY_VAT:allocation.vatMinor,LIABILITY_LEVY:allocation.levyMinor}).filter(([,minor])=>minor>0).map(([code,minor])=>({code,debitMinor:0,creditMinor:minor}))];
- const journal=await postCustomerCreditJournal(tx,{actor,command,at,entry,sourceType:'CUSTOMER_CREDIT_CHARGE',lines,basisSnapshot:{policyVersion:1,rounding:'CUMULATIVE_REMAINING_TENDER_BASIS',orderId:p.orderId,orderVersion,customerId:p.customerId,paidBeforeMinor:order.data.amountPaidMinor,creditedBeforeMinor:order.data.amountCreditedMinor,amountMinor:p.amountMinor,allocation,accountVersion,creditLimitMinor:limit,balanceBeforeMinor:balance,balanceAfterMinor:balance+p.amountMinor,limitOverride:overLimit?{approvedBy:actor.staffId,reason:p.limitOverrideReason.trim()}:null}});
+ const journal=await postCustomerCreditJournal(tx,{actor,command,at,entry,sourceType:'CUSTOMER_CREDIT_CHARGE',lines,basisSnapshot:{policyVersion:1,rounding:'CUMULATIVE_REMAINING_TENDER_BASIS',orderId:p.orderId,orderVersion,customerId:p.customerId,paidBeforeMinor:order.data.amountPaidMinor,creditedBeforeMinor:order.data.amountCreditedMinor,amountMinor:p.amountMinor,allocation,accountVersion,creditLimitMinor:limit,balanceBeforeMinor:balance,balanceAfterMinor:balance+p.amountMinor,limitOverride:limitOverride?{...limitOverride,reason:p.limitOverrideReason.trim()}:null}});
  const credited=order.data.amountCreditedMinor+p.amountMinor,complete=order.data.amountPaidMinor+credited===order.data.grandTotalMinor;
  await tx.client.query(`UPDATE pos_orders SET amount_credited_minor=$3,state=$4,version=$5,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,credited,complete?'COMPLETED':'FIRED',orderVersion,at]);
  await tx.client.query(`INSERT INTO pos_order_events(business_id,id,order_id,order_version,event_type,event_data,command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,[actor.businessId,randomUUID(),p.orderId,orderVersion,command.name,JSON.stringify({customerId:p.customerId,creditEntryId:entry.id,amountMinor:p.amountMinor,completed:complete}),command.commandId,actor.staffId,actor.deviceId,at]);
@@ -187,11 +189,11 @@ const settle=async({tx,command,actor,at})=>{
 };
 
 const writeOff=async({tx,command,actor,at})=>{
- if(!actor.permissions.includes('*')&&!actor.permissions.includes('credit.write_off'))throw new ApiProblem(403,'PERMISSION_DENIED','Customer credit write-off permission is required.');
  const p=command.payload;if(!uuid(p.id)||!uuid(p.customerId))fail('Choose a customer and a write-off identity.');
  const expected=command.expectedVersions[`customerCreditAccounts:${p.customerId}`];if(!Number.isSafeInteger(expected)||expected<1)fail('Review the current customer credit account revision.');
  if(!Number.isSafeInteger(p.amountMinor)||p.amountMinor<=0)fail('Write-off must be a positive amount in minor currency units.');
  if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.trim().length>500||/[\u0000-\u001f\u007f]/u.test(p.reason))fail('Write-off reason must be 3 to 500 characters.');
+ const approval=await requireManagerApproval({tx,actor,at,token:p.approvalToken,permission:'credit.write_off',target:p.customerId,command});
  await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`customer-credit:${actor.businessId}:${p.customerId}`]);
  const {rows:accountRows}=await tx.client.query(`SELECT status,version FROM customer_credit_accounts WHERE business_id=$1 AND customer_id=$2 FOR UPDATE`,[actor.businessId,p.customerId]);
  if(!accountRows.length||Number(accountRows[0].version)!==expected)throw new ApiProblem(409,'VERSION_CONFLICT','Customer credit terms or balance changed. Review the account before writing off debt.');
@@ -203,7 +205,7 @@ const writeOff=async({tx,command,actor,at})=>{
  const {rows:customerRows}=await tx.client.query(`SELECT name FROM business_customers WHERE business_id=$1 AND id=$2`,[actor.businessId,p.customerId]);
  const entry={id:p.id,customerId:p.customerId,kind:'WRITE_OFF',amountMinor:p.amountMinor,balanceDeltaMinor:-p.amountMinor,orderId:null,dueAt:null,paymentMethod:null,reference:`WO-${command.commandId}`,allocations,reversesEntryId:null,reason:p.reason.trim(),actorId:actor.staffId,deviceId:actor.deviceId,sourceCommandId:command.commandId,occurredAt:at.toISOString()};
  await tx.client.query(`INSERT INTO customer_credit_entries(business_id,id,customer_id,kind,balance_delta_minor,amount_minor,reference,allocations,reason,actor_id,device_id,source_command_id,occurred_at) VALUES($1,$2,$3,'WRITE_OFF',$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12)`,[actor.businessId,entry.id,entry.customerId,entry.balanceDeltaMinor,entry.amountMinor,entry.reference,JSON.stringify(allocations),entry.reason,actor.staffId,actor.deviceId,command.commandId,at]);
- const journal=await postCustomerCreditJournal(tx,{actor,command,at,entry,sourceType:'CUSTOMER_CREDIT_WRITE_OFF',lines:[{code:'EXPENSE_BAD_DEBT',debitMinor:p.amountMinor,creditMinor:0},{code:'ASSET_CUSTOMER_AR',debitMinor:0,creditMinor:p.amountMinor}],basisSnapshot:{policyVersion:1,customerId:p.customerId,accountVersion:version,balanceBeforeMinor:balance,balanceAfterMinor:balance-p.amountMinor,amountMinor:p.amountMinor,allocations,reason:entry.reason}});
+ const journal=await postCustomerCreditJournal(tx,{actor,command,at,entry,sourceType:'CUSTOMER_CREDIT_WRITE_OFF',lines:[{code:'EXPENSE_BAD_DEBT',debitMinor:p.amountMinor,creditMinor:0},{code:'ASSET_CUSTOMER_AR',debitMinor:0,creditMinor:p.amountMinor}],basisSnapshot:{policyVersion:1,customerId:p.customerId,accountVersion:version,balanceBeforeMinor:balance,balanceAfterMinor:balance-p.amountMinor,amountMinor:p.amountMinor,allocations,reason:entry.reason,managerApproval:approval}});
  const account=(await customerCreditAccountProjections(tx.client,actor.businessId,[p.customerId]))[0],projectedEntry=(await customerCreditEntryProjections(tx.client,actor.businessId,[p.id]))[0],documentId=randomUUID(),documentNumber=`WO-${command.commandId}`;
  const snapshot={customer:{id:p.customerId,name:customerRows[0]?.name??p.customerId},entryId:p.id,amountMinor:p.amountMinor,balanceBeforeMinor:balance,balanceAfterMinor:balance-p.amountMinor,allocations,reason:entry.reason,recordedBy:actor.staffId,recordedAt:at.toISOString(),notice:'This is an accounts-receivable write-off. It is not a cash refund or customer payment.'};
  const hash=documentHash(snapshot);await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'CUSTOMER_CREDIT_WRITE_OFF_NOTICE',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,documentId,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
@@ -292,6 +294,6 @@ export const customerCreditCommandRegistry=new Map([
  ['customerCredit.configure',{permission:'credit.manage',offlinePolicy:'ONLINE_ONLY',handler:configure}],
  ['credit.charge',{permission:'credit.charge',offlinePolicy:'ONLINE_ONLY',handler:charge}],
  ['credit.settle',{permission:'credit.settle',offlinePolicy:'ONLINE_ONLY',handler:settle}],
- ['credit.writeOff',{permission:'credit.write_off',offlinePolicy:'ONLINE_ONLY',handler:writeOff}],
+ ['credit.writeOff',{permission:'credit.write_off',approvalPermission:'credit.write_off',offlinePolicy:'ONLINE_ONLY',handler:writeOff}],
  ['credit.reverse',{permission:'credit.write_off',offlinePolicy:'ONLINE_ONLY',handler:reverse}],
 ]);

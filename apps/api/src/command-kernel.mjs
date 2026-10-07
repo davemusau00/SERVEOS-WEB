@@ -83,7 +83,8 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
     throw error;
   };
   if(!definition)return terminalFailure(new ApiProblem(404,'UNKNOWN_COMMAND','This command is not available on this API version.'));
-  if(!actor.permissions?.includes('*')&&!(definition.permissionAny??[definition.permission]).some(permission=>actor.permissions?.includes(permission)))return terminalFailure(new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to perform this action.'));
+  const managerApprovalProvided=typeof command.payload.approvalToken==='string'&&command.payload.approvalToken.length>0;
+  if(!actor.permissions?.includes('*')&&!(definition.permissionAny??[definition.permission]).some(permission=>actor.permissions?.includes(permission))&&!(definition.approvalPermission&&managerApprovalProvided))return terminalFailure(new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to perform this action.'));
   if(definition.offlinePolicy==='ONLINE_ONLY'&&command.offlineGrantId)return terminalFailure(new ApiProblem(403,'OFFLINE_NOT_ALLOWED','This action must be performed while connected.'));
   await db.setCommandProcessing?.(actor.businessId,command.commandId,now());
   try {
