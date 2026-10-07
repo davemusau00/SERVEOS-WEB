@@ -177,7 +177,8 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
   const inspectWaiting=()=>{void navigator.serviceWorker.getRegistration().then(registration=>{
    if(stopped)return;
    if(registration?.waiting)setUpdateReady(true);
-   if(updateHold.current&&registration?.active===updateBoundaryWorker.current&&registration.active.state==='activated'&&!registration.waiting)window.location.reload();
+   const activeWorker=registration?.active;
+   if(updateHold.current&&activeWorker&&activeWorker===updateBoundaryWorker.current&&activeWorker.state==='activated'&&!registration?.waiting)window.location.reload();
   }).catch(error=>{if(!stopped)setError(operatorError(error))})};
   inspectWaiting();
   const visible=()=>{if(document.visibilityState==='visible')inspectWaiting()};
