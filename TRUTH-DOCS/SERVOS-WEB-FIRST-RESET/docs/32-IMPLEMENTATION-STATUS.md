@@ -634,3 +634,26 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added bounded PNG decoding for immutable logo and uploaded QR images, rejecting animation, invalid format and excessive compressed/decoded dimensions. Both images use the same alpha-on-white monochrome raster pipeline and retained transport validation.
 - Financial renderers now carry snapshot images into encoding. QR remains square, uses nearest-neighbor scaling without cropping, and prints the required caption before the immutable custom footer. Added an explicit validated footer boundary to standalone document encoding; frozen Tauri source remains unchanged.
 - No dependency resolution, compilation, tests or hardware execution ran. PNG resource-limit behavior, raster fidelity, scaled QR scanning, footer placement and physical printer acceptance require final verification; financial PWA enablement remains pending.
+
+
+## Final sprint continuation - sales receipt bridge layout and financial submission (source only)
+
+- Added immutable sales receipt layout with fired item identities/quantities, frozen portions/modifiers, discounts/comps, notes, cashier, tax totals, tenders/manual external-payment confirmation and zero-payment truthfulness.
+- Checks reconcile issued line/tax/discount/tender totals before encoding; it does not recompute prices or tax policy. Reused tender formatting with payment acknowledgements.
+- Enabled sales/payment/refund bridge selection in PWA document queues now that financial image encoding is connected. Close-day reports still require a dedicated renderer; unsupported documents retain browser fallback.
+- No tests, compilation, dependency resolution, runtime or printer execution ran. Shared browser/native layout parity, multiline branding, schema edge cases, physical QR/receipt acceptance and installation remain final gates.
+
+
+## Final sprint continuation - close-day bridge report and Unicode transport safety (source only)
+
+- Added office-role close-day rendering for issued till-session settlement/collection bases, tenders, revenue/tax allocations, signed drawer variance, review reasons and generation-time business diagnostics. Sales and collections remain explicitly distinct; unavailable credit/folio exposure is stated.
+- Enabled close-day bridge submission with immutable logo and no payment QR. Issued settled-tax totals and counted/expected/variance relationships are checked before transport.
+- Standalone document transport now applies ASCII fallback before legacy byte-indexed wrapping, preventing non-ASCII text from panicking at UTF-8 boundaries. Frozen Tauri source remains unchanged.
+- No tests, compilation, runtime or printer execution ran. Multiline branding/layout parity, complete source acceptance, installer/TLS and physical report/receipt/QR checks remain deferred gates.
+
+
+## Final sprint continuation - financial snapshot parity corrections (source only)
+
+- Added explicit bounded multiline handling for issued addresses and footers, preserving LF/CRLF while rejecting stray carriage returns and printer control codes. Financial and close-day layouts now preserve those business settings.
+- Financial tender rendering checks issued cash tender/change reconciliation and supported payment origins. External payments remain explicitly cashier-confirmed; unknown provider origins are refused rather than rendered as success. Refund method is now required and validated.
+- Updated standalone transport provenance for custom footer boundaries and ASCII-before-wrap handling. No tests, builds, runtime or hardware execution ran; renderer parity and physical acceptance remain deferred.

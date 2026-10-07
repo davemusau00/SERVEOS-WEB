@@ -18,3 +18,7 @@ pub mod config;
 pub mod financial_rendering;
 
 pub mod images;
+
+pub mod close_day_rendering;
+
+pub mod document_text;

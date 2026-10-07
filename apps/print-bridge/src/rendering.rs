@@ -64,7 +64,8 @@ pub fn prepare_preparation_ticket(input:&ValidatedAction)->Result<PreparedDocume
 pub fn prepare_document(input:&ValidatedAction)->Result<PreparedDocument,String>{
  let kind=match input.action(){BridgeAction::Submit{document,..}=>document.document_type.as_str(),_=>return Err("Rendering requires submit".into())};
  match kind{
-  "PAYMENT_ACKNOWLEDGEMENT"|"REFUND_RECEIPT"=>crate::financial_rendering::prepare_financial_document(input),
+  "CLOSE_DAY_REPORT"=>crate::close_day_rendering::prepare_close_day(input),
+  "SALES_RECEIPT"|"PAYMENT_ACKNOWLEDGEMENT"|"REFUND_RECEIPT"=>crate::financial_rendering::prepare_financial_document(input),
   "KOT"|"BOT"=>prepare_preparation_ticket(input),
   "KOT_CANCEL"|"BOT_CANCEL"|"ORDER_VOID_NOTICE"=>prepare_void_notice(input),
   _=>Err("This document needs a dedicated bridge renderer; use browser fallback".into()),

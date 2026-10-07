@@ -41,7 +41,9 @@ pub fn encode_document_at_footer(lines:&[String],footer:usize,logo:Option<&Value
 
 fn append_text(bytes:&mut Vec<u8>,lines:&[String],profile:&PrinterProfile){
  for line in lines{
-  for wrapped in native_transport::wrap_line(line,profile.columns){
+  // Normalize before byte-indexed legacy wrapping so UTF-8 boundaries cannot panic.
+  let ascii:String=line.chars().map(|character|if character.is_ascii(){character}else{'?'}).collect();
+  for wrapped in native_transport::wrap_line(&ascii,profile.columns){
    bytes.extend(wrapped.chars().map(|character|if character.is_ascii(){character as u8}else{b'?'}));
    bytes.push(b'\n');
   }
