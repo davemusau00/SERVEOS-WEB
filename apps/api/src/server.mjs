@@ -133,7 +133,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if(req.method==='POST'&&url.pathname==='/v1/auth/refresh'){
         if(!origin||req.headers.origin!==origin)throw new ApiProblem(403,'ORIGIN_DENIED','Refresh requires the registered application origin.');
-        const oldRefreshToken=cookieValue(req,REFRESH_COOKIE);if(!/^[A-Za-z0-9_-]{40,100}$/.test(oldRefreshToken))throw new ApiProblem(401,'REFRESH_REQUIRED','Sign in again to continue.');
+        const oldRefreshToken=cookieValue(req,REFRESH_COOKIE);if(!/^[A-Za-z0-9_-]{40,100}$/.test(oldRefreshToken)){res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req)));throw new ApiProblem(401,'REFRESH_REQUIRED','Sign in again to continue.');}
         const now=new Date(),accessToken=randomBytes(32).toString('base64url'),nextRefreshToken=randomBytes(32).toString('base64url');const rotated=await store.rotateRefreshToken({tokenHash:createHash('sha256').update(oldRefreshToken).digest('hex'),nextRefreshTokenId:randomUUID(),nextRefreshTokenHash:createHash('sha256').update(nextRefreshToken).digest('hex'),nextRefreshExpiresAt:new Date(now.getTime()+REFRESH_TOKEN_TTL),nextAccessTokenId:randomUUID(),nextAccessTokenHash:createHash('sha256').update(accessToken).digest('hex'),nextAccessExpiresAt:new Date(now.getTime()+ACCESS_TOKEN_TTL),at:now});
         if(rotated.kind!=='ROTATED'){res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req)));throw new ApiProblem(401,rotated.kind==='REPLAY'?'REFRESH_REPLAY':'REFRESH_INVALID','Your sign-in session ended. Sign in again.');}
         res.setHeader('set-cookie',refreshCookie(nextRefreshToken,rotated.refreshExpiresAt.getTime()-now.getTime(),secureRequest(req)));

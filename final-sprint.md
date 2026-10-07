@@ -1121,11 +1121,11 @@ Current auth works.
 
 Finish:
 
-- short-lived access token
-- rotating refresh token
-- Secure HttpOnly SameSite cookie
-- hashed refresh tokens
-- replay/family detection
+- short-lived access token (15 minute source implementation; unverified)
+- rotating refresh token (30 day rotation within 90 day family; source implementation; unverified)
+- Secure HttpOnly SameSite cookie (source implementation; deployment verification pending)
+- hashed refresh tokens (source implementation; unverified)
+- replay/family detection (source implementation; unverified)
 - session list (own-session API/PWA source now present; unverified)
 - session revoke (own other-session revocation source now present; unverified)
 - device list/revoke (API source now present; migration and behavior remain unverified)
@@ -1737,3 +1737,10 @@ The sprint ends with a production system, not with a large diff.
 
 - On startup, the API checks whether staff setup has already completed and removes `INITIAL_ADMIN_SETUP_SECRET` from its process environment when an Admin profile exists. Successful one-time setup also removes it immediately; the database's existing one-Admin bootstrap fence remains authoritative after restarts.
 - This is source behavior only. Deployment secret-store cleanup, startup behavior, concurrent setup and restart acceptance remain unverified.
+
+### Rotating API access/refresh sessions (source only; migration unapplied)
+
+- Migration 060 adds hashed access-token rows, refresh families and single-use hashed refresh tokens; existing access sessions are copied into the new token table so their current expiry remains valid.
+- API login issues a 15-minute bearer access token and a 30-day HttpOnly SameSite refresh cookie bounded by a 90-day family. Rotation creates a new refresh token and access token. Reuse of a consumed token revokes the family and session and appends replay evidence; session/device/staff revocation also invalidates refresh through the parent session.
+- The PWA keeps access tokens in memory, sends the refresh cookie only with credentialed API requests, coordinates refresh calls with Web Locks where supported, and retries one 401 request with the refreshed bearer. SSE authentication also refreshes once. No refresh token is written to IndexedDB or localStorage.
+- This source has not been tested or run. Migration, cookie/CORS/HTTPS deployment, cross-tab behavior, refresh replay, expiry, logout, session/password/device revocation, SSE reconnect and browser acceptance remain unverified.
