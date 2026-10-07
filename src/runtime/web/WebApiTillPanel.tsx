@@ -16,6 +16,7 @@ export function WebApiTillPanel({records,session,deviceId,outletId,disabled,comm
  useEffect(()=>{if(!pendingId)return;const saved=queue.find(row=>row.id===pendingId);if(!saved||['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(saved.state))return;setPendingId('');if(saved.state==='SYNCHRONIZED'){setEditor(null);setMessage('The original till action confirmed after recovery.');}else setMessage(saved.result?.error?.message||'The till action did not confirm. Reopen the review using current till information.');},[queue,pendingId]);
  const begin=(kind:Editor['kind'],till?:BusinessRecord)=>{
   if(disabled||busy||pendingId)return;
+  if(window.document.querySelector('[role="dialog"]')){setMessage('Finish the open review before starting another till action.');return;}
   setEditor({kind,id:till?.id||crypto.randomUUID(),version:till?.version??0,outlet:records.find(row=>row.collection==='outlets'&&row.id===outletId&&!row.archived),policyVersion:records.find(row=>row.collection==='tillPolicy'&&row.id===session.businessId)?.version??0});setAmount('');setDirection('PAID_IN');setReason('');setMessage('');
  };
  const save=async(event:React.FormEvent)=>{

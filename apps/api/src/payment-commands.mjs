@@ -8,13 +8,15 @@ import {documentHash} from './business-documents.mjs';
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
 const expected=(command,collection,id)=>{const value=command.expectedVersions[`${collection}:${id}`];if(!Number.isSafeInteger(value)||value<0)fail(`Reviewed ${collection} version is required.`);return value;};
-const columns=`id,order_id AS "orderId",account_id AS "accountId",account_snapshot AS "accountSnapshot",till_session_id AS "tillSessionId",method,amount_minor AS "amountMinor",cash_tendered_minor AS "cashTenderedMinor",change_minor AS "changeMinor",external_reference AS reference,received_amount_minor AS "receivedAmountMinor",external_received_at AS "receivedAt",origin,staff_id AS "staffId",device_id AS "deviceId",recorded_at AS "recordedAt",source_command_id AS "sourceCommandId",tender_index AS "tenderIndex"`;
-const projection=row=>{
- const data={...row};for(const key of ['amountMinor','cashTenderedMinor','changeMinor','receivedAmountMinor'])data[key]=row[key]===null?null:Number(row[key]);
+const columns=`(SELECT version FROM business_entity_versions v WHERE v.business_id=order_payments.business_id AND v.entity_type='payments' AND v.entity_id=order_payments.id::text) AS version,(SELECT COALESCE(sum(r.amount_minor),0) FROM payment_refunds r WHERE r.business_id=order_payments.business_id AND r.payment_id=order_payments.id) AS "refundedAmountMinor",id,order_id AS "orderId",account_id AS "accountId",account_snapshot AS "accountSnapshot",till_session_id AS "tillSessionId",method,amount_minor AS "amountMinor",cash_tendered_minor AS "cashTenderedMinor",change_minor AS "changeMinor",external_reference AS reference,received_amount_minor AS "receivedAmountMinor",external_received_at AS "receivedAt",origin,staff_id AS "staffId",device_id AS "deviceId",recorded_at AS "recordedAt",source_command_id AS "sourceCommandId",tender_index AS "tenderIndex"`;
+export const paymentProjection=row=>{
+ const data={...row};for(const key of ['amountMinor','cashTenderedMinor','changeMinor','receivedAmountMinor','refundedAmountMinor'])data[key]=row[key]===null?null:Number(row[key]);
  data.recordedAt=row.recordedAt.toISOString();data.receivedAt=row.receivedAt?.toISOString()??null;
- return {collection:'payments',id:row.id,version:1,archived:false,data};
+ return {collection:'payments',id:row.id,version:Number(row.version??1),archived:false,data};
 };
-export async function paymentProjections(db,businessId,orderId=null){const {rows}=await db.query(`SELECT ${columns} FROM order_payments WHERE business_id=$1 AND ($2::uuid IS NULL OR order_id=$2) ORDER BY recorded_at DESC,id LIMIT CASE WHEN $2::uuid IS NULL THEN 1000 ELSE NULL END`,[businessId,orderId]);return rows.map(projection);}
+export async function paymentProjections(db,businessId,orderId=null){const {rows}=await db.query(`SELECT ${columns} FROM order_payments WHERE business_id=$1 AND ($2::uuid IS NULL OR order_id=$2) ORDER BY recorded_at DESC,id LIMIT CASE WHEN $2::uuid IS NULL THEN 1000 ELSE NULL END`,[businessId,orderId]);return rows.map(paymentProjection);}
+
+export async function paymentById(db,businessId,id){const {rows}=await db.query(`SELECT ${columns} FROM order_payments WHERE business_id=$1 AND id=$2`,[businessId,id]);return rows[0]?paymentProjection(rows[0]):null;}
 
 const record=split=>async({tx,command,actor,at})=>{
  const p=command.payload;if(!uuid(p.orderId)||!uuid(p.tillSessionId))fail('Choose an order and an open till.');
@@ -68,8 +70,9 @@ const record=split=>async({tx,command,actor,at})=>{
  if(!Number.isSafeInteger(drawerAfter)||drawerAfter<0)throw new ApiProblem(409,'DRAWER_AMOUNT_LIMIT','Drawer balance exceeds supported money amounts or needs reconciliation.');
  const records=[];
  for(const plan of plans){
+  await tx.bumpEntityVersion(actor.businessId,'payments',plan.id,0);
   const {rows}=await tx.client.query(`INSERT INTO order_payments(business_id,id,order_id,account_id,account_snapshot,till_session_id,method,amount_minor,cash_tendered_minor,change_minor,external_reference,normalized_reference,received_amount_minor,external_received_at,origin,staff_id,device_id,recorded_at,source_command_id,tender_index) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING ${columns}`,[actor.businessId,plan.id,p.orderId,plan.account.id,JSON.stringify(plan.account),p.tillSessionId,plan.account.method,plan.amount,plan.cashTendered,plan.change,plan.reference,plan.normalized,plan.receivedAmount,plan.receivedAt,plan.origin,actor.staffId,actor.deviceId,at,command.commandId,plan.index]);
-  records.push(projection(rows[0]));
+  records.push(paymentProjection(rows[0]));
   if(plan.account.method==='CASH'){
    const id=randomUUID(),reason=`Order ${p.orderId} cash payment`;
    await tx.client.query(`INSERT INTO till_cash_entries(business_id,id,till_session_id,kind,amount_delta_minor,reason,source_command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,'SALE',$4,$5,$6,$7,$8,$9)`,[actor.businessId,id,p.tillSessionId,plan.amount,reason,command.commandId,actor.staffId,actor.deviceId,at]);
@@ -97,7 +100,7 @@ const record=split=>async({tx,command,actor,at})=>{
   const tenders=(await paymentProjections(tx.client,actor.businessId,p.orderId)).map(row=>row.data);
   if(tenders.reduce((sum,payment)=>sum+payment.amountMinor,0)!==value.data.grandTotalMinor)throw new ApiProblem(409,'PAYMENT_RECONCILIATION_FAILED','Payment ledger does not reconcile to the settled order.');
   const cashier=await tx.client.query('SELECT display_name AS name FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2',[actor.businessId,actor.staffId]);
-  const receiptSnapshot={cashier:{id:actor.staffId,name:cashier.rows[0]?.name??actor.staffId},business:value.data.businessSnapshot,orderId:p.orderId,orderName:value.data.name,receiptNumber,currency:value.data.currency,items,taxes,totalMinor:value.data.grandTotalMinor,payments:tenders,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),footer:value.data.businessSnapshot.footer};
+  const receiptSnapshot={cashier:{id:actor.staffId,name:cashier.rows[0]?.name??actor.staffId},business:value.data.businessSnapshot,orderId:p.orderId,orderName:value.data.name,receiptNumber,currency:value.data.currency,refundedAmountMinor:value.data.refundedAmountMinor,items,taxes,totalMinor:value.data.grandTotalMinor,payments:tenders,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),footer:value.data.businessSnapshot.footer};
   const receiptHash=documentHash(receiptSnapshot);
   await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'SALES_RECEIPT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,receiptId,receiptNumber,JSON.stringify(receiptSnapshot),receiptHash,command.commandId,actor.staffId,at]);
   records.push({collection:'businessDocuments',id:receiptId,version:1,archived:false,data:{id:receiptId,type:'SALES_RECEIPT',documentNumber:receiptNumber,layoutVersion:1,hash:receiptHash,snapshot:receiptSnapshot,issuedAt:at.toISOString()}});

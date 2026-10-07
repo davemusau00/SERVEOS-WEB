@@ -1,3 +1,4 @@
+import {refundProjections} from './refund-commands.mjs';
 import {receiptSettingsProjections} from './business-tax.mjs';
 import {paymentProjections} from './payment-commands.mjs';
 import {paymentAccountProjections} from './payment-accounts.mjs';
@@ -121,6 +122,7 @@ export class PostgresStore {
     const paymentAccounts=await paymentAccountProjections(db,businessId);
     const payments=await paymentProjections(db,businessId);
     const settings=await receiptSettingsProjections(db,businessId);
+    const refunds=await refundProjections(db,businessId);
     return [
       ...orders,
       ...documents,
@@ -128,6 +130,7 @@ export class PostgresStore {
       ...paymentAccounts,
       ...payments,
       ...settings,
+      ...refunds,
       ...receipts.rows.map(receiptProjection),
       ...policies.rows.map(policyProjection),
       ...reversals.rows.map(row=>({collection:'movementCorrections',id:row.id,version:1,data:{...row,createdAt:row.createdAt.toISOString()},archived:false})),

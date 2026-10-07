@@ -6,7 +6,7 @@ const rows=(value:unknown):Record<string,unknown>[]=>Array.isArray(value)?value.
 const text=(value:unknown)=>typeof value==='string'?value:'';
 const number=(value:unknown)=>typeof value==='number'&&Number.isFinite(value)?value:null;
 const money=(value:unknown)=>{const amount=number(value);return amount===null?'—':(amount/100).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2});};
-const titles:Record<string,string>={SALES_RECEIPT:'Sales receipt',PAYMENT_ACKNOWLEDGEMENT:'Payment acknowledgement',KOT:'Kitchen order ticket',BOT:'Bar order ticket'};
+const titles:Record<string,string>={SALES_RECEIPT:'Sales receipt',PAYMENT_ACKNOWLEDGEMENT:'Payment acknowledgement',KOT:'Kitchen order ticket',BOT:'Bar order ticket',REFUND_RECEIPT:'Refund receipt'};
 const canonical=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(canonical).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${canonical((value as Record<string,unknown>)[key])}`).join(',')}}`;
 
 const isSnapshotPng=(value:unknown):value is string=>typeof value==='string'&&value.length<=2_800_000&&/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value);
@@ -44,8 +44,10 @@ export function BusinessDocumentRenderer({document}:{document:LocalBusinessDocum
   })}</tbody></table>}
   {!ticket&&<>
    {document.type==='SALES_RECEIPT'&&<dl className="servos-document-totals"><div><dt>Net</dt><dd>{money(tax.netMinor)}</dd></div><div><dt>VAT</dt><dd>{money(tax.vatMinor)}</dd></div><div><dt>Levy</dt><dd>{money(tax.levyMinor)}</dd></div><div className="servos-document-grand-total"><dt>Total ({text(s.currency)||'KES'})</dt><dd>{money(s.totalMinor)}</dd></div></dl>}
+   {document.type==='SALES_RECEIPT'&&Number(s.refundedAmountMinor)>0&&<p>Refunds recorded separately: {money(s.refundedAmountMinor)}</p>}
    {document.type==='PAYMENT_ACKNOWLEDGEMENT'&&<dl className="servos-document-totals"><div><dt>Received ({text(s.currency)||'KES'})</dt><dd>{money(s.amountReceivedMinor)}</dd></div><div><dt>Order total</dt><dd>{money(s.orderTotalMinor)}</dd></div><div><dt>Balance</dt><dd>{money(s.balanceMinor)}</dd></div></dl>}
-   <section className="servos-document-payments"><h3>Payment</h3>{rows(s.payments).map((payment,index)=><div key={text(payment.id)||index}><p><b>{text(payment.method)}</b> {money(payment.amountMinor)}</p>{text(payment.reference)&&<p>Reference: {text(payment.reference)}</p>}{payment.method==='CASH'&&<p>Tendered {money(payment.cashTenderedMinor)} · Change {money(payment.changeMinor)}</p>}{payment.origin==='CASHIER_CONFIRMED_EXTERNAL'&&<p>Manually confirmed by cashier</p>}</div>)}</section>
+   {document.type==='REFUND_RECEIPT'&&<section><p><b>Returned: {money(s.amountReturnedMinor)}</b></p><p>Method: {text(s.method)}</p><p>Reason: {text(s.reason)}</p>{text(s.externalReference)&&<p>Return reference: {text(s.externalReference)}</p>}<p>Original payment: {text(s.paymentId)}</p></section>}
+   {rows(s.payments).length>0&&<section className="servos-document-payments"><h3>Payment</h3>{rows(s.payments).map((payment,index)=><div key={text(payment.id)||index}><p><b>{text(payment.method)}</b> {money(payment.amountMinor)}</p>{text(payment.reference)&&<p>Reference: {text(payment.reference)}</p>}{payment.method==='CASH'&&<p>Tendered {money(payment.cashTenderedMinor)} · Change {money(payment.changeMinor)}</p>}{payment.origin==='CASHIER_CONFIRMED_EXTERNAL'&&<p>Manually confirmed by cashier</p>}</div>)}</section>}
   </>}
   {isSnapshotPng(qr)&&<section className="servos-document-payment-qr"><SnapshotImage value={qr} label="Payment QR"/><p>Scan to Pay via One app</p></section>}
   {text(s.footer||b.footer)&&<footer>{text(s.footer||b.footer)}</footer>}

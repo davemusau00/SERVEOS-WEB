@@ -45,4 +45,4 @@ const change=action=>async({tx,command,actor,at})=>{
  await tx.client.query(`INSERT INTO document_print_events(business_id,id,job_id,job_version,event_type,reason,possible_duplicate_acknowledged,command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[actor.businessId,randomUUID(),id,version,command.name,note,p.possibleDuplicateAcknowledged===true,command.commandId,actor.staffId,actor.deviceId,at]);
  const value=printProjection(updated.rows[0]);return {value,records:[value]};
 };
-export const printCommandRegistry=new Map(['claim','report','confirm','retry','cancel'].map(action=>[`print.${action}`,{permission:'pos.sell',permissionAny:['pos.sell','payment.record','kds.view','system.configure'],offlinePolicy:'ONLINE_ONLY',handler:change(action)}]));
+export const printCommandRegistry=new Map(['claim','report','confirm','retry','cancel'].map(action=>[`print.${action}`,{permission:'pos.sell',permissionAny:['pos.sell','payment.record','order.refund','payment.reverse','kds.view','system.configure'],offlinePolicy:'ONLINE_ONLY',handler:change(action)}]));

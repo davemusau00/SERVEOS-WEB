@@ -57,6 +57,7 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
  };
  if(!order||!allowed(session,'payment.record')&&!allowed(session,'payment.split'))return null;
  const field='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2',button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
+ let allocated:number|null=null;try{allocated=tenders.reduce((sum,row)=>sum+parseMoneyToMinor(row.amount),0)}catch{ /* Incomplete tender input remains reviewable. */ }
  const payable=order.data.state==='FIRED'&&Number(order.data.grandTotalMinor)>Number(order.data.amountPaidMinor)&&!(Array.isArray(order.data.items)&&order.data.items.some(row=>(row as Record<string,unknown>).state==='DRAFT'));
  return <section className="space-y-3 rounded-xl border border-slate-700 p-3">
   <button className={button} disabled={disabled||busy||Boolean(pendingId)||!payable||!allowed(session,'payment.record')} onClick={open}>Record payment for {String(order.data.name)}</button>
@@ -77,6 +78,7 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
     </fieldset>;
    })}
    {allowed(session,'payment.split')&&<button type="button" className={button} disabled={busy||Boolean(pendingId)||tenders.length>=10} onClick={()=>setTenders(old=>[...old,draft(review.accounts[0]?.id)])}>Add split tender</button>}
+   <p className="text-sm">Allocated: {allocated===null?'Complete tender amounts':money(allocated)}{allocated!==null?` ? Remaining ${money(Number(review.order.data.grandTotalMinor)-Number(review.order.data.amountPaidMinor)-allocated)}`:''}</p>
    <p className="text-sm text-slate-400">Only confirmed payment outcomes settle the order. If a response is lost, recover the original payment in Activity.</p>
    <button className="rounded bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40" disabled={disabled||busy||Boolean(pendingId)}>Confirm received payment</button><button type="button" className={`${button} ml-2`} disabled={busy} onClick={()=>setReview(null)}>Close review</button>
   </form>}
