@@ -5,6 +5,7 @@ import {customerCreditCommandRegistry} from './customer-credit-commands.mjs';
 import {customerCreditReconciliationCommandRegistry} from './customer-credit-reconciliation-commands.mjs';
 import {managerApprovalCommandRegistry} from './manager-approvals.mjs';
 import {staffCommandRegistry} from './staff-commands.mjs';
+import {deviceCommandRegistry} from './device-commands.mjs';
 import {supplierReturnCommandRegistry} from './supplier-return-commands.mjs';
 import {supplierPaymentCommandRegistry} from './supplier-payment-commands.mjs';
 import {supplierInvoiceCommandRegistry} from './supplier-invoice-commands.mjs';
@@ -153,6 +154,15 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if(req.method==='GET'&&url.pathname==='/v1/auth/session'){
         const actor=await authenticateStaffSession(req,store);const profile=await store.staffCredential(actor.businessId,actor.staffId);
         return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,displayName:profile?.displayName,permissions:actor.permissions,mustChangePassword:profile?.mustChangePassword===true});
+      }
+      if(req.method==='GET'&&url.pathname==='/v1/auth/sessions'){
+        const actor=await authenticateStaffSession(req,store);return json(res,200,{sessions:await store.ownSessions({businessId:actor.businessId,staffId:actor.staffId,currentSessionId:actor.sessionId})});
+      }
+      const revokeSessionPath=url.pathname.match(/^\/v1\/auth\/sessions\/([0-9a-f-]{36})\/revoke$/i);
+      if(req.method==='POST'&&revokeSessionPath){
+        const actor=await authenticateStaffSession(req,store);if(!uuidPattern.test(revokeSessionPath[1]))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid session.');
+        const revoked=await store.revokeOwnSession({businessId:actor.businessId,staffId:actor.staffId,sessionId:revokeSessionPath[1],currentSessionId:actor.sessionId,actorDeviceId:actor.deviceId||null,at:new Date()});
+        if(!revoked)throw new ApiProblem(404,'SESSION_UNAVAILABLE','This staff session is no longer available.');return json(res,200,{revoked:true});
       }
       if (req.method === 'POST' && url.pathname === '/v1/devices/enrollment-challenges') {
         const actor = await authenticateUnenrolledStaffSession(req, store);
@@ -303,7 +313,7 @@ async function main() {
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
-  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...customerCommandRegistry,...customerCreditCommandRegistry,...customerCreditReconciliationCommandRegistry,...staffCommandRegistry,...managerApprovalCommandRegistry,...supplierCommandRegistry,...purchaseOrderCommandRegistry,...goodsReceiptCommandRegistry,...supplierInvoiceCommandRegistry,...supplierPaymentCommandRegistry,...supplierReturnCommandRegistry,...supplierCreditCommandRegistry,...supplierCreditApplicationCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
+  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...customerCommandRegistry,...customerCreditCommandRegistry,...customerCreditReconciliationCommandRegistry,...staffCommandRegistry,...deviceCommandRegistry,...managerApprovalCommandRegistry,...supplierCommandRegistry,...purchaseOrderCommandRegistry,...goodsReceiptCommandRegistry,...supplierInvoiceCommandRegistry,...supplierPaymentCommandRegistry,...supplierReturnCommandRegistry,...supplierCreditCommandRegistry,...supplierCreditApplicationCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
   server.listen(config.port, config.host, () => console.log(JSON.stringify({event: 'api_started', port: config.port, environment: config.nodeEnv, logLevel: config.logLevel})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
   process.on('SIGTERM', shutdown);

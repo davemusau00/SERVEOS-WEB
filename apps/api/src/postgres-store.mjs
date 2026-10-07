@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {supplierCreditBalanceProjections,supplierCreditApplicationProjections} from './supplier-credit-application-projections.mjs';
 import {customerProjections} from './customer-commands.mjs';
 import {customerCreditAccountProjections,customerCreditEntryProjections} from './customer-credit-commands.mjs';
@@ -19,6 +20,7 @@ import {tillProjections} from './till-commands.mjs';
 import {documentProjections} from './business-documents.mjs';
 import {orderProjections} from './pos-commands.mjs';
 import {staffProjections} from './staff-commands.mjs';
+import {deviceProjections} from './device-commands.mjs';
 const redactCommandSecrets=value=>Array.isArray(value)?value.map(redactCommandSecrets):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).filter(([key])=>!/(?:password|secret|token|credential|pin)/i.test(key)).map(([key,item])=>[key,redactCommandSecrets(item)])):value;
 const receiptProjection = row => {
   const data={...row,receivedAt:row.receivedAt.toISOString()};
@@ -210,6 +212,7 @@ export class PostgresStore {
       const {rows}=await client.query('SELECT cursor FROM business_change_cursors WHERE business_id=$1',[businessId]);
       const records=await this.catalogProjection(businessId,client);
       records.push(...await staffProjections(client,businessId));
+      records.push(...await deviceProjections(client,businessId));
       await client.query('COMMIT');return {cursor:Number(rows[0]?.cursor??0),records};
     }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
   }
@@ -241,6 +244,23 @@ export class PostgresStore {
       GROUP BY s.business_id, s.staff_id,s.id,d.id,f.must_change_password
     `, [tokenHash, now]);
     return rows[0] ?? null;
+  }
+
+  async ownSessions({businessId,staffId,currentSessionId,at=new Date()}) {
+    const {rows}=await this.pool.query(`SELECT s.id AS "sessionId",s.device_id AS "deviceId",s.created_at AS "createdAt",s.expires_at AS "expiresAt",s.revoked_at AS "revokedAt",(s.id=$3) AS current,(d.revoked_at IS NOT NULL) AS "deviceRevoked" FROM api_staff_sessions s LEFT JOIN api_enrolled_devices d ON d.business_id=s.business_id AND d.id=s.device_id WHERE s.business_id=$1 AND s.staff_id=$2 ORDER BY s.created_at DESC,s.id DESC LIMIT 100`,[businessId,staffId,currentSessionId]);
+    return rows.map(row=>({...row,createdAt:row.createdAt.toISOString(),expiresAt:row.expiresAt.toISOString(),revokedAt:row.revokedAt?.toISOString()??null,expired:row.expiresAt<=at}));
+  }
+
+  async revokeOwnSession({businessId,staffId,sessionId,currentSessionId,actorDeviceId,at}) {
+    return this.transaction(async tx=>{
+      const {rows}=await tx.client.query('SELECT id,device_id AS "deviceId",created_at AS "createdAt",expires_at AS "expiresAt",revoked_at AS "revokedAt" FROM api_staff_sessions WHERE business_id=$1 AND staff_id=$2 AND id=$3 FOR UPDATE',[businessId,staffId,sessionId]);
+      const prior=rows[0];if(!prior)return false;
+      if(sessionId===currentSessionId){const error=new Error('Use Sign out to end the current session.');error.status=409;error.code='CURRENT_SESSION_REVOKE';throw error;}
+      if(prior.revokedAt)return true;
+      await tx.client.query('UPDATE api_staff_sessions SET revoked_at=$4 WHERE business_id=$1 AND staff_id=$2 AND id=$3 AND revoked_at IS NULL',[businessId,staffId,sessionId,at]);
+      const commandId=randomUUID();await tx.client.query(`INSERT INTO api_session_events(business_id,id,session_id,staff_id,event_type,before_state,after_state,command_id,actor_staff_id,actor_device_id,occurred_at) VALUES($1,$2,$3,$4,'REVOKED',$5::jsonb,$6::jsonb,$7,$8,$9,$10)`,[businessId,randomUUID(),sessionId,staffId,JSON.stringify({revokedAt:null,deviceId:prior.deviceId}),JSON.stringify({revokedAt:at.toISOString(),deviceId:prior.deviceId}),commandId,staffId,actorDeviceId,at]);
+      return true;
+    });
   }
 
   async authenticatePassword({loginName,password,at,verifyPassword,sessionId,tokenHash,expiresAt}) {
@@ -353,19 +373,28 @@ export class PostgresStore {
         error.code = 'ENROLLMENT_CHALLENGE_INVALID';
         throw error;
       }
+      const staff=await tx.client.query('SELECT active FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2 FOR SHARE',[businessId,staffId]);
+      if(!staff.rows[0]?.active){const error=new Error('An active API staff profile is required to enroll a device.');error.status=403;error.code='STAFF_INACTIVE';throw error;}
       const {rows:deviceRows}=await tx.client.query(`
         INSERT INTO api_enrolled_devices (id, business_id, staff_id, public_key, created_at)
         VALUES ($1, $2, $3, $4::jsonb, $5)
-        ON CONFLICT (business_id,id) DO UPDATE SET public_key=EXCLUDED.public_key
-          WHERE api_enrolled_devices.staff_id=EXCLUDED.staff_id
-            AND api_enrolled_devices.public_key=EXCLUDED.public_key
-            AND api_enrolled_devices.revoked_at IS NULL
+        ON CONFLICT (business_id,id) DO NOTHING
         RETURNING id
       `, [deviceId, businessId, staffId, JSON.stringify(publicKey), at]);
-      if(!deviceRows.length){const error=new Error('This device ID is already enrolled to another identity or has been revoked.');error.status=409;error.code='DEVICE_ID_UNAVAILABLE';throw error;}
+      const created=deviceRows.length===1;
+      if(!created){const existing=await tx.client.query('SELECT id FROM api_enrolled_devices WHERE business_id=$1 AND id=$2 AND staff_id=$3 AND public_key=$4::jsonb AND revoked_at IS NULL FOR UPDATE',[businessId,deviceId,staffId,JSON.stringify(publicKey)]);if(!existing.rows.length){const error=new Error('This device ID is already enrolled to another identity or has been revoked.');error.status=409;error.code='DEVICE_ID_UNAVAILABLE';throw error;}}
       const {rowCount}=await tx.client.query('UPDATE api_staff_sessions SET device_id=$2 WHERE id=$1 AND business_id=$3 AND staff_id=$4 AND device_id IS NULL AND revoked_at IS NULL AND expires_at>$5',[sessionId,deviceId,businessId,staffId,at]);
       if(rowCount!==1){const error=new Error('The API session could not be bound to this device.');error.status=409;error.code='SESSION_BINDING_FAILED';throw error;}
       await tx.client.query('UPDATE api_device_enrollment_challenges SET consumed_at = $2 WHERE id = $1', [challengeId, at]);
+      if(created){
+        await tx.client.query("INSERT INTO business_entity_versions(business_id,entity_type,entity_id,version) VALUES($1,'enrolledDevices',$2,1) ON CONFLICT(business_id,entity_type,entity_id) DO NOTHING",[businessId,deviceId]);
+        const [record]=await deviceProjections(tx.client,businessId).then(records=>records.filter(item=>item.id===deviceId));
+        if(!record)throw new Error('Newly enrolled device projection could not be created.');
+        const commandId=randomUUID(),cursor=await tx.nextChangeCursor(businessId),occurredAt=at.toISOString();
+        await tx.client.query(`INSERT INTO api_device_events(business_id,id,device_id,device_version,event_type,before_state,after_state,reason,command_id,actor_staff_id,occurred_at) VALUES($1,$2,$3,1,'ENROLLED',NULL,$4::jsonb,'Device enrolled by its authenticated staff member',$5,$6,$7)`,[businessId,randomUUID(),deviceId,JSON.stringify(record.data),commandId,staffId,at]);
+        await tx.insertAudit({businessId,commandId,name:'DEVICE_ENROLLED',actor:{staffId,deviceId},at});
+        await tx.insertChange({businessId,cursor,commandId,name:'device.enroll',result:{sequence:cursor,commandId,actorId:staffId,deviceId,occurredAt,records:[record]},at});
+      }
       return {id: deviceId, businessId, staffId, publicKey, createdAt: at.toISOString()};
     });
   }

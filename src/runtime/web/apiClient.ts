@@ -5,6 +5,7 @@ export interface ApiCatalogItem {id:string;categoryId:string|null;name:string;sk
 export interface ApiCatalogBootstrap {protocolVersion:number;cursor:number;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}
 export interface ApiCustomerCreditStatementPage {protocolVersion:1;customerId:string;items:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>;hasMore:boolean;nextCursor:string|null}
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
+export interface ApiStaffSession {sessionId:string;deviceId:string|null;createdAt:string;expiresAt:string;revokedAt:string|null;current:boolean;deviceRevoked:boolean;expired:boolean}
 
 export class ApiHttpError extends Error {
  constructor(readonly status:number,readonly code:string,message:string,readonly details?:unknown){super(message);this.name='ApiHttpError'}
@@ -40,6 +41,8 @@ export function createServOSApiClient({baseUrl,accessToken,deviceId,fetcher=fetc
   },
   passwordChange(currentPassword:string,newPassword:string){return request<{changed:boolean}>('/v1/auth/password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})},false)},
   authSession(){return request<{businessId:string;staffId:string;displayName:string;permissions:string[];mustChangePassword:boolean}>('/v1/auth/session',{},false)},
+  staffSessions(){return request<{sessions:ApiStaffSession[]}>('/v1/auth/sessions',{},false)},
+  revokeStaffSession(sessionId:string){return request<{revoked:boolean}>(`/v1/auth/sessions/${encodeURIComponent(sessionId)}/revoke`,{method:'POST'},false)},
   logout(){return request<{revoked:boolean}>('/v1/auth/logout',{method:'POST'},false)},
   async submitCommand(command:ApiCommandEnvelope):Promise<ApiCommandOutcome>{
    try{return await request<ApiCommandOutcome>('/v1/commands',{method:'POST',body:JSON.stringify(command)})}

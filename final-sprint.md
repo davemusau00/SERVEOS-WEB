@@ -1128,7 +1128,7 @@ Finish:
 - replay/family detection
 - session list
 - session revoke
-- device list/revoke
+- device list/revoke (API source now present; migration and behavior remain unverified)
 - staff-disable invalidation
 - password-change invalidation policy
 
@@ -1715,4 +1715,13 @@ The sprint ends with a production system, not with a large diff.
 - Added migration 057 for versioned API staff lifecycle evidence and backfilled existing API profiles into employee entity versions. The PWA bootstrap now projects API staff profiles and filters them by staff visibility.
 - Added transactional API staff create/update/deactivate commands. Creation hashes an initial password with the API scrypt scheme and requires change at first login; Admin cannot be granted through routine staff management. Role permission ceilings are enforced, custom grants are allowlisted and bounded by the issuing actor's permissions. Deactivation revokes sessions and enrolled devices and preserves last-Admin protection.
 - The API Staff screen now creates API sign-ins, changes API staff roles and deactivates profiles, and selects named staff as approval recipients. API profile operations are online-only. Command request JSON and the local terminal queue redact passwords/tokens after terminal acknowledgement; the raw password is never part of a command result.
-- No tests, migration execution, password-lifecycle, authorization, session/device revocation or browser checks were run. API device listing/revocation remains on the legacy management path and is hidden in API mode; approval/device lifecycle completion is still open.
+- API enrolled devices are now included in the permission-filtered bootstrap; API staff with `devices.manage` can revoke another device through a transactional command, which revokes its sessions and updates the ordered projection. Deactivating API staff also revokes their devices and publishes those device revisions.
+- No tests, migration execution, password-lifecycle, authorization, session/device revocation or browser checks were run. Device enrollment/revocation behavior and the entire staff lifecycle remain unverified.
+
+### API device lifecycle feed and audit evidence (source only; migration unapplied)
+
+- API device enrollment now creates an `enrolledDevices` entity version and ordered change-feed entry in the same transaction as first enrollment. Re-authenticating an already enrolled device does not emit a duplicate device-created record.
+- Added migration 058 for append-only enrollment/revocation evidence with actor, reason, device revision and before/after state. Explicit device revocation and staff deactivation write revocation evidence transactionally; staff deactivation publishes all affected device revisions in its command change.
+- Enrollment now locks and checks the active staff profile inside its transaction, serializing device enrollment against staff deactivation. The API Staff screen lists enrolled devices from the filtered API bootstrap and permits online revocation by a different device.
+- Last-seen and command-sequence fields are not backed by API telemetry yet; API device rows now show these as untracked rather than implying a zero sequence or a never-seen device.
+- No migration, API, authorization, change-feed/reload, session invalidation, browser or database verification was run. Device lifecycle and staff-management remain source-only and unverified.
