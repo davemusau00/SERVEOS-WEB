@@ -1695,3 +1695,9 @@ The sprint ends with a production system, not with a large diff.
 - Added migration 054 for immutable statement comparisons, open discrepancies and append-only one-time resolution evidence. Online reconciliation serializes with account ledger commands, checks the reviewed account revision and never mutates customer credit balances. Manager-only variance dispositions require credit management/write-off permission.
 - Added permission-filtered bootstrap records, API command registration and the supported PWA account comparison, exception resolution and history UI. The PWA command dependency resolver now includes the reviewed account version.
 - Tests, builds, migrations, PostgreSQL and browser execution remain deferred. Full statement pagination and manager step-up remain outstanding.
+
+### Customer-credit statement pagination (source only; verification deferred)
+
+- Added migration 055 with a per-customer immutable entry sequence, historically backfilled in posting order. Added a bounded authenticated statement-page endpoint with a stable high-water cursor and running balances; the API PWA can refresh and load older pages.
+- POS now reads the customer credit account's authoritative projected balance instead of deriving it from the bounded recent-entry bootstrap. Credit-only staff are permitted to load the API bootstrap.
+- Tests, builds, migration execution, API requests and browser behavior remain deferred and unverified. Manager approval step-up remains outstanding.

@@ -926,3 +926,9 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added online `credit.reconcile`, which serializes with customer ledger commands, checks the reviewed account version, snapshots ledger and statement balances, and opens a discrepancy only for a nonzero difference. Added `credit.discrepancy.resolve`; manager-only dispositions require `credit.manage` or `credit.write_off` and remain evidence decisions, not ledger postings.
 - Added permission-filtered bootstrap projections and connected the supported API PWA account screen to comparison, open-exception review, resolution and history. The reconciliation command now pins the account revision in the PWA dependency resolver.
 - No tests, builds, migrations, PostgreSQL or browser checks were run. Statement pagination and manager step-up remain open; the feature is source-only and unverified.
+
+### Customer-credit statement pagination (source only; migration unapplied)
+
+- Added migration 055 with a tenant/customer-scoped immutable entry sequence, backfilled in historical posting order. The authenticated API now returns bounded 100-entry statement pages with an opaque high-water/continuation cursor and running balances over the same stable snapshot.
+- The API PWA statement now loads and appends pages, refreshes to the latest high-water, and uses paged rows for ledger review/reversal selection. POS now reads the account's authoritative projected balance instead of summing the bootstrap's bounded recent entries. Credit-only staff are admitted by the bootstrap route.
+- No tests, builds, migrations, API or browser checks were run. Cursor durability across migration and page reads remains source-only and unverified; approval step-up remains open.

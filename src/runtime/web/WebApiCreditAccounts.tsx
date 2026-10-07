@@ -42,7 +42,7 @@ export function WebApiCreditAccounts({records,queue,session,disabled,command,cli
   if(writeOffReason.trim().length<3)throw new Error('Enter a write-off reason of at least 3 characters.');if(!writeOffConfirmed)throw new Error('Confirm this write-off is an accounts-receivable adjustment, not a cash payment.');
   const payload={id:crypto.randomUUID(),customerId:writeOffCustomer,amountMinor,reason:writeOffReason.trim(),expectedVersions:[{collection:'customerCreditAccounts',id:account.id,version:account.version}]};
   const outcome=await command('credit.writeOff','customerCreditEntries',payload.id,payload);
-  if(outcome.kind==='CONFIRMED'){setWriteOffCustomer('');setMessage('Receivable write-off and notice recorded. No cash was paid.');}
+  if(outcome.kind==='CONFIRMED'){setWriteOffCustomer('');if(statementCustomer===writeOffCustomer)void loadStatement(writeOffCustomer);setMessage('Receivable write-off and notice recorded. No cash was paid.');}
   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'Recover the original write-off command in Activity before retrying.');}
  }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false)}};
  const reverse=async(event:React.FormEvent)=>{event.preventDefault();if(!reverseEntryId||blocked||inFlight.current||!allowed(session,'credit.write_off'))return;inFlight.current=true;setBusy(true);setMessage('');try{
@@ -62,7 +62,7 @@ export function WebApiCreditAccounts({records,queue,session,disabled,command,cli
    payload.manuallyConfirmed=true;payload.externalReference=reverseExternalReference.trim();
   }
   const outcome=await command('credit.reverse','customerCreditEntries',String(payload.id),payload);
-  if(outcome.kind==='CONFIRMED'){setReverseEntryId('');setMessage('Credit entry reversal and immutable notice recorded. Verify any external refund delivery independently.');}
+  if(outcome.kind==='CONFIRMED'){setReverseEntryId('');if(statementCustomer===String(source.data.customerId))void loadStatement(statementCustomer);setMessage('Credit entry reversal and immutable notice recorded. Verify any external refund delivery independently.');}
   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'Recover the original reversal command in Activity before retrying.');}
  }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false)}};
  const settle=async(event:React.FormEvent)=>{event.preventDefault();if(!settlementCustomer||blocked||inFlight.current||!allowed(session,'credit.settle'))return;inFlight.current=true;setBusy(true);setMessage('');try{
@@ -83,7 +83,7 @@ export function WebApiCreditAccounts({records,queue,session,disabled,command,cli
    payload.manuallyConfirmed=true;payload.reference=settlementReference.trim();payload.receivedAmountMinor=amountMinor;payload.receivedAt=receivedAt.toISOString();
   }
   const outcome=await command('credit.settle','customerCreditEntries',String(payload.id),payload);
-  if(outcome.kind==='CONFIRMED'){setSettlementCustomer('');setMessage('Customer settlement recorded. Payment acknowledgement is available in the document queue. The transfer itself was not initiated by ServOS.');}
+  if(outcome.kind==='CONFIRMED'){setSettlementCustomer('');if(statementCustomer===settlementCustomer)void loadStatement(settlementCustomer);setMessage('Customer settlement recorded. Payment acknowledgement is available in the document queue. The transfer itself was not initiated by ServOS.');}
   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'Recover the original settlement command in Activity before retrying.');}
  }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false)}};
  const reconcileStatement=async(event:React.FormEvent)=>{event.preventDefault();if(!reconcileCustomer||!reconcileId||blocked||inFlight.current||!allowed(session,'credit.reconcile'))return;inFlight.current=true;setBusy(true);setMessage('');try{

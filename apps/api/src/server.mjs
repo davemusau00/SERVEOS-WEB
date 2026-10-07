@@ -39,7 +39,7 @@ const encodeCreditStatementCursor=value=>Buffer.from(JSON.stringify({v:1,h:value
 function decodeCreditStatementCursor(value){
  if(typeof value!=='string'||value.length>512||! /^[A-Za-z0-9_-]+$/.test(value))throw new ApiProblem(400,'VALIDATION_FAILED','Statement cursor is invalid.');
  let parsed;try{parsed=JSON.parse(Buffer.from(value,'base64url').toString('utf8'))}catch{throw new ApiProblem(400,'VALIDATION_FAILED','Statement cursor is invalid.')}
- if(!parsed||parsed.v!==1||typeof parsed.h!=='string'||typeof parsed.b!=='string'||!/^\d{1,20}$/.test(parsed.h)||!/^\d{1,20}$/.test(parsed.b)||BigInt(parsed.h)<BigInt(parsed.b)||BigInt(parsed.b)<1n)throw new ApiProblem(400,'VALIDATION_FAILED','Statement cursor is invalid.');
+ if(!parsed||parsed.v!==1||typeof parsed.h!=='string'||typeof parsed.b!=='string'||!/^\d{1,19}$/.test(parsed.h)||!/^\d{1,19}$/.test(parsed.b)||BigInt(parsed.h)>9223372036854775807n||BigInt(parsed.b)>9223372036854775807n||BigInt(parsed.h)<BigInt(parsed.b)||BigInt(parsed.b)<1n)throw new ApiProblem(400,'VALIDATION_FAILED','Statement cursor is invalid.');
  return {highWater:parsed.h,before:parsed.b};
 }
 const dummyCredentialHash='scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
