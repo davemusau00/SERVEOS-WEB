@@ -13,7 +13,15 @@ export function WebPhysicalCountDialog({ records, session, scope, locationId, co
   const key=(location:string)=>`servos-web-physical-count:${session.businessId}:${session.actorId}:${location}`;
   const snapshot={records} as RuntimeSnapshot;
   const runtime={snapshot,
-    inventoryCountDraft:async(location:string)=>JSON.parse(localStorage.getItem(key(location))||'null') as InventoryCountDraft|null,
+    inventoryCountDraft:async(location:string)=>{
+      const draft=JSON.parse(localStorage.getItem(key(location))||'null') as InventoryCountDraft|null;
+      const commandId=draft?.pendingCommand?.id;
+      if(commandId&&records.some(record=>record.collection==='stockCounts'&&!record.archived&&record.data.sourceCommandId===commandId)){
+        localStorage.removeItem(key(location));localStorage.removeItem(`${key(location)}:outcome`);
+        return null;
+      }
+      return draft;
+    },
     saveInventoryCountDraft:async(location:string,draft:InventoryCountDraft)=>{localStorage.setItem(key(location),JSON.stringify(draft));return draft;},
     clearInventoryCountDraft:async(location:string)=>{
       const draft=JSON.parse(localStorage.getItem(key(location))||'null') as InventoryCountDraft|null;
