@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "roles": {
+    "RECEIPT": {
+      "destination": {"transport": "TCP", "host": "192.168.1.50", "port": 9100},
+      "columns": 48,
+      "maxLogoWidthDots": 576,
+      "maxQrWidthDots": 320,
+      "feedLinesBeforeCut": 5,
+      "autoCut": true
+    },
+    "KITCHEN": {
+      "destination": {"transport": "TCP", "host": "192.168.1.51", "port": 9100},
+      "columns": 48,
+      "autoCut": true
+    }
+  }
+}

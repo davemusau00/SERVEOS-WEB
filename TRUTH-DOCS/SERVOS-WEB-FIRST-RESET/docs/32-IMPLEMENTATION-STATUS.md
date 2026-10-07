@@ -415,3 +415,116 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added canonical online `order.repeatRound` under POS permission. The command rebuilds the last recorded fired round through the same add-line validation in one transaction, bumps the order once and records original/copy line evidence. Stock is unchanged until separate fire.
 - Repeated lines retain quantities, portion/modifier IDs, course and notes but use current reviewed product prices, tax and consumption configuration. Discounts/comps are not copied. Missing/archived products/options, stale versions, partial payment and line limits refuse the whole command.
 - PWA exposes a captured repeat review with current option-adjusted unit prices, pinned product/order/settings versions, pending/unknown recovery and original-round disclosure. No test, lint, build, migration or browser execution ran. Deferred gates include multi-course/partial fire boundaries, historical unknown rounds, unavailable options, exact pricing, atomic refusal after a later invalid line, concurrent repeats, replay/response loss, stock conservation and receipt/ticket round evidence.
+
+
+## Final sprint continuation - standalone printer transport library (source only)
+
+- Added a standalone Rust printer transport crate retaining native Windows RAW/private-LAN TCP transport, bounded printer profiles, raster handling, cutter/feed behavior, uncertainty classification and inherited tests without Tauri or database dependencies. Native source remains unchanged; provenance records its source hash and three visibility-only changes in the imported module.
+- Added a bounded single-document renderer using retained wrapping/image routines. It rejects embedded control codes, oversized text/output and unsupported raster evidence. Logo prints at top; QR uses the native raster path before fixed footer or document end, followed by the required caption. No browser-supplied raw ESC/POS entry point was added.
+- This is the Print Bridge transport foundation, not a running service. Pairing, trusted localhost HTTPS, enrolled-device signatures, typed canonical document validation/rendering, durable job deduplication/uncertainty, installer/PWA integration and hardware acceptance remain outstanding.
+- No compilation, tests, dependency resolution, browser or printer execution ran. Deferred acceptance includes inherited transport tests, generic layouts and control-code/size bounds, raster/caption placement, Windows spooler failures, TCP partial writes, feed/cut and target printer output.
+
+
+## Final sprint continuation - durable bridge delivery journal (source only)
+
+- Added the Print Bridge library crate and a local SQLite delivery journal with exact-envelope hashing, canonical UUID identity, idempotent acceptance, immutable envelope/event evidence and guarded revision/attempt transitions. No PostgreSQL or business mutation authority is present.
+- SENDING commits before transport can start. Explicit exclusive-startup recovery converts interrupted attempts to DELIVERY_UNCERTAIN; opening a reader cannot automatically invalidate a live send. Transport success remains SENT_TO_SPOOLER, never a claim of paper delivery.
+- Uncertain/spooled retries require a reason and explicit possible-duplicate acknowledgement. Active sends cannot be cancelled/retried; only known-unsent jobs can cancel. Original status lookup supports recovery after local response loss without another send.
+- Added service-boundary documentation. Signature/canonical payload validation, trusted HTTPS/origins/pairing, singleton locking, configured routing, transport orchestration, API/PWA reconciliation and installer/hardware work remain outstanding. The journal library is not an exposed bridge service.
+- No compilation, dependency resolution, tests, browser, migration or hardware execution ran. Deferred acceptance includes crash boundaries, simultaneous opens/transitions, exact-byte replay, UUID aliases, stale revisions, audit immutability, storage failure and uncertain-delivery operator review.
+
+
+## Final sprint continuation - exclusive bridge journal sessions (source only)
+
+- Added an OS-backed exclusive writer session using a persistent adjacent lock file and canonical journal path. The actual file lock, rather than lock-file existence/PID guesses, determines whether another writer is active. Process exit releases ownership without deleting the lock file.
+- Schema initialization and interrupted-send recovery occur only after obtaining the writer lock. Direct journal open/recovery are now crate-private; external callers obtain the journal through the session. A second writer fails before it can reclassify a live attempt as interrupted.
+- Documented persistent installer-owned storage, session lifetime and unsupported attacker-controlled/hard-link alias locations. Signed-job authorization, trusted HTTPS/pairing, configured routing, durable send orchestration and installation remain outstanding.
+- No compilation, dependency resolution, tests or hardware execution ran. Deferred acceptance includes Windows/Linux lock behavior, concurrent startup, crash release/restart, canonical path aliases, lock-file retention, storage failures and SENDING recovery with no duplicate send.
+
+
+## Final sprint continuation - signed bridge request foundation (source only)
+
+- Added a domain-separated signed request contract and Rust P-256/SHA-256 verifier compatible with existing browser device keys and WebCrypto P1363 signatures. The browser helper signs exact bounded payload bytes; private keys remain in device identity storage.
+- Verification binds bridge/business/device/request identities and exact approved HTTPS origin, rejects private/invalid public JWKs, validates short issue/expiry windows and payload bounds, and returns an opaque verified-request value. Pairing identity fields cannot be modified after construction.
+- This does not expose an endpoint or authorize arbitrary print bytes. Approved-pairing persistence/approval/revocation, trusted localhost HTTPS, typed action/document validation, durable request replay handling and API print-claim reconciliation remain outstanding.
+- No compilation, dependency resolution, tests, browser or hardware execution ran. Deferred gates include Rust/WebCrypto interoperability, modified payload/bindings, wrong key/origin, clock bounds, malformed signatures/public keys, expired requests and replay-safe service integration.
+
+
+## Final sprint continuation - durable signed bridge request replay (source only)
+
+- Added local journal schema 2 with immutable signed-request fingerprints, scoped identities, RECEIVED/COMPLETED outcomes and bounded stored responses. Only first durable acceptance permits initial execution; exact replays return the original response or explicit unresolved state. Changed content under a reused ID is refused.
+- Completed outcomes are immutable; duplicate identical completion is idempotent. A fresh verified status request can recover an older request after its signature window expires, scoped to the same bridge/business/device.
+- Missing responses do not authorize automatic re-execution. Typed operation/job/attempt reconciliation and atomic service orchestration remain outstanding, alongside pairing, canonical document validation, HTTPS and PWA transport integration.
+- No compilation, dependency resolution, tests or runtime execution ran. Deferred acceptance includes schema 1 upgrades, exact/changed-content replay, concurrent acceptance, crash after receive/action/complete, immutable outcome evidence, expiry/status recovery and cross-device lookup refusal.
+
+
+## Final sprint continuation - typed bridge action contract (source only)
+
+- Added matching TypeScript/Rust bridge action contracts for submit, job/request status, reviewed retry and cancellation. Rust parsing requires a verified signed request and refuses unknown actions/fields, malformed IDs/revisions, unbounded copies/reasons, unsupported document types/layouts and snapshot hash mismatches.
+- Submit carries immutable document snapshot bytes and API claim revision; it does not accept raw ESC/POS, caller-rendered text, printer addresses or queue names. Browser signing now accepts the typed contract.
+- Hash integrity alone does not prove API issuance. Authoritative claim/document verification, per-document schema/rendering, approved local role routing and execution remain outstanding. No endpoint or transport execution was enabled by this slice.
+- No compilation, dependency resolution, tests or runtime execution ran. Deferred acceptance includes cross-language field naming, unknown fields/actions, integer/copy/reason bounds, corrupted snapshot bytes, unsupported layouts, claim binding and typed dispatcher integration.
+
+
+## Final sprint continuation - approved local printer routing (source only)
+
+- Added schema-versioned local printer configuration for RECEIPT/KITCHEN/BAR/OFFICE/LABEL roles. Signed requests select a role only; approved local configuration supplies its TCP or Windows RAW destination and bounded paper/image/feed/cut profile.
+- Routes reuse retained native validation, including private-network TCP addresses and local Windows queue restrictions. Windows RAW configuration refuses non-Windows hosts. Unknown fields/schema versions and unconfigured roles fail explicitly; configuration parsing does not probe or print.
+- Added an illustrative LAN configuration and Windows queue guidance. Installer ACLs/configuration approval, authoritative claim/document verification, strict rendering and service execution remain outstanding.
+- No compilation, dependency resolution, tests, network probing or printer execution ran. Deferred acceptance includes role mapping, unsupported platforms, public/network queue rejection, profile bounds, missing-role fallback, configuration tampering and physical routing on target hardware.
+
+
+## Final sprint continuation - strict preparation ticket bridge renderer (source only)
+
+- Added the initial dedicated KOT/BOT renderer for validated submit actions and matching kitchen/bar roles. It checks bounded immutable order/line identities, issue time, fired/station evidence, quantities, portions/modifiers/courses/rounds and preparation notes before producing text.
+- Tickets retain original order/outlet/staff references and format issue time for Nairobi. Rendering reads no current catalog/pricing/stock and issues no business command. The existing bounded transport renderer handles output; payment QR is excluded from preparation tickets.
+- Unsupported/malformed historical snapshots require browser fallback rather than silent reinterpretation. Cancellation, receipt/refund, close-day and procurement bridge layouts, authoritative API claims, service dispatch and hardware acceptance remain outstanding.
+- No compilation, dependency resolution, tests, runtime or printer execution ran. Deferred acceptance includes cross-language snapshot shapes, old pre-fire-state documents, route mismatch, Unicode fallback, multiline notes, malformed quantities/identities, layout bounds and target kitchen/bar print output.
+
+
+## Final sprint continuation - bridge cancellation and void notices (source only)
+
+- Added strict KOT_CANCEL/BOT_CANCEL and OFFICE ORDER_VOID_NOTICE rendering through the implemented-layout dispatcher. Matching station roles, original line states/identities, bounded quantities/options/notes and immutable cancellation evidence are checked before encoding.
+- Notices prominently stop preparation/service and retain reason, original amount, stock disposition, sealed-return/correction evidence and warnings for earlier tickets with unresolved delivery. Contradictory disposition flags or duplicate/invalid unresolved identities refuse rendering.
+- The bridge does not recompute stock disposition, reverse inventory or claim a refund. Other unsupported layouts continue to require browser fallback; authoritative API verification and actual service execution remain outstanding.
+- No compilation, dependency resolution, tests or printer execution ran. Deferred acceptance includes draft/fired mixes, sealed/waste/consumed/correction dispositions, route mismatch, uncertain earlier tickets, original options/notes and target cancellation layouts.
+
+
+## Final sprint continuation - API-issued bridge claim authorization (source only)
+
+- Existing `print.claim` accepts an optional canonical bridge ID and signs an API attestation inside the claim transaction. It binds business/staff/device/bridge, job revision/attempt, immutable document identity/type/number/layout/hash, role/copies, original command and a short validity window.
+- Signing uses a separate server-only P-256 key/version and a distinct signature domain. Browser claims remain available without bridge signing. Missing/invalid bridge signing configuration refuses the bridge claim transaction; no signing key is exposed to the PWA.
+- Attestations are returned only in the original command value, preserving durable command-response recovery, and are excluded from shared projection records. Added deployment secret placeholders.
+- Bridge-side pinned API-key verification, claim freshness/revocation reconciliation, PWA token recovery, local dispatcher and service remain outstanding. No tests, build, migration, runtime or key provisioning ran. Deferred gates include missing-key rollback, signed field binding, response loss, expired claims, key rotation and bridge verification interoperability.
+
+
+## Final sprint continuation - pinned API bridge claim verification (source only)
+
+- Bridge submit now requires the API claim attestation. Added a pinned API P-256 verifier that binds signature/version/window, business/device/bridge, job revision/attempt, document identity/type/number/layout/hash and role/copies to the verified browser request.
+- Validated actions retain their verified-request fingerprint, preventing pairing an action parsed from one request with authorization from another. Successful API verification produces an opaque authorized-submit value; request-provided public keys are not accepted as trust pins.
+- Shared TypeScript submit contract carries the attestation. Documented separate API/device key trust and approved key rotation.
+- Live claim/revocation reconciliation and expiry checks immediately before send remain required; attestation alone is not a perpetual lease. No transport/service activation occurred. No compilation, dependency resolution, tests or runtime execution ran. Deferred gates include Node/Rust signature interoperability, modified signed fields, action/request substitution, wrong pins, expiry, retries/void races and end-to-end claimed-job delivery.
+
+
+## Final sprint continuation - read-only live bridge claim check (source only)
+
+- Added `/v1/print-bridge/check-claim`, authenticated by the original short-lived API-signed claim capability. It verifies the server signature/key version/expiry before reading the bound business/job; it cannot claim, renew, retry, report or mutate business state.
+- The check compares current SENDING revision/attempt/owner/device, immutable document fields, role/copies, active staff and unrevoked staff-bound enrolled device. Original KOT/BOT claims also require an existing nonvoid order.
+- Replies are uncached, signed in a separate API-check domain, bound to the original claim payload hash and valid for at most five seconds without extending the claim expiry. This is observation-time evidence, not a lock held across physical transport.
+- Bridge-side live-check verification/network integration, permission-change reconciliation, final transport orchestration and service activation remain outstanding. No tests, build, migration or runtime execution ran. Deferred gates include malformed/expired capabilities, changed/cancelled/retried claims, device/staff revocation, order void races, signed-response freshness and unchanged database state.
+
+
+## Final sprint continuation - bridge live claim verification/client (source only)
+
+- Added pinned API signature verification for live-check responses, bound to the exact authorized claim payload hash. Inactive, substituted, expired or excessive validity windows are refused; returned proof is an opaque ephemeral FreshSubmit.
+- Added approved-origin HTTPS claim-check client with TLS verification, no redirects, bounded response reads and connection/total timeouts. Request-controlled API origins and printer destinations are not accepted.
+- Freshness rechecks use both expiry and monotonic elapsed time before transport, guarding wall-clock rollback. Live observation remains distinct from an atomic transport lease or delivery acknowledgement.
+- No network calls, compilation, dependency resolution, tests or hardware execution ran. Actual send orchestration, permission-change reconciliation, local service/pairing and PWA integration remain outstanding. Deferred gates include TLS/origin handling, response bounds, signature/hash substitution, clock skew/rollback, timeout/expiry and void/retry races.
+
+
+## Final sprint continuation - current-permission bridge fencing (source only)
+
+- Live bridge checks now read current staff permissions in the same SQL statement snapshot as job/device/document state. Active claims require both the current shared print-action permission policy and current document visibility.
+- Extracted the API print permission list into one shared source used by command authorization and live bridge checks, preventing a removed permission from remaining effective merely because an earlier attestation has not expired.
+- Permission removal returns signed inactive evidence without mutating the claim or business data. Observation/transport race boundaries still apply; no perpetual lease is implied.
+- No tests, builds, migrations, runtime or printer execution ran. Deferred acceptance includes permission removal/restoration, wildcard grants, document-specific visibility, current staff/device revocation and claim/check/transport races.

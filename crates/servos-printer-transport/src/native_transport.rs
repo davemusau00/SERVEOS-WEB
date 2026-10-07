@@ -171,7 +171,7 @@ fn append_copy(bytes: &mut Vec<u8>, lines: &[String], profile: &PrinterProfile, 
     }
 }
 
-fn append_logo(bytes:&mut Vec<u8>,logo:&Value,profile:&PrinterProfile){
+pub(super) fn append_logo(bytes:&mut Vec<u8>,logo:&Value,profile:&PrinterProfile){
     let Some(width)=logo["width"].as_u64().map(|value|value as usize) else{return};
     let Some(height)=logo["height"].as_u64().map(|value|value as usize) else{return};
     let Some(encoded)=logo["base64"].as_str() else{return};
@@ -207,7 +207,7 @@ fn decode_qr(qr:&Value,profile:&PrinterProfile)->Option<(usize,usize,Vec<u8>)>{
 /// character-size command: it magnified subsequent text rather than positioning
 /// the QR, and the compensating `GS ! 0` reset it. No horizontal-offset arithmetic
 /// is needed or attempted here.
-fn append_qr(bytes:&mut Vec<u8>,qr:&Value,profile:&PrinterProfile){
+pub(super) fn append_qr(bytes:&mut Vec<u8>,qr:&Value,profile:&PrinterProfile){
     let Some((width,height,raster))=decode_qr(qr,profile) else{return};
     let row_bytes=(width+7)/8;
     // ESC/POS GS v 0 is normal-density byte mode: xL/xH and yL/yH bound the raster.
@@ -239,7 +239,7 @@ pub fn logo_supported(logo:Option<&Value>,profile:&PrinterProfile)->bool{
     raster.len()==((width+7)/8)*height
 }
 
-fn wrap_line(line: &str, columns: usize) -> Vec<String> {
+pub(super) fn wrap_line(line: &str, columns: usize) -> Vec<String> {
     if line.is_empty() { return vec![String::new()]; }
     let mut result = Vec::new();
     let mut remaining = line;

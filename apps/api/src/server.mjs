@@ -1,3 +1,4 @@
+import {checkBridgeClaim} from './bridge-authorization.mjs';
 import {refundCommandRegistry} from './refund-commands.mjs';
 import {closeDayCommandRegistry} from './close-day-commands.mjs';
 import {outletCommandRegistry} from './outlet-commands.mjs';
@@ -226,6 +227,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         res.on('close', () => { closed=true;clearInterval(heartbeat); clearInterval(poll); });
         return;
       }
+      if(req.method==='POST'&&url.pathname==='/v1/print-bridge/check-claim'){res.setHeader('cache-control','no-store');return json(res,200,await checkBridgeClaim(store.pool,await readJson(req)));}
       if (req.method === 'GET' && url.pathname === '/v1/catalog/items') {
         const actor = await authenticate(req);
         if (!actor.permissions?.includes('*') && !actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) {

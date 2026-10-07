@@ -17,7 +17,28 @@ pub fn encode_document(lines:&[String],logo:Option<&Value>,qr:Option<&Value>,pro
  // Invalid raster evidence is refused, never silently dropped from a canonical job.
  if logo.is_some()&&!logo_supported(logo,profile){return Err("Logo raster is not supported by this printer profile".into());}
  if qr.is_some()&&!qr_supported(qr,profile){return Err("QR raster is not supported by this printer profile".into());}
- let bytes=native_transport::encode_receipt(lines,&[],logo,qr,profile);
+ if !(24..=64).contains(&profile.columns)||!(2..=12).contains(&profile.feed_lines_before_cut){return Err("Printer width/feed profile is invalid".into());}
+ let mut bytes=vec![0x1b,b'@'];
+ if let Some(image)=logo{native_transport::append_logo(&mut bytes,image,profile);}
+ let footer_markers=["Built By KINGSFORGE","info@kingsforge.co.ke","info@davemusau.co.ke","0746157440","Built By Davemusau.co.ke"];
+ let footer=lines.iter().position(|line|footer_markers.contains(&line.trim())).unwrap_or(lines.len());
+ append_text(&mut bytes,&lines[..footer],profile);
+ if let Some(image)=qr{
+  native_transport::append_qr(&mut bytes,image,profile);
+  append_text(&mut bytes,&["Scan to Pay via One app".to_string()],profile);
+ }
+ append_text(&mut bytes,&lines[footer..],profile);
+ bytes.extend(std::iter::repeat_n(b'\n',profile.feed_lines_before_cut));
+ if profile.auto_cut{bytes.extend_from_slice(&[0x1d,b'V',0]);}
  if bytes.len()>2*1024*1024{return Err("Rendered document exceeds 2 MiB".into());}
  Ok(bytes)
+}
+
+fn append_text(bytes:&mut Vec<u8>,lines:&[String],profile:&PrinterProfile){
+ for line in lines{
+  for wrapped in native_transport::wrap_line(line,profile.columns){
+   bytes.extend(wrapped.chars().map(|character|if character.is_ascii(){character as u8}else{b'?'}));
+   bytes.push(b'\n');
+  }
+ }
 }
