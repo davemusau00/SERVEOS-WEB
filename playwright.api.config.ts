@@ -1,5 +1,7 @@
 import {defineConfig,devices} from '@playwright/test';
 
+if(!process.env.TEST_DATABASE_URL)throw new Error('Real API browser acceptance requires a disposable TEST_DATABASE_URL.');
+
 export default defineConfig({
  testDir:'./tests/browser',testMatch:'api-postgres-sync.spec.ts',workers:1,
  timeout:60_000,outputDir:'test-results/api-postgres',

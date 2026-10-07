@@ -24,6 +24,7 @@
     "test:cloud:v2": "node scripts/test-supabase.mjs --expansion",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "playwright test",
+    "test:browser:api": "playwright test --config=playwright.api.config.ts",
     "test:browser:production": "playwright test --config=playwright.production.config.ts",
     "protocol:check": "node scripts/protocol-check.mjs",
     "audit:ui:gate": "node scripts/audit-ui-gate.mjs",

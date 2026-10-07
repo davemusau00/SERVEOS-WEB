@@ -8,11 +8,11 @@ import {migrate} from '../../apps/api/src/migrate.mjs';
 import {executeCommand} from '../../apps/api/src/command-kernel.mjs';
 import {catalogCommandRegistry} from '../../apps/api/src/catalog-commands.mjs';
 
-const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
-const {Pool}=requireApi('pg');
 
 test('real API catalog confirmation, IndexedDB reload and missed change recovery',async({page},testInfo)=>{
  test.skip(!process.env.TEST_DATABASE_URL||testInfo.project.name!=='api-postgres','Requires dedicated API config and disposable TEST_DATABASE_URL.');
+ const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
+ const {Pool}=requireApi('pg');
  const pool=new Pool({connectionString:process.env.TEST_DATABASE_URL,max:4});
  const businessId=randomUUID(),staffId=randomUUID(),deviceId=randomUUID(),stockId=randomUUID();
  const loginName=`browser-${staffId}@example.invalid`,password='Disposable-browser-password-2026';
