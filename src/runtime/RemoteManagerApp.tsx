@@ -5,7 +5,6 @@ import { WebBusinessApp } from './web/WebBusinessApp';
 import type { WebSession } from './web/session';
 import { Drawer } from '../design-system/controls';
 import {signInAndEnrollApiDevice,openApiBusinessStore,type ApiAuthenticatedDeviceSession} from './web/apiAuth';
-import {ApiCatalogPilot} from './web/ApiCatalogPilot';
 import {BusinessStore} from './web/BusinessStore';
 
 interface Auth { access_token: string; refresh_token: string; expires_in: number }
@@ -158,9 +157,9 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
       setCloudSession(null);setPassword(''); saveAuth(next);
     } catch(e) {setError(String(e));} finally {setBusy(false);}
   }}>
-    <div><div className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-400">ServOS Remote</div><h1 className="mt-2 text-3xl font-black">Business control</h1><p className="mt-2 text-sm text-slate-400">{authMode==='API'?'Sign in to the ServOS API catalog pilot.':'Secure remote visibility and constrained management for your ServOS business.'}</p></div>
-    <div className="flex gap-2"><button type="button" className={`${button} ${authMode==='REMOTE'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('REMOTE');setError('')}}>Remote</button><button type="button" className={`${button} ${authMode==='API'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('API');setError('')}}>API catalog workspace</button></div>
-    <label className="block text-sm">{authMode==='API'?'Staff login':'Email'}<input required type={authMode==='API'?'text':'email'} autoComplete="username" className={`${field} mt-1 w-full`} value={email} onChange={e => setEmail(e.target.value)} /></label>
+    <div><div className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-400">ServOS Web</div><h1 className="mt-2 text-3xl font-black">Business control</h1><p className="mt-2 text-sm text-slate-400">{authMode==='API'?'Sign in to the API-authoritative PWA workspace. Catalog master writes are enabled in this migration slice.':'Secure remote visibility and constrained management for your ServOS business.'}</p></div>
+    <div className="flex gap-2"><button type="button" className={`${button} ${authMode==='REMOTE'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('REMOTE');setError('')}}>Remote manager</button><button type="button" className={`${button} ${authMode==='API'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('API');setError('')}}>ServOS API workspace</button></div>
+    <label className="block text-sm">{authMode==='API'?'Staff login':'Email'}<input aria-label={authMode==='API'?'Staff login':'Email'} required type={authMode==='API'?'text':'email'} autoComplete="username" className={`${field} mt-1 w-full`} value={email} onChange={e => setEmail(e.target.value)} /></label>
     <label className="block text-sm">Password<input required type="password" autoComplete="current-password" className={`${field} mt-1 w-full`} value={password} onChange={e => setPassword(e.target.value)} /></label>
     {authMode==='API'&&<label className="block text-sm">New password, if account setup requires it<input type="password" autoComplete="new-password" minLength={12} className={`${field} mt-1 w-full`} value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label>}
     {error && <p role="alert" className="rounded-xl border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}

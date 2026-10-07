@@ -11,11 +11,10 @@ CREATE TABLE IF NOT EXISTS api_staff_profiles (
   locked_until timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (business_id,staff_id),
-  UNIQUE (business_id,lower(login_name))
+  PRIMARY KEY (business_id,staff_id)
 );
 
-CREATE INDEX IF NOT EXISTS api_staff_profiles_login_idx ON api_staff_profiles(lower(login_name)) WHERE active;
+CREATE UNIQUE INDEX IF NOT EXISTS api_staff_profiles_login_idx ON api_staff_profiles(lower(login_name)) WHERE active;
 
 CREATE TABLE IF NOT EXISTS api_auth_attempts (
   bucket_hash char(64) PRIMARY KEY,

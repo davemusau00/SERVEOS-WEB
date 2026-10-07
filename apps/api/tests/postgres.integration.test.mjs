@@ -10,13 +10,14 @@ import {catalogCommandRegistry} from '../src/catalog-commands.mjs';
 const databaseUrl=process.env.TEST_DATABASE_URL;
 test('PostgreSQL API lifecycle, catalog writes, replay, and ordered change feed', {skip:!databaseUrl}, async t=>{
   const pool=new Pool({connectionString:databaseUrl,max:4});t.after(()=>pool.end());
+  pool.on('error',error=>console.error('integration pool error',error));
   await migrate(pool);
   const store=new PostgresStore(pool);
   const businessId=randomUUID(),staffId=randomUUID(),deviceId=randomUUID();
   await pool.query('INSERT INTO businesses(id,name) VALUES($1,$2)',[businessId,'API integration business']);
   await pool.query("INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password) VALUES($1,$2,$3,$4,'Admin','test-hash',false)",[businessId,staffId,`test-${staffId}@example.invalid`,'Integration Admin']);
   await pool.query("INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,'catalog.manage'),($1,$2,'catalog.view')",[businessId,staffId]);
-  await pool.query('INSERT INTO api_enrolled_devices(id,business_id,staff_id,public_key) VALUES($1,$2,$3,$4)',[deviceId,businessId,staffId,JSON.stringify({kty:'EC',crv:'P-256',x:'x',y:'y'})]);
+  await pool.query('INSERT INTO api_enrolled_devices(id,business_id,staff_id,public_key,created_at) VALUES($1,$2,$3,$4,now())',[deviceId,businessId,staffId,JSON.stringify({kty:'EC',crv:'P-256',x:'x',y:'y'})]);
   const actor={businessId,staffId,deviceId,permissions:['catalog.manage','catalog.view']};
   const stockId=randomUUID(),productId=randomUUID(),locationId=randomUUID();
   const stockCommand={commandId:randomUUID(),name:'stockItem.save',expectedVersions:{[`stockItems:${stockId}`]:0},payload:{id:stockId,data:{name:'Coffee beans',code:`COF-${stockId.slice(0,6)}`,baseUnit:'kg',scanUnitQuantity:1,reorderLevel:2,averageUnitCostMinor:900,purchasePackages:[]}}};
