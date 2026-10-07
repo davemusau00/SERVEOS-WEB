@@ -1,3 +1,4 @@
+import {payableProjections} from './procurement-payables.mjs';
 import {goodsReceiptProjections} from './goods-receipt-projections.mjs';
 import {purchaseOrderProjections} from './purchase-order-commands.mjs';
 import {supplierProjections} from './supplier-commands.mjs';
@@ -133,10 +134,12 @@ export class PostgresStore {
     const suppliers=await supplierProjections(db,businessId);
     const purchaseOrders=await purchaseOrderProjections(db,businessId);
     const goodsReceipts=await goodsReceiptProjections(db,businessId);
+    const supplierPayables=await payableProjections(db,businessId);
     return [
       ...suppliers,
       ...purchaseOrders,
       ...goodsReceipts,
+      ...supplierPayables,
       ...orders,
       ...documents,
       ...tills,

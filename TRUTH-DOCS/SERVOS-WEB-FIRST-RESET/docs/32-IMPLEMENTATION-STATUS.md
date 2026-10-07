@@ -768,3 +768,16 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Bound cumulative accepted, delivered and rejected quantities so repeated over-receiving cannot create an unreadable/out-of-range PO projection.
 - Freeze previous and cumulative accepted quantities in each immutable GRN document line. The bridge now verifies the exact cumulative minor-money rounding delta instead of trusting only the accepted-value control total. Browser GRNs display that cost basis.
 - Client over-receive review compares six-decimal scaled quantities. Runtime/compilation/tests remain deferred; these edits do not constitute verified receiving or printer acceptance.
+
+### Received-uninvoiced liability (source only; migration not applied)
+
+- Migration 040 adds tenant-scoped supplier payables, one per nonzero-value GRN, invoice reference uniqueness and reviewed versions.
+- Receiving atomically creates its payable and immutable balanced inventory debit/AP credit journal at frozen accepted PO cost, including line basis and explicit no-input-tax-claim treatment. Zero-value/rejected-only deliveries create no monetary liability/journal.
+- Payable bootstrap/change records use procurement visibility. No historical liabilities are fabricated or silently backfilled; existing GRNs require reconciliation before cutover.
+- Invoice matching, settlement and supplier returns remain incomplete. Schema migration, compilation, tests and runtime execution remain deferred.
+
+### Supplier invoice matching API (source only)
+
+- Registered online-only `supplierPayable.matchInvoice` under procurement.manage with reviewed payable version, business procurement serialization, duplicate supplier invoice protection and exact accepted-GRN line matching.
+- Requires invoice/date/due-date/reason and complete line quantities, frozen unit costs and cumulative rounded line amounts; mismatches require a separate reviewed correction. Captures invoice evidence/provenance and transitions RECEIVED_UNINVOICED to MATCHED_UNPAID. No duplicate inventory/liability journal or payment is posted.
+- Migration 041 freezes receiving liability identity and matched invoice evidence, requires monotonically reviewed payable versions and constrains invoice/payment status consistency. Operator UI, settlement and returns/corrections remain outstanding. Tests/builds/migrations/runtime deferred.

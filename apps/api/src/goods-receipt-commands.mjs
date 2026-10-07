@@ -1,3 +1,4 @@
+import {postReceivingLiability} from './procurement-payables.mjs';
 import {randomUUID,createHash} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
 import {reviewedBalance} from './inventory-review.mjs';
@@ -59,6 +60,7 @@ const receive=async({tx,command,actor,at})=>{
  await tx.bumpEntityVersion(actor.businessId,'goodsReceipts',p.id,0);
  await tx.client.query(`INSERT INTO procurement_goods_receipts(business_id,id,po_id,supplier_id,document_id,document_number,delivery_reference,location_id,accepted_total_minor,reason,source_command_id,received_by,device_id,received_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,[actor.businessId,p.id,po.id,po.data.supplierId,documentId,documentNumber,reference,p.locationId,Number(acceptedTotal),reason,command.commandId,actor.staffId,actor.deviceId,at]);
  for(const plan of plans)await tx.client.query(`INSERT INTO procurement_goods_receipt_lines(business_id,grn_id,id,po_id,po_line_id,delivered_quantity,accepted_quantity,rejected_quantity,accepted_base_quantity,accepted_total_minor,rejection_reason,inventory_receipt_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[actor.businessId,p.id,plan.id,po.id,plan.line.id,number(plan.delivered),number(plan.accepted),number(plan.rejected),number(plan.base),Number(plan.lineCost),plan.rejectionReason,plan.receiptId]);
+ records.push(...await postReceivingLiability(tx,{actor,command,at,grnId:p.id,supplierId:po.data.supplierId,amountMinor:Number(acceptedTotal),items}));
  const complete=po.data.items.every(line=>nextAccepted.get(line.id)>=qty(line.quantityOrdered));const anyAccepted=[...nextAccepted.values()].some(value=>value>0n);const status=complete?'RECEIVED':anyAccepted?'PARTIALLY_RECEIVED':'ISSUED';
  const version=await tx.bumpEntityVersion(actor.businessId,'purchaseOrders',po.id,poVersion);
  await tx.client.query('UPDATE procurement_purchase_orders SET status=$3,version=$4,updated_by=$5,updated_at=$6 WHERE business_id=$1 AND id=$2',[actor.businessId,po.id,status,version,actor.staffId,at]);
