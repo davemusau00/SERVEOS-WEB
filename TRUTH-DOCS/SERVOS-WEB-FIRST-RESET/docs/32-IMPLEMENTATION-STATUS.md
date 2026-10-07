@@ -805,3 +805,5 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Supplier payment now atomically issues an immutable office voucher with original supplier identity, invoice/payment/account facts, actual paid time, operator provenance and before/after payable control totals. Migration 043 links payment evidence to its document; historical vouchers are not fabricated.
 - Added browser voucher rendering and existing audited print queue access from supplier payment history. Explicit manual external confirmation or petty-cash-outside-POS wording; payment QR suppressed.
 - Dedicated bridge voucher layout remains outstanding; browser fallback supported in source. All migrations/tests/builds/runtime/physical checks remain deferred.
+
+- Follow-up: added typed office Print Bridge voucher layout with strict payment identity, manual origin/method, amount and payable-balance reconciliation, actual-time/operator provenance and QR suppression. Browser and bridge layouts both describe payment as manually confirmed. End-to-end printer acceptance remains pending.

@@ -1,7 +1,7 @@
 export interface ApiBridgeAuthorization {keyId:string;payloadJson:string;signature:string}
 export type BridgePrinterRole='RECEIPT'|'KITCHEN'|'BAR'|'OFFICE'|'LABEL';
 export interface BridgeDocument {
- id:string;documentType:'GOODS_RECEIPT'|'PURCHASE_ORDER'|'SALES_RECEIPT'|'PAYMENT_ACKNOWLEDGEMENT'|'REFUND_RECEIPT'|'KOT'|'BOT'|'KOT_CANCEL'|'BOT_CANCEL'|'ORDER_VOID_NOTICE'|'CLOSE_DAY_REPORT';
+ id:string;documentType:'SUPPLIER_PAYMENT_VOUCHER'|'GOODS_RECEIPT'|'PURCHASE_ORDER'|'SALES_RECEIPT'|'PAYMENT_ACKNOWLEDGEMENT'|'REFUND_RECEIPT'|'KOT'|'BOT'|'KOT_CANCEL'|'BOT_CANCEL'|'ORDER_VOID_NOTICE'|'CLOSE_DAY_REPORT';
  documentNumber:string;layoutVersion:1;hash:string;canonicalSnapshot:string;
 }
 export type BridgeAction=
