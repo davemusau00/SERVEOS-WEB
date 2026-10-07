@@ -10,7 +10,7 @@ use uuid::Uuid;
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 struct ApprovedDevice {
  device_id:String,origin:String,public_key:PublicJwk,approved_at:String,
- approval_reason:String,revoked:bool,
+ approval_reason:String,revoked:bool,revoked_at:Option<String>,revocation_reason:Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
@@ -43,6 +43,11 @@ impl ApprovedConfiguration {
   let mut devices=HashMap::new();
   for device in config.devices{
    if chrono::DateTime::parse_from_rfc3339(&device.approved_at).is_err()||!(3..=500).contains(&device.approval_reason.trim().chars().count())||device.approval_reason.chars().any(|c|c.is_control()){return Err("Every pairing requires recorded local approval time and reason".into());}
+   if device.revoked{
+    let revoked_at=device.revoked_at.as_deref().and_then(|value|chrono::DateTime::parse_from_rfc3339(value).ok());
+    let reason=device.revocation_reason.as_deref().unwrap_or("");
+    if revoked_at.is_none()||!(3..=500).contains(&reason.trim().chars().count())||reason.chars().any(|c|c.is_control()){return Err("Revoked pairings require recorded local revocation time and reason".into());}
+   }else if device.revoked_at.is_some()||device.revocation_reason.is_some(){return Err("Active pairings cannot contain revocation evidence".into());}
    let pairing=PairedDevice::from_approved_pairing(config.bridge_id.clone(),config.business_id.clone(),device.device_id.clone(),device.origin.clone(),device.public_key)?;
    let entry=DeviceEntry{pairing,origin:device.origin,revoked:device.revoked};
    if devices.insert(device.device_id,entry).is_some(){return Err("Duplicate approved device identity".into());}

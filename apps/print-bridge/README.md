@@ -1,6 +1,6 @@
 # ServOS Print Bridge foundation
 
-This contains a library and private stdio worker; it is not yet an exposed HTTPS service or installed bridge. It has no ServOS API credentials, PostgreSQL access or business mutation code.
+This contains the bridge library, private stdio worker, localhost HTTPS adapter source and local pairing administration tool. The HTTPS adapter is not activated or installed as a managed bridge service. The bridge has no ServOS API credentials, PostgreSQL access or business mutation code.
 
 ## Local delivery journal
 
@@ -78,17 +78,29 @@ An attestation proves issuance at claim time, not continuing claim ownership. Th
 `bridgeId`, `businessId`, exact HTTPS `apiOrigin`, `apiKeyId`, public P-256 `apiPublicKey`,
 `printerConfigurationJson` (the exact printer configuration JSON as a string), and `devices`.
 Each approved device requires `deviceId`, exact HTTPS PWA `origin`, public P-256 `publicKey`,
-RFC3339 `approvedAt`, bounded `approvalReason`, and explicit boolean `revoked`.
+RFC3339 `approvedAt`, bounded `approvalReason`, and explicit boolean `revoked`. Revoked devices
+also require RFC3339 `revokedAt` and a bounded `revocationReason`; active devices must omit both.
 Private JWK fields are rejected. Duplicate device identities are rejected, including revoked entries.
 An empty devices array is allowed and grants no access. Keep revoked entries as approval evidence.
 
 Provision this file locally with installer/service-account ACLs. No browser request may create,
-replace or approve it. Keys must be independently verified against enrolled API/PWA identities;
-merely receiving a public key from a browser is insufficient approval. The future HTTPS host must
-reload the trusted configuration before each dispatch, fail closed on invalid/revoked configuration,
-and serialize access to the exclusive BridgeSession. `permits_origin` is preflight policy only.
-An in-flight transport cannot be recalled by configuration revocation; reconcile its delivery state.
-No listener, installer, local approval UI or automatic configuration watcher is activated by this module.
+replace or approve it. `pairing-admin.mjs approve` accepts the public identity JSON shown in PWA
+Bridge Settings, displays the device/origin/key fingerprint, requires independent operator comparison
+against the authenticated ServOS device record, then requires a typed approval phrase and reason.
+`pairing-admin.mjs revoke` requires a typed device-specific revocation phrase and reason; it retains
+the original pairing and records revocation time/reason. Both commands atomically replace the local
+configuration and must be run by an authorized local administrator against the installer-protected
+configuration path. Neither command is available over HTTPS. The worker reloads the trusted
+configuration before every request and fails closed on invalid/revoked configuration. `permits_origin`
+is preflight policy only. An in-flight transport cannot be recalled by configuration revocation;
+reconcile its delivery state. This source does not install or activate a managed service.
+
+Commands:
+
+```text
+node apps/print-bridge/pairing-admin.mjs approve <absolute-config-path> <absolute-device-request.json>
+node apps/print-bridge/pairing-admin.mjs revoke <absolute-config-path> <device-uuid>
+```
 
 
 ### Private worker entry point (source only)

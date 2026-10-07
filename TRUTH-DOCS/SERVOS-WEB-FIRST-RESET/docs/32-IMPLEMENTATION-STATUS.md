@@ -843,3 +843,9 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Supplier payment vouchers now snapshot and display supplier credit applied when the cash/external payment was recorded; remaining payable reconciles against liability less both paid and credited totals. Print Bridge validation retains compatibility with older version-1 vouchers that omit the credit field.
 - Supplier credit-note matching now emits the `supplierCredits` balance projection in the same command result, allowing the change feed to expose newly available credit without waiting for bootstrap/reload.
 - Source-only review; no tests, lint, builds or migrations were run, following the instruction to defer verification until the end of the sprint.
+
+### Print Bridge local pairing administration (source only)
+
+- Added a local-only interactive CLI to approve an enrolled PWA public identity into the installer-owned bridge configuration and to revoke an existing pairing. Approval/revocation require device-specific typed confirmation and an operator reason; approval explicitly instructs the operator to compare the identity with the authenticated ServOS device record.
+- Configuration replacement is atomic. Revocation retains the pairing record plus RFC3339 time/reason, and the Rust configuration loader rejects active/revoked metadata inconsistencies. The worker's existing per-request reload makes revocation effective for subsequent requests; in-flight print delivery remains subject to uncertainty reconciliation.
+- This adds source for pairing administration only. Service installation, execution, ACL verification, crypto interoperability, and browser/printer acceptance remain unverified. No tests, lint, or builds were run.
