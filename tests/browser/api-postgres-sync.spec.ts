@@ -23,12 +23,14 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   await migrate(pool);const store=new PostgresStore(pool);
   await pool.query('INSERT INTO businesses(id,name) VALUES($1,$2)',[businessId,'Browser acceptance']);
   await pool.query("INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password) VALUES($1,$2,$3,'Browser Admin','Admin',$4,false)",[businessId,staffId,loginName,hash]);
-  for(const permission of ['*','catalog.view','catalog.manage','devices.register'])await pool.query('INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,$3)',[businessId,staffId,permission]);
+  for(const permission of ['*','catalog.view','catalog.manage','devices.register','inventory.view','inventory.count'])await pool.query('INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,$3)',[businessId,staffId,permission]);
   await pool.query('INSERT INTO api_enrolled_devices(id,business_id,staff_id,public_key,created_at) VALUES($1,$2,$3,$4,now())',[deviceId,businessId,staffId,JSON.stringify({kty:'EC',crv:'P-256',x:'test',y:'test'})]);
+  const locationId=randomUUID();
   const actor={businessId,staffId,deviceId,permissions:['catalog.manage']};
   const data={name:'Real coffee beans',code:'REAL-COF',baseUnit:'kg',scanUnitQuantity:1,reorderLevel:2,averageUnitCostMinor:900,purchasePackages:[]};
   const command=(name:string,version:number)=>({commandId:randomUUID(),name:'stockItem.save',expectedVersions:{[`stockItems:${stockId}`]:version},payload:{id:stockId,data:{...data,name}}});
   expect((await executeCommand({db:store,command:command(data.name,0),actor,registry:catalogCommandRegistry})).kind).toBe('CONFIRMED');
+  expect((await executeCommand({db:store,command:{commandId:randomUUID(),name:'stockLocation.save',expectedVersions:{[`stockLocations:${locationId}`]:0},payload:{id:locationId,data:{name:'Real store',code:'REAL',type:'STORE'}}},actor,registry:catalogCommandRegistry})).kind).toBe('CONFIRMED');
   server=createApiServer({store,registry:catalogCommandRegistry,authenticate:(req:IncomingMessage)=>authenticateSession(req,store),origin:'http://127.0.0.1:3020'});
   const listeningServer=server;
   await new Promise<void>((resolve,reject)=>{listeningServer.once('error',reject);listeningServer.listen(4317,'127.0.0.1',resolve)});
@@ -58,14 +60,23 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   await page.context().setOffline(false);
   await page.getByRole('button',{name:'Synchronize',exact:true}).first().click();
   await expect(page.getByText('Real remote change',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Inventory',exact:true}).click();
+  await page.getByRole('button',{name:'Count stock',exact:true}).click();
+  const count=page.getByRole('dialog',{name:'Full stocktake',exact:true});
+  await count.getByRole('button',{name:'Real store',exact:true}).click();
+  await count.getByLabel('Counted quantity for Real remote change',{exact:true}).fill('3');
+  await count.getByRole('button',{name:'Review count',exact:true}).click();
+  await count.getByRole('button',{name:'Confirm Count',exact:true}).click();
+  await expect(count).toHaveCount(0);
+  expect((await pool.query('SELECT quantity::text,version::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0]).toMatchObject({quantity:'3.000000',version:'1'});
   const persisted=await page.evaluate(async()=>{
    const entry=(await indexedDB.databases()).find(db=>db.name?.startsWith('servos-api-v1:'))!;
    return new Promise<any>((resolve,reject)=>{const opening=indexedDB.open(entry.name!);opening.onerror=()=>reject(opening.error);opening.onsuccess=()=>{const db=opening.result,tx=db.transaction(['records','queue'],'readonly');const records=tx.objectStore('records').getAll(),queue=tx.objectStore('queue').getAll();tx.oncomplete=()=>{resolve({records:records.result,queue:queue.result});db.close()};tx.onabort=()=>reject(tx.error)}});
   });
-  expect(persisted.records.find((record:{id:string})=>record.id===stockId)).toMatchObject({version:3,data:{name:'Real remote change'}});
-  expect(persisted.queue).toHaveLength(1);expect(persisted.queue[0].state).toBe('SYNCHRONIZED');
+  expect(persisted.records.find((record:{id:string})=>record.id===stockId)).toMatchObject({version:4,data:{name:'Real remote change',balanceVersions:{[locationId]:1}}});
+  expect(persisted.queue).toHaveLength(2);expect(persisted.queue.every((entry:{state:string})=>entry.state==='SYNCHRONIZED')).toBe(true);
   expect(legacyRequests).toEqual([]);
-  expect((await pool.query('SELECT count(*)::int AS total FROM api_commands WHERE business_id=$1 AND status=$2',[businessId,'CONFIRMED'])).rows[0].total).toBe(3);
+  expect((await pool.query('SELECT count(*)::int AS total FROM api_commands WHERE business_id=$1 AND status=$2',[businessId,'CONFIRMED'])).rows[0].total).toBe(5);
  }finally{
   await page.goto('about:blank');
   if(server){const closingServer=server;closingServer.closeAllConnections();await new Promise<void>(resolve=>closingServer.close(()=>resolve()))}
