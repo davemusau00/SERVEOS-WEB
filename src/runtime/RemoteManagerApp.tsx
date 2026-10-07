@@ -135,7 +135,7 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
   const activeCollection = collections.find(item => item.id === collection);
 
   if(accountLink) return <RemoteAccountAccess url={url} publishableKey={key} link={accountLink} onDone={()=>setAccountLink(null)}/>;
-  if(apiSession&&apiStore)return <ApiCatalogPilot auth={apiSession} store={apiStore} onSignOut={()=>void signOutApi()}/>;
+  if(apiSession&&apiStore)return <WebBusinessApp initialSession={{businessId:apiSession.profile.businessId,actorId:apiSession.profile.staffId,enabled:true,permissions:apiSession.profile.permissions,policyVersion:'api-catalog-v1',lifecycleStage:'LIVE'}} rpc={async()=>{throw new Error('This workflow has not migrated to the API authority.')}} apiAuth={apiSession} apiStore={apiStore} onSignOut={()=>void signOutApi()}/>;
   if (!auth) return <div className="min-h-screen bg-slate-950 text-white grid place-items-center p-5"><form className="w-full max-w-md space-y-4 rounded-3xl border border-slate-800 bg-slate-900 p-7 shadow-2xl" onSubmit={async e => {
     e.preventDefault(); setBusy(true); setError('');
     try {
@@ -159,7 +159,7 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
     } catch(e) {setError(String(e));} finally {setBusy(false);}
   }}>
     <div><div className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-400">ServOS Remote</div><h1 className="mt-2 text-3xl font-black">Business control</h1><p className="mt-2 text-sm text-slate-400">{authMode==='API'?'Sign in to the ServOS API catalog pilot.':'Secure remote visibility and constrained management for your ServOS business.'}</p></div>
-    <div className="flex gap-2"><button type="button" className={`${button} ${authMode==='REMOTE'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('REMOTE');setError('')}}>Remote</button><button type="button" className={`${button} ${authMode==='API'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('API');setError('')}}>API catalog pilot</button></div>
+    <div className="flex gap-2"><button type="button" className={`${button} ${authMode==='REMOTE'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('REMOTE');setError('')}}>Remote</button><button type="button" className={`${button} ${authMode==='API'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('API');setError('')}}>API catalog workspace</button></div>
     <label className="block text-sm">{authMode==='API'?'Staff login':'Email'}<input required type={authMode==='API'?'text':'email'} autoComplete="username" className={`${field} mt-1 w-full`} value={email} onChange={e => setEmail(e.target.value)} /></label>
     <label className="block text-sm">Password<input required type="password" autoComplete="current-password" className={`${field} mt-1 w-full`} value={password} onChange={e => setPassword(e.target.value)} /></label>
     {authMode==='API'&&<label className="block text-sm">New password, if account setup requires it<input type="password" autoComplete="new-password" minLength={12} className={`${field} mt-1 w-full`} value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label>}

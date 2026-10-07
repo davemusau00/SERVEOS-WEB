@@ -1,12 +1,48 @@
 name: ServOS CI
 on:
   push:
-    branches: [main]
+    branches: [main, reset/vps-platform]
   pull_request:
+  workflow_dispatch:
 defaults:
   run:
     shell: bash
 jobs:
+  api-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: serveos
+          POSTGRES_PASSWORD: serveos_ci
+          POSTGRES_DB: serveos_api_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U serveos -d serveos_api_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgres://serveos:serveos_ci@localhost:5432/serveos_api_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: mkdir -p artifacts/ci-logs
+      - run: npm ci --prefix apps/api 2>&1 | tee artifacts/ci-logs/api-postgres-install.log
+      - name: Run API unit and PostgreSQL integration tests
+        run: npm run test:api 2>&1 | tee artifacts/ci-logs/api-postgres-tests.log
+      - name: Upload API database evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-postgres-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/ci-logs/api-postgres-*.log
+          if-no-files-found: error
+          retention-days: 14
+
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -176,7 +212,7 @@ jobs:
           retention-days: 14
   evidence-summary:
     if: always()
-    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell]
+    needs: [api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -189,6 +225,7 @@ jobs:
       - run: npm run ci:evidence
         env:
           SERVOS_RELEASE_PROFILE: CI_PREVIEW_AND_STAGED_V2
+          SERVOS_JOB_API_POSTGRES: ${{ needs.api-postgres.result }}
           SERVOS_JOB_FRONTEND: ${{ needs.frontend.result }}
           SERVOS_JOB_BROWSER_PREVIEW: ${{ needs.browser-preview.result }}
           SERVOS_JOB_BROWSER_PRODUCTION: ${{ needs.browser-production.result }}
@@ -196,7 +233,7 @@ jobs:
           SERVOS_JOB_CLOUD_BASE: ${{ needs.cloud-protocol-base.result }}
           SERVOS_JOB_CLOUD_V2: ${{ needs.cloud-protocol-v2.result }}
           SERVOS_JOB_DESKTOP: ${{ needs.desktop-shell.result }}
-        SERVOS_JOB_WINDOWS_PRINTER: ${{ needs.windows-printer-shell.result }}
+          SERVOS_JOB_WINDOWS_PRINTER: ${{ needs.windows-printer-shell.result }}
       - uses: actions/upload-artifact@v4
         with:
           name: servos-ci-evidence-${{ github.sha }}-${{ github.run_attempt }}
@@ -206,7 +243,7 @@ jobs:
 
   release-candidate:
     if: github.ref == 'refs/heads/main'
-    needs: [frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, evidence-summary]
+    needs: [api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, evidence-summary]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -3,7 +3,9 @@ import {Activity,BedDouble,Boxes,CheckCircle2,ChevronRight,ClipboardCheck,Credit
 import {BusinessStore,redactSensitiveData,type QueuedCommand,type WorkflowDraft,type WorkflowDraftField} from './BusinessStore';
 import {resolveOperationDependencies} from './dependencies';
 import {startAutomaticSync,synchronizeStore} from './sync';
-import {allowed,loadAuthorizedSnapshot,openWebDevice,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
+import {allowed,loadAuthorizedSnapshot,openWebDevice,refreshApiCatalogProjection,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
+import {createApiCloudTransport} from './sync';
+import type {ApiAuthenticatedDeviceSession} from './apiAuth';
 import type {CommandOutcome} from '../../types/transactions';
 
 const WebCatalogView=React.lazy(()=>import('./WebCatalogInventory').then(module=>({default:module.WebCatalogView})));
@@ -50,18 +52,25 @@ const middleDot='\u00B7';
 type WorkspaceTab='Home'|'POS'|'KDS'|'Catalog'|'Inventory'|'Procurement'|'Front Desk'|'Guest Accounts'|'Housekeeping'|'Rooms'|'Maintenance'|'Floorplan'|'Assets'|'Master Data'|'Refunds'|'Finance Controls'|'Settings'|'Finance'|'Staff'|'Administration'|'Activity'|'Help';
 const canSeeTab=(session:WebSession,tab:WorkspaceTab)=>canSeeWorkspace(session,workspaceById(tab));
 
-export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:WebSession;rpc:Rpc;onSignOut:()=>void}){
+export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{initialSession:WebSession;rpc:Rpc;onSignOut:()=>void;apiAuth?:ApiAuthenticatedDeviceSession;apiStore?:BusinessStore}){
  const [session,setSession]=useState(initialSession);const [records,setRecords]=useState<BusinessRecord[]>([]);const [queue,setQueue]=useState<QueuedCommand[]>([]);
  const [drafts,setDrafts]=useState<WorkflowDraft[]>([]);
  const initialTab=()=>{const raw=decodeURIComponent(window.location.hash.replace(/^#\/?/,'').split('/')[0]||'Home');return visibleWorkspaces(initialSession).some(workspace=>workspace.id===raw)?raw as WorkspaceTab:'Home'};
  const [tab,setTab]=useState<WorkspaceTab>(initialTab);const [helpQuery,setHelpQuery]=useState('');const [helpDrawerOpen,setHelpDrawerOpen]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');const [ready,setReady]=useState(false);const [busy,setBusy]=useState(false);const [syncing,setSyncing]=useState(false);const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine);const [updateReady,setUpdateReady]=useState(false);const [tourOpen,setTourOpen]=useState(false);const [tourGuideId,setTourGuideId]=useState('servos.core');const [committedOperation,setCommittedOperation]=useState<{id:string;operation:string}|null>(null);const [guidance,setGuidance]=useState<WebGuidanceProgress[]>([]);const [lifecycleRefresh,setLifecycleRefresh]=useState(0);
  const [editor,setEditor]=useState<Editor|null>(null);const [values,setValues]=useState<Values>({});
- const store=useRef<BusinessStore|null>(null);const committedCommands=useRef(new Set<string>());const submitInFlight=useRef(false);const rpcRef=useRef(rpc);rpcRef.current=rpc;const sessionRef=useRef(session);sessionRef.current=session;
+ const store=useRef<BusinessStore|null>(apiStore||null);const committedCommands=useRef(new Set<string>());const submitInFlight=useRef(false);const rpcRef=useRef(rpc);rpcRef.current=rpc;const sessionRef=useRef(session);sessionRef.current=session;const apiTransport=useRef(apiAuth?createApiCloudTransport(apiAuth.client):null);
  const syncRef=useRef<()=>Promise<void>>(async()=>{});
  const refresh=async()=>{if(!store.current)return;const [r,q,d]=await Promise.all([store.current.records(),store.current.queue(),store.current.drafts()]);const displayQueue=q.map(entry=>({...entry,command:{...entry.command,payload:redactSensitiveData(entry.command.payload) as Record<string,unknown>},result:entry.result?redactSensitiveData(entry.result) as NonNullable<QueuedCommand['result']>:undefined}));setRecords(r);setQueue(displayQueue);setDrafts(d)};
   useEffect(()=>{
   let stopped=false;let needsSnapshot=true;let automatic:ReturnType<typeof startAutomaticSync>|undefined;let opened:BusinessStore|undefined;
   const run=async()=>{
+    if(apiAuth&&apiStore){
+      if(!opened){opened=apiStore;store.current=apiStore;}
+      if(stopped)return;
+      await refreshApiCatalogProjection(opened,apiAuth.client);
+      await synchronizeStore(opened,apiTransport.current!);
+      await refresh();if(!stopped){setReady(true);setError('')};return;
+    }
     let latest:WebSession;try{latest=await rpcRef.current('rpc/servos_v2_session',{})}catch(error){if([401,403].includes((error as {status?:number}).status||0)){setReady(false);setRecords([])}throw error}
     if(latest.businessId!==initialSession.businessId||latest.actorId!==initialSession.actorId){setReady(false);setRecords([]);throw new Error('This workspace is no longer enabled for this session. Sign in again.')}
     sessionRef.current=latest;if(!stopped)setSession(latest);
@@ -78,13 +87,14 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
   };
   syncRef.current=run;
   void(async()=>{try{
+   if(apiAuth&&apiStore){opened=apiStore;store.current=apiStore;await run();automatic=startAutomaticSync(run,e=>{if(!stopped)setError(operatorError(e))});return}
    const latest=await rpcRef.current('rpc/servos_v2_session',{}) as WebSession;
    if(latest.lifecycleStage&&latest.lifecycleStage!=='LIVE'){await run();return}
    opened=await openWebDevice(initialSession,rpcRef.current);if(stopped){opened.close();return}store.current=opened;for(const entry of await opened.queue())if(entry.state==='SYNCHRONIZED')committedCommands.current.add(entry.id);
    automatic=startAutomaticSync(run,e=>{if(!stopped){setError(operatorError(e));if((e as {status?:number}).status===403){setReady(false);setRecords([])}}});
   }catch(e){if(!stopped)setError(operatorError(e))}})();
   return()=>{stopped=true;automatic?.stop();opened?.close();store.current=null};
- },[initialSession.businessId,initialSession.actorId,lifecycleRefresh]);
+ },[initialSession.businessId,initialSession.actorId,lifecycleRefresh,apiAuth,apiStore]);
   const syncNow=async()=>{setSyncing(true);try{await syncRef.current()}catch(error){const message=operatorError(error);setError(message);throw new Error(message)}finally{setSyncing(false)}};
   useEffect(()=>{const handleOnline=()=>setOnline(true);const handleOffline=()=>setOnline(false);window.addEventListener('online',handleOnline);window.addEventListener('offline',handleOffline);return()=>{window.removeEventListener('online',handleOnline);window.removeEventListener('offline',handleOffline)}},[]);
   useEffect(()=>{const handleUpdate=()=>setUpdateReady(true);window.addEventListener('servos:sw-update-ready',handleUpdate);return()=>window.removeEventListener('servos:sw-update-ready',handleUpdate)},[]);
@@ -116,6 +126,8 @@ export function WebBusinessApp({initialSession,rpc,onSignOut}:{initialSession:We
  const select=(key:string,title:string,collection:string):Field=>({key,label:title,type:'select',options:choices(collection)});
  const open=(next:Editor)=>{setEditor(next);setValues(Object.fromEntries(next.fields.map(f=>[f.key,f.value??''])));setError('')};
  const submit=async(operation:string,collection:string,id:string,payload:Record<string,unknown>):Promise<CommandOutcome>=>{
+  if(apiAuth&&!['product.save','stockItem.save','stockLocation.save'].includes(operation))return {kind:'BLOCKED',message:`${operation} has not migrated to the ServOS API. No command was submitted.`};
+  if(apiAuth&&!allowed(session,operation==='product.save'||operation==='stockItem.save'||operation==='stockLocation.save'?'catalog.manage':'catalog.manage'))return {kind:'BLOCKED',message:'Your API staff account cannot manage catalog records.'};
   if(!store.current||!ready)return {kind:'BLOCKED',message:'The business workspace is not ready. Reconnect and try again.'};
   if(submitInFlight.current)return {kind:'BLOCKED',message:'Another business action is being submitted. Wait for its outcome before continuing.'};
   submitInFlight.current=true;setBusy(true);setError('');setNotice('');let activeCommandId='';

@@ -3,7 +3,7 @@ import {LogOut,RefreshCw,Wifi,WifiOff} from 'lucide-react';
 import {BusinessStore} from './BusinessStore';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
 import {WebCatalogView} from './WebCatalogInventory';
-import {createApiTransport,synchronizeStore,startAutomaticSync} from './sync';
+import {createApiCloudTransport,synchronizeStore,startAutomaticSync} from './sync';
 import {resolveOperationDependencies} from './dependencies';
 import {acquireOfflineGrant} from './offlineGrant';
 import type {BusinessRecord,WebSession} from './session';
@@ -14,7 +14,7 @@ const button='inline-flex items-center gap-2 rounded-xl border border-slate-700 
 
 export function ApiCatalogPilot({auth,store,onSignOut}:{auth:ApiAuthenticatedDeviceSession;store:BusinessStore;onSignOut:()=>void}){
  const [records,setRecords]=useState<BusinessRecord[]>([]);const [queue,setQueue]=useState<TransactionResult[]>([]);const [hasUnknown,setHasUnknown]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');const [busy,setBusy]=useState(false);const [online,setOnline]=useState(()=>navigator.onLine);const [syncing,setSyncing]=useState(false);
- const currentStore=useRef(store);currentStore.current=store;const transport=useRef(createApiTransport(auth.client));
+ const currentStore=useRef(store);currentStore.current=store;const transport=useRef(createApiCloudTransport(auth.client));
  const session:WebSession={businessId:auth.profile.businessId,actorId:auth.profile.staffId,enabled:true,permissions:auth.profile.permissions,policyVersion:'api-catalog-v1',lifecycleStage:'LIVE'};
  const refresh=async()=>{const [nextRecords,entries]=await Promise.all([currentStore.current.records(),currentStore.current.queue()]);setRecords(nextRecords as BusinessRecord[]);setQueue(entries.flatMap(entry=>entry.result?[entry.result]:[]));setHasUnknown(entries.some(entry=>entry.state==='OUTCOME_UNKNOWN'))};
  const sync=async()=>{setSyncing(true);try{await synchronizeStore(currentStore.current,transport.current);await refresh();setError('')}catch(cause){setError(cause instanceof Error?cause.message:'Synchronization is pending.');await refresh();throw cause}finally{setSyncing(false)}};

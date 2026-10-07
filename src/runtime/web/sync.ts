@@ -4,7 +4,7 @@ import {ApiHttpError,ApiOutcomeUnknown,createServOSApiClient,type ApiCommandOutc
 
 export interface CloudTransport {execute(command:BusinessCommandV2):Promise<TransactionResult>;pull(cursor:number):Promise<ChangePage>}
 
-export function createApiTransport(client:ReturnType<typeof createServOSApiClient>):CloudTransport{
+export function createApiCloudTransport(client:ReturnType<typeof createServOSApiClient>):CloudTransport{
  return {
   async execute(command){
    let outcome:ApiCommandOutcome|undefined;
@@ -23,9 +23,15 @@ export function createApiTransport(client:ReturnType<typeof createServOSApiClien
    if(outcome.kind==='CONFIRMED')return {commandId:command.id,status:'SYNCHRONIZED',recordVersions:[],serverSequence:outcome.cursor};
    return {commandId:command.id,status:outcome.kind==='CONFLICT'?'CONFLICT':'REJECTED',recordVersions:[],error:outcome.error||{code:outcome.kind,message:'The API did not confirm this command.',retryable:false}};
   },
-  pull(cursor){return client.changes(cursor,200)}
+  async pull(cursor){
+   const page=await client.changes(cursor,200);
+   return {cursor:page.cursor,highWater:page.highWater,hasMore:page.hasMore,changes:page.changes.map(change=>({sequence:change.sequence,commandId:change.commandId,actorId:change.actorId,deviceId:change.deviceId,occurredAt:change.occurredAt,records:change.records.map(record=>({collection:record.collection,id:record.id,version:record.version,data:record.data,archived:record.archived}))}))};
+  }
  };
 }
+
+/** Backward-compatible name while API-authority callers migrate onto the shared CloudTransport contract. */
+export const createApiTransport=createApiCloudTransport;
 export type SyncUpdate={type:'SYNC_STARTED'|'SYNC_FINISHED'|'SYNC_FAILED';at:string};
 const syncChannel=(scope:string,deviceId:string,actorId:string)=>`servos-v2-sync:${scope}:${deviceId}:${actorId}:updates`;
 export function subscribeSyncUpdates(scope:string,deviceId:string,actorId:string,onUpdate:(update:SyncUpdate)=>void){

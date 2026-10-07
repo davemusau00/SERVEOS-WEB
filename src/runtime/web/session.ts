@@ -52,3 +52,16 @@ export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnTy
   await store.replaceSnapshot(bootstrap.records,bootstrap.cursor,policyVersion);
   return {cursor:bootstrap.cursor,records:bootstrap.records.length,policyVersion};
 }
+
+export async function refreshApiCatalogProjection(store:BusinessStore,client:ReturnType<typeof createServOSApiClient>,policyVersion='api-catalog-v1'){
+  const bootstrap=await client.bootstrapCatalog();
+  if(bootstrap.protocolVersion!==1||!Number.isSafeInteger(bootstrap.cursor)||bootstrap.cursor<0)throw new Error('API catalog bootstrap is invalid');
+  const localCursor=await store.cursor();
+  if(bootstrap.cursor<localCursor)throw new Error('API catalog bootstrap is behind this device projection; reload recovery is required.');
+  if(bootstrap.cursor!==localCursor||await store.policyVersion()!==policyVersion){
+    const pending=(await store.queue()).filter(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN');
+    if(localCursor>0&&pending.length)throw new Error('A catalog refresh found unsynchronized commands. Recover those outcomes before rebuilding this projection.');
+    await store.replaceSnapshot(bootstrap.records,bootstrap.cursor,policyVersion);
+  }
+  return {cursor:bootstrap.cursor,records:bootstrap.records.length,policyVersion};
+}
