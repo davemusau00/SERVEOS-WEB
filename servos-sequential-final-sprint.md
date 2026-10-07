@@ -1,11 +1,11 @@
 # SERVOS FINAL SPRINT
-## Sequential Completion Plan — Remote Head `6c94953`, local head `c8cd45c`
+## Sequential Completion Plan — Remote Head `cdb54c6`, local head `cdb54c6`
 
 **Repository:** `davemusau00/SERVEOS-WEB`  
 **Branch:** `reset/vps-platform`  
-**Current remote HEAD:** `6c94953de676b2b7fd36b23233830d21fbcf8b2d`
-**Current local HEAD:** `c8cd45c8b53a7251b03f3bf02f594fbbf5b47ef9` (one commit ahead)
-**Branch position:** 163 commits ahead of `main`, 0 behind
+**Current remote HEAD:** `cdb54c68b9357da0cb7db67f1a46d8607f980e3e`
+**Current local HEAD:** `cdb54c68b9357da0cb7db67f1a46d8607f980e3e` (matches origin)
+**Branch position:** 166 commits ahead of `main`, 0 behind
 **Checkpoint:** 2026-10-08  
 **Execution principle:** sequential domain completion, not parallel feature expansion
 
@@ -131,11 +131,11 @@ This remains the immediate hard stop.
 
 ## Live checkpoint — 2026-10-08
 
-Local `HEAD` is `c8cd45c`; `origin/reset/vps-platform` is `6c94953` and local is one commit ahead. The latest public Actions run is [#279 on `6c94953`](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37693768353), so it predates the current local Rust fixes. Its browser-preview and browser-production jobs succeeded. Its frontend `npm test` step and API/PostgreSQL test step failed; the Ubuntu and Windows Print Bridge jobs failed at their lint step. Detailed test logs are not visible without GitHub sign-in.
+Local `HEAD` and `origin/reset/vps-platform` are both `cdb54c6`; the branch is 166 commits ahead of `main` and has no ahead/behind divergence. The latest public Actions run is [#279 on `6c94953`](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37693768353); no run for `cdb54c6` is visible. Run #279's browser-preview and browser-production jobs succeeded. Its frontend `npm test` step and API/PostgreSQL test step failed; both Print Bridge jobs failed at their lint step. Detailed test logs are not visible without GitHub sign-in.
 
-The source lint repairs are now verified locally at the current source state: `npm run lint`, both Rust `cargo fmt --check` commands, strict all-target Clippy for the Print Bridge and printer transport crates, and the Windows-service Clippy command all pass. Fixes addressed the credit renderer's `amount` shadowing, an unnecessary mutable reborrow, manual ceiling division, duplicate timestamp branches, transport lint errors, and a Windows service path borrow. The current `c8cd45c` commit includes `apps/print-bridge/Cargo.lock` and a checked-in `apps/print-bridge/target/` cache; generated-file policy and cleanup remain open.
+The source lint repairs pass locally: `npm run lint`, both Rust `cargo fmt --check` commands, strict all-target Clippy for the Print Bridge and printer transport crates, and the Windows-service Clippy command. These checks were run at `c8cd45c`; commits through `cdb54c6` changed only documentation, ignore rules and generated build output. Fixes addressed the credit renderer's `amount` shadowing, an unnecessary mutable reborrow, manual ceiling division, duplicate timestamp branches, transport lint errors, and a Windows service path borrow. The repository now ignores Rust `target/` directories, and the 1,212 tracked entries under `apps/print-bridge/target/` have been removed from the index while the local cache remains on disk. All four Cargo lockfiles remain tracked.
 
-No local test suite, release build, migration, PostgreSQL runtime, or browser suite was run in this turn. Keep tests deferred to the end of the sprint as requested. CI has already run its frontend and API/PostgreSQL test steps on `6c94953`, and both failed. There is no same-commit run for local `c8cd45c`; Phase 0 remains open until the full matrix is green on one exact head.
+No local test suite, release build, migration, PostgreSQL runtime, or browser suite was run in this turn. Keep tests deferred to the end of the sprint as requested. CI has already run its frontend and API/PostgreSQL test steps on `6c94953`, and both failed. Phase 0 remains open until the full matrix is green on one exact head.
 
 ## Required same-commit green matrix
 
@@ -158,10 +158,9 @@ evidence-summary               PASS
 ## Immediate repair order
 
 ```text
-1. retain the current local frontend and Rust lint/format passes
-2. inspect and repair the frontend/API/PostgreSQL test failures when the end-of-sprint test phase begins
-3. run the full required matrix against one exact final head
-4. resolve every remaining failure and record the resulting evidence
+1. keep the current frontend and Rust lint/format gates green
+2. at the end-of-sprint test phase, inspect and repair frontend/API/PostgreSQL failures on one exact head
+3. run the full required matrix against that head and record evidence for every required gate
 ```
 
 Do not open PMS before this.
