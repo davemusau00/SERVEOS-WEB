@@ -36,13 +36,14 @@ const receive=async({tx,command,actor,at})=>{
   const rejectionReason=rejected>0n?text(input.rejectionReason,'Rejection reason',500,3):null;
   const pack=line.purchasePackageSnapshot;if(pack&&[delivered,accepted,rejected].some(value=>value%1000000n!==0n))fail('Package receiving requires whole delivered, accepted and rejected package counts.');
   const previous=qty(line.quantityReceived),cumulative=previous+accepted;
+  if(cumulative>1000000000000000n||qty(line.quantityDelivered)+delivered>1000000000000000n||qty(line.quantityRejected)+rejected>1000000000000000n)fail('Cumulative receiving quantities exceed the supported range.');
   if(cumulative>qty(line.quantityOrdered)&&(!actor.permissions?.includes('*')&&!actor.permissions?.includes('procurement.over_receive')||p.overReceiveAcknowledged!==true))throw new ApiProblem(403,'OVER_RECEIVE_REVIEW_REQUIRED','Over-receiving requires permission and explicit acknowledgement.');
   nextAccepted.set(line.id,cumulative);
   const baseRaw=accepted*(pack?qty(pack.baseQuantity):1000000n);if(baseRaw%1000000n!==0n||baseRaw/1000000n>1000000000000000n)fail('Accepted base quantity exceeds stock precision/range.');
   const lineCost=cost(cumulative,line.unitPriceMinor)-cost(previous,line.unitPriceMinor);acceptedTotal+=lineCost;if(acceptedTotal>BigInt(Number.MAX_SAFE_INTEGER))fail('Accepted delivery value exceeds supported amounts.');
   let stock=null,before=null;
   if(accepted>0n){baseline(command,'stockItems',line.stockItemId);stock=await tx.stockItemDetails(actor.businessId,line.stockItemId);if(!stock||stock.baseUnit!==line.stockSnapshot.baseUnit||stock.sealedContainerSize!==line.stockSnapshot.sealedContainerSize)throw new ApiProblem(409,'STOCK_IDENTITY_CHANGED','The purchased stock unit/container configuration changed. Resolve it before receiving.');before=await reviewedBalance(tx,command,actor,line.stockItemId,p.locationId);}
-  plans.push({id:randomUUID(),line,input,delivered,accepted,rejected,rejectionReason,base:baseRaw/1000000n,lineCost,stock,before,receiptId:null});
+  plans.push({id:randomUUID(),line,input,previous,cumulative,delivered,accepted,rejected,rejectionReason,base:baseRaw/1000000n,lineCost,stock,before,receiptId:null});
  }
  const records=[];
  for(const plan of plans){if(plan.accepted===0n)continue;
@@ -52,7 +53,7 @@ const receive=async({tx,command,actor,at})=>{
   plan.receiptId=posting.receipt.id;records.push(posting.receipt,posting.stockItem,posting.stockMovement);
  }
  const documentId=randomUUID(),documentNumber=`GRN-${p.id}`;
- const items=plans.map(plan=>({id:plan.id,purchaseOrderLineId:plan.line.id,stockItemId:plan.line.stockItemId,stockSnapshot:plan.line.stockSnapshot,purchasePackageSnapshot:plan.line.purchasePackageSnapshot,quantityDelivered:number(plan.delivered),quantityAccepted:number(plan.accepted),quantityRejected:number(plan.rejected),baseQuantityAccepted:number(plan.base),unitPriceMinor:plan.line.unitPriceMinor,acceptedTotalMinor:Number(plan.lineCost),rejectionReason:plan.rejectionReason,inventoryReceiptId:plan.receiptId}));
+ const items=plans.map(plan=>({id:plan.id,purchaseOrderLineId:plan.line.id,stockItemId:plan.line.stockItemId,stockSnapshot:plan.line.stockSnapshot,purchasePackageSnapshot:plan.line.purchasePackageSnapshot,quantityDelivered:number(plan.delivered),quantityAccepted:number(plan.accepted),previousQuantityAccepted:number(plan.previous),cumulativeQuantityAccepted:number(plan.cumulative),quantityRejected:number(plan.rejected),baseQuantityAccepted:number(plan.base),unitPriceMinor:plan.line.unitPriceMinor,acceptedTotalMinor:Number(plan.lineCost),rejectionReason:plan.rejectionReason,inventoryReceiptId:plan.receiptId}));
  const snapshot={schemaVersion:1,business,supplier:po.data.supplierSnapshot,purchaseOrderId:po.id,purchaseOrderNumber:po.data.documentNumber,goodsReceiptId:p.id,deliveryReference:reference,locationId:p.locationId,currency:'KES',items,acceptedTotalMinor:Number(acceptedTotal),reason,receivedBy:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),overReceiveAcknowledged:p.overReceiveAcknowledged===true};const hash=documentHash(snapshot);
  await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'GOODS_RECEIPT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,documentId,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
  await tx.bumpEntityVersion(actor.businessId,'goodsReceipts',p.id,0);

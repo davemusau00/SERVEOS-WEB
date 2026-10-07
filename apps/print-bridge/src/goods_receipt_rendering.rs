@@ -26,7 +26,10 @@ pub fn prepare_goods_receipt(input:&ValidatedAction)->Result<PreparedDocument,St
   let pack=item.get("purchasePackageSnapshot").filter(|v|!v.is_null());
   let unit=if let Some(pack)=pack{identity(pack,"id")?;let (per,_)=quantity(pack,"baseQuantity")?;if per==0||[delivered,accepted,rejected].iter().any(|q|q%1000000!=0)||accepted*per%1000000!=0||accepted*per/1000000!=base{return Err("GRN package quantities do not reconcile".into());}text(pack,"name",true)?}else{if base!=accepted{return Err("GRN base quantity mismatch".into());}text(stock,"baseUnit",true)?};
   let value=amount(item,"acceptedTotalMinor")?;amount(item,"unitPriceMinor")?;
-  // Partial deliveries use cumulative rounding deltas; do not independently re-round each GRN line.
+  // Reconcile the exact cumulative rounding delta frozen by the authority.
+  let (previous,_)=quantity(item,"previousQuantityAccepted")?;let (cumulative,_)=quantity(item,"cumulativeQuantityAccepted")?;
+  let price=amount(item,"unitPriceMinor")?;
+  if previous+accepted!=cumulative||(cumulative*i128::from(price)+500000)/1000000-(previous*i128::from(price)+500000)/1000000!=i128::from(value){return Err("GRN cumulative accepted cost does not reconcile".into());}
   if accepted==0{if base!=0||value!=0||!item["inventoryReceiptId"].is_null(){return Err("Rejected-only GRN line contains stock posting".into());}}else{identity(item,"inventoryReceiptId")?;if base==0{return Err("Accepted GRN line has no base stock".into());}}
   total+=i128::from(value);lines.push("--------------------------------".into());lines.push(format!("{}. {}",index+1,text(stock,"name",true)?));lines.push(format!("Unit: {unit}"));lines.push(format!("Delivered {d} / accepted {a} / rejected {r}"));lines.push(format!("Accepted base: {b} {}",text(stock,"baseUnit",true)?));lines.push(format!("Accepted value: {}",money(value)));
   if rejected>0{lines.push(format!("Rejection: {}",text(item,"rejectionReason",true)?));}

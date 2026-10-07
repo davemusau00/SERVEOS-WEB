@@ -762,3 +762,9 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added GOODS_RECEIPT typed bridge submission and office-route renderer with immutable identity/schema/currency checks, unique line identities, delivered/accepted/rejected and package/base conservation, accepted-value control total, rejection and operator provenance. Partial-delivery cost remains the API cumulative rounding delta.
 - Uses existing bounded logo/footer pipeline, signed claim validation and durable delivery journal. No QR payment prompt or supplier invoice/payment assertion. Browser fallback remains available.
 - Compilation, tests, actual delivery, hardware layouts and end-to-end bridge acceptance remain unverified and deferred.
+
+### Partial receiving cost/range hardening (source only)
+
+- Bound cumulative accepted, delivered and rejected quantities so repeated over-receiving cannot create an unreadable/out-of-range PO projection.
+- Freeze previous and cumulative accepted quantities in each immutable GRN document line. The bridge now verifies the exact cumulative minor-money rounding delta instead of trusting only the accepted-value control total. Browser GRNs display that cost basis.
+- Client over-receive review compares six-decimal scaled quantities. Runtime/compilation/tests remain deferred; these edits do not constitute verified receiving or printer acceptance.
