@@ -24,6 +24,37 @@ export interface PreparedBrandingImage {
   thermalLogo: ThermalLogo;
 }
 
+/** Normalize a business-document logo as a small PNG for immutable API snapshots. */
+export async function prepareDocumentLogoPng(blob: Blob): Promise<string> {
+  if (!blob.size || blob.size > 8 * 1024 * 1024 || !/^image\/(png|jpeg|webp)$/.test(blob.type)) {
+    throw new Error('Choose a PNG, JPEG, or WebP logo smaller than 8 MB.');
+  }
+  let bitmap: ImageBitmap;
+  try { bitmap = await createImageBitmap(blob); }
+  catch { throw new Error('This image could not be decoded. Choose a valid PNG, JPEG, or WebP file.'); }
+  try {
+    if (bitmap.width < 1 || bitmap.height < 1 || bitmap.width > 4096 || bitmap.height > 4096) {
+      throw new Error('Logo dimensions must be between 1 and 4096 pixels.');
+    }
+    let scale = Math.min(1, 720 / bitmap.width, 360 / bitmap.height);
+    for (let attempt = 0; attempt < 8; attempt++, scale *= 0.82) {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Logo preview is unavailable in this browser.');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/png');
+      if (dataUrl.length <= MAX_BRANDING_DATA_URL_LENGTH) return dataUrl;
+    }
+    throw new Error('The normalized logo is too large to save safely. Choose a simpler image.');
+  } finally {
+    bitmap.close();
+  }
+}
+
 function encodeBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {
