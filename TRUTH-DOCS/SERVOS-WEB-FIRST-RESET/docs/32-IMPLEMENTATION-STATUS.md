@@ -406,3 +406,12 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Fixed print recovery tracking to follow the original command ID. REJECTED/CONFLICT outcomes now release the local pending hold even when the print job version does not change. An unrelated job revision cannot be mistaken for confirmation of that command.
 - Persisted pending/unknown print actions block further actions for that job after component remount. Recovery does not automatically open another print dialog; staff review the actual current delivery state, including uncertain delivery and possible duplicates.
 - No tests, lint, build, migration or browser execution ran. Deferred acceptance includes POS/Activity switching, original claim/report rejection and conflict, remount/reload, unrelated job changes, cross-device claims, lost responses, scoped document visibility and browser/physical delivery review. Print Bridge and hardware acceptance remain outstanding.
+
+
+## Final sprint continuation - tracked repeat rounds (source only)
+
+- Added migration 035 with bounded order/line round identities. Existing held drafts begin the new tracked sequence; earlier fired lines retain unknown round identity and cannot be silently guessed into a repeat group.
+- Full/current-round fire advances the round after its remaining held lines are selected. Explicit course-only fire retains native nonadvancing behavior. Events retain prior round and advancement evidence.
+- Added canonical online `order.repeatRound` under POS permission. The command rebuilds the last recorded fired round through the same add-line validation in one transaction, bumps the order once and records original/copy line evidence. Stock is unchanged until separate fire.
+- Repeated lines retain quantities, portion/modifier IDs, course and notes but use current reviewed product prices, tax and consumption configuration. Discounts/comps are not copied. Missing/archived products/options, stale versions, partial payment and line limits refuse the whole command.
+- PWA exposes a captured repeat review with current option-adjusted unit prices, pinned product/order/settings versions, pending/unknown recovery and original-round disclosure. No test, lint, build, migration or browser execution ran. Deferred gates include multi-course/partial fire boundaries, historical unknown rounds, unavailable options, exact pricing, atomic refusal after a later invalid line, concurrent repeats, replay/response loss, stock conservation and receipt/ticket round evidence.
