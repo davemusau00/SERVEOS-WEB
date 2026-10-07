@@ -61,6 +61,8 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
  const store=useRef<BusinessStore|null>(apiStore||null);const committedCommands=useRef(new Set<string>());const submitInFlight=useRef(false);const rpcRef=useRef(rpc);rpcRef.current=rpc;const sessionRef=useRef(session);sessionRef.current=session;const apiTransport=useRef(apiAuth?createApiCloudTransport(apiAuth.client):null);
  const syncRef=useRef<()=>Promise<void>>(async()=>{});
  const updateHold=useRef(false);
+ const updateBoundaryGeneration=useRef(0);
+ const updateBoundaryWorker=useRef<ServiceWorker|null>(null);
  const activeSyncCycles=useRef(0);
  const refresh=async()=>{if(!store.current)return;const [r,q,d]=await Promise.all([store.current.records(),store.current.queue(),store.current.drafts()]);const displayQueue=q.map(entry=>({...entry,command:{...entry.command,payload:redactSensitiveData(entry.command.payload) as Record<string,unknown>},result:entry.result?redactSensitiveData(entry.result) as NonNullable<QueuedCommand['result']>:undefined}));setRecords(r);setQueue(displayQueue);setDrafts(d)};
   useEffect(()=>{
@@ -88,6 +90,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
    }
    await synchronizeStore(opened,{execute:command=>rpcRef.current('rpc/servos_v2_execute',{command}),pull:cursor=>rpcRef.current('rpc/servos_v2_pull',{after_sequence:cursor,page_size:100})});
    if(!stopped){const currentQueue=await opened.queue();const synchronized=currentQueue.filter(entry=>entry.state==='SYNCHRONIZED');const currentDrafts=await opened.drafts();for(const entry of synchronized){for(const draft of currentDrafts)if(draft.supersedes===entry.id)await opened.discardDraft(draft.id)}const countKey=`servos-web-count:${latest.businessId}:${latest.actorId}`;for(const entry of synchronized){if(entry.command.operation==='inventory.countLocation'&&entry.command.payload.sessionId===countKey){localStorage.removeItem(countKey);localStorage.removeItem(`${countKey}:unknown`)}if(!committedCommands.current.has(entry.id)){committedCommands.current.add(entry.id);setCommittedOperation({id:entry.id,operation:entry.command.operation})}}await refresh();setReady(true);setError('')}
+    }finally{activeSyncCycles.current--;}
   };
   syncRef.current=run;
   void(async()=>{try{
@@ -119,23 +122,39 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
   useEffect(()=>{const nextHash=`#/${encodeURIComponent(tab)}`;if(window.location.hash!==nextHash)window.history.replaceState(null,'',nextHash)},[tab]);
  useEffect(()=>{
   if(!('serviceWorker' in navigator))return;
+  let stopped=false;
+  const inspectWaiting=()=>{void navigator.serviceWorker.getRegistration().then(registration=>{
+   if(stopped)return;
+   if(registration?.waiting)setUpdateReady(true);
+   if(updateHold.current&&registration?.active===updateBoundaryWorker.current&&registration.active.state==='activated'&&!registration.waiting)window.location.reload();
+  }).catch(error=>{if(!stopped)setError(operatorError(error))})};
+  inspectWaiting();
+  const visible=()=>{if(document.visibilityState==='visible')inspectWaiting()};
+  document.addEventListener('visibilitychange',visible);
   const handleMessage=(event:MessageEvent)=>{
-   if(event.data?.type==='SERVOS_RELEASE_UPDATE_BOUNDARY'){updateHold.current=false;document.getElementById('root')?.removeAttribute('inert');return}
-   if(event.data?.type==='SERVOS_SW_READY'&&updateHold.current){window.location.reload();return}
+   if(event.data?.type==='SERVOS_RELEASE_UPDATE_BOUNDARY'){
+    if(updateBoundaryWorker.current&&event.source!==updateBoundaryWorker.current)return;
+    updateBoundaryGeneration.current++;updateHold.current=false;updateBoundaryWorker.current=null;document.getElementById('root')?.removeAttribute('inert');return
+   }
+   if(event.data?.type==='SERVOS_SW_READY'&&updateHold.current&&event.source===updateBoundaryWorker.current){window.location.reload();return}
    if(event.data?.type==='SERVOS_UPDATE_DEFERRED'){setNotice('Another ServOS tab is busy or unavailable. Finish its work or close it, then retry the update.');return}
    if(event.data?.type!=='SERVOS_CHECK_UPDATE_BOUNDARY'||!event.ports[0])return;
+   if(updateHold.current&&event.source!==updateBoundaryWorker.current){event.ports[0].postMessage({safe:false});event.ports[0].close();return}
+   const generation=++updateBoundaryGeneration.current;
+   updateBoundaryWorker.current=event.source as ServiceWorker;
    const port=event.ports[0];
-   const busyNow=()=>busy||syncing||submitInFlight.current||!!editor||!!document.querySelector('[role="dialog"],dialog[open]');
+   const busyNow=()=>busy||syncing||activeSyncCycles.current>0||submitInFlight.current||!!editor||!!document.querySelector('[role="dialog"],dialog[open]');
    void(async()=>{
     let safe=false;
     try{const current=store.current;if(current&&!busyNow()){const [pending,jobs]=await Promise.all([current.hasPending(),current.printJobs()]);safe=!pending&&!jobs.some(job=>job.state==='SENDING'||job.state==='DELIVERY_UNCERTAIN')&&!busyNow()}}
     catch{safe=false}
+    safe=safe&&!stopped&&generation===updateBoundaryGeneration.current;
     if(safe){updateHold.current=true;document.getElementById('root')?.setAttribute('inert','');}
     port.postMessage({safe});port.close();
    })();
   };
   navigator.serviceWorker.addEventListener('message',handleMessage);
-  return()=>navigator.serviceWorker.removeEventListener('message',handleMessage);
+  return()=>{stopped=true;document.removeEventListener('visibilitychange',visible);navigator.serviceWorker.removeEventListener('message',handleMessage)};
  },[busy,syncing,editor]);
   const activateUpdate=async()=>{
    if(busy||syncing||submitInFlight.current)return;
@@ -149,7 +168,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
     if(busy||syncing||submitInFlight.current||editor||document.querySelector('[role="dialog"],dialog[open]'))return;
     const registration=await navigator.serviceWorker?.getRegistration();const worker=registration?.waiting;
     if(!worker){window.location.reload();return}
-    const reload=()=>window.location.reload();navigator.serviceWorker.addEventListener('controllerchange',reload,{once:true});worker.postMessage({type:'SERVOS_ACTIVATE_UPDATE'});
+    worker.postMessage({type:'SERVOS_ACTIVATE_UPDATE'});
    }catch(error){setError(operatorError(error))}
   };
  useEffect(()=>{let active=true;void rpcRef.current('rpc/servos_v2_guidance_progress',{}).then(rows=>{if(active)setGuidance(Array.isArray(rows)?rows:[])}).catch(()=>undefined);return()=>{active=false}},[session.businessId,session.actorId]);

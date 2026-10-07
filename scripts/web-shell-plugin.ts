@@ -24,7 +24,9 @@ self.addEventListener('message',event=>{
     channel.port1.onmessage=reply=>finish(reply.data?.safe===true);
     client.postMessage({type:'SERVOS_CHECK_UPDATE_BOUNDARY'},[channel.port2]);
    })));
-   if(safe.every(Boolean))await self.skipWaiting();
+   const finalClients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+   const checkedIds=new Set(clients.map(client=>client.id));
+   if(safe.every(Boolean)&&finalClients.every(client=>checkedIds.has(client.id)))await self.skipWaiting();
    else {clients.forEach(client=>client.postMessage({type:'SERVOS_RELEASE_UPDATE_BOUNDARY'}));event.source?.postMessage({type:'SERVOS_UPDATE_DEFERRED'});}
   }catch(error){
    const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
