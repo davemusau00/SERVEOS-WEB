@@ -57,3 +57,28 @@ CREATE UNIQUE INDEX customer_credit_entries_reversal_idx
 CREATE TRIGGER customer_credit_entries_immutable
  BEFORE UPDATE OR DELETE ON customer_credit_entries
  FOR EACH ROW EXECUTE FUNCTION servos_reject_evidence_mutation();
+
+CREATE FUNCTION servos_validate_customer_credit_reversal() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE original customer_credit_entries%ROWTYPE; expected_kind text;
+BEGIN
+ IF NEW.reverses_entry_id IS NULL THEN RETURN NEW; END IF;
+ SELECT * INTO STRICT original FROM customer_credit_entries
+  WHERE business_id=NEW.business_id AND id=NEW.reverses_entry_id;
+ expected_kind=CASE original.kind
+  WHEN 'CHARGE' THEN 'CHARGE_REVERSAL'
+  WHEN 'SETTLEMENT' THEN 'SETTLEMENT_REVERSAL'
+  WHEN 'WRITE_OFF' THEN 'WRITE_OFF_REVERSAL'
+  ELSE NULL
+ END;
+ IF expected_kind IS NULL OR NEW.kind<>expected_kind OR NEW.customer_id<>original.customer_id
+  OR NEW.amount_minor<>original.amount_minor OR NEW.balance_delta_minor<>-original.balance_delta_minor THEN
+  RAISE EXCEPTION 'customer credit reversal does not exactly match its source' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER customer_credit_reversal_matches_source
+ BEFORE INSERT ON customer_credit_entries
+ FOR EACH ROW EXECUTE FUNCTION servos_validate_customer_credit_reversal();
