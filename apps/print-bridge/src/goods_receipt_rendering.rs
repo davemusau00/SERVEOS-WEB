@@ -39,6 +39,6 @@ pub fn prepare_goods_receipt(input:&ValidatedAction)->Result<PreparedDocument,St
  match s.get("overReceiveAcknowledged"){Some(Value::Bool(true))=>lines.push("Over-receiving explicitly reviewed.".into()),Some(Value::Bool(false))=>{},_=>return Err("Missing GRN review flag".into())}
  lines.push("Goods receiving evidence only. Not a supplier invoice or payment confirmation.".into());
  let footer_start=lines.len();lines.extend(crate::document_text::multiline(business,"footer",2000)?);
- let logo=match business.get("logoPngDataUrl"){None|Some(Value::Null)=>None,Some(Value::String(raw)) if raw.is_empty()=>None,Some(Value::String(raw))=>Some(raw.clone()),_=>return Err("Invalid GRN logo".into())};
+ let logo=crate::document_text::embedded_png(business,"logoPngDataUrl")?;
  Ok(PreparedDocument{lines,logo,qr:None,footer_start:Some(footer_start)})
 }

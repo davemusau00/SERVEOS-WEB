@@ -35,6 +35,6 @@ pub fn prepare_close_day(input:&ValidatedAction)->Result<PreparedDocument,String
  amounts(&mut lines,diagnostics,&[("openOrderOutstandingMinor","Outstanding")])?;
  lines.push("Credit and room/folio exposure unavailable until API migration.".into());
  let footer_start=lines.len();lines.extend(crate::document_text::multiline(business,"footer",2000)?);
- let logo=match business.get("logoPngDataUrl"){None|Some(Value::Null)=>None,Some(Value::String(raw)) if raw.is_empty()=>None,Some(Value::String(raw))=>Some(raw.clone()),_=>return Err("Invalid report logo snapshot".into())};
+ let logo=crate::document_text::embedded_png(business,"logoPngDataUrl")?;
  Ok(PreparedDocument{lines,logo,qr:None,footer_start:Some(footer_start)})
 }

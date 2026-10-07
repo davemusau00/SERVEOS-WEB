@@ -217,9 +217,48 @@ jobs:
           path: artifacts/ci-logs/windows-printer-*.log
           if-no-files-found: error
           retention-days: 14
+  print-bridge:
+    name: print-bridge (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: mkdir -p artifacts/ci-logs
+      - name: Record bridge Rust toolchain
+        run: rustc --version | tee artifacts/ci-logs/print-bridge.log && cargo --version | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Check bridge formatting
+        run: cargo fmt --manifest-path apps/print-bridge/Cargo.toml -- --check 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Check printer transport formatting
+        run: cargo fmt --manifest-path crates/servos-printer-transport/Cargo.toml -- --check 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Lint bridge and printer transport
+        run: cargo clippy --manifest-path apps/print-bridge/Cargo.toml --all-targets -- -D warnings 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Lint printer transport
+        run: cargo clippy --manifest-path crates/servos-printer-transport/Cargo.toml --all-targets -- -D warnings 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Test bridge and printer transport
+        run: cargo test --manifest-path apps/print-bridge/Cargo.toml --all-targets 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Test printer transport
+        run: cargo test --manifest-path crates/servos-printer-transport/Cargo.toml --all-targets 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Build release bridge
+        run: cargo build --release --manifest-path apps/print-bridge/Cargo.toml 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Build release printer transport
+        run: cargo build --release --manifest-path crates/servos-printer-transport/Cargo.toml 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
+      - name: Upload Print Bridge evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: print-bridge-${{ runner.os }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/ci-logs/print-bridge.log
+          if-no-files-found: error
+          retention-days: 14
   evidence-summary:
     if: always()
-    needs: [api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell]
+    needs: [api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, print-bridge]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -241,6 +280,7 @@ jobs:
           SERVOS_JOB_CLOUD_V2: ${{ needs.cloud-protocol-v2.result }}
           SERVOS_JOB_DESKTOP: ${{ needs.desktop-shell.result }}
           SERVOS_JOB_WINDOWS_PRINTER: ${{ needs.windows-printer-shell.result }}
+          SERVOS_JOB_PRINT_BRIDGE: ${{ needs.print-bridge.result }}
       - uses: actions/upload-artifact@v4
         with:
           name: servos-ci-evidence-${{ github.sha }}-${{ github.run_attempt }}
@@ -250,7 +290,7 @@ jobs:
 
   release-candidate:
     if: github.ref == 'refs/heads/main'
-    needs: [api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, evidence-summary]
+    needs: [api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, print-bridge, evidence-summary]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

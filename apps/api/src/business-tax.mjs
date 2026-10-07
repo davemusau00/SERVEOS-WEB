@@ -2,7 +2,13 @@ import {ApiProblem} from './command-kernel.mjs';
 const columns=`business_name AS "businessName",address,contact,tax_pin AS "taxPin",footer,vat_rate_basis_points AS "vatRateBasisPoints",levy_rate_basis_points AS "levyRateBasisPoints",logo_png_data_url AS "logoPngDataUrl",payment_qr_png_data_url AS "paymentQrPngDataUrl",payment_qr_enabled AS "paymentQrEnabled",version,updated_by AS "updatedBy",updated_at AS "updatedAt"`;
 const invalid=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
 const text=(value,label,max,required=false)=>{if(typeof value!=='string'||value.trim().length>max||required&&!value.trim())invalid(`${label} is missing or too long.`);return value.trim();};
-const image=(value,label)=>{if(value===null||value==='')return null;if(typeof value!=='string'||value.length>240000||!/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value))invalid(`${label} must be a normalized PNG smaller than 180 KB.`);return value;};
+const image=(value,label)=>{
+ if(value===null||value==='')return null;
+ if(typeof value!=='string'||value.length>240000||!/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value))invalid(`${label} must be a normalized PNG smaller than 180 KB.`);
+ const encoded=value.slice('data:image/png;base64,'.length),bytes=Buffer.from(encoded,'base64');
+ if(encoded.length%4!==0||bytes.length>180*1024||bytes.toString('base64')!==encoded||bytes.length<8||!bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))invalid(`${label} is not a valid bounded PNG image.`);
+ return value;
+};
 export async function receiptSettings(db,businessId){const {rows}=await db.query(`SELECT ${columns} FROM business_receipt_settings WHERE business_id=$1 FOR SHARE`,[businessId]);const row=rows[0];return row?{...row,version:Number(row.version),updatedAt:row.updatedAt.toISOString()}:null;}
 export async function receiptSettingsProjections(db,businessId){
  // Bootstrap runs in a read-only transaction, so it does not take row locks.

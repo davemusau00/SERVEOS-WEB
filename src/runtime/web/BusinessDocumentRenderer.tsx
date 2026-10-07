@@ -10,7 +10,7 @@ const localTime=(value:unknown)=>{const raw=text(value),date=new Date(raw);retur
 const titles:Record<string,string>={SUPPLIER_RETURN_NOTE:'Supplier return note',SUPPLIER_PAYMENT_VOUCHER:'Supplier payment voucher',GOODS_RECEIPT:'Goods received note',PURCHASE_ORDER:'Purchase order',SALES_RECEIPT:'Sales receipt',PAYMENT_ACKNOWLEDGEMENT:'Payment acknowledgement',KOT:'Kitchen order ticket',BOT:'Bar order ticket',REFUND_RECEIPT:'Refund receipt',CLOSE_DAY_REPORT:'Close-day report',ORDER_VOID_NOTICE:'Order void notice',KOT_CANCEL:'Cancel kitchen order',BOT_CANCEL:'Cancel bar order'};
 const canonical=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(canonical).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${canonical((value as Record<string,unknown>)[key])}`).join(',')}}`;
 
-const isSnapshotPng=(value:unknown):value is string=>typeof value==='string'&&value.length<=2_800_000&&/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value);
+const isSnapshotPng=(value:unknown):value is string=>typeof value==='string'&&value.length<=240_000&&/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value);
 
 /** Logo and QR use the same bounded embedded PNG pipeline; no mutable remote URLs. */
 function SnapshotImage({value,label}:{value:unknown;label:string}){
@@ -22,7 +22,7 @@ export function BusinessDocumentRenderer({document}:{document:LocalBusinessDocum
  const s=document.snapshot,b=object(s.business),tax=object(s.taxes),cashier=object(s.cashier);
  const ticket=['KOT','BOT','KOT_CANCEL','BOT_CANCEL'].includes(document.type);
  const voidNotice=['ORDER_VOID_NOTICE','KOT_CANCEL','BOT_CANCEL'].includes(document.type);
- const qr=['PURCHASE_ORDER','GOODS_RECEIPT','SUPPLIER_PAYMENT_VOUCHER','SUPPLIER_RETURN_NOTE','CLOSE_DAY_REPORT'].includes(document.type)||voidNotice?'':text(b.paymentQrPngDataUrl);
+ const qr=document.type==='SALES_RECEIPT'&&b.paymentQrEnabled===true?text(b.paymentQrPngDataUrl):'';
  const issued=new Date(document.issuedAt);
  return <article className="servos-business-document" aria-label={titles[document.type]||document.type}>
   <header>

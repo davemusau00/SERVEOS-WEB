@@ -21,6 +21,6 @@ pub fn prepare_supplier_payment(input:&ValidatedAction)->Result<PreparedDocument
  if method=="CASH"{lines.push("Manually confirmed petty cash outside the POS till.".into());}else{lines.push("External payment manually confirmed by operator; no provider verification is asserted.".into());}
  lines.push(format!("Confirmed by: {}",identity(&s,"confirmedBy")?));
  let footer_start=lines.len();lines.extend(crate::document_text::multiline(business,"footer",2000)?);
- let logo=match business.get("logoPngDataUrl"){None|Some(Value::Null)=>None,Some(Value::String(raw)) if raw.is_empty()=>None,Some(Value::String(raw))=>Some(raw.clone()),_=>return Err("Invalid supplier voucher logo".into())};
+ let logo=crate::document_text::embedded_png(business,"logoPngDataUrl")?;
  Ok(PreparedDocument{lines,logo,qr:None,footer_start:Some(footer_start)})
 }

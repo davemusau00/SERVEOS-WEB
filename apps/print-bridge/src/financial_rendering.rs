@@ -16,8 +16,8 @@ pub fn prepare_financial_document(input:&ValidatedAction)->Result<PreparedDocume
  let snapshot:Value=serde_json::from_str(&document.canonical_snapshot).map_err(|_|"Invalid immutable financial snapshot")?;
  let title=match document.document_type.as_str(){"SALES_RECEIPT"=>"SALES RECEIPT","PAYMENT_ACKNOWLEDGEMENT"=>"PAYMENT ACKNOWLEDGEMENT","REFUND_RECEIPT"=>"REFUND RECEIPT",_=>return Err("Unsupported financial layout".into())};
  let business=&snapshot["business"];
- let image=|key:&str|->Result<Option<String>,String>{match business.get(key){None|Some(Value::Null)=>Ok(None),Some(Value::String(raw)) if raw.is_empty()=>Ok(None),Some(Value::String(raw)) if raw.len()<=2_800_000&&raw.starts_with("data:image/png;base64,")=>Ok(Some(raw.clone())),_=>Err("Invalid embedded PNG snapshot".into())}};
- let logo=image("logoPngDataUrl")?;let qr=image("paymentQrPngDataUrl")?;
+ let logo=crate::document_text::embedded_png(business,"logoPngDataUrl")?;
+ let qr=if document.document_type=="SALES_RECEIPT"&&business.get("paymentQrEnabled").and_then(Value::as_bool)==Some(true){Some(crate::document_text::embedded_png(business,"paymentQrPngDataUrl")?.ok_or("Enabled payment QR is missing from the issued snapshot")?)}else{None};
  let mut lines=Vec::new();
  for (key,label) in [("businessName",""),("address",""),("contact",""),("taxPin","Tax PIN: ")]{push_text(&mut lines,business,key,label)?;}
  lines.push(title.into());lines.push(document.document_number.clone());
@@ -99,7 +99,8 @@ fn append_sale(lines:&mut Vec<String>,snapshot:&Value)->Result<(),String>{
   for (index,key) in ["netMinor","vatMinor","levyMinor"].iter().enumerate(){tax_sum[index]=tax_sum[index].checked_add(amount(item,key)?).ok_or("Receipt taxes exceed bounds")?;}
  }
  let total=amount(snapshot,"totalMinor")?;
- if sum!=total||discounts!=amount(snapshot,"discountTotalMinor")?||tax_sum.iter().sum::<i64>()!=total{return Err("Issued receipt lines/taxes do not reconcile".into());}
+ let tax_total=tax_sum.iter().try_fold(0i64,|sum,value|sum.checked_add(*value)).ok_or("Receipt taxes exceed bounds")?;
+ if sum!=total||discounts!=amount(snapshot,"discountTotalMinor")?||tax_total!=total{return Err("Issued receipt lines/taxes do not reconcile".into());}
  for (index,(key,label)) in [("netMinor","Net"),("vatMinor","VAT"),("levyMinor","Levy")].iter().enumerate(){let issued=amount(&snapshot["taxes"],key)?;if issued!=tax_sum[index]{return Err("Issued tax allocation does not reconcile".into());}lines.push(format!("{label}: {}",money(issued)));}
  lines.push(format!("TOTAL ({currency}): {}",money(total)));
  if discounts>0{lines.push(format!("Discounts / comps: {}",money(discounts)));}

@@ -29,8 +29,8 @@ pub fn encode_document_at_footer(lines:&[String],footer:usize,logo:Option<&Value
  if let Some(image)=logo{native_transport::append_logo(&mut bytes,image,profile);}
  append_text(&mut bytes,&lines[..footer],profile);
  if let Some(image)=qr{
-  native_transport::append_qr(&mut bytes,image,profile);
   append_text(&mut bytes,&["Scan to Pay via One app".to_string()],profile);
+  native_transport::append_qr(&mut bytes,image,profile);
  }
  append_text(&mut bytes,&lines[footer..],profile);
  bytes.extend(std::iter::repeat_n(b'\n',profile.feed_lines_before_cut));

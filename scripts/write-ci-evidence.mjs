@@ -34,6 +34,7 @@ const evidence = {
     // The Windows RAW spooler FFI only compiles on windows-latest. Recording it
     // here makes it a release gate rather than an optional extra job.
     windowsPrinter: process.env.SERVOS_JOB_WINDOWS_PRINTER || 'not-reported',
+    printBridge: process.env.SERVOS_JOB_PRINT_BRIDGE || 'not-reported',
   },
   note: 'Evidence index only. Same-run job conclusions, schema inventory, artifact checksums, and required-artifact presence are recorded; underlying logs and artifacts remain authoritative for acceptance.',
 };
@@ -50,6 +51,8 @@ const expectedArtifactNames = Object.values({
   cloudV2: `cloud-v2-${artifactRunTag}`,
   desktop: `desktop-shell-${artifactRunTag}`,
   windowsPrinter: `windows-printer-${artifactRunTag}`,
+  printBridgeLinux: `print-bridge-Linux-${artifactRunTag}`,
+  printBridgeWindows: `print-bridge-Windows-${artifactRunTag}`,
 });
 const downloadedRoot = 'artifacts/downloaded';
 const downloadedNames = fs.existsSync(downloadedRoot)
@@ -63,7 +66,7 @@ const downloadedFiles = fs.existsSync(downloadedRoot) ? walk(downloadedRoot).sor
 const artifactChecksums = [];
 const nativeToolchainVersions = new Set();
 for (const file of downloadedFiles) {
-  if (/\/(?:native-domain|desktop-shell)\.log$/.test(file.replaceAll('\\', '/'))) {
+  if (/\/(?:native-domain|desktop-shell|print-bridge)\.log$/.test(file.replaceAll('\\', '/'))) {
     for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
       if (/^(?:rustc|cargo) /.test(line)) nativeToolchainVersions.add(line.trim());
     }

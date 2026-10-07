@@ -129,6 +129,7 @@ cloud-protocol-v2
 native-domain
 desktop-shell
 windows-printer-shell
+print-bridge (Linux and Windows)
 evidence-summary
 ```
 
@@ -1554,6 +1555,7 @@ cloud-protocol-v2 PASS
 native-domain PASS
 desktop-shell PASS
 windows-printer-shell PASS
+print-bridge (Linux and Windows) PASS
 evidence-summary PASS
 ```
 

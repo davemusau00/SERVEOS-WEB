@@ -849,3 +849,18 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Added a local-only interactive CLI to approve an enrolled PWA public identity into the installer-owned bridge configuration and to revoke an existing pairing. Approval/revocation require device-specific typed confirmation and an operator reason; approval explicitly instructs the operator to compare the identity with the authenticated ServOS device record.
 - Configuration replacement is atomic. Revocation retains the pairing record plus RFC3339 time/reason, and the Rust configuration loader rejects active/revoked metadata inconsistencies. The worker's existing per-request reload makes revocation effective for subsequent requests; in-flight print delivery remains subject to uncertainty reconciliation.
 - This adds source for pairing administration only. Service installation, execution, ACL verification, crypto interoperability, and browser/printer acceptance remain unverified. No tests, lint, or builds were run.
+
+### API receipt image snapshots and sales QR (source only; migration unapplied)
+
+- Migration 048 adds bounded normalized PNG fields for the business logo and optional payment QR, with database checks for the data URL signature, size and enabled-image relationship.
+- API business settings validation retains images when older callers omit the new fields. Bootstrap/change-feed projections and receipt-setting snapshots include them, so newly issued documents retain their immutable image data.
+- The API PWA settings editor normalizes logo uploads to bounded PNG and validates Till QR structure using the existing hard-edge QR pipeline. QR printing requires explicit enablement and is restricted to sales receipts in browser and bridge renderers; copy states that it does not confirm payment.
+- The Print Bridge places the One app caption before the QR so the QR is immediately before the footer. Financial receipt tax-total reconciliation now checks overflow.
+- Office renderers now share strict bounded PNG snapshot validation for logos; an enabled sales QR missing from its immutable snapshot fails closed. Browser snapshots use the same 240 KB data URL bound.
+- Source only. Migration application, tests, lint, builds, API/PostgreSQL integration, snapshot recovery, and physical printer acceptance remain deferred.
+
+### Dedicated Print Bridge CI (workflow source only)
+
+- Added a dedicated Linux and Windows workflow matrix for the standalone bridge and printer transport. Each OS runs formatting, Clippy, unit tests and release builds for both Rust packages and uploads a separate evidence artifact.
+- Added the matrix result and both required artifacts to the same-commit CI evidence gate and release-candidate eligibility. Updated the sprint's required CI matrix accordingly.
+- Workflow execution is deferred; current-commit CI status is not claimed.

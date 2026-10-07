@@ -40,6 +40,6 @@ pub fn prepare_purchase_order(input:&ValidatedAction)->Result<PreparedDocument,S
  lines.push(format!("Approved by: {}",identity(&snapshot,"approvedBy")?));lines.push(time(&snapshot,"approvedAt")?);lines.push(format!("Issued by: {}",identity(&snapshot,"issuedBy")?));
  lines.push("Issue does not confirm supplier transmission or receipt of goods.".into());
  let footer_start=lines.len();lines.extend(crate::document_text::multiline(business,"footer",2000)?);
- let logo=match business.get("logoPngDataUrl"){None|Some(Value::Null)=>None,Some(Value::String(raw)) if raw.is_empty()=>None,Some(Value::String(raw))=>Some(raw.clone()),_=>return Err("Invalid purchase logo snapshot".into())};
+ let logo=crate::document_text::embedded_png(business,"logoPngDataUrl")?;
  Ok(PreparedDocument{lines,logo,qr:None,footer_start:Some(footer_start)})
 }
