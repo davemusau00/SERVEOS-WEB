@@ -5,6 +5,7 @@ test('API login, catalog command, reload projection, and reconnect change feed',
  const staffId='a1000000-0000-4000-8000-000000000002';
  let deviceId='a1000000-0000-4000-8000-000000000003';
  const stockId='a1000000-0000-4000-8000-000000000004';
+ const outcomes=new Map<string,unknown>();
  let cursor=1;let stockVersion=1;let stockName='Coffee beans';let feed:any[]=[];let offline=false;
  await page.route('**/v1/**',async route=>{
   const request=route.request();const url=new URL(request.url());
@@ -19,9 +20,9 @@ test('API login, catalog command, reload projection, and reconnect change feed',
   if(url.pathname==='/v1/commands'&&request.method()==='POST'){
    const command=JSON.parse(request.postData()||'{}');stockVersion++;stockName=String(command.payload.data.name);cursor++;const record={collection:'stockItems',id:stockId,version:stockVersion,data:{name:stockName,code:'COF',baseUnit:'kg',barcode:null,barcodeAliases:[],scanUnitQuantity:1,reorderLevel:2,averageUnitCostMinor:900,purchasePackages:[]},archived:false};
    feed.push({sequence:cursor,commandId:command.commandId,actorId:staffId,deviceId,occurredAt:new Date().toISOString(),records:[record]});
-   return respond({kind:'CONFIRMED',commandId:command.commandId,cursor,result:record});
+   const outcome={kind:'CONFIRMED',commandId:command.commandId,cursor,result:record};outcomes.set(command.commandId,outcome);return respond(outcome);
   }
-  if(url.pathname.startsWith('/v1/commands/'))return respond({commandId:url.pathname.split('/').at(-1),status:'CONFIRMED',outcome:{kind:'CONFIRMED',cursor}});
+  if(url.pathname.startsWith('/v1/commands/')){const commandId=url.pathname.split('/').at(-1)!;return outcomes.has(commandId)?respond({commandId,status:'CONFIRMED',outcome:outcomes.get(commandId)}):respond({error:{code:'COMMAND_NOT_FOUND',message:'No command with this ID exists.'}},404);}
   if(url.pathname==='/v1/auth/logout')return respond({revoked:true});
   return respond({error:{code:'NOT_FOUND',message:'Unknown fixture path'}},404);
  });
