@@ -95,9 +95,10 @@ const create=async({tx,command,actor,at})=>{
  if(p.customerId){
   if(!uuid(p.customerId))fail('Choose a valid named customer.');
   if(!actor.permissions.includes('*')&&!actor.permissions.includes('pos.open_tab'))throw new ApiProblem(403,'PERMISSION_DENIED','Opening an order for a named customer requires `pos.open_tab`.');
-  expected(command,'customers',p.customerId);
-  const found=await tx.client.query(`SELECT name FROM business_customers WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.customerId]);
+  const customerVersion=expected(command,'customers',p.customerId);
+  const found=await tx.client.query(`SELECT name,version FROM business_customers WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.customerId]);
   if(!found.rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected customer is missing or archived. Refresh the customer list.');
+  if(Number(found.rows[0].version)!==customerVersion)throw new ApiProblem(409,'VERSION_CONFLICT','The selected customer changed. Refresh and review the order again.');
   customer=found.rows[0];
  }
  const destination=p.serviceDestination??'COUNTER';if(!['COUNTER','TAKEAWAY'].includes(destination))fail('Choose counter or takeaway for an unassigned order.');
@@ -115,9 +116,10 @@ const create=async({tx,command,actor,at})=>{
 const assignCustomer=async({tx,command,actor,at})=>{
  if(!actor.permissions.includes('*')&&!actor.permissions.includes('pos.open_tab'))throw new ApiProblem(403,'PERMISSION_DENIED','Customer assignment requires `pos.open_tab`.');
  const p=command.payload;if(!uuid(p.orderId)||!uuid(p.customerId))fail('Choose a valid order and named customer.');
- const version=expected(command,'orders',p.orderId);expected(command,'customers',p.customerId);
- const customer=await tx.client.query(`SELECT name FROM business_customers WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.customerId]);
+ const version=expected(command,'orders',p.orderId),customerVersion=expected(command,'customers',p.customerId);
+ const customer=await tx.client.query(`SELECT name,version FROM business_customers WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.customerId]);
  if(!customer.rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected customer is missing or archived. Refresh the customer list.');
+ if(Number(customer.rows[0].version)!==customerVersion)throw new ApiProblem(409,'VERSION_CONFLICT','The selected customer changed. Refresh and review the order again.');
  const {rows}=await tx.client.query(`SELECT state,version,amount_paid_minor AS "amountPaidMinor",amount_credited_minor AS "amountCreditedMinor" FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE`,[actor.businessId,p.orderId]);
  if(!rows.length||!['OPEN','FIRED'].includes(rows[0].state))throw new ApiProblem(409,'RESOURCE_CONFLICT','Only an open order can change customer.');
  if(Number(rows[0].version)!==version)throw new ApiProblem(409,'VERSION_CONFLICT','The order changed. Refresh and review it.');

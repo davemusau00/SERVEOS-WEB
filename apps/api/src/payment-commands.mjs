@@ -65,6 +65,12 @@ const record=split=>async({tx,command,actor,at})=>{
  if(sum>outstanding||sum<=0||split&&sum!==outstanding)throw new ApiProblem(409,'PAYMENT_BALANCE_CONFLICT','Payment cannot exceed the outstanding balance; split tender must settle it exactly.');
  const references=plans.filter(plan=>plan.normalized).map(plan=>`${plan.account.method}:${plan.normalized}`);
  if(new Set(references).size!==references.length)fail('A split tender cannot reuse an external reference.');
+ const externalPlans=plans.filter(plan=>plan.normalized).sort((a,b)=>`${a.account.method}:${a.normalized}`.localeCompare(`${b.account.method}:${b.normalized}`));
+ for(const plan of externalPlans)await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`external-payment:${actor.businessId}:${plan.account.method}:${plan.normalized}`]);
+ for(const plan of externalPlans){
+  const duplicate=await tx.client.query(`SELECT 1 FROM order_payments WHERE business_id=$1 AND method=$2 AND normalized_reference=$3 UNION ALL SELECT 1 FROM customer_credit_entries WHERE business_id=$1 AND payment_method=$2 AND normalized_reference=$3 LIMIT 1`,[actor.businessId,plan.account.method,plan.normalized]);
+  if(duplicate.rows.length)throw new ApiProblem(409,'PAYMENT_REFERENCE_DUPLICATE','This external payment reference is already recorded. Reconcile the original receipt before continuing.');
+ }
  const cashAmount=plans.filter(plan=>plan.account.method==='CASH').reduce((sum,plan)=>sum+plan.amount,0);
  const drawer=await tx.client.query('SELECT COALESCE(sum(amount_delta_minor),0) AS delta FROM till_cash_entries WHERE business_id=$1 AND till_session_id=$2',[actor.businessId,p.tillSessionId]);
  const drawerAfter=Number(till.openingFloatMinor)+Number(drawer.rows[0].delta)+cashAmount;

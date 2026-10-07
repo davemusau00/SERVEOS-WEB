@@ -5,19 +5,22 @@ ALTER TABLE financial_journals ADD CONSTRAINT financial_journals_credit_entry_fk
 ALTER TABLE financial_journals DROP CONSTRAINT financial_journals_source_type_check;
 ALTER TABLE financial_journals DROP CONSTRAINT financial_journals_check;
 ALTER TABLE financial_journals ADD CONSTRAINT financial_journals_source_type_check CHECK (source_type IN (
- 'PAYMENT','REFUND','CUSTOMER_CREDIT_CHARGE','CUSTOMER_CREDIT_SETTLEMENT','CUSTOMER_CREDIT_WRITE_OFF','CUSTOMER_CREDIT_REVERSAL'
+ 'PAYMENT','REFUND','GOODS_RECEIPT','SUPPLIER_PAYMENT','SUPPLIER_RETURN','SUPPLIER_CREDIT_NOTE','SUPPLIER_CREDIT_APPLICATION',
+ 'CUSTOMER_CREDIT_CHARGE','CUSTOMER_CREDIT_SETTLEMENT','CUSTOMER_CREDIT_WRITE_OFF','CUSTOMER_CREDIT_REVERSAL'
 ));
 ALTER TABLE financial_journals ADD CONSTRAINT financial_journals_source_identity_check CHECK (
  (source_type='PAYMENT' AND source_id=payment_id AND payment_id IS NOT NULL AND refund_id IS NULL AND original_journal_id IS NULL AND customer_credit_entry_id IS NULL)
  OR (source_type='REFUND' AND source_id=refund_id AND payment_id IS NOT NULL AND refund_id IS NOT NULL AND original_journal_id IS NOT NULL AND customer_credit_entry_id IS NULL)
  OR (source_type IN ('CUSTOMER_CREDIT_CHARGE','CUSTOMER_CREDIT_SETTLEMENT','CUSTOMER_CREDIT_WRITE_OFF') AND source_id=customer_credit_entry_id AND payment_id IS NULL AND refund_id IS NULL AND original_journal_id IS NULL AND customer_credit_entry_id IS NOT NULL)
  OR (source_type='CUSTOMER_CREDIT_REVERSAL' AND source_id=customer_credit_entry_id AND payment_id IS NULL AND refund_id IS NULL AND original_journal_id IS NOT NULL AND customer_credit_entry_id IS NOT NULL)
+ OR (source_type IN ('GOODS_RECEIPT','SUPPLIER_PAYMENT','SUPPLIER_RETURN','SUPPLIER_CREDIT_NOTE','SUPPLIER_CREDIT_APPLICATION') AND payment_id IS NULL AND refund_id IS NULL AND original_journal_id IS NULL AND customer_credit_entry_id IS NULL)
 );
 
 ALTER TABLE financial_journal_lines DROP CONSTRAINT financial_journal_lines_account_code_check;
 ALTER TABLE financial_journal_lines DROP CONSTRAINT financial_journal_lines_check;
 ALTER TABLE financial_journal_lines ADD CONSTRAINT financial_journal_lines_account_code_check CHECK (account_code IN (
- 'ASSET_TENDER','REVENUE_SALES','LIABILITY_VAT','LIABILITY_LEVY','ASSET_CUSTOMER_AR','EXPENSE_BAD_DEBT'
+ 'ASSET_TENDER','REVENUE_SALES','LIABILITY_VAT','LIABILITY_LEVY','ASSET_INVENTORY','LIABILITY_ACCOUNTS_PAYABLE',
+ 'ASSET_SUPPLIER_CREDIT_PENDING','ASSET_SUPPLIER_CREDIT','ASSET_CUSTOMER_AR','EXPENSE_BAD_DEBT'
 ));
 ALTER TABLE financial_journal_lines ADD CONSTRAINT financial_journal_lines_account_reference_check CHECK (
  (account_code='ASSET_TENDER' AND account_ref IS NOT NULL) OR (account_code<>'ASSET_TENDER' AND account_ref IS NULL)
@@ -69,6 +72,13 @@ BEGIN
   RETURN NULL;
  END IF;
 
+ -- Procurement journals use their own immutable source records and command
+ -- validation. Preserve their balanced-journal checks without treating them
+ -- as payments or customer-credit entries.
+ IF header.source_type NOT IN ('CUSTOMER_CREDIT_CHARGE','CUSTOMER_CREDIT_SETTLEMENT','CUSTOMER_CREDIT_WRITE_OFF','CUSTOMER_CREDIT_REVERSAL') THEN
+  RETURN NULL;
+ END IF;
+
  SELECT * INTO STRICT entry FROM customer_credit_entries WHERE business_id=header.business_id AND id=header.customer_credit_entry_id;
  IF entry.amount_minor<>header.total_debit_minor OR header.currency<>'KES' THEN
   RAISE EXCEPTION 'Customer credit journal does not match its ledger entry' USING ERRCODE='23514';
@@ -82,7 +92,7 @@ BEGIN
   END IF;
  ELSIF header.source_type='CUSTOMER_CREDIT_SETTLEMENT' THEN
   IF entry.kind<>'SETTLEMENT' OR tender_count<>1
-   OR NOT EXISTS(SELECT 1 FROM financial_journal_lines l JOIN payment_accounts a ON a.business_id=l.business_id AND a.id=l.account_ref WHERE l.business_id=header.business_id AND l.journal_id=journal_key AND l.account_code='ASSET_TENDER' AND a.method=entry.payment_method AND l.debit_minor=entry.amount_minor AND l.credit_minor=0)
+   OR NOT EXISTS(SELECT 1 FROM financial_journal_lines l JOIN payment_accounts a ON a.business_id=l.business_id AND a.id=l.account_ref WHERE l.business_id=header.business_id AND l.journal_id=journal_key AND l.account_code='ASSET_TENDER' AND l.account_ref=entry.payment_account_id AND a.method=entry.payment_method AND l.debit_minor=entry.amount_minor AND l.credit_minor=0)
    OR (SELECT COALESCE(sum(credit_minor),0) FROM financial_journal_lines WHERE business_id=header.business_id AND journal_id=journal_key AND account_code='ASSET_CUSTOMER_AR')<>entry.amount_minor
    OR EXISTS(SELECT 1 FROM financial_journal_lines l WHERE l.business_id=header.business_id AND l.journal_id=journal_key AND ((l.account_code='ASSET_CUSTOMER_AR' AND (l.debit_minor<>0 OR l.credit_minor<=0)) OR (l.account_code NOT IN ('ASSET_CUSTOMER_AR','ASSET_TENDER') AND (l.debit_minor<>0 OR l.credit_minor<>0)))) THEN
    RAISE EXCEPTION 'Customer credit settlement journal does not reconcile to tender and AR' USING ERRCODE='23514';
