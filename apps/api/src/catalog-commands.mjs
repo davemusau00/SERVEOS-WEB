@@ -1,3 +1,4 @@
+import {normalizeModifiers} from './product-modifiers.mjs';
 import {ApiProblem} from './command-kernel.mjs';
 import {randomUUID,createHash} from 'node:crypto';
 import {costRate,weightedCostRate} from './inventory-costs.mjs';
@@ -95,7 +96,9 @@ const productSave = async ({tx, command, actor, at}) => {
     ingredientById.set(ingredient.stockItemId, {stockItemId:ingredient.stockItemId,quantity:safeQuantity(ingredient.quantity,'Recipe quantity'),unit:typeof ingredient.unit === 'string' ? ingredient.unit.trim().slice(0,40) : ''});
   }
   const recipeIngredients = [...ingredientById.values()];
-  const ids = [...recipeIngredients.map(item => item.stockItemId), ...(stockItemId ? [stockItemId] : [])];
+  const existingModifiers=data.modifiers===undefined?(await tx.client.query('SELECT modifiers FROM products WHERE business_id=$1 AND id=$2',[actor.businessId,id])).rows[0]?.modifiers??[]:data.modifiers;
+  const modifiers=normalizeModifiers(existingModifiers);
+  const ids = [...recipeIngredients.map(item => item.stockItemId), ...(stockItemId ? [stockItemId] : []),...modifiers.flatMap(row=>row.ingredientAdjustments.map(item=>item.stockItemId))];
   if (!await tx.requireStockItems(actor.businessId, ids)) throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'A referenced stock item is missing or archived.');
   if(!await tx.requireOutlets(actor.businessId,outletIds))throw new ApiProblem(409,'RESOURCE_CONFLICT','A selected service area is missing or archived.');
   await duplicateCheck(tx, 'products', actor.businessId, code, barcode, id);
@@ -114,11 +117,11 @@ const productSave = async ({tx, command, actor, at}) => {
     if(!portion||typeof portion!=='object'||Array.isArray(portion)||typeof portion.id!=='string'||!portion.id.trim()||portion.id.length>100||portionIds.has(portion.id)||!Number.isSafeInteger(portion.priceMinor)||portion.priceMinor<0||(portion.wholeContainerSale!==undefined&&typeof portion.wholeContainerSale!=='boolean'))throw new ApiProblem(400,'VALIDATION_FAILED','Portion IDs must be unique, prices must be safe minor units, and whole-container flags must be boolean.');
     portionIds.add(portion.id);
     const volume=safeQuantity(portion.volume,'Portion stock quantity');
-    if(Math.abs(volume*1_000_000-Math.round(volume*1_000_000))>0.0001)throw new ApiProblem(400,'VALIDATION_FAILED','Portion stock quantities support at most six decimals.');
+    if(volume>1_000_000_000||Math.abs(volume*1_000_000-Math.round(volume*1_000_000))>0.0001)throw new ApiProblem(400,'VALIDATION_FAILED','Portion stock quantities support at most six decimals.');
     return {id:portion.id,name:text(portion.name,'Portion name',100),priceMinor:portion.priceMinor,volume,wholeContainerSale:portion.wholeContainerSale===true};
   });
-  await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeYield,portionVolume,sellingMode,portions,outletIds,recipe:recipeIngredients.length > 0,recipeIngredients,version});
-  return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeIngredients,recipeYield,portionVolume,sellingMode,portions,outletIds,updatedAt:at.toISOString()}};
+  await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeYield,portionVolume,sellingMode,portions,modifiers,outletIds,recipe:recipeIngredients.length > 0,recipeIngredients,version});
+  return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeIngredients,recipeYield,portionVolume,sellingMode,portions,modifiers,outletIds,updatedAt:at.toISOString()}};
 };
 
 const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {

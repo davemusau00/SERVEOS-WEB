@@ -12,7 +12,7 @@ export async function consumptionSnapshot(db,businessId,product,portion,recipe){
  const direct=ingredients.length===0;
  if(direct&&product.stockItemId)ingredients=[{stockItemId:product.stockItemId,quantity:portion?.volume??product.portionVolume??1,unit:''}];
  if(product.inventoryType==='BATCH'&&!product.stockItemId)invalid('Batch product requires linked finished stock.');
- if(!ingredients.length){if(['STOCKED','RECIPE','BATCH','WINE','SPIRIT','COUNT','WEIGHT'].includes(product.inventoryType)||product.sellingMode)invalid('Tracked products require a stock item or recipe before selling.');return [];}
+ if(!ingredients.length){if(portion?.wholeContainerSale===true)invalid('Whole-container portions require linked bottle-tracked stock.');if(['STOCKED','RECIPE','BATCH','WINE','SPIRIT','COUNT','WEIGHT'].includes(product.inventoryType)||product.sellingMode)invalid('Tracked products require a stock item or recipe before selling.');return [];}
  const ids=[...new Set(ingredients.map(row=>row.stockItemId))];
  const {rows}=await db.query('SELECT id,base_unit AS "baseUnit",sealed_container_size AS "containerSize" FROM stock_items WHERE business_id=$1 AND id=ANY($2::uuid[]) AND archived_at IS NULL FOR SHARE',[businessId,ids]);
  if(rows.length!==ids.length)invalid('A product ingredient is missing or archived.');
