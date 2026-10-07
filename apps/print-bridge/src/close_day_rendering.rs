@@ -5,6 +5,7 @@ use serde_json::Value;
 use uuid::Uuid;
 fn text(value:&Value,key:&str,required:bool)->Result<String,String>{match value.get(key){None|Some(Value::Null) if !required=>Ok(String::new()),Some(Value::String(raw)) if raw.len()<=2000&&!raw.chars().any(|c|c.is_control())&&(!required||!raw.trim().is_empty())=>Ok(raw.clone()),_=>Err(format!("Invalid report {key}"))}}
 fn amount(value:&Value,key:&str)->Result<i64,String>{value.get(key).and_then(Value::as_i64).filter(|n|n.unsigned_abs()<=9007199254740991).ok_or_else(||format!("Missing or invalid report amount {key}"))}
+fn optional_amount(value:&Value,key:&str)->Result<Option<i64>,String>{match value.get(key){None=>Ok(None),Some(_)=>amount(value,key).map(Some)}}
 fn money(value:i64)->String{let absolute=value.unsigned_abs();format!("{}{}.{:02}",if value<0{"-"}else{""},absolute/100,absolute%100)}
 fn timestamp(value:&Value,key:&str)->Result<String,String>{let raw=text(value,key,true)?;let time=DateTime::parse_from_rfc3339(&raw).map_err(|_|"Invalid report timestamp")?;Ok(time.with_timezone(&FixedOffset::east_opt(10800).ok_or("Invalid report time zone")?).format("%Y-%m-%d %H:%M:%S EAT").to_string())}
 fn identity(value:&Value,key:&str)->Result<String,String>{let raw=text(value,key,true)?;if Uuid::parse_str(&raw).map(|id|id.to_string()!=raw).unwrap_or(true){return Err("Invalid report identity".into());}Ok(raw)}
@@ -25,15 +26,36 @@ pub fn prepare_close_day(input:&ValidatedAction)->Result<PreparedDocument,String
  lines.push("COLLECTIONS".into());amounts(&mut lines,&snapshot["sales"],&[("receivedMinor","Received"),("returnedMinor","Returned"),("netReceivedMinor","Net received")])?;
  let tenders=snapshot.get("paymentsByTender").and_then(Value::as_array).ok_or("Missing issued report tenders")?;if tenders.len()>500{return Err("Report tenders exceed bounds".into());}
  for tender in tenders{lines.push(format!("{} - {}",text(tender,"method",true)?,text(tender,"name",true)?));amounts(&mut lines,tender,&[("receivedMinor","Received"),("returnedMinor","Returned"),("netMinor","Net")])?;}
+ let mut cash_credit_total=None;
+ if let Some(credit)=snapshot.get("customerCreditCollections"){
+  let credit_entries=credit.get("entries").and_then(Value::as_array).ok_or("Missing customer-credit collection entries")?;
+  if credit_entries.len()>500{return Err("Customer-credit collection rows exceed bounds".into());}
+  let mut credit_total=0i64;let mut cash_total=0i64;
+  lines.push("CUSTOMER CREDIT COLLECTIONS".into());
+  for entry in credit_entries{
+   let method=text(entry,"method",true)?;if !["CASH","MPESA","CARD"].contains(&method.as_str()){return Err("Unsupported customer-credit collection method".into());}
+   let name=text(entry,"name",true)?;let count=amount(entry,"settlementCount")?;if count<0{return Err("Invalid customer-credit settlement count".into());}
+   let received=amount(entry,"receivedMinor")?;if received<0{return Err("Invalid customer-credit collection amount".into());}
+   credit_total=credit_total.checked_add(received).ok_or("Customer-credit total exceeds bounds")?;
+   if method=="CASH"{cash_total=cash_total.checked_add(received).ok_or("Cash customer-credit total exceeds bounds")?;}
+   lines.push(format!("{method} - {name}: {count} settlement(s)"));lines.push(format!("Received: {}",money(received)));
+  }
+  let issued_credit_total=amount(credit,"totalMinor")?;if issued_credit_total<0||credit_total!=issued_credit_total{return Err("Customer-credit collection rows do not reconcile to their issued total".into());}
+  lines.push(format!("Total collected: {}",money(issued_credit_total)));cash_credit_total=Some(cash_total);
+ }else{lines.push("Customer-credit collections not captured in this report version".into());}
  lines.push("REVENUE AND TAX ALLOCATIONS".into());for kind in ["collected","reversed","net"]{lines.push(kind.to_uppercase());amounts(&mut lines,&snapshot["taxes"][kind],&[("netMinor","Net"),("vatMinor","VAT"),("levyMinor","Levy")])?;}
  lines.push("DRAWER CLOSE".into());let cash=&snapshot["cash"];
- amounts(&mut lines,cash,&[("openingFloatMinor","Opening float"),("paidInMinor","Paid in"),("paidOutMinor","Paid out"),("salesMinor","Cash sales"),("refundsMinor","Cash refunds"),("expectedMinor","Expected"),("countedMinor","Counted"),("varianceMinor","Variance")])?;
+ amounts(&mut lines,cash,&[("openingFloatMinor","Opening float"),("paidInMinor","Paid in"),("paidOutMinor","Paid out"),("salesMinor","Cash sales")])?;
+ if let Some(value)=optional_amount(cash,"customerCreditCollectionsMinor")?{lines.push(format!("Cash customer-credit collections: {}",money(value)));if cash_credit_total.is_some_and(|total|total!=value){return Err("Cash customer-credit collections do not reconcile to the till report".into());}}
+ if let Some(value)=optional_amount(cash,"customerCreditRefundsMinor")?{lines.push(format!("Cash customer-credit refunds: {}",money(value)));}
+ amounts(&mut lines,cash,&[("refundsMinor","Cash refunds"),("expectedMinor","Expected"),("countedMinor","Counted"),("varianceMinor","Variance")])?;
  if i128::from(amount(cash,"countedMinor")?)-i128::from(amount(cash,"expectedMinor")?)!=i128::from(amount(cash,"varianceMinor")?){return Err("Issued drawer variance does not reconcile".into());}
  for (key,label) in [("varianceReason","Variance reason"),("reviewReason","Manager review")]{let raw=text(cash,key,false)?;if !raw.is_empty(){lines.push(format!("{label}: {raw}"));}}
  let diagnostics=&snapshot["operationalDiagnostics"];lines.push("BUSINESS DIAGNOSTICS AT GENERATION".into());lines.push(format!("Observed: {}",timestamp(diagnostics,"observedAt")?));
  for (key,label) in [("openOrderCount","Open orders"),("unassignedZeroReceiptCount","Zero-value receipts without till attribution"),("unresolvedMoneyCommandCount","Unresolved money commands")]{let value=amount(diagnostics,key)?;if value<0{return Err("Invalid report diagnostic count".into());}lines.push(format!("{label}: {value}"));}
  amounts(&mut lines,diagnostics,&[("openOrderOutstandingMinor","Outstanding")])?;
- lines.push("Credit and room/folio exposure unavailable until API migration.".into());
+ lines.push("Customer-credit collections are reported separately; credit-sale accrual is not included.".into());
+ lines.push("Room and folio exposure unavailable until that API domain migrates.".into());
  let footer_start=lines.len();lines.extend(crate::document_text::multiline(business,"footer",2000)?);
  let logo=crate::document_text::embedded_png(business,"logoPngDataUrl")?;
  Ok(PreparedDocument{lines,logo,qr:None,footer_start:Some(footer_start)})
