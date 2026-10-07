@@ -141,20 +141,66 @@ export class BusinessStore {
   }
   async records():Promise<Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>>{return this.transaction(['records'],'readonly',tx=>request(tx.objectStore('records').getAll()))}
   async hasPending():Promise<boolean>{return (await this.queue()).some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN')}
+  async recoveryEvidence(){
+    return this.transaction(['records','queue','drafts','meta','documents','printJobs'],'readonly',async tx=>{
+      const read=(name:string)=>request(tx.objectStore(name).getAll());
+      const [records,commands,drafts,documents,printJobs,cursor,sequence]=await Promise.all([
+        read('records'),read('queue'),read('drafts'),read('documents'),read('printJobs'),
+        request(tx.objectStore('meta').get('cursor')),request(tx.objectStore('meta').get('sequence')),
+      ]);
+      return redactSensitiveData({format:'servos-recovery-evidence',version:1,exportedAt:new Date().toISOString(),
+        businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId,authority:this.commandAuthority,
+        purpose:'Reconciliation evidence only. Redacted payloads must not be replayed or imported as commands.',
+        cursor:cursor||0,sequence:sequence||0,records,commands,drafts,documents,printJobs});
+    });
+  }
+  async guidanceProgress():Promise<import('./session').WebGuidanceProgress[]>{
+    return this.transaction(['meta'],'readonly',async tx=>(await request(tx.objectStore('meta').get('guidanceProgress')))||[]);
+  }
+  async saveGuidanceProgress(progress:import('./session').WebGuidanceProgress){
+    return this.transaction(['meta'],'readwrite',async tx=>{
+      const meta=tx.objectStore('meta');const rows=(await request(meta.get('guidanceProgress'))||[]) as import('./session').WebGuidanceProgress[];
+      const saved={...progress,updatedAt:new Date().toISOString()};
+      await request(meta.put([saved,...rows.filter(row=>row.guideId!==progress.guideId)],'guidanceProgress'));
+      return saved;
+    });
+  }
   async saveVerifiedOfflineGrant(grant:OfflineGrantEnvelope,verify:(grant:OfflineGrantEnvelope)=>Promise<boolean>):Promise<void>{
+    const issued=Date.parse(grant.issuedAt),expires=Date.parse(grant.expiresAt);
+    if(!grant.grantId||grant.policyVersion!==1||!Number.isFinite(issued)||!Number.isFinite(expires)||expires<=issued||!Number.isSafeInteger(grant.usedCommands??0)||(grant.usedCommands??0)<0||(grant.usedCommands??0)>grant.maxCommands)throw new Error('Offline grant metadata is invalid');
     if(grant.businessId!==this.scope||grant.deviceId!==this.deviceId||grant.staffId!==this.actorId)throw new Error('Offline grant is scoped to a different business, device, or staff member');
     if(Date.parse(grant.expiresAt)<=Date.now()||Date.parse(grant.issuedAt)>Date.now()||!Number.isSafeInteger(grant.maxCommands)||grant.maxCommands<1||grant.maxCommands>100||!Array.isArray(grant.allowedCommands)||!grant.allowedCommands.length||new Set(grant.allowedCommands).size!==grant.allowedCommands.length)throw new Error('Offline grant is expired or invalid');
     if(!(await verify(grant)))throw new Error('Offline grant signature could not be verified');
-    await this.transaction(['offlineGrants'],'readwrite',async tx=>{await request(tx.objectStore('offlineGrants').put(grant))});
+    await this.transaction(['offlineGrants'],'readwrite',async tx=>{
+      const grants=tx.objectStore('offlineGrants');const existing=await request(grants.get(grant.grantId)) as OfflineGrantEnvelope|undefined;
+      if(existing){
+        const signed=(value:OfflineGrantEnvelope)=>{const {usedCommands,...rest}=value;return stableJson(rest)};
+        if(signed(existing)!==signed(grant))throw new Error('Offline grant ID is already bound to different authorization');
+      }
+      const usedCommands=Math.max(existing?.usedCommands??0,grant.usedCommands??0);
+      if(!Number.isSafeInteger(usedCommands)||usedCommands<0||usedCommands>grant.maxCommands)throw new Error('Offline grant quota requires reconciliation');
+      await request(grants.put({...grant,usedCommands}));
+    });
   }
   async hasOfflineAuthorization(operation:string):Promise<boolean>{
     if(this.commandAuthority!=='API')return false;
-    const grants=await this.offlineGrants();const now=Date.now();return grants.some(grant=>grant.businessId===this.scope&&grant.deviceId===this.deviceId&&grant.staffId===this.actorId&&Date.parse(grant.issuedAt)<=now&&Date.parse(grant.expiresAt)>now&&grant.allowedCommands.includes(operation)&&(grant.usedCommands||0)<grant.maxCommands);
+    const grants=await this.offlineGrants();const now=Date.now();return grants.some(grant=>this.offlineGrantEligible(grant,operation,now));
+  }
+  private offlineGrantEligible(grant:OfflineGrantEnvelope,operation:string,now:number):boolean{
+    if(this.commandAuthority!=='API'||!['product.save','stockItem.save','stockLocation.save'].includes(operation))return false;
+    if(!grant||grant.policyVersion!==1||typeof grant.grantId!=='string'||!grant.grantId||typeof grant.signature!=='string'||!grant.signature||typeof grant.keyVersion!=='string'||!grant.keyVersion)return false;
+    const issued=Date.parse(grant.issuedAt),expires=Date.parse(grant.expiresAt),used=grant.usedCommands??0;
+    return grant.businessId===this.scope&&grant.deviceId===this.deviceId&&grant.staffId===this.actorId
+      &&Number.isFinite(issued)&&Number.isFinite(expires)&&issued<=now&&expires>now&&expires>issued
+      &&Number.isSafeInteger(grant.maxCommands)&&grant.maxCommands>=1&&grant.maxCommands<=100
+      &&Number.isSafeInteger(used)&&used>=0&&used<grant.maxCommands
+      &&Array.isArray(grant.allowedCommands)&&grant.allowedCommands.every(name=>typeof name==='string')
+      &&new Set(grant.allowedCommands).size===grant.allowedCommands.length&&grant.allowedCommands.includes(operation);
   }
   async offlineGrants():Promise<OfflineGrantEnvelope[]>{return this.transaction(['offlineGrants'],'readonly',tx=>request(tx.objectStore('offlineGrants').getAll()))}
   private async consumeLocalGrant(tx:IDBTransaction,operation:string):Promise<string>{
     const grants=tx.objectStore('offlineGrants');const candidates=await request(grants.getAll()) as OfflineGrantEnvelope[];
-    const now=Date.now();const grant=candidates.filter(item=>item.businessId===this.scope&&item.deviceId===this.deviceId&&item.staffId===this.actorId&&Date.parse(item.issuedAt)<=now&&Date.parse(item.expiresAt)>now&&item.allowedCommands.includes(operation)&&(item.usedCommands||0)<item.maxCommands).sort((a,b)=>Date.parse(a.expiresAt)-Date.parse(b.expiresAt))[0];
+    const now=Date.now();const grant=candidates.filter(item=>this.offlineGrantEligible(item,operation,now)).sort((a,b)=>Date.parse(a.expiresAt)-Date.parse(b.expiresAt))[0];
     if(!grant)throw new Error(`No active offline grant authorizes ${operation}. Save this workflow as a draft and reconnect.`);
     await request(grants.put({...grant,usedCommands:(grant.usedCommands||0)+1}));return grant.grantId;
   }
@@ -190,7 +236,7 @@ export class BusinessStore {
   }
   async printJobs():Promise<LocalPrintJob[]>{return this.transaction(['printJobs'],'readonly',tx=>request(tx.objectStore('printJobs').getAll()))}
   async storageDiagnostics(){
-    const estimate=await navigator.storage?.estimate?.().catch(()=>undefined);const persisted=await navigator.storage?.persisted?.().catch(()=>false)??false;
+    const estimate=await navigator.storage?.estimate?.().catch(()=>undefined);const persisted=await navigator.storage?.persisted?.().catch(()=>null)??null;
     const [queue,grants,jobs,documents]=await Promise.all([this.queue(),this.offlineGrants(),this.printJobs(),this.businessDocuments()]);
     return {persisted,usageBytes:estimate?.usage??null,quotaBytes:estimate?.quota??null,pendingCommands:queue.filter(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN').length,unknownCommands:queue.filter(row=>row.state==='OUTCOME_UNKNOWN').length,offlineGrants:grants.filter(grant=>Date.parse(grant.expiresAt)>Date.now()).length,pendingPrintJobs:jobs.filter(job=>['QUEUED','SENDING','DELIVERY_UNCERTAIN'].includes(job.state)).length,documents:documents.length};
   }

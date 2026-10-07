@@ -32,7 +32,7 @@ const icon: Record<QueuedCommand['state'], React.ComponentType<{ className?: str
 
 const operationLabel = (operation: string) => operation.replace(/[._]/g, ' ').replace(/\b\w/g, value => value.toUpperCase());
 
-export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync, onReviewDraft }: { queue: QueuedCommand[]; drafts: WorkflowDraft[]; online: boolean; syncing: boolean; onSync: () => Promise<void>; onReviewDraft: (draft: WorkflowDraft) => void }) {
+export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync, onReviewDraft,onExportRecovery }: { queue: QueuedCommand[]; drafts: WorkflowDraft[]; online: boolean; syncing: boolean; onSync: () => Promise<void>; onReviewDraft: (draft: WorkflowDraft) => void;onExportRecovery?:()=>Promise<void> }) {
   const [filter, setFilter] = useState<QueueFilter>('ALL');
   const filtered = useMemo(() => queue.slice().reverse().filter(item => {
     if (filter === 'ALL') return true;
@@ -45,6 +45,7 @@ export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync, onR
   const conflicts = queue.filter(item => item.state === 'CONFLICT' || item.state === 'REJECTED').length;
 
   return <section className="space-y-5" data-guide-anchor="activity.sync-center">
+    {onExportRecovery&&<div className="flex flex-wrap items-center gap-3"><button type="button" className={ds.button} onClick={()=>void onExportRecovery()}>Export recovery evidence</button><span className="text-xs text-slate-400">Contains business data. Keep it private. Redacted evidence is for reconciliation, not automatic restore.</span></div>}
     <div className={`${ds.panel} p-4 sm:p-5`}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><p className={ds.eyebrow}>ACTIVITY & SYNC</p><h2 className="mt-1 text-xl font-black text-white">Changes made on this browser</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">ServOS keeps a durable record of each queued command. A saved command is not silently discarded when the network or server is unavailable.</p></div>
