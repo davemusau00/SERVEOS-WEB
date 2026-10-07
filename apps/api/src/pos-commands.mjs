@@ -32,9 +32,9 @@ const total=(count,price)=>{
 };
 
 export async function orderProjections(db,businessId,ids=null){
- const {rows}=await db.query(`WITH recent_closed AS (SELECT id FROM pos_orders WHERE business_id=$1 AND state IN ('COMPLETED','VOIDED') ORDER BY updated_at DESC,id LIMIT 1000), pending_preparation AS (SELECT DISTINCT order_id FROM pos_order_lines WHERE business_id=$1 AND state='FIRED' AND preparation_status IN ('FIRED','PREPARING','READY')) SELECT id,outlet_id AS "outletId",stock_location_id AS "stockLocationId",name,business_snapshot AS "businessSnapshot",receipt_document_id AS "receiptDocumentId",service_destination AS "serviceDestination",service_reference AS "serviceReference",void_reason AS "voidReason",void_disposition AS "voidDisposition",voided_by AS "voidedBy",voided_at AS "voidedAt",state,currency,grand_total_minor AS "grandTotalMinor",amount_paid_minor AS "amountPaidMinor",refunded_amount_minor AS "refundedAmountMinor",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt" FROM pos_orders WHERE business_id=$1 AND (($2::uuid[] IS NOT NULL AND id=ANY($2)) OR ($2::uuid[] IS NULL AND (state IN ('OPEN','FIRED') OR (state<>'VOIDED' AND id IN (SELECT order_id FROM pending_preparation)) OR id IN (SELECT id FROM recent_closed)))) ORDER BY updated_at DESC,id`,[businessId,ids]);
+ const {rows}=await db.query(`WITH recent_closed AS (SELECT id FROM pos_orders WHERE business_id=$1 AND state IN ('COMPLETED','VOIDED') ORDER BY updated_at DESC,id LIMIT 1000), pending_preparation AS (SELECT DISTINCT order_id FROM pos_order_lines WHERE business_id=$1 AND state='FIRED' AND preparation_status IN ('FIRED','PREPARING','READY')) SELECT id,current_round_no AS "currentRoundNo",outlet_id AS "outletId",stock_location_id AS "stockLocationId",name,business_snapshot AS "businessSnapshot",receipt_document_id AS "receiptDocumentId",service_destination AS "serviceDestination",service_reference AS "serviceReference",void_reason AS "voidReason",void_disposition AS "voidDisposition",voided_by AS "voidedBy",voided_at AS "voidedAt",state,currency,grand_total_minor AS "grandTotalMinor",amount_paid_minor AS "amountPaidMinor",refunded_amount_minor AS "refundedAmountMinor",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt" FROM pos_orders WHERE business_id=$1 AND (($2::uuid[] IS NOT NULL AND id=ANY($2)) OR ($2::uuid[] IS NULL AND (state IN ('OPEN','FIRED') OR (state<>'VOIDED' AND id IN (SELECT order_id FROM pending_preparation)) OR id IN (SELECT id FROM recent_closed)))) ORDER BY updated_at DESC,id`,[businessId,ids]);
  if(!rows.length)return [];
- const lines=await db.query(`SELECT order_id AS "orderId",id,product_id AS "productId",product_version AS "productVersion",product_snapshot AS "productSnapshot",portion_snapshot AS "portionSnapshot",modifier_snapshots AS "modifierSnapshots",notes,preparation_status AS "preparationStatus",preparation_updated_at AS "preparationUpdatedAt",preparation_updated_by AS "preparationUpdatedBy",course_name AS "courseName",fired_at AS "firedAt",tax_snapshot AS "taxSnapshot",net_minor AS "netMinor",vat_minor AS "vatMinor",levy_minor AS "levyMinor",quantity,unit_price_minor AS "unitPriceMinor",line_total_minor AS "lineTotalMinor",gross_minor AS "grossMinor",discount_basis_points AS "discountBasisPoints",discount_minor AS "discountMinor",comped,comp_reason AS "compReason",pricing_reason AS "pricingReason",void_previous_state AS "voidPreviousState",state FROM pos_order_lines WHERE business_id=$1 AND order_id=ANY($2::uuid[]) ORDER BY created_at,id`,[businessId,rows.map(row=>row.id)]);
+ const lines=await db.query(`SELECT order_id AS "orderId",id,round_no AS "roundNo",product_id AS "productId",product_version AS "productVersion",product_snapshot AS "productSnapshot",portion_snapshot AS "portionSnapshot",modifier_snapshots AS "modifierSnapshots",notes,preparation_status AS "preparationStatus",preparation_updated_at AS "preparationUpdatedAt",preparation_updated_by AS "preparationUpdatedBy",course_name AS "courseName",fired_at AS "firedAt",tax_snapshot AS "taxSnapshot",net_minor AS "netMinor",vat_minor AS "vatMinor",levy_minor AS "levyMinor",quantity,unit_price_minor AS "unitPriceMinor",line_total_minor AS "lineTotalMinor",gross_minor AS "grossMinor",discount_basis_points AS "discountBasisPoints",discount_minor AS "discountMinor",comped,comp_reason AS "compReason",pricing_reason AS "pricingReason",void_previous_state AS "voidPreviousState",state FROM pos_order_lines WHERE business_id=$1 AND order_id=ANY($2::uuid[]) ORDER BY created_at,id`,[businessId,rows.map(row=>row.id)]);
  const grouped=new Map();
  for(const line of lines.rows){const list=grouped.get(line.orderId)||[];list.push(line);grouped.set(line.orderId,list)}
  return rows.map(row=>{
@@ -51,7 +51,7 @@ async function result(tx,businessId,id){const value=await orderProjection(tx.cli
 async function editable(tx,command,actor,id,{allowPaid=false}={}){
  if(!uuid(id))fail('Choose an order.');
  const baseline=expected(command,'orders',id);
- const {rows}=await tx.client.query('SELECT state,version,amount_paid_minor AS "amountPaidMinor",outlet_id AS "outletId" FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,id]);
+ const {rows}=await tx.client.query('SELECT state,version,current_round_no AS "currentRoundNo",amount_paid_minor AS "amountPaidMinor",outlet_id AS "outletId" FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,id]);
  if(!rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The order is missing.');
  if(Number(rows[0].version)!==baseline)throw new ApiProblem(409,'VERSION_CONFLICT','This order changed. Refresh and review your edit.');
  if(!allowPaid&&Number(rows[0].amountPaidMinor)>0)throw new ApiProblem(409,'PAID_ORDER_NOT_EDITABLE','Partly paid orders cannot be edited or repriced. Complete or refund their payments through the money workflow.');
@@ -103,7 +103,7 @@ const create=async({tx,command,actor,at})=>{
  await event(tx,command,actor,at,id,version,{outletId:p.outletId,name:p.name.trim(),serviceDestination:destination});return result(tx,actor.businessId,id);
 };
 
-const add=async({tx,command,actor,at})=>{
+const add=async({tx,command,actor,at},{deferFinish=false}={})=>{
  await tx.lockInventoryCatalog(actor.businessId);
  const p=command.payload,order=await editable(tx,command,actor,p.orderId);
  if(!uuid(p.itemId)||!uuid(p.productId))fail('Product and line IDs are required.');
@@ -129,8 +129,9 @@ const add=async({tx,command,actor,at})=>{
  const taxSnapshot=productTaxSnapshot(settings,product.taxClassId),tax=priceLine(count,price,0,false,taxSnapshot),lineTotal=tax.lineTotalMinor;
  const ingredientSnapshot=await consumptionSnapshot(tx.client,actor.businessId,product,portion,recipeIngredients,modifiers);
  const snapshot={...product,recipeIngredients,ingredientSnapshot,version:Number(product.version),priceMinor:Number(product.priceMinor),portionVolume:product.portionVolume===null?null:Number(product.portionVolume)};
- await tx.client.query(`INSERT INTO pos_order_lines(business_id,order_id,id,product_id,product_version,product_snapshot,portion_snapshot,quantity,unit_price_minor,line_total_minor,created_at,updated_at,tax_snapshot,net_minor,vat_minor,levy_minor,gross_minor,notes,modifier_snapshots,course_name) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11,$11,$12::jsonb,$13,$14,$15,$10,$16,$17::jsonb,$18)`,[actor.businessId,p.orderId,p.itemId,p.productId,product.version,JSON.stringify(snapshot),portion?JSON.stringify(portion):null,count,price,lineTotal,at,JSON.stringify(taxSnapshot),tax.netMinor,tax.vatMinor,tax.levyMinor,notes,JSON.stringify(modifiers),course]);
- return finish(tx,command,actor,at,p.orderId,{itemId:p.itemId,productId:p.productId,quantity:count,unitPriceMinor:price,baseUnitPriceMinor:basePrice,portion,modifiers,note:notes,courseName:course});
+ await tx.client.query(`INSERT INTO pos_order_lines(business_id,order_id,id,product_id,product_version,product_snapshot,portion_snapshot,quantity,unit_price_minor,line_total_minor,created_at,updated_at,tax_snapshot,net_minor,vat_minor,levy_minor,gross_minor,notes,modifier_snapshots,course_name,round_no) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11,$11,$12::jsonb,$13,$14,$15,$10,$16,$17::jsonb,$18,$19)`,[actor.businessId,p.orderId,p.itemId,p.productId,product.version,JSON.stringify(snapshot),portion?JSON.stringify(portion):null,count,price,lineTotal,at,JSON.stringify(taxSnapshot),tax.netMinor,tax.vatMinor,tax.levyMinor,notes,JSON.stringify(modifiers),course,order.currentRoundNo]);
+ const evidence={itemId:p.itemId,productId:p.productId,quantity:count,unitPriceMinor:price,baseUnitPriceMinor:basePrice,portion,modifiers,note:notes,courseName:course,roundNo:order.currentRoundNo};
+ return deferFinish?evidence:finish(tx,command,actor,at,p.orderId,evidence);
 };
 
 const edit=remove=>async({tx,command,actor,at})=>{
@@ -192,7 +193,9 @@ const fire=async({tx,command,actor,at})=>{
   records.push(await tx.stockRecordProjection(actor.businessId,stockId),await tx.inventoryMovementProjection(actor.businessId,movementId));
  }
  await tx.client.query(`UPDATE pos_order_lines SET state='FIRED',preparation_status='FIRED',preparation_updated_at=$3,preparation_updated_by=$5,fired_at=$3,updated_at=$3 WHERE business_id=$1 AND order_id=$2 AND state='DRAFT' AND id=ANY($4::uuid[])`,[actor.businessId,p.orderId,at,lines.map(line=>line.id),actor.staffId]);
- await tx.client.query(`UPDATE pos_orders SET state='FIRED' WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId]);
+ const completesRound=selectedCourse===null&&lines.some(line=>line.roundNo===order.data.currentRoundNo)&&!order.data.items.some(line=>line.state==='DRAFT'&&line.roundNo===order.data.currentRoundNo&&!lines.some(selected=>selected.id===line.id));
+ if(completesRound&&order.data.currentRoundNo>=1000000)fail('This order has reached its round limit. Open another order.');
+ await tx.client.query(`UPDATE pos_orders SET state='FIRED',current_round_no=current_round_no+CASE WHEN $3 THEN 1 ELSE 0 END WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,completesRound]);
  const documents=[];
  for(const route of ['KITCHEN','BAR']){
   const routed=lines.filter(line=>line.routeTo===route);if(!routed.length)continue;
@@ -204,7 +207,7 @@ const fire=async({tx,command,actor,at})=>{
   records.push({collection:'businessDocuments',id,version:1,archived:false,data:{id,type,documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}},printJob);
   documents.push(id);
  }
- const outcome=await finish(tx,command,actor,at,p.orderId,{firedLineIds:lines.map(line=>line.id),courseName:selectedCourse,heldLineIds:order.data.items.filter(line=>line.state==='DRAFT'&&!lines.some(selected=>selected.id===line.id)).map(line=>line.id),documentIds:documents});
+ const outcome=await finish(tx,command,actor,at,p.orderId,{firedLineIds:lines.map(line=>line.id),courseName:selectedCourse,roundAdvanced:completesRound,previousRoundNo:order.data.currentRoundNo,heldLineIds:order.data.items.filter(line=>line.state==='DRAFT'&&!lines.some(selected=>selected.id===line.id)).map(line=>line.id),documentIds:documents});
  if(outcome.value.data.receiptDocumentId)documents.push(outcome.value.data.receiptDocumentId);
  return {value:{order:outcome.value,documentIds:documents},records:[...outcome.records,...records]};
 };
@@ -294,6 +297,22 @@ const reprice=kind=>async({tx,command,actor,at})=>{
  return finish(tx,command,actor,at,p.orderId,{reason:p.reason.trim(),adjustments:evidence,stockUnchanged:true});
 };
 
+const repeatRound=async({tx,command,actor,at})=>{
+ await tx.lockInventoryCatalog(actor.businessId);
+ const p=command.payload;await editable(tx,command,actor,p.orderId);
+ const order=await orderProjection(tx.client,actor.businessId,p.orderId),sourceRound=Math.max(1,order.data.currentRoundNo-1);
+ const sources=order.data.items.filter(line=>line.state==='FIRED'&&line.roundNo===sourceRound);
+ if(!sources.length)throw new ApiProblem(409,'NO_TRACKED_ROUND','No fired round with recorded identity is available to repeat. Historical untracked lines cannot be guessed into a round.');
+ if(order.data.items.length+sources.length>500)throw new ApiProblem(409,'ORDER_LINE_LIMIT','Repeating the round would exceed the order line limit.');
+ const copies=[];
+ for(const line of sources){
+  const payload={orderId:p.orderId,itemId:randomUUID(),productId:line.productId,quantity:line.quantity,portionId:line.portionSnapshot?.id,modifierIds:line.modifierSnapshots.map(modifier=>modifier.id),note:line.notes,courseName:line.courseName};
+  const evidence=await add({tx,actor,at,command:{...command,payload}},{deferFinish:true});
+  copies.push({sourceLineId:line.id,...evidence});
+ }
+ return finish(tx,command,actor,at,p.orderId,{sourceRoundNo:sourceRound,targetRoundNo:order.data.currentRoundNo,copies,stockUnchanged:true,discountsCopied:false});
+};
+
 const preparation=async({tx,command,actor,at})=>{
  const p=command.payload;
  if(!uuid(p.orderId)||p.itemId!==undefined&&!uuid(p.itemId)||!['PREPARING','READY','SERVED'].includes(p.status)||p.station!==undefined&&!['BAR','KITCHEN','ROOMS'].includes(p.station))fail('Choose an order, line/station and supported preparation status.');
@@ -324,3 +343,5 @@ posCommandRegistry.set('order.compItem',{permission:'order.comp',offlinePolicy:'
 posCommandRegistry.set('order.comp',{permission:'order.comp',offlinePolicy:'ONLINE_ONLY',handler:reprice('comp')});
 
 posCommandRegistry.set('order.kds',{permission:'kds.update',offlinePolicy:'ONLINE_ONLY',handler:preparation});
+
+posCommandRegistry.set('order.repeatRound',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:repeatRound});

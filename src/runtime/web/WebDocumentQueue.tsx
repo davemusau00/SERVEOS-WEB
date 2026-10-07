@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import type {BusinessRecord} from './session';
-import type {LocalBusinessDocument} from './BusinessStore';
+import type {QueuedCommand,LocalBusinessDocument} from './BusinessStore';
 import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
 import {BusinessDocumentRenderer,businessDocumentStyles,printBusinessDocument} from './BusinessDocumentRenderer';
 
@@ -10,21 +10,28 @@ const issuedDocument=(record:BusinessRecord|undefined):LocalBusinessDocument|nul
  if(typeof d.type!=='string'||typeof d.documentNumber!=='string'||typeof d.hash!=='string'||typeof d.issuedAt!=='string'||typeof d.layoutVersion!=='number'||!d.snapshot||typeof d.snapshot!=='object'||Array.isArray(d.snapshot))return null;
  return {id:record.id,type:d.type,documentNumber:d.documentNumber,hash:d.hash,issuedAt:d.issuedAt,layoutVersion:d.layoutVersion,snapshot:d.snapshot as Record<string,unknown>};
 };
-export function WebDocumentQueue({records,actorId,deviceId,disabled,command,readRecords}:{records:BusinessRecord[];actorId:string;deviceId:string;disabled:boolean;command:Command;readRecords:()=>Promise<BusinessRecord[]>}){
+export function WebDocumentQueue({records,actorId,deviceId,disabled,command,readRecords,queue}:{records:BusinessRecord[];actorId:string;deviceId:string;disabled:boolean;command:Command;readRecords:()=>Promise<BusinessRecord[]>;queue:QueuedCommand[]}){
  const jobs=useMemo(()=>records.filter(row=>row.collection==='printJobs'&&!row.archived),[records]);
  const [selected,setSelected]=useState(''),[reason,setReason]=useState(''),[duplicate,setDuplicate]=useState(false),[confirmed,setConfirmed]=useState(false);
- const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[pending,setPending]=useState<Record<string,number>>({});
+ const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[pending,setPending]=useState<Record<string,string>>({});
  const inFlight=useRef(false);
  const job=jobs.find(row=>row.id===selected);
  const document=issuedDocument(records.find(row=>row.collection==='businessDocuments'&&row.id===job?.data.documentId));
- useEffect(()=>{setPending(old=>{const next={...old};let changed=false;for(const [id,version] of Object.entries(old)){const current=jobs.find(row=>row.id===id);if(current&&current.version>version){delete next[id];changed=true}}return changed?next:old})},[jobs]);
+ useEffect(()=>{
+  const resolved=Object.entries(pending).filter(([,commandId])=>{const entry=queue.find(row=>row.id===commandId);return entry&&['SYNCHRONIZED','REJECTED','CONFLICT'].includes(entry.state)});
+  if(!resolved.length)return;
+  setPending(old=>{const next={...old};for(const [id,commandId] of resolved)if(next[id]===commandId)delete next[id];return next});
+  const entry=queue.find(row=>row.id===resolved[resolved.length-1][1]);
+  setMessage(entry?.state==='SYNCHRONIZED'?'Original print action confirmed after recovery. Review the current delivery state; no new print attempt was started.':entry?.result?.error?.message||'The original print action did not confirm. Review the latest job before another action.');
+ },[queue,pending]);
  const send=async(target:BusinessRecord,action:string,extra:Record<string,unknown>={})=>{
   const outcome=await command(`print.${action}`,'printJobs',target.id,{jobId:target.id,reason:reason.trim(),...extra,expectedVersions:[{collection:'printJobs',id:target.id,version:target.version}]});
-  if(!isCommandConfirmed(outcome)){if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPending(old=>({...old,[target.id]:target.version}));setMessage('message' in outcome?outcome.message:'The print action is saved. Synchronize its original outcome in Activity before another action.');return false;}
+  if(!isCommandConfirmed(outcome)){if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPending(old=>({...old,[target.id]:outcome.commandId}));setMessage('message' in outcome?outcome.message:'The print action is saved. Synchronize its original outcome in Activity before another action.');return false;}
   return true;
  };
+ const unresolvedJob=(id:string)=>queue.some(entry=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(entry.state)&&entry.command.operation.startsWith('print.')&&entry.command.payload.jobId===id);
  const act=async(action:string)=>{
-  if(!job||!document||inFlight.current||disabled||pending[job.id]!==undefined)return;
+  if(!job||!document||inFlight.current||disabled||pending[job.id]!==undefined||unresolvedJob(job.id))return;
   inFlight.current=true;setBusy(true);setMessage('');
   try{
    if(action==='print'){
@@ -44,11 +51,12 @@ export function WebDocumentQueue({records,actorId,deviceId,disabled,command,read
  };
  const state=String(job?.data.state||'');
  const uncertain=['SENDING','SENT_TO_SPOOLER','DELIVERY_UNCERTAIN'].includes(state);
- const blocked=disabled||busy||Boolean(job&&pending[job.id]!==undefined);
+ const blocked=disabled||busy||Boolean(job&&(pending[job.id]!==undefined||unresolvedJob(job.id)));
  return <section className="space-y-3 rounded-xl border border-slate-700 p-4">
   <h2 className="text-lg font-bold">Documents and printing</h2>
   <p className="text-sm text-slate-400">Review issued documents and resolve printer delivery. A browser print dialog does not prove the document printed.</p>
   <label className="block text-sm">Print job<select className="mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2" value={selected} disabled={busy} onChange={event=>{setSelected(event.target.value);setReason('');setDuplicate(false);setConfirmed(false);setMessage('')}}><option value="">Select a document…</option>{jobs.map(row=>{const doc=issuedDocument(records.find(item=>item.collection==='businessDocuments'&&item.id===row.data.documentId));return <option key={row.id} value={row.id}>{doc?.documentNumber||'Document unavailable'} · {String(row.data.printerRole)} · {String(row.data.state)}</option>})}</select></label>
+  {job&&unresolvedJob(job.id)&&<p role="status">Checking the original saved print action. Synchronize before starting another attempt for this document.</p>}
   {job&&<><p className="text-sm">Attempt {Number(job.data.attempt||0)} · {state}</p>{!document&&<p role="alert">The immutable document is not available. Synchronize before printing.</p>}
    {document&&<details><summary className="cursor-pointer">Preview issued document</summary><div className="mt-2 overflow-auto rounded bg-white p-3 text-black" style={{fontFamily:'Arial,sans-serif',fontSize:12}}><style>{businessDocumentStyles.replace(/^html,body\{[^}]*\}/,'').split('@media print')[0]}</style><BusinessDocumentRenderer document={document}/></div></details>}
    {state==='QUEUED'&&<button type="button" disabled={blocked||!document} onClick={()=>void act('print')} className="rounded bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40">Print with browser</button>}

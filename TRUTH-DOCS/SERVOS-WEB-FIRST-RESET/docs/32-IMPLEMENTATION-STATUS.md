@@ -398,3 +398,11 @@ The active objective now includes `final-sprint.md` alongside the controlling re
 - Explicit order-ID projection lookups no longer inherit the history cap. Added migration 034 indexes for recent closed history and unfinished preparation lookup; the existing bootstrap snapshot/cursor boundary and permission filtering remain in use.
 - Preparation UI describes the recovery/history distinction. Preparation-update-only roles can use the same audited preparation-document print actions as preparation viewers.
 - No tests, lint, build, migration or browser execution ran. Deferred acceptance includes more than 1000 newer closed orders, old open/paid-unserved orders, void exclusion, served transitions, reload/rebuild/change-feed convergence, role filtering and query performance. This does not complete generalized paginated history or bounded bootstrap streaming, which remain required for large datasets.
+
+
+## Final sprint continuation - order-local document evidence and print recovery (source only)
+
+- Selected API POS orders now expose their immutable documents and linked audited print jobs through the existing shared preview/print workflow. Tickets, receipts and cancellation evidence are scoped by original snapshot order ID; printing never repeats the order/payment command.
+- Fixed print recovery tracking to follow the original command ID. REJECTED/CONFLICT outcomes now release the local pending hold even when the print job version does not change. An unrelated job revision cannot be mistaken for confirmation of that command.
+- Persisted pending/unknown print actions block further actions for that job after component remount. Recovery does not automatically open another print dialog; staff review the actual current delivery state, including uncertain delivery and possible duplicates.
+- No tests, lint, build, migration or browser execution ran. Deferred acceptance includes POS/Activity switching, original claim/report rejection and conflict, remount/reload, unrelated job changes, cross-device claims, lost responses, scoped document visibility and browser/physical delivery review. Print Bridge and hardware acceptance remain outstanding.
