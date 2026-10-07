@@ -22,6 +22,7 @@ export default defineConfig({
     env: {
       VITE_ENABLE_DEMO: 'false',
       VITE_ENABLE_WEB_V2: 'true',
+      VITE_API_URL: 'https://servos-api.test',
       VITE_SUPABASE_URL: 'https://servos-cloud.test',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'test-public-key',
     },

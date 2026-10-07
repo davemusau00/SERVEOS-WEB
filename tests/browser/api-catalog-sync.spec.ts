@@ -26,9 +26,10 @@ test('API login, catalog command, reload projection, and reconnect change feed',
   return respond({error:{code:'NOT_FOUND',message:'Unknown fixture path'}},404);
  });
  await page.goto('/');
+ await page.getByRole('button',{name:'Remote management',exact:true}).click();
  await page.getByRole('button',{name:'ServOS API workspace'}).click();
  await page.getByLabel('Staff login').fill('admin');
- await page.getByLabel('Password').fill('test-password');
+ await page.getByLabel('Password',{exact:true}).fill('test-password');
  await page.getByRole('button',{name:'Sign in'}).click();
  await expect(page.getByText('Workspace ready')).toBeVisible();
  await expect(page.getByText('Coffee beans',{exact:true})).toBeVisible();
@@ -49,3 +50,4 @@ test('API login, catalog command, reload projection, and reconnect change feed',
  await expect(page.getByText('Coffee beans updated',{exact:true})).toBeVisible();
  expect(cursor).toBeGreaterThan(1);
 });
+

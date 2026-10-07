@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {executeCommand, validateCommandEnvelope} from '../src/command-kernel.mjs';
+import {ApiProblem, executeCommand, validateCommandEnvelope} from '../src/command-kernel.mjs';
 
 const actor = {businessId: 'business-1', staffId: 'staff-1', deviceId: 'device-1', permissions: ['catalog.create']};
 const command = {commandId: '123e4567-e89b-42d3-a456-426614174000', name: 'catalog.item.create', payload: {name: 'Tea'}, expectedVersions: {}};
@@ -12,7 +12,7 @@ function memoryStore() {
   let cursor = 0;
   const tx = {
     getCommand: async (businessId, commandId) => commands.get(`${businessId}:${commandId}`) ?? null,
-    consumeOfflineGrant: async () => { throw new Error('not expected'); },
+    consumeOfflineGrant: async () => { throw new ApiProblem(403,'OFFLINE_GRANT_INVALID','No valid offline grant.'); },
     assertExpectedVersions: async () => {},
     nextChangeCursor: async () => ++cursor,
     updateCommandOutcome: async entry => { commands.set(`${entry.businessId}:${entry.commandId}`, {payloadHash:entry.payloadHash,status:'CONFIRMED',outcome:entry.outcome}); writes.push('command'); },
@@ -86,7 +86,7 @@ test('persists permission rejection and requires a grant only when an offline at
   assert.equal(online.kind,'CONFIRMED');
   const ungranted=await executeCommand({db,command:{...command,commandId:'123e4567-e89b-42d3-a456-426614174002',offlineGrantId:'123e4567-e89b-42d3-a456-426614174003'},actor,registry:offline});
   assert.equal(ungranted.kind,'REJECTED');
-  assert.equal(ungranted.error.code,'COMMAND_REJECTED');
+  assert.equal(ungranted.error.code,'OFFLINE_GRANT_INVALID');
   assert.equal(db.commands.get(`business-1:${ungranted.commandId}`).status,'REJECTED');
 });
 
@@ -112,7 +112,7 @@ test('checks expected versions before the domain handler runs', async () => {
       getCommand: async () => null,
       lockCommandKey: async () => {},
       nextChangeCursor: async () => 1,
-      insertCommand: async () => {},
+      updateCommandOutcome: async () => {},
       insertAudit: async () => {},
       insertChange: async () => {},
       consumeOfflineGrant: async () => {},
@@ -126,3 +126,18 @@ test('checks expected versions before the domain handler runs', async () => {
   assert.equal(checked, true);
   assert.equal(handled, true);
 });
+
+for(const failure of [new Error('connection lost'),new ApiProblem(503,'DATABASE_UNAVAILABLE','Unavailable')]){
+  test(`transient ${failure.code || 'infrastructure'} failure preserves command identity for recovery`,async()=>{
+    const db=memoryStore();let calls=0;
+    const recovering=new Map([['catalog.item.create',{...registry.get('catalog.item.create'),handler:async()=>{if(++calls===1)throw failure;return {itemId:'recovered'};}}]]);
+    await assert.rejects(executeCommand({db,command,actor,registry:recovering}),error=>error===failure);
+    const unresolved=db.commands.get(`business-1:${command.commandId}`);
+    assert.equal(unresolved.status,'PROCESSING');assert.equal(unresolved.outcome,null);
+    assert.ok(!db.writes.includes('rejected'));
+    const recovered=await executeCommand({db,command,actor,registry:recovering});
+    assert.equal(recovered.kind,'CONFIRMED');
+    assert.deepEqual(await executeCommand({db,command,actor,registry:recovering}),recovered);
+    assert.equal(calls,2);assert.equal(db.writes.filter(write=>write==='change').length,1);
+  });
+}

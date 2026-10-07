@@ -118,7 +118,8 @@ begin
   raise exception 'Stock receipt quantity wrong';
  end if;
 
- if (s->>'averageUnitCostMinor')::bigint<>11059 then
+ -- Cost rates retain fractional minor units; posted totals round separately.
+ if abs((s->>'averageUnitCostMinor')::numeric - 188000::numeric/17)>0.000000001 then
   raise exception 'Weighted average cost wrong: %',s->>'averageUnitCostMinor';
  end if;
 

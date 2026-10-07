@@ -27,6 +27,25 @@ test('PostgreSQL API lifecycle, catalog writes, replay, and ordered change feed'
   assert.equal(status.status,'CONFIRMED');
   assert.deepEqual(await executeCommand({db:store,command:stockCommand,actor,registry:catalogCommandRegistry}),confirmed);
 
+  // A rolled-back infrastructure failure must remain replayable with the same ID.
+  const recoveryCommand={...stockCommand,commandId:randomUUID(),expectedVersions:{[`stockItems:${stockId}`]:1},payload:{id:stockId,data:{...stockCommand.payload.data,name:'Recovered coffee beans'}}};
+  let attempts=0;
+  const recoveryRegistry=new Map(catalogCommandRegistry);
+  const stockDefinition=catalogCommandRegistry.get('stockItem.save');
+  recoveryRegistry.set('stockItem.save',{...stockDefinition,handler:async context=>{
+    const result=await stockDefinition.handler(context);
+    if(++attempts===1)throw new Error('simulated connection failure before commit');
+    return result;
+  }});
+  await assert.rejects(executeCommand({db:store,command:recoveryCommand,actor,registry:recoveryRegistry}),/simulated connection failure/);
+  const unresolved=await store.commandStatus(businessId,recoveryCommand.commandId);
+  assert.equal(unresolved.status,'PROCESSING');assert.equal(unresolved.outcome,null);
+  assert.equal((await store.catalogBootstrap(businessId)).records.find(row=>row.id===stockId).version,1);
+  const recovered=await executeCommand({db:store,command:recoveryCommand,actor,registry:recoveryRegistry});
+  assert.equal(recovered.kind,'CONFIRMED');
+  assert.deepEqual(await executeCommand({db:store,command:recoveryCommand,actor,registry:recoveryRegistry}),recovered);
+  assert.equal(attempts,2);
+
   const productCommand={commandId:randomUUID(),name:'product.save',expectedVersions:{[`products:${productId}`]:0},payload:{id:productId,data:{name:'Coffee',code:`COF-${productId.slice(0,6)}`,priceMinor:350,category:'HOT DRINKS',routeTo:'BAR',stockItemId:stockId,recipeIngredients:[{stockItemId:stockId,quantity:0.02,unit:'kg'}]}}};
   const productOutcome=await executeCommand({db:store,command:productCommand,actor,registry:catalogCommandRegistry});
   assert.equal(productOutcome.kind,'CONFIRMED');
@@ -42,8 +61,8 @@ test('PostgreSQL API lifecycle, catalog writes, replay, and ordered change feed'
   const locationOutcome=await executeCommand({db:store,command:locationCommand,actor,registry:catalogCommandRegistry});
   assert.equal(locationOutcome.kind,'CONFIRMED');
   const page=await store.changesAfter(businessId,0,20);
-  assert.equal(page.changes.length,3);
-  assert.deepEqual(page.changes.map(change=>change.sequence),[1,2,3]);
-  assert.equal(page.highWater,3);
-  assert.equal(page.changes.reduce((sum,change)=>sum+change.records.length,0),3);
+  assert.equal(page.changes.length,4);
+  assert.deepEqual(page.changes.map(change=>change.sequence),[1,2,3,4]);
+  assert.equal(page.highWater,4);
+  assert.equal(page.changes.reduce((sum,change)=>sum+change.records.length,0),4);
 });

@@ -68,8 +68,11 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
   if(received?.payloadHash&&received.payloadHash!==hash)throw new ApiProblem(409,'COMMAND_ID_REUSED','This command ID was already used with a different payload.');
   if(received?.outcome&&(received.status==='CONFIRMED'||received.status==='REJECTED'||received.status==='CONFLICT'))return received.outcome;
   const terminalFailure=async error=>{
-    const status=error.status===409||error.code==='VERSION_CONFLICT'?'CONFLICT':'REJECTED';
+    // Infrastructure failures leave the durable command unresolved. Replaying the
+    // same immutable envelope must be able to complete after recovery.
     const retryable=!Number.isInteger(error.status)||error.status>=500;
+    if(retryable)throw error;
+    const status=error.status===409||error.code==='VERSION_CONFLICT'?'CONFLICT':'REJECTED';
     const safe={code:error.code||'COMMAND_REJECTED',message:retryable?'The request could not be completed.':error.message,retryable};
     if(typeof db.finalizeCommandFailure==='function')return db.finalizeCommandFailure({businessId:actor.businessId,commandId:command.commandId,name:command.name,actor,status,error:safe,at:now()});
     throw error;

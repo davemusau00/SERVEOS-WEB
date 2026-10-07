@@ -10,5 +10,5 @@ export default defineConfig({
   projects: [{ name: 'desktop', use: { ...devices['Desktop Chrome'] } }, { name: 'mobile-layout', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } }],
   // Exercise the same production bundle built by CI. Vite's cold dev dependency
   // scan can leave the initial module graph blocked long enough to time out goto.
-  webServer: { command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 3000 --strictPort', env: { VITE_ENABLE_DEMO: 'true', VITE_ENABLE_WEB_V2:'true', VITE_SUPABASE_URL:'https://servos-cloud.test', VITE_SUPABASE_PUBLISHABLE_KEY:'test-public-key' }, url: 'http://127.0.0.1:3000', reuseExistingServer: false, timeout: 240_000 },
+  webServer: { command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 3000 --strictPort', env: { VITE_ENABLE_DEMO: 'true', VITE_ENABLE_WEB_V2:'true', VITE_API_URL:'https://servos-api.test', VITE_SUPABASE_URL:'https://servos-cloud.test', VITE_SUPABASE_PUBLISHABLE_KEY:'test-public-key' }, url: 'http://127.0.0.1:3000', reuseExistingServer: false, timeout: 240_000 },
 });
