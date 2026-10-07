@@ -22,6 +22,6 @@ test('offline shell updates only at an explicit safe application boundary',()=>{
   assert.doesNotMatch(plugin,/skipWaiting\(\)\);\s*\}\);\s*self\.addEventListener\(['"]activate/);
   assert.match(registration,/updateViaCache:'none'/);
   assert.match(registration,/servos:sw-update-ready/);
-  assert.match(app,/if\(busy\|\|syncing\)return/);
+  assert.match(app,/if\(busy\|\|syncing\|\|submitInFlight\.current\)return/);
   assert.match(app,/SERVOS_ACTIVATE_UPDATE/);
 });

@@ -23,6 +23,7 @@ const evidence = {
   runtime: { node: process.version, platform: process.platform, arch: process.arch },
   schema: { files, sha256: hash.digest('hex') },
   jobs: {
+    apiPostgres: process.env.SERVOS_JOB_API_POSTGRES || 'not-reported',
     frontend: process.env.SERVOS_JOB_FRONTEND || 'not-reported',
     browserPreview: process.env.SERVOS_JOB_BROWSER_PREVIEW || 'not-reported',
     browserProduction: process.env.SERVOS_JOB_BROWSER_PRODUCTION || 'not-reported',
@@ -40,6 +41,7 @@ const requiredJobs = Object.values(evidence.jobs);
 evidence.requiredChecksPassed = requiredJobs.every(result => result === 'success');
 const artifactRunTag = `${evidence.sha}-${evidence.runAttempt || 'local'}`;
 const expectedArtifactNames = Object.values({
+  apiPostgres: `api-postgres-${artifactRunTag}`,
   uiAudit: `ui-audit-${artifactRunTag}`,
   browserPreview: `browser-preview-${artifactRunTag}`,
   browserProduction: `browser-production-${artifactRunTag}`,

@@ -270,7 +270,6 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
       if(capabilities?.bottleInventoryVersion!==1)return {kind:'BLOCKED',message:'Apply the compatible bottle inventory migration before using this workflow.'};
     }
       const dependencies=resolveOperationDependencies(operation,collection,id,payload,records);
-      const apiExpectedVersions=apiAuth?dependencies.map(item=>({collection:({stockItems:'stockItems',products:'products',stockLocations:'stockLocations',outlets:'outlets'} as Record<string,string>)[item.collection]||item.collection,id:item.id,version:item.version})):undefined;
     const pinned=new Map((Array.isArray(payload.expectedVersions)?[]:dependencies).map(version=>[`${version.collection}:${version.id}`,version]));
     if(Array.isArray(payload.expectedVersions))for(const entry of payload.expectedVersions){if(!entry||typeof entry.collection!=='string'||typeof entry.id!=='string'||!Number.isSafeInteger(entry.version)||entry.version<0)throw new Error('Invalid reviewed baseline');pinned.set(`${entry.collection}:${entry.id}`,entry)}
     const baselines=[...pinned.values()];
@@ -281,7 +280,7 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
     if(editor?.draftId&&editor.policyVersion&&currentPolicyVersion!==editor.policyVersion){const message='Business policy changed. The workflow was retained for review and no command was queued.';await retainForReview(['Business policy changed while this workflow was saved. Review the current authorization and submit again.']);setError(message);return {kind:'BLOCKED',message}}
     if(!navigator.onLine&&!await store.current.hasOfflineAuthorization(operation)){await store.current.saveDraft({id:draftId,operation,collection,targetId:id,editorKind:editor?.title||operation,inputValues:editor?values:{},fields:draftFields,supersedes:editor?.supersedes,payload,expectedVersions:baselines,policyVersion:await store.current.policyVersion(),validationSummary:[],requiresReview:/payment|refund|credit|approval/i.test(operation)});setNotice('Draft saved on this browser. Review and submit when online.');await refresh();setEditor(null);return {kind:'DRAFT_SAVED',draftId}}
     const offlineSubmission=!navigator.onLine;
-    const command=await store.current.enqueue(operation,payload,apiAuth?apiExpectedVersions||[]:baselines,editor?.supersedes,typeof payload.reviewCommandId==='string'?payload.reviewCommandId:undefined);activeCommandId=command.id;setNotice('Saved on this browser; waiting to sync.');await refresh();
+    const command=await store.current.enqueue(operation,payload,baselines,editor?.supersedes,typeof payload.reviewCommandId==='string'?payload.reviewCommandId:undefined);activeCommandId=command.id;setNotice('Saved on this browser; waiting to sync.');await refresh();
    if(offlineSubmission){setNotice('Saved under this device’s bounded offline grant. It will be checked by the API when the connection returns.');await refresh();setEditor(null);return {kind:'PENDING',commandId:command.id}}
    try{await syncRef.current()}catch(e){
     const current=(await store.current.queue()).find(q=>q.id===command.id);

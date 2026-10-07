@@ -16,12 +16,12 @@ test('Web v2 command promotion and enqueue fail closed when the browser is offli
   const business = new BusinessStore(db, 'business', 'device', 'actor');
   try {
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
-    await assert.rejects(business.promoteDraftToCommand('draft'), /requires an online connection/);
-    await assert.rejects(business.enqueue('record.save', {}, []), /requires an online connection/);
+    await assert.rejects(business.promoteDraftToCommand('draft'), /Offline command execution is available only in an API-authorized workspace/);
+    await assert.rejects(business.enqueue('record.save', {}, []), /Offline command execution is available only in an API-authorized workspace/);
     assert.equal(transactions, 0, 'offline submission must not consume a sequence or mutate storage');
   } finally {
     if (original) Object.defineProperty(globalThis, 'navigator', original);
     else delete globalThis.navigator;
   }
-  assert.match(app, /if\(!navigator\.onLine\)\{await store\.current\.saveDraft/);
+  assert.match(app, /if\(!navigator\.onLine&&!await store\.current\.hasOfflineAuthorization\(operation\)\)\{await store\.current\.saveDraft/);
 });
