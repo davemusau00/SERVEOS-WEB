@@ -117,7 +117,10 @@ test('browser command boundary preserves distinct confirmation, draft, pending, 
   assert.match(app,/current\?\.state==='REJECTED'[\s\S]*kind:'REJECTED'/);
   assert.match(app,/predecessor\?\.state==='PENDING_SYNC'\|\|predecessor\?\.state==='OUTCOME_UNKNOWN'[\s\S]*kind:'BLOCKED'/);
   assert.match(app,/retainForReview\(\[message\],command\.id,false\)/);
-  assert.match(app,/find\(item=>item\.state==='OUTCOME_UNKNOWN'\)[\s\S]*kind:'OUTCOME_UNKNOWN',commandId:unresolvedCommand\.id/);
+  const unrelatedUnknownGuard=app.slice(app.indexOf('const unresolvedCommand='),app.indexOf('const unresolvedCommand=')+650);
+  assert.match(unrelatedUnknownGuard,/unresolvedCommand\.id!==payload\.reviewCommandId/);
+  assert.match(unrelatedUnknownGuard,/kind:'BLOCKED',message/);
+  assert.doesNotMatch(unrelatedUnknownGuard,/commandId:unresolvedCommand\.id/,'A new unsubmitted action must never inherit an older unknown command identity');
   assert.match(app,/WebFrontDeskView[\s\S]*command=\{submit\}/);
   assert.match(app,/WebRefundsView[\s\S]*command=\{submit\}/);
   assert.match(hospitality,/Promise<CommandOutcome>/);
