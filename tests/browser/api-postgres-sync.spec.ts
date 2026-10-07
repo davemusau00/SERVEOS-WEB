@@ -53,11 +53,11 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   await expect(page.getByText('Saved and synchronized.',{exact:true})).toBeVisible();
   expect((await pool.query('SELECT name,version FROM stock_items WHERE business_id=$1 AND id=$2',[businessId,stockId])).rows[0]).toMatchObject({name:'Real coffee updated',version:'2'});
   await page.getByRole('button',{name:'New product',exact:true}).click();
-  const productForm=page.getByRole('dialog').filter({has:page.getByRole('heading',{name:'New product',exact:true})});
+  const productForm=page.getByRole('dialog',{name:'New product',exact:true});
   await productForm.getByLabel('Name',{exact:true}).fill('Real brewed coffee');
   await productForm.getByLabel('Code / SKU',{exact:true}).fill('REAL-BREW');
   await productForm.getByLabel('Price (KES)',{exact:true}).fill('150.25');
-  await productForm.getByLabel('Tax class',{exact:true}).selectOption('B_0');
+  await productForm.getByRole('combobox',{name:'Tax class',exact:true}).selectOption('B_0');
   await productForm.getByRole('button',{name:'Save',exact:true}).click();
   await expect(productForm).toHaveCount(0);
   await expect(page.getByText('Real brewed coffee',{exact:true})).toBeVisible();
