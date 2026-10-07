@@ -237,7 +237,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if (req.method === 'GET' && url.pathname === '/v1/bootstrap/catalog') {
         const actor = await authenticate(req);
-        if (!['*','catalog.view','catalog.manage','pos.sell','order.fire','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','business.configure','order.refund','payment.reverse','reports.view','accounting.view','audit.view'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
+        if (!['*','catalog.view','catalog.manage','pos.sell','order.fire','order.void','order.discount','order.comp','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','business.configure','order.refund','payment.reverse','reports.view','accounting.view','audit.view'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
         const bootstrap=await store.catalogBootstrap(actor.businessId);
         return json(res,200,{protocolVersion:1,...bootstrap,records:filterRecords(actor,bootstrap.records)});
       }

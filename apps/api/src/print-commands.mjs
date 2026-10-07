@@ -9,6 +9,23 @@ export async function queueDocumentPrint(tx,{businessId,documentId,printerRole,s
  const {rows}=await tx.client.query(`INSERT INTO document_print_jobs(business_id,id,document_id,printer_role,requested_by,requested_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$6) RETURNING ${printColumns}`,[businessId,id,documentId,printerRole,staffId,at]);return printProjection(rows[0]);
 }
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
+export async function cancelUnsentOrderTickets(tx,{actor,command,at,orderId,reason}){
+ const found=await tx.client.query(`SELECT j.id FROM document_print_jobs j JOIN business_documents d ON d.business_id=j.business_id AND d.id=j.document_id WHERE j.business_id=$1 AND d.document_type IN ('KOT','BOT') AND d.snapshot->>'orderId'=$2 ORDER BY j.id`,[actor.businessId,orderId]);
+ const records=[],unresolvedTicketIds=[];
+ for(const {id} of found.rows){
+  // Match the kernel's lock order: entity advisory lock before the job row.
+  await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`entity:${actor.businessId}:printJobs:${id}`]);
+  const current=await tx.client.query(`SELECT ${printColumns} FROM document_print_jobs WHERE business_id=$1 AND id=$2 FOR UPDATE`,[actor.businessId,id]);
+  const job=current.rows[0];if(!job)continue;
+  if(['SENDING','SENT_TO_SPOOLER','DELIVERY_UNCERTAIN'].includes(job.state)){unresolvedTicketIds.push(id);continue;}
+  if(!['QUEUED','FAILED'].includes(job.state))continue;
+  const version=await tx.bumpEntityVersion(actor.businessId,'printJobs',id,Number(job.version));
+  const updated=await tx.client.query(`UPDATE document_print_jobs SET state='CANCELLED',version=$3,updated_at=$4 WHERE business_id=$1 AND id=$2 RETURNING ${printColumns}`,[actor.businessId,id,version,at]);
+  await tx.client.query(`INSERT INTO document_print_events(business_id,id,job_id,job_version,event_type,reason,possible_duplicate_acknowledged,command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,'order.void',$5,false,$6,$7,$8,$9)`,[actor.businessId,randomUUID(),id,version,`Order void: ${reason}`,command.commandId,actor.staffId,actor.deviceId,at]);
+  records.push(printProjection(updated.rows[0]));
+ }
+ return {records,unresolvedTicketIds};
+}
 const change=action=>async({tx,command,actor,at})=>{
  const p=command.payload,id=p.jobId;
  if(typeof id!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))fail('Choose a print job.');
@@ -16,8 +33,12 @@ const change=action=>async({tx,command,actor,at})=>{
  const {rows}=await tx.client.query(`SELECT ${printColumns} FROM document_print_jobs WHERE business_id=$1 AND id=$2 FOR UPDATE`,[actor.businessId,id]);
  const job=rows[0];if(!job)throw new ApiProblem(409,'RESOURCE_CONFLICT','This print job is missing.');
  if(Number(job.version)!==baseline)throw new ApiProblem(409,'VERSION_CONFLICT','This print job changed. Review its current delivery state.');
- const doc=await tx.client.query('SELECT document_type AS type FROM business_documents WHERE business_id=$1 AND id=$2',[actor.businessId,job.documentId]);
+ const doc=await tx.client.query('SELECT document_type AS type,snapshot FROM business_documents WHERE business_id=$1 AND id=$2',[actor.businessId,job.documentId]);
  if(!doc.rows.length||!visibleRecord(actor,{collection:'businessDocuments',data:doc.rows[0]}))throw new ApiProblem(403,'PERMISSION_DENIED','You cannot print this document type.');
+ if(['claim','retry'].includes(action)&&['KOT','BOT'].includes(doc.rows[0].type)){
+  const order=await tx.client.query('SELECT state FROM pos_orders WHERE business_id=$1 AND id=$2',[actor.businessId,doc.rows[0].snapshot.orderId]);
+  if(!order.rows.length||order.rows[0].state==='VOIDED')throw new ApiProblem(409,'ORDER_TICKET_CANCELLED','The order is voided or missing. Use its cancellation notice; do not resend the original preparation ticket.');
+ }
  let next=job.state,attempt=job.attempt,claimedBy=job.claimedBy,device=job.claimedDeviceId,claimedAt=job.claimedAt;
  const note=typeof p.reason==='string'?p.reason.trim():'';
  if(note.length>500)fail('Print action reason is too long.');
@@ -45,4 +66,4 @@ const change=action=>async({tx,command,actor,at})=>{
  await tx.client.query(`INSERT INTO document_print_events(business_id,id,job_id,job_version,event_type,reason,possible_duplicate_acknowledged,command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[actor.businessId,randomUUID(),id,version,command.name,note,p.possibleDuplicateAcknowledged===true,command.commandId,actor.staffId,actor.deviceId,at]);
  const value=printProjection(updated.rows[0]);return {value,records:[value]};
 };
-export const printCommandRegistry=new Map(['claim','report','confirm','retry','cancel'].map(action=>[`print.${action}`,{permission:'pos.sell',permissionAny:['pos.sell','payment.record','order.refund','payment.reverse','kds.view','system.configure','reports.view','accounting.view','audit.view'],offlinePolicy:'ONLINE_ONLY',handler:change(action)}]));
+export const printCommandRegistry=new Map(['claim','report','confirm','retry','cancel'].map(action=>[`print.${action}`,{permission:'pos.sell',permissionAny:['pos.sell','payment.record','order.refund','payment.reverse','order.void','order.discount','order.comp','kds.view','system.configure','reports.view','accounting.view','audit.view'],offlinePolicy:'ONLINE_ONLY',handler:change(action)}]));

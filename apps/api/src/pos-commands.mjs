@@ -1,9 +1,11 @@
-import {queueDocumentPrint} from './print-commands.mjs';
-import {receiptSettings,productTaxSnapshot,splitInclusiveTax} from './business-tax.mjs';
+import {queueDocumentPrint,cancelUnsentOrderTickets} from './print-commands.mjs';
+import {receiptSettings,productTaxSnapshot} from './business-tax.mjs';
 import {randomUUID} from 'node:crypto';
 import {documentHash} from './business-documents.mjs';
 import {consumptionSnapshot,consumePhysical} from './pos-inventory.mjs';
 import {ApiProblem} from './command-kernel.mjs';
+import {weightedCostRate} from './inventory-costs.mjs';
+import {priceLine} from './pos-pricing.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
@@ -11,6 +13,11 @@ const expected=(command,collection,id)=>{
  const version=command.expectedVersions[`${collection}:${id}`];
  if(!Number.isSafeInteger(version)||version<0)fail(`Reviewed ${collection} version is required.`);
  return version;
+};
+const preparationNote=value=>{
+ if(value===undefined)return '';
+ if(typeof value!=='string'||value.length>500||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value))fail('Preparation notes must be text of at most 500 characters without control codes.');
+ return value.trim();
 };
 const quantity=value=>{
  if(typeof value!=='number'||!Number.isFinite(value)||value<=0||value>1_000_000||Math.abs(value*1_000_000-Math.round(value*1_000_000))>0.0001)fail('Order quantity must be positive with at most six decimals.');
@@ -23,14 +30,14 @@ const total=(count,price)=>{
 };
 
 export async function orderProjections(db,businessId,ids=null){
- const {rows}=await db.query(`SELECT id,outlet_id AS "outletId",stock_location_id AS "stockLocationId",name,business_snapshot AS "businessSnapshot",receipt_document_id AS "receiptDocumentId",service_destination AS "serviceDestination",service_reference AS "serviceReference",state,currency,grand_total_minor AS "grandTotalMinor",amount_paid_minor AS "amountPaidMinor",refunded_amount_minor AS "refundedAmountMinor",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt" FROM pos_orders WHERE business_id=$1 AND ($2::uuid[] IS NULL OR id=ANY($2)) ORDER BY updated_at DESC,id LIMIT 1000`,[businessId,ids]);
+ const {rows}=await db.query(`SELECT id,outlet_id AS "outletId",stock_location_id AS "stockLocationId",name,business_snapshot AS "businessSnapshot",receipt_document_id AS "receiptDocumentId",service_destination AS "serviceDestination",service_reference AS "serviceReference",void_reason AS "voidReason",void_disposition AS "voidDisposition",voided_by AS "voidedBy",voided_at AS "voidedAt",state,currency,grand_total_minor AS "grandTotalMinor",amount_paid_minor AS "amountPaidMinor",refunded_amount_minor AS "refundedAmountMinor",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt" FROM pos_orders WHERE business_id=$1 AND ($2::uuid[] IS NULL OR id=ANY($2)) ORDER BY updated_at DESC,id LIMIT 1000`,[businessId,ids]);
  if(!rows.length)return [];
- const lines=await db.query(`SELECT order_id AS "orderId",id,product_id AS "productId",product_version AS "productVersion",product_snapshot AS "productSnapshot",portion_snapshot AS "portionSnapshot",modifier_snapshots AS "modifierSnapshots",tax_snapshot AS "taxSnapshot",net_minor AS "netMinor",vat_minor AS "vatMinor",levy_minor AS "levyMinor",quantity,unit_price_minor AS "unitPriceMinor",line_total_minor AS "lineTotalMinor",state FROM pos_order_lines WHERE business_id=$1 AND order_id=ANY($2::uuid[]) ORDER BY created_at,id`,[businessId,rows.map(row=>row.id)]);
+ const lines=await db.query(`SELECT order_id AS "orderId",id,product_id AS "productId",product_version AS "productVersion",product_snapshot AS "productSnapshot",portion_snapshot AS "portionSnapshot",modifier_snapshots AS "modifierSnapshots",notes,tax_snapshot AS "taxSnapshot",net_minor AS "netMinor",vat_minor AS "vatMinor",levy_minor AS "levyMinor",quantity,unit_price_minor AS "unitPriceMinor",line_total_minor AS "lineTotalMinor",gross_minor AS "grossMinor",discount_basis_points AS "discountBasisPoints",discount_minor AS "discountMinor",comped,comp_reason AS "compReason",pricing_reason AS "pricingReason",void_previous_state AS "voidPreviousState",state FROM pos_order_lines WHERE business_id=$1 AND order_id=ANY($2::uuid[]) ORDER BY created_at,id`,[businessId,rows.map(row=>row.id)]);
  const grouped=new Map();
  for(const line of lines.rows){const list=grouped.get(line.orderId)||[];list.push(line);grouped.set(line.orderId,list)}
  return rows.map(row=>{
- const items=(grouped.get(row.id)||[]).map(line=>({...line,productVersion:Number(line.productVersion),netMinor:line.netMinor===null?null:Number(line.netMinor),vatMinor:line.vatMinor===null?null:Number(line.vatMinor),levyMinor:line.levyMinor===null?null:Number(line.levyMinor),quantity:Number(line.quantity),unitPriceMinor:Number(line.unitPriceMinor),lineTotalMinor:Number(line.lineTotalMinor),ingredientSnapshot:line.productSnapshot.ingredientSnapshot,portionSnapshot:line.portionSnapshot,name:line.productSnapshot.name,routeTo:line.productSnapshot.routeTo,stockFired:line.state==='FIRED'}));
- return {collection:'orders',id:row.id,version:Number(row.version),archived:false,data:{...row,version:Number(row.version),grandTotalMinor:Number(row.grandTotalMinor),amountPaidMinor:Number(row.amountPaidMinor),refundedAmountMinor:Number(row.refundedAmountMinor),createdAt:row.createdAt.toISOString(),updatedAt:row.updatedAt.toISOString(),items}};
+ const items=(grouped.get(row.id)||[]).map(line=>({...line,productVersion:Number(line.productVersion),netMinor:line.netMinor===null?null:Number(line.netMinor),vatMinor:line.vatMinor===null?null:Number(line.vatMinor),levyMinor:line.levyMinor===null?null:Number(line.levyMinor),quantity:Number(line.quantity),grossMinor:Number(line.grossMinor),discountMinor:Number(line.discountMinor),unitPriceMinor:Number(line.unitPriceMinor),lineTotalMinor:Number(line.lineTotalMinor),ingredientSnapshot:line.productSnapshot.ingredientSnapshot,portionSnapshot:line.portionSnapshot,name:line.productSnapshot.name,routeTo:line.productSnapshot.routeTo,stockFired:line.state==='FIRED'||line.voidPreviousState==='FIRED'}));
+ return {collection:'orders',id:row.id,version:Number(row.version),archived:false,data:{...row,version:Number(row.version),grandTotalMinor:Number(row.grandTotalMinor),amountPaidMinor:Number(row.amountPaidMinor),refundedAmountMinor:Number(row.refundedAmountMinor),voidedAt:row.voidedAt?.toISOString()??null,createdAt:row.createdAt.toISOString(),updatedAt:row.updatedAt.toISOString(),items}};
  });
 }
 export async function orderProjection(db,businessId,id){return (await orderProjections(db,businessId,[id]))[0]??null;}
@@ -39,21 +46,40 @@ async function event(tx,command,actor,at,id,version,data){
  await tx.client.query(`INSERT INTO pos_order_events(business_id,id,order_id,order_version,event_type,event_data,command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,[actor.businessId,randomUUID(),id,version,command.name,JSON.stringify(data),command.commandId,actor.staffId,actor.deviceId,at]);
 }
 async function result(tx,businessId,id){const value=await orderProjection(tx.client,businessId,id);return {value,records:[value]};}
-async function editable(tx,command,actor,id){
+async function editable(tx,command,actor,id,{allowPaid=false}={}){
  if(!uuid(id))fail('Choose an order.');
  const baseline=expected(command,'orders',id);
- const {rows}=await tx.client.query('SELECT state,version,outlet_id AS "outletId" FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,id]);
+ const {rows}=await tx.client.query('SELECT state,version,amount_paid_minor AS "amountPaidMinor",outlet_id AS "outletId" FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,id]);
  if(!rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The order is missing.');
  if(Number(rows[0].version)!==baseline)throw new ApiProblem(409,'VERSION_CONFLICT','This order changed. Refresh and review your edit.');
+ if(!allowPaid&&Number(rows[0].amountPaidMinor)>0)throw new ApiProblem(409,'PAID_ORDER_NOT_EDITABLE','Partly paid orders cannot be edited or repriced. Complete or refund their payments through the money workflow.');
  if(!['OPEN','FIRED'].includes(rows[0].state))throw new ApiProblem(409,'ORDER_NOT_EDITABLE','This order is closed.');
  return rows[0];
 }
 async function finish(tx,command,actor,at,id,data){
- const {rows}=await tx.client.query(`SELECT COALESCE(sum(line_total_minor),0) AS total FROM pos_order_lines WHERE business_id=$1 AND order_id=$2 AND state<>'VOIDED'`,[actor.businessId,id]);
+ const {rows}=await tx.client.query(`SELECT COALESCE(sum(line_total_minor),0) AS total,count(*)::integer AS count,bool_and(state='FIRED') AS "allFired" FROM pos_order_lines WHERE business_id=$1 AND order_id=$2 AND state<>'VOIDED'`,[actor.businessId,id]);
  const amount=Number(rows[0].total);if(!Number.isSafeInteger(amount)||amount<0)fail('Order total exceeds the supported amount.');
+ const zeroCompleted=amount===0&&rows[0].count>0&&rows[0].allFired===true;
  const version=await tx.bumpEntityVersion(actor.businessId,'orders',id,expected(command,'orders',id));
- await tx.client.query('UPDATE pos_orders SET grand_total_minor=$3,version=$4,updated_at=$5 WHERE business_id=$1 AND id=$2',[actor.businessId,id,amount,version,at]);
- await event(tx,command,actor,at,id,version,data);return result(tx,actor.businessId,id);
+ await tx.client.query(`UPDATE pos_orders SET grand_total_minor=$3,version=$4,updated_at=$5,state=CASE WHEN $6 THEN 'COMPLETED' ELSE state END WHERE business_id=$1 AND id=$2`,[actor.businessId,id,amount,version,at,zeroCompleted]);
+ const receipt=zeroCompleted?await zeroReceipt(tx,command,actor,at,id):null;
+ await event(tx,command,actor,at,id,version,{...data,zeroCompleted,...(receipt?{receiptDocumentId:receipt.id}:{})});
+ const output=await result(tx,actor.businessId,id);
+ return {...output,records:[...output.records,...(receipt?.records??[])]};
+}
+
+async function zeroReceipt(tx,command,actor,at,orderId){
+ const order=await orderProjection(tx.client,actor.businessId,orderId),items=order.data.items.filter(line=>line.state!=='VOIDED');
+ if(!order.data.businessSnapshot||!items.length||items.some(line=>!line.taxSnapshot||line.lineTotalMinor!==0||line.netMinor!==0||line.vatMinor!==0||line.levyMinor!==0)||order.data.amountPaidMinor!==0)throw new ApiProblem(409,'ZERO_RECEIPT_RECONCILIATION_FAILED','Zero-value sale needs original identity/tax evidence and no recorded payments.');
+ const tills=await tx.client.query(`SELECT id FROM till_sessions WHERE business_id=$1 AND outlet_id=$2 AND operator_id=$3 AND device_id=$4 AND status='OPEN' FOR SHARE`,[actor.businessId,order.data.outletId,actor.staffId,actor.deviceId]);
+ const cashier=await tx.client.query('SELECT display_name FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2',[actor.businessId,actor.staffId]);
+ const discountTotalMinor=items.reduce((sum,line)=>sum+line.discountMinor,0);
+ if(!Number.isSafeInteger(discountTotalMinor))fail('Discount totals exceed the supported amount.');
+ const id=randomUUID(),documentNumber=`SALE-${command.commandId}`,snapshot={business:order.data.businessSnapshot,cashier:{id:actor.staffId,name:cashier.rows[0]?.display_name??actor.staffId},orderId,orderName:order.data.name,receiptNumber:documentNumber,currency:order.data.currency,tillSessionId:tills.rows[0]?.id??null,tillAttribution:tills.rows.length?'OWNED_OPEN_TILL':'NO_OWNED_OPEN_TILL',items,taxes:{netMinor:0,vatMinor:0,levyMinor:0},discountTotalMinor,totalMinor:0,payments:[],noPaymentRequired:true,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),footer:order.data.businessSnapshot.footer};
+ const hash=documentHash(snapshot);
+ await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'SALES_RECEIPT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,id,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
+ await tx.client.query('UPDATE pos_orders SET receipt_document_id=$3 WHERE business_id=$1 AND id=$2',[actor.businessId,orderId,id]);
+ return {id,records:[{collection:'businessDocuments',id,version:1,archived:false,data:{id,type:'SALES_RECEIPT',documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}},await queueDocumentPrint(tx,{businessId:actor.businessId,documentId:id,printerRole:'RECEIPT',staffId:actor.staffId,at})]};
 }
 
 const create=async({tx,command,actor,at})=>{
@@ -79,7 +105,7 @@ const add=async({tx,command,actor,at})=>{
  await tx.lockInventoryCatalog(actor.businessId);
  const p=command.payload,order=await editable(tx,command,actor,p.orderId);
  if(!uuid(p.itemId)||!uuid(p.productId))fail('Product and line IDs are required.');
- const count=quantity(p.quantity);
+ const count=quantity(p.quantity),notes=preparationNote(p.note);
  const countResult=await tx.client.query('SELECT count(*) AS count FROM pos_order_lines WHERE business_id=$1 AND order_id=$2',[actor.businessId,p.orderId]);
  if(Number(countResult.rows[0].count)>=500)throw new ApiProblem(409,'ORDER_LINE_LIMIT','This order has reached its line limit. Open a separate order.');
  if(p.modifierIds!==undefined&&(!Array.isArray(p.modifierIds)||p.modifierIds.length))fail('Modifier selections require the API modifier catalog.');
@@ -91,31 +117,31 @@ const add=async({tx,command,actor,at})=>{
  const portion=p.portionId?product.portions.find(row=>row.id===p.portionId):null;
  if(p.portionId&&!portion)throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected portion is no longer available.');
  const price=Number(portion?.priceMinor??product.priceMinor);if(!Number.isSafeInteger(price)||price<0)throw new ApiProblem(409,'INVALID_PRODUCT_PRICE','Review this product price before selling.');
- const lineTotal=total(count,price);
  const ingredients=await tx.client.query('SELECT stock_item_id AS "stockItemId",quantity,unit FROM product_recipe_ingredients WHERE business_id=$1 AND product_id=$2 ORDER BY stock_item_id',[actor.businessId,p.productId]);
  const recipeIngredients=ingredients.rows.map(row=>({...row,quantity:Number(row.quantity)}));
  const settings=await receiptSettings(tx.client,actor.businessId);
  if(!settings)throw new ApiProblem(409,'TAX_CONFIGURATION_REQUIRED','Configure business tax rates before adding order lines.');
  if(expected(command,'businessSettings',actor.businessId)!==settings.version)throw new ApiProblem(409,'VERSION_CONFLICT','Tax settings changed. Review the current policy.');
- const taxSnapshot=productTaxSnapshot(settings,product.taxClassId),tax=splitInclusiveTax(lineTotal,taxSnapshot);
+ const taxSnapshot=productTaxSnapshot(settings,product.taxClassId),tax=priceLine(count,price,0,false,taxSnapshot),lineTotal=tax.lineTotalMinor;
  const ingredientSnapshot=await consumptionSnapshot(tx.client,actor.businessId,product,portion,recipeIngredients);
  const snapshot={...product,recipeIngredients,ingredientSnapshot,version:Number(product.version),priceMinor:Number(product.priceMinor),portionVolume:product.portionVolume===null?null:Number(product.portionVolume)};
- await tx.client.query(`INSERT INTO pos_order_lines(business_id,order_id,id,product_id,product_version,product_snapshot,portion_snapshot,quantity,unit_price_minor,line_total_minor,created_at,updated_at,tax_snapshot,net_minor,vat_minor,levy_minor) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11,$11,$12::jsonb,$13,$14,$15)`,[actor.businessId,p.orderId,p.itemId,p.productId,product.version,JSON.stringify(snapshot),portion?JSON.stringify(portion):null,count,price,lineTotal,at,JSON.stringify(taxSnapshot),tax.netMinor,tax.vatMinor,tax.levyMinor]);
- return finish(tx,command,actor,at,p.orderId,{itemId:p.itemId,productId:p.productId,quantity:count,unitPriceMinor:price,portion});
+ await tx.client.query(`INSERT INTO pos_order_lines(business_id,order_id,id,product_id,product_version,product_snapshot,portion_snapshot,quantity,unit_price_minor,line_total_minor,created_at,updated_at,tax_snapshot,net_minor,vat_minor,levy_minor,gross_minor,notes) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11,$11,$12::jsonb,$13,$14,$15,$10,$16)`,[actor.businessId,p.orderId,p.itemId,p.productId,product.version,JSON.stringify(snapshot),portion?JSON.stringify(portion):null,count,price,lineTotal,at,JSON.stringify(taxSnapshot),tax.netMinor,tax.vatMinor,tax.levyMinor,notes]);
+ return finish(tx,command,actor,at,p.orderId,{itemId:p.itemId,productId:p.productId,quantity:count,unitPriceMinor:price,portion,note:notes});
 };
 
 const edit=remove=>async({tx,command,actor,at})=>{
  const p=command.payload;await editable(tx,command,actor,p.orderId);if(!uuid(p.itemId))fail('Choose an order line.');
- const {rows}=await tx.client.query('SELECT state,unit_price_minor AS price,tax_snapshot AS "taxSnapshot" FROM pos_order_lines WHERE business_id=$1 AND order_id=$2 AND id=$3 FOR UPDATE',[actor.businessId,p.orderId,p.itemId]);
+ const {rows}=await tx.client.query('SELECT state,quantity,notes,unit_price_minor AS price,tax_snapshot AS "taxSnapshot",discount_basis_points AS "discountBasisPoints",comped FROM pos_order_lines WHERE business_id=$1 AND order_id=$2 AND id=$3 FOR UPDATE',[actor.businessId,p.orderId,p.itemId]);
  if(!rows.length||rows[0].state!=='DRAFT')throw new ApiProblem(409,'LINE_NOT_EDITABLE','Only an unfired draft line can be changed or removed.');
+ const notes=remove?rows[0].notes:p.note===undefined?rows[0].notes:preparationNote(p.note);
  if(remove)await tx.client.query(`UPDATE pos_order_lines SET state='VOIDED',updated_at=$4 WHERE business_id=$1 AND order_id=$2 AND id=$3`,[actor.businessId,p.orderId,p.itemId,at]);
- else{const count=quantity(p.quantity),lineTotal=total(count,Number(rows[0].price)),tax=splitInclusiveTax(lineTotal,rows[0].taxSnapshot);await tx.client.query('UPDATE pos_order_lines SET quantity=$4,line_total_minor=$5,updated_at=$6,net_minor=$7,vat_minor=$8,levy_minor=$9 WHERE business_id=$1 AND order_id=$2 AND id=$3',[actor.businessId,p.orderId,p.itemId,count,lineTotal,at,tax.netMinor,tax.vatMinor,tax.levyMinor]);}
- return finish(tx,command,actor,at,p.orderId,{itemId:p.itemId,...(remove?{removed:true}:{quantity:p.quantity})});
+ else{const count=quantity(p.quantity),tax=priceLine(count,Number(rows[0].price),rows[0].discountBasisPoints,rows[0].comped,rows[0].taxSnapshot);await tx.client.query('UPDATE pos_order_lines SET quantity=$4,line_total_minor=$5,updated_at=$6,net_minor=$7,vat_minor=$8,levy_minor=$9,gross_minor=$10,discount_minor=$11,notes=$12 WHERE business_id=$1 AND order_id=$2 AND id=$3',[actor.businessId,p.orderId,p.itemId,count,tax.lineTotalMinor,at,tax.netMinor,tax.vatMinor,tax.levyMinor,tax.grossMinor,tax.discountMinor,notes]);}
+ return finish(tx,command,actor,at,p.orderId,{itemId:p.itemId,before:{quantity:Number(rows[0].quantity),note:rows[0].notes},...(remove?{removed:true}:{quantity:p.quantity,note:notes})});
 };
 
 const fire=async({tx,command,actor,at})=>{
  await tx.lockInventoryCatalog(actor.businessId);
- const p=command.payload;await editable(tx,command,actor,p.orderId);
+ const p=command.payload;await editable(tx,command,actor,p.orderId,{allowPaid:true});
  if(p.courseName||p.itemIds)fail('Partial/course fire requires the API course workflow.');
  const order=await orderProjection(tx.client,actor.businessId,p.orderId);
  const locationId=order.data.stockLocationId;
@@ -130,6 +156,7 @@ const fire=async({tx,command,actor,at})=>{
   for(const ingredient of snapshot){
    const amount=ingredient.quantity*line.quantity;
    if(!Number.isFinite(amount)||amount<=0||amount>1_000_000_000||Math.abs(amount*1_000_000-Math.round(amount*1_000_000))>0.0001)fail('Line stock consumption exceeds supported quantity or precision.');
+   if(ingredient.wholeContainerSale&&(!Number.isFinite(ingredient.containerSize)||ingredient.containerSize<=0||Math.abs(amount/ingredient.containerSize-Math.round(amount/ingredient.containerSize))>0.000001))fail('Each whole-bottle line must consume whole sealed containers.');
    const group=usage.get(ingredient.stockItemId)||{ingredients:[],whole:0,measured:0};
    group.ingredients.push({lineId:line.id,ingredient,amount});
    if(ingredient.wholeContainerSale)group.whole+=amount;else group.measured+=amount;
@@ -171,10 +198,101 @@ const fire=async({tx,command,actor,at})=>{
   documents.push(id);
  }
  const outcome=await finish(tx,command,actor,at,p.orderId,{firedLineIds:lines.map(line=>line.id),documentIds:documents});
+ if(outcome.value.data.receiptDocumentId)documents.push(outcome.value.data.receiptDocumentId);
  return {value:{order:outcome.value,documentIds:documents},records:[...outcome.records,...records]};
+};
+
+const voidOrder=async({tx,command,actor,at})=>{
+ await tx.lockInventoryCatalog(actor.businessId);
+ const p=command.payload;await editable(tx,command,actor,p.orderId,{allowPaid:true});
+ const order=await orderProjection(tx.client,actor.businessId,p.orderId);
+ if(order.data.amountPaidMinor!==0)throw new ApiProblem(409,'PAID_ORDER_CANNOT_VOID','A paid or partly paid order cannot be voided. Review its payment/refund workflow.');
+ if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.trim().length>500)fail('Explain the void in 3 to 500 characters.');
+ const reason=p.reason.trim(),fired=order.data.items.filter(line=>line.state==='FIRED');
+ const disposition=fired.length?p.disposition:'NOT_FIRED';
+ if(!['NOT_FIRED','RETURN_SEALED','WASTE','CONSUMED','MANAGER_ADJUSTMENT'].includes(disposition)||fired.length&&disposition==='NOT_FIRED')fail('Choose the actual stock disposition for fired items.');
+ if(p.operatorConfirmedDisposition!==true)fail('Confirm the actual disposition of the fired items.');
+ const plans=[],records=[],locationId=order.data.stockLocationId;
+ if(disposition==='RETURN_SEALED'){
+  if(p.confirmedUnopenedReturned!==true)fail('Confirm that the original unopened bottles physically returned.');
+  if(!await tx.requireStockLocation(actor.businessId,locationId))throw new ApiProblem(409,'RESOURCE_CONFLICT','The original stock location is no longer active.');
+  expected(command,'stockLocations',locationId);
+  const consumed=await tx.client.query(`SELECT line_id AS "lineId",stock_item_id AS "stockItemId",location_id AS "locationId",movement_id AS "movementId",quantity,cost_minor AS "costMinor",physical_snapshot AS "physicalSnapshot" FROM pos_stock_consumptions WHERE business_id=$1 AND order_id=$2 ORDER BY stock_item_id,line_id`,[actor.businessId,p.orderId]);
+  if(!consumed.rows.length)throw new ApiProblem(409,'SEALED_RETURN_NOT_APPLICABLE','This order has no recorded whole-bottle stock to return. Choose its actual disposition.');
+  const grouped=new Map();
+  for(const row of consumed.rows){
+   const line=fired.find(item=>item.id===row.lineId),ingredients=line?.productSnapshot.ingredientSnapshot;
+   const ingredient=Array.isArray(ingredients)?ingredients.find(item=>item.stockItemId===row.stockItemId):null;
+   if(!line||!ingredient||row.locationId!==locationId||row.physicalSnapshot.wholeContainerSale!==true||ingredient.wholeContainerSale!==true)throw new ApiProblem(409,'SEALED_RETURN_NOT_APPLICABLE','Prepared recipe ingredients and opened/measured stock cannot be restored as sealed bottles. Use waste/consumed or an explicit reviewed inventory correction.');
+   const group=grouped.get(row.stockItemId)??{rows:[],quantity:0,costMinor:0};
+   group.rows.push({...row,ingredient,quantity:Number(row.quantity),costMinor:Number(row.costMinor)});
+   group.quantity=Number((group.quantity+Number(row.quantity)).toFixed(6));group.costMinor+=Number(row.costMinor);
+   if(!Number.isFinite(group.quantity)||group.quantity<=0||group.quantity>1_000_000_000||!Number.isSafeInteger(group.costMinor))fail('Return quantity or valuation exceeds the supported amount.');
+   grouped.set(row.stockItemId,group);
+  }
+  for(const [stockId,group] of grouped){
+   const stock=await tx.stockItemDetails(actor.businessId,stockId),size=stock.sealedContainerSize;
+   if(expected(command,'stockItems',stockId)!==stock.version)throw new ApiProblem(409,'VERSION_CONFLICT','Stock configuration changed after return review.');
+   if(stock.baseUnit!=='ml'||!Number.isFinite(size)||size<=0||group.rows.some(row=>row.ingredient.baseUnit!==stock.baseUnit||row.ingredient.containerSize!==size||Math.abs(row.quantity/size-Math.round(row.quantity/size))>0.000001))throw new ApiProblem(409,'STOCK_CONFIGURATION_CHANGED','The original bottle configuration or whole-container quantities require review. Use a reviewed inventory correction.');
+   const before=await tx.stockBalance(actor.businessId,stockId,locationId),reviewed=p.expectedBalanceVersions?.[`${stockId}:${locationId}`];
+   if(!Number.isSafeInteger(reviewed)||reviewed<0)fail('Reviewed stock balance revisions are required for a sealed return.');
+   if(before.version!==reviewed)throw new ApiProblem(409,'VERSION_CONFLICT','Stock moved after return review. Refresh before returning bottles.');
+   const containers=group.quantity/size;
+   if(Math.abs(containers-Math.round(containers))>0.000001||!Number.isSafeInteger(before.sealedContainers)||before.sealedContainers<0||!Number.isFinite(before.openQuantity)||before.openQuantity===null||before.openQuantity<0||before.openQuantity>=size||!Number.isFinite(before.quantity)||before.quantity<0||Math.abs(before.sealedContainers*size+before.openQuantity-before.quantity)>0.000001)throw new ApiProblem(409,'PHYSICAL_STATE_REQUIRED','Original whole bottles and the current physical balance must reconcile before returning stock.');
+   const after={quantity:Number((before.quantity+group.quantity).toFixed(6)),sealedContainers:before.sealedContainers+Math.round(containers),openQuantity:before.openQuantity};
+   if(after.quantity>1_000_000_000||!Number.isSafeInteger(after.sealedContainers)||Math.abs(after.sealedContainers*size+after.openQuantity-after.quantity)>0.000001)fail('The returned balance exceeds supported stock amounts.');
+   const averageCostMinor=weightedCostRate(await tx.totalStockQuantity(actor.businessId,stockId),stock.averageUnitCostMinor,group.quantity,group.costMinor);
+   plans.push({stockId,stock,before,after,group,averageCostMinor});
+  }
+ }
+ for(const plan of plans){
+  const {stockId,stock,before,after,group,averageCostMinor}=plan;
+  await tx.setInventoryBalance({businessId:actor.businessId,stockItemId:stockId,locationId,...after});
+  const version=await tx.bumpEntityVersion(actor.businessId,'stockItems',stockId,stock.version);await tx.updateStockCostAndVersion(actor.businessId,stockId,averageCostMinor,version);
+  const movementId=randomUUID();await tx.insertInventoryMovement({businessId:actor.businessId,id:movementId,stockItemId:stockId,locationId,quantityDelta:group.quantity,movementType:'VOID_RETURN',reason,commandId:command.commandId,staffId:actor.staffId,at});
+  for(const row of group.rows)await tx.client.query(`INSERT INTO pos_void_stock_returns(business_id,order_id,line_id,stock_item_id,original_movement_id,return_movement_id,quantity,cost_minor,evidence,command_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,[actor.businessId,p.orderId,row.lineId,stockId,row.movementId,movementId,row.quantity,row.costMinor,JSON.stringify({before,after,originalConsumption:row.physicalSnapshot,averageCostBeforeMinor:stock.averageUnitCostMinor,averageCostAfterMinor:averageCostMinor,confirmedUnopenedReturned:true}),command.commandId]);
+  records.push(await tx.stockRecordProjection(actor.businessId,stockId),await tx.inventoryMovementProjection(actor.businessId,movementId));
+ }
+ const version=await tx.bumpEntityVersion(actor.businessId,'orders',p.orderId,expected(command,'orders',p.orderId));
+ await tx.client.query(`UPDATE pos_order_lines SET void_previous_state=state,state='VOIDED',updated_at=$3 WHERE business_id=$1 AND order_id=$2 AND state<>'VOIDED'`,[actor.businessId,p.orderId,at]);
+ await tx.client.query(`UPDATE pos_orders SET state='VOIDED',void_reason=$3,void_disposition=$4,voided_by=$5,voided_at=$6,version=$7,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,reason,disposition,actor.staffId,at,version]);
+ const tickets=await cancelUnsentOrderTickets(tx,{actor,command,at,orderId:p.orderId,reason});records.push(...tickets.records);
+ await event(tx,command,actor,at,p.orderId,version,{reason,disposition,stockRestored:plans.length>0,inventoryCorrectionRequired:disposition==='MANAGER_ADJUSTMENT',originalTotalMinor:order.data.grandTotalMinor,unresolvedTicketIds:tickets.unresolvedTicketIds});
+ const documentIds=[];
+ const notices=[{type:'ORDER_VOID_NOTICE',role:'OFFICE',items:order.data.items.filter(line=>line.state!=='VOIDED')},...['KITCHEN','BAR'].map(route=>({type:route==='KITCHEN'?'KOT_CANCEL':'BOT_CANCEL',role:route,items:fired.filter(line=>line.routeTo===route)})).filter(notice=>notice.items.length)];
+ for(const notice of notices){
+  const id=randomUUID(),documentNumber=`${notice.type}-${command.commandId}`,snapshot={business:order.data.businessSnapshot,orderId:p.orderId,orderName:order.data.name,serviceDestination:order.data.serviceDestination,reason,disposition,stockRestored:plans.length>0,inventoryCorrectionRequired:disposition==='MANAGER_ADJUSTMENT',originalTotalMinor:order.data.grandTotalMinor,unresolvedTicketIds:tickets.unresolvedTicketIds,items:notice.items,staffId:actor.staffId,issuedAt:at.toISOString()},hash=documentHash(snapshot);
+  await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,$3,$4,1,$5::jsonb,$6,$7,$8,$9)`,[actor.businessId,id,notice.type,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
+  records.push({collection:'businessDocuments',id,version:1,archived:false,data:{id,type:notice.type,documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}},await queueDocumentPrint(tx,{businessId:actor.businessId,documentId:id,printerRole:notice.role,staffId:actor.staffId,at}));documentIds.push(id);
+ }
+ const value=await orderProjection(tx.client,actor.businessId,p.orderId);
+ return {value:{order:value,documentIds},records:[value,...records]};
+};
+
+const reprice=kind=>async({tx,command,actor,at})=>{
+ const p=command.payload;await editable(tx,command,actor,p.orderId);
+ if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.trim().length>500)fail('Explain the price adjustment in 3 to 500 characters.');
+ if(kind==='discount'&&(!Number.isInteger(p.percentBasisPoints)||p.percentBasisPoints<1||p.percentBasisPoints>10000))fail('Discount must be greater than zero and at most 100 percent with two decimals.');
+ if(kind==='compItem'&&!uuid(p.itemId))fail('Choose the exact line to comp.');
+ const order=await orderProjection(tx.client,actor.businessId,p.orderId);
+ const lines=order.data.items.filter(line=>line.state!=='VOIDED'&&(kind!=='compItem'||line.id===p.itemId)&&(kind!=='discount'||!line.comped));
+ if(!lines.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','No eligible active lines remain for this adjustment.');
+ const evidence=[];
+ for(const line of lines){
+  const comped=kind!=='discount',bps=comped?line.discountBasisPoints:p.percentBasisPoints;
+  const price=priceLine(line.quantity,line.unitPriceMinor,bps,comped,line.taxSnapshot);
+  await tx.client.query(`UPDATE pos_order_lines SET gross_minor=$4,discount_minor=$5,line_total_minor=$6,net_minor=$7,vat_minor=$8,levy_minor=$9,discount_basis_points=$10,comped=$11,comp_reason=$12,pricing_reason=$13,updated_at=$14 WHERE business_id=$1 AND order_id=$2 AND id=$3`,[actor.businessId,p.orderId,line.id,price.grossMinor,price.discountMinor,price.lineTotalMinor,price.netMinor,price.vatMinor,price.levyMinor,bps,comped,comped?p.reason.trim():null,p.reason.trim(),at]);
+  evidence.push({lineId:line.id,before:{grossMinor:line.grossMinor,discountMinor:line.discountMinor,lineTotalMinor:line.lineTotalMinor,discountBasisPoints:line.discountBasisPoints,comped:line.comped},after:{...price,discountBasisPoints:bps,comped}});
+ }
+ return finish(tx,command,actor,at,p.orderId,{reason:p.reason.trim(),adjustments:evidence,stockUnchanged:true});
 };
 
 export const posCommandRegistry=new Map([
  ['order.create',create],['order.addItem',add],['order.updateItem',edit(false)],['order.removeItem',edit(true)],
 ].map(([name,handler])=>[name,{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler}]));
 posCommandRegistry.set('order.fire',{permission:'order.fire',offlinePolicy:'ONLINE_ONLY',handler:fire});
+posCommandRegistry.set('order.void',{permission:'order.void',offlinePolicy:'ONLINE_ONLY',handler:voidOrder});
+
+posCommandRegistry.set('order.discount',{permission:'order.discount',offlinePolicy:'ONLINE_ONLY',handler:reprice('discount')});
+posCommandRegistry.set('order.compItem',{permission:'order.comp',offlinePolicy:'ONLINE_ONLY',handler:reprice('compItem')});
+posCommandRegistry.set('order.comp',{permission:'order.comp',offlinePolicy:'ONLINE_ONLY',handler:reprice('comp')});
