@@ -7,16 +7,16 @@ const precise=value=>{
  return Number(value.toFixed(6));
 };
 
-export async function consumptionSnapshot(db,businessId,product,portion,recipe){
+export async function consumptionSnapshot(db,businessId,product,portion,recipe,modifiers=[]){
  let ingredients=product.inventoryType==='BATCH'?[]:recipe;
  const direct=ingredients.length===0;
  if(direct&&product.stockItemId)ingredients=[{stockItemId:product.stockItemId,quantity:portion?.volume??product.portionVolume??1,unit:''}];
  if(product.inventoryType==='BATCH'&&!product.stockItemId)invalid('Batch product requires linked finished stock.');
- if(!ingredients.length){if(portion?.wholeContainerSale===true)invalid('Whole-container portions require linked bottle-tracked stock.');if(['STOCKED','RECIPE','BATCH','WINE','SPIRIT','COUNT','WEIGHT'].includes(product.inventoryType)||product.sellingMode)invalid('Tracked products require a stock item or recipe before selling.');return [];}
+ if(!ingredients.length){if(portion?.wholeContainerSale===true)invalid('Whole-container portions require linked bottle-tracked stock.');if(['STOCKED','RECIPE','BATCH','WINE','SPIRIT','COUNT','WEIGHT'].includes(product.inventoryType)||product.sellingMode)invalid('Tracked products require a stock item or recipe before selling.');return applyModifierConsumption(db,businessId,[],modifiers);}
  const ids=[...new Set(ingredients.map(row=>row.stockItemId))];
  const {rows}=await db.query('SELECT id,base_unit AS "baseUnit",sealed_container_size AS "containerSize" FROM stock_items WHERE business_id=$1 AND id=ANY($2::uuid[]) AND archived_at IS NULL FOR SHARE',[businessId,ids]);
  if(rows.length!==ids.length)invalid('A product ingredient is missing or archived.');
- return ingredients.map(ingredient=>{
+ const base=ingredients.map(ingredient=>{
   const stock=rows.find(row=>row.id===ingredient.stockItemId),baseUnit=stock.baseUnit;
   const from=String(ingredient.unit||baseUnit).toLowerCase(),to=baseUnit.toLowerCase();
   let per=Number(ingredient.quantity);
@@ -31,6 +31,22 @@ export async function consumptionSnapshot(db,businessId,product,portion,recipe){
   if(wholeContainerSale&&Math.abs(per/containerSize-Math.round(per/containerSize))>0.000001)invalid('Whole-bottle portions must contain whole sealed containers.');
   return {stockItemId:stock.id,quantity:per,baseUnit,containerSize,wholeContainerSale};
  });
+ return applyModifierConsumption(db,businessId,base,modifiers);
+}
+
+async function applyModifierConsumption(db,businessId,base,modifiers){
+ const result=new Map(base.map(row=>[row.stockItemId,{...row}]));
+ const adjustments=modifiers.flatMap(row=>row.ingredientAdjustments);
+ const extraIds=[...new Set(adjustments.map(row=>row.stockItemId).filter(id=>!result.has(id)))].sort();
+ const extra=extraIds.length?(await db.query('SELECT id,base_unit AS \"baseUnit\",sealed_container_size AS \"containerSize\" FROM stock_items WHERE business_id=$1 AND id=ANY($2::uuid[]) AND archived_at IS NULL ORDER BY id FOR SHARE',[businessId,extraIds])).rows:[];
+ if(extra.length!==extraIds.length)invalid('A selected modifier ingredient is missing or archived.');
+ for(const stock of extra){const containerSize=stock.containerSize===null?null:Number(stock.containerSize);if(containerSize!==null&&stock.baseUnit!=='ml')invalid('Bottle-tracked modifier stock must use ml.');result.set(stock.id,{stockItemId:stock.id,quantity:0,baseUnit:stock.baseUnit,containerSize,wholeContainerSale:false});}
+ const scaled=value=>BigInt(value.toFixed(6).replace('.',''));
+ const totals=new Map([...result].map(([id,row])=>[id,scaled(row.quantity)]));
+ for(const adjustment of adjustments)totals.set(adjustment.stockItemId,totals.get(adjustment.stockItemId)+scaled(adjustment.quantityDelta));
+ const output=[];
+ for(const [id,row] of result){const amount=totals.get(id);if(amount<0n||amount>1000000000000000n)invalid('Selected modifiers would produce negative or excessive ingredient consumption.');if(amount===0n)continue;row.quantity=Number(amount)/1_000_000;if(row.wholeContainerSale&&Math.abs(row.quantity/row.containerSize-Math.round(row.quantity/row.containerSize))>0.000001)invalid('Modifiers cannot turn a whole-bottle sale into fractional sealed stock.');output.push(row);}
+ return output;
 }
 
 /** Whole bottles are reserved first; measured liquid opens sealed stock only as needed. */

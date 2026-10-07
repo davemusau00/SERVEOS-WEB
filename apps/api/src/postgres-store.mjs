@@ -540,7 +540,7 @@ class PostgresTransaction {
 
   async saveStockItem(item) {
     await this.client.query(`
-      INSERT INTO stock_items (business_id,id,name,code,base_unit,barcode,barcode_aliases,scan_unit_quantity,reorder_level,average_unit_cost_minor,sealed_container_size,version,created_by,updated_by,modifiers)
+      INSERT INTO stock_items (business_id,id,name,code,base_unit,barcode,barcode_aliases,scan_unit_quantity,reorder_level,average_unit_cost_minor,sealed_container_size,version,created_by,updated_by)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13)
       ON CONFLICT (business_id,id) DO UPDATE SET name=EXCLUDED.name, code=EXCLUDED.code, base_unit=EXCLUDED.base_unit,
         barcode=EXCLUDED.barcode, barcode_aliases=EXCLUDED.barcode_aliases, scan_unit_quantity=EXCLUDED.scan_unit_quantity,
@@ -556,7 +556,7 @@ class PostgresTransaction {
 
   async saveProduct(product) {
     await this.client.query(`
-      INSERT INTO products (business_id,id,name,code,price_minor,category,route_to,stock_item_id,barcode,favorite,tax_class_id,recipe,inventory_type,recipe_yield,portion_volume,selling_mode,portions,outlet_ids,version,created_by,updated_by)
+      INSERT INTO products (business_id,id,name,code,price_minor,category,route_to,stock_item_id,barcode,favorite,tax_class_id,recipe,inventory_type,recipe_yield,portion_volume,selling_mode,portions,outlet_ids,version,created_by,updated_by,modifiers)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::uuid[],$19,$20,$20,$21::jsonb)
       ON CONFLICT (business_id,id) DO UPDATE SET name=EXCLUDED.name, code=EXCLUDED.code, price_minor=EXCLUDED.price_minor,
         category=EXCLUDED.category, route_to=EXCLUDED.route_to, stock_item_id=EXCLUDED.stock_item_id, barcode=EXCLUDED.barcode,

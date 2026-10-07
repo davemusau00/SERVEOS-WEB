@@ -1,3 +1,4 @@
+import {selectModifiers,modifierPrice} from './product-modifiers.mjs';
 import {queueDocumentPrint,cancelUnsentOrderTickets} from './print-commands.mjs';
 import {receiptSettings,productTaxSnapshot} from './business-tax.mjs';
 import {randomUUID} from 'node:crypto';
@@ -108,25 +109,27 @@ const add=async({tx,command,actor,at})=>{
  const count=quantity(p.quantity),notes=preparationNote(p.note);
  const countResult=await tx.client.query('SELECT count(*) AS count FROM pos_order_lines WHERE business_id=$1 AND order_id=$2',[actor.businessId,p.orderId]);
  if(Number(countResult.rows[0].count)>=500)throw new ApiProblem(409,'ORDER_LINE_LIMIT','This order has reached its line limit. Open a separate order.');
- if(p.modifierIds!==undefined&&(!Array.isArray(p.modifierIds)||p.modifierIds.length))fail('Modifier selections require the API modifier catalog.');
- const {rows}=await tx.client.query(`SELECT id,name,code,price_minor AS "priceMinor",category,route_to AS "routeTo",tax_class_id AS "taxClassId",stock_item_id AS "stockItemId",inventory_type AS "inventoryType",recipe_yield AS "recipeYield",portion_volume AS "portionVolume",selling_mode AS "sellingMode",portions,version FROM products WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.productId]);
+ const {rows}=await tx.client.query(`SELECT id,name,code,price_minor AS "priceMinor",category,route_to AS "routeTo",tax_class_id AS "taxClassId",stock_item_id AS "stockItemId",inventory_type AS "inventoryType",recipe_yield AS "recipeYield",portion_volume AS "portionVolume",selling_mode AS "sellingMode",portions,modifiers,version FROM products WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.productId]);
  if(!rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The product is missing or archived.');
  const product=rows[0];if(expected(command,'products',p.productId)!==Number(product.version))throw new ApiProblem(409,'VERSION_CONFLICT','Product pricing changed. Review the current product.');
  const outlets=await tx.client.query('SELECT outlet_id FROM product_outlets WHERE business_id=$1 AND product_id=$2',[actor.businessId,p.productId]);
  if(outlets.rows.length&&!outlets.rows.some(row=>row.outlet_id===order.outletId))throw new ApiProblem(409,'PRODUCT_NOT_AVAILABLE','This product is not available in the order outlet.');
  const portion=p.portionId?product.portions.find(row=>row.id===p.portionId):null;
  if(p.portionId&&!portion)throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected portion is no longer available.');
- const price=Number(portion?.priceMinor??product.priceMinor);if(!Number.isSafeInteger(price)||price<0)throw new ApiProblem(409,'INVALID_PRODUCT_PRICE','Review this product price before selling.');
+ const modifiers=selectModifiers(product.modifiers,p.modifierIds);
+ const basePrice=Number(portion?.priceMinor??product.priceMinor);
+ if(!Number.isSafeInteger(basePrice)||basePrice<0)throw new ApiProblem(409,'INVALID_PRODUCT_PRICE','Review this product price before selling.');
+ const price=modifierPrice(basePrice,modifiers);if(!Number.isSafeInteger(price)||price<0)throw new ApiProblem(409,'INVALID_PRODUCT_PRICE','Review this product price before selling.');
  const ingredients=await tx.client.query('SELECT stock_item_id AS "stockItemId",quantity,unit FROM product_recipe_ingredients WHERE business_id=$1 AND product_id=$2 ORDER BY stock_item_id',[actor.businessId,p.productId]);
  const recipeIngredients=ingredients.rows.map(row=>({...row,quantity:Number(row.quantity)}));
  const settings=await receiptSettings(tx.client,actor.businessId);
  if(!settings)throw new ApiProblem(409,'TAX_CONFIGURATION_REQUIRED','Configure business tax rates before adding order lines.');
  if(expected(command,'businessSettings',actor.businessId)!==settings.version)throw new ApiProblem(409,'VERSION_CONFLICT','Tax settings changed. Review the current policy.');
  const taxSnapshot=productTaxSnapshot(settings,product.taxClassId),tax=priceLine(count,price,0,false,taxSnapshot),lineTotal=tax.lineTotalMinor;
- const ingredientSnapshot=await consumptionSnapshot(tx.client,actor.businessId,product,portion,recipeIngredients);
+ const ingredientSnapshot=await consumptionSnapshot(tx.client,actor.businessId,product,portion,recipeIngredients,modifiers);
  const snapshot={...product,recipeIngredients,ingredientSnapshot,version:Number(product.version),priceMinor:Number(product.priceMinor),portionVolume:product.portionVolume===null?null:Number(product.portionVolume)};
- await tx.client.query(`INSERT INTO pos_order_lines(business_id,order_id,id,product_id,product_version,product_snapshot,portion_snapshot,quantity,unit_price_minor,line_total_minor,created_at,updated_at,tax_snapshot,net_minor,vat_minor,levy_minor,gross_minor,notes) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11,$11,$12::jsonb,$13,$14,$15,$10,$16)`,[actor.businessId,p.orderId,p.itemId,p.productId,product.version,JSON.stringify(snapshot),portion?JSON.stringify(portion):null,count,price,lineTotal,at,JSON.stringify(taxSnapshot),tax.netMinor,tax.vatMinor,tax.levyMinor,notes]);
- return finish(tx,command,actor,at,p.orderId,{itemId:p.itemId,productId:p.productId,quantity:count,unitPriceMinor:price,portion,note:notes});
+ await tx.client.query(`INSERT INTO pos_order_lines(business_id,order_id,id,product_id,product_version,product_snapshot,portion_snapshot,quantity,unit_price_minor,line_total_minor,created_at,updated_at,tax_snapshot,net_minor,vat_minor,levy_minor,gross_minor,notes,modifier_snapshots) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11,$11,$12::jsonb,$13,$14,$15,$10,$16,$17::jsonb)`,[actor.businessId,p.orderId,p.itemId,p.productId,product.version,JSON.stringify(snapshot),portion?JSON.stringify(portion):null,count,price,lineTotal,at,JSON.stringify(taxSnapshot),tax.netMinor,tax.vatMinor,tax.levyMinor,notes,JSON.stringify(modifiers)]);
+ return finish(tx,command,actor,at,p.orderId,{itemId:p.itemId,productId:p.productId,quantity:count,unitPriceMinor:price,baseUnitPriceMinor:basePrice,portion,modifiers,note:notes});
 };
 
 const edit=remove=>async({tx,command,actor,at})=>{
