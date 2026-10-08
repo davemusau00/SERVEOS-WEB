@@ -1,11 +1,11 @@
 # SERVOS FINAL SPRINT
-## Sequential Completion Plan — Remote Head `8158b46`, local head `76c5e7a`
+## Sequential Completion Plan — Remote Head `76c5e7a`, local head `7121a72`
 
 **Repository:** `davemusau00/SERVEOS-WEB`  
 **Branch:** `reset/vps-platform`  
-**Current remote HEAD:** `8158b462551808e26722a8f3fe9d2d9db31a6ee9`
-**Current local HEAD:** `76c5e7ad9b99e781b4cd2ea505aac0b218fe812e`
-**Branch position:** 170 commits ahead of `main`, 0 behind; local branch is 2 commits ahead of origin, with two checkpoint documents and one source file modified in the working tree
+**Current remote HEAD:** `76c5e7ad9b99e781b4cd2ea505aac0b218fe812e`
+**Current local HEAD:** `7121a7238b380e89ace447fc80df9cf186a5a139`
+**Branch position:** 171 commits ahead of `main`, 0 behind; local branch is 1 commit ahead of origin, with two checkpoint documents and three source files modified in the working tree
 **Checkpoint:** 2026-10-08  
 **Execution principle:** sequential domain completion, not parallel feature expansion
 
@@ -221,6 +221,8 @@ Review of password login found that a non-null `locked_until` was treated as a p
 
 Shared-terminal review found the API device row is staff-owned while the browser had only one device identity per business. API sign-in now reuses the legacy identity for its existing owner, saves confirmed identities per staff, and creates a separate staff-scoped identity only when the API reports that the legacy ID belongs to another staff account. Revoked IDs and key mismatches still fail enrollment.
 
+Reload review found the PWA kept the refresh-cookie session ID only in memory, so the 30-day HttpOnly cookie could not be used after a page reload. The PWA now stores only that non-secret UUID locator, restores a bearer through the session-scoped cookie, reloads the current API profile, and recovers the exact device key already bound to that session. Access tokens remain in memory; a missing device key or invalid session clears the locator and requires sign-in again.
+
 These are source changes only. Tests remain deferred by user direction, and the Phase 1 database, browser, refresh/replay, cookie, and session lifecycle gates remain open.
 
 ## Remaining Auth work is verification
@@ -250,10 +252,11 @@ Run sequentially:
 20. device revoke kills linked session/family
 21. staff deactivate kills sessions/devices/families
 22. logout
-23. SSE reconnect after token expiry
-24. cross-tab refresh race
-25. HTTPS/CORS/cookie deployment
-26. bootstrap secret restart behavior
+23. PWA reload restores the same session through its HttpOnly refresh cookie
+24. SSE reconnect after token expiry
+25. cross-tab refresh race
+26. HTTPS/CORS/cookie deployment
+27. bootstrap secret restart behavior
 ```
 
 ## Security acceptance

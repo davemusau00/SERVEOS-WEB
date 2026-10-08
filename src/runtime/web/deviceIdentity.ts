@@ -1,4 +1,5 @@
 export interface WebDeviceIdentity {deviceId:string;publicKey:JsonWebKey;privateKey:CryptoKey;createdAt:string}
+export class WebDeviceIdentityUnavailableError extends Error{constructor(message:string){super(message);this.name='WebDeviceIdentityUnavailableError'}}
 
 const openRegistry=()=>new Promise<IDBDatabase>((resolve,reject)=>{
  const request=indexedDB.open('servos-pwa-device-identity',2);
@@ -81,7 +82,7 @@ export async function findApiWebDeviceIdentity(businessId:string,staffId:string,
  try{
   const scoped=await readIdentityForDevice(db,'staffDevices',staffScope(businessId,staffId));if(scoped?.deviceId===deviceId)return scoped;
   const legacy=await readIdentityForDevice(db,'devices',businessId);if(legacy?.deviceId===deviceId)return legacy;
-  throw new Error('The enrolled device key is unavailable in this browser. Sign in again to enroll a replacement device.');
+  throw new WebDeviceIdentityUnavailableError('The enrolled device key is unavailable in this browser. Sign in again to enroll a replacement device.');
  }finally{db.close()}
 }
 

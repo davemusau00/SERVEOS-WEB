@@ -4,7 +4,7 @@ import { RemoteAccountAccess, remoteAuthCall, takeAccountLink } from './RemoteAc
 import { WebBusinessApp } from './web/WebBusinessApp';
 import type { WebSession } from './web/session';
 import { Drawer } from '../design-system/controls';
-import {signInAndEnrollApiDevice,openApiBusinessStore,type ApiAuthenticatedDeviceSession} from './web/apiAuth';
+import {signInAndEnrollApiDevice,resumeApiDeviceSession,openApiBusinessStore,hasSavedApiSession,type ApiAuthenticatedDeviceSession} from './web/apiAuth';
 import {BusinessStore} from './web/BusinessStore';
 
 interface Auth { access_token: string; refresh_token: string; expires_in: number }
@@ -75,12 +75,14 @@ const displayValue = (key: string, value: unknown) => {
 export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
   const url = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const apiOrigin=import.meta.env.VITE_API_URL as string|undefined;
+  const [savedApiSessionOnLoad]=useState(()=>hasSavedApiSession(apiOrigin));
   const webV2Enabled = import.meta.env.VITE_ENABLE_WEB_V2 === 'true';
   const [accountLink, setAccountLink] = useState(takeAccountLink);
   const [accountNotice, setAccountNotice] = useState('');
   const [auth, setAuth] = useState<Auth | null>(null); const authRef = useRef<Auth | null>(null); const expires = useRef(0);
   const [cloudSession,setCloudSession]=useState<WebSession|null>(null);
-  const [apiSession,setApiSession]=useState<ApiAuthenticatedDeviceSession|null>(null);const [apiStore,setApiStore]=useState<BusinessStore|null>(null);const [authMode,setAuthMode]=useState<'REMOTE'|'API'>('REMOTE');const [newPassword,setNewPassword]=useState('');
+  const [apiSession,setApiSession]=useState<ApiAuthenticatedDeviceSession|null>(null);const [apiStore,setApiStore]=useState<BusinessStore|null>(null);const [apiResumePending,setApiResumePending]=useState(savedApiSessionOnLoad);const [authMode,setAuthMode]=useState<'REMOTE'|'API'>(savedApiSessionOnLoad?'API':'REMOTE');const [newPassword,setNewPassword]=useState('');
   const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [collection, setCollection] = useState('orders'); const [offset, setOffset] = useState(0); const [rows, setRows] = useState<RecordRow[]>([]);
   const [requests, setRequests] = useState<any[]>([]); const [lastSeen, setLastSeen] = useState<string | null>(null);
@@ -96,6 +98,21 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
     catch{setError('Signed out on this browser. Server session revocation could not be confirmed; the server session remains subject to its expiry.')}
     finally{setApiStore(current=>{current?.close();return null});setApiSession(null);setPassword('');setNewPassword('');setBusy(false)}
   };
+  useEffect(()=>{
+    if(!apiResumePending||!apiOrigin)return;
+    let active=true;setBusy(true);
+    void(async()=>{
+      try{
+        const resumed=await resumeApiDeviceSession({apiOrigin});
+        if(!resumed)return;
+        const opened=await openApiBusinessStore(resumed);
+        if(!active){opened.close();return}
+        setApiSession(resumed);setApiStore(opened);setError('');
+      }catch(cause){if(active)setError(`Saved ServOS API session could not be restored. Sign in again. ${String(cause)}`)}
+      finally{if(active){setApiResumePending(false);setBusy(false)}}
+    })();
+    return()=>{active=false};
+  },[apiResumePending,apiOrigin]);
   const recover = async () => { if(!email.trim()) { setError('Enter your account email first.'); return; } setBusy(true); setError(''); try { await remoteAuthCall(url,key,`recover?redirect_to=${encodeURIComponent(window.location.origin + window.location.pathname)}`,{email:email.trim()}); setAccountNotice('If this address has an account, recovery instructions have been sent.'); } catch(cause) { setError(String(cause)); } finally {setBusy(false);} };
   const request = async (path: string, body?: unknown) => {
     if (!authRef.current) throw new Error('Sign in first');
@@ -144,7 +161,7 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
     e.preventDefault(); setBusy(true); setError('');
     try {
       if(authMode==='API'){
-        const apiOrigin=import.meta.env.VITE_API_URL;if(!apiOrigin)throw new Error('The ServOS API origin is not configured for this PWA release.');
+        if(!apiOrigin)throw new Error('The ServOS API origin is not configured for this PWA release.');
         const next=await signInAndEnrollApiDevice({apiOrigin,loginName:email.trim(),password,newPassword:newPassword||undefined});
         try{const opened=await openApiBusinessStore(next);setApiSession(next);setApiStore(opened);setPassword('');setNewPassword('');return}catch(error){await next.signOut().catch(()=>undefined);throw error}
       }
@@ -163,14 +180,15 @@ export const RemoteManagerApp = ({ onBack }: { onBack: () => void }) => {
     } catch(e) {setError(String(e));} finally {setBusy(false);}
   }}>
     <div><div className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-400">ServOS Web</div><h1 className="mt-2 text-3xl font-black">Business control</h1><p className="mt-2 text-sm text-slate-400">{authMode==='API'?'Sign in to the API-authoritative PWA workspace. Catalog master writes are enabled in this migration slice.':'Secure remote visibility and constrained management for your ServOS business.'}</p></div>
-    <div className="flex gap-2"><button type="button" className={`${button} ${authMode==='REMOTE'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('REMOTE');setError('')}}>Remote manager</button><button type="button" className={`${button} ${authMode==='API'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('API');setError('')}}>ServOS API workspace</button></div>
+    <div className="flex gap-2"><button type="button" disabled={apiResumePending} className={`${button} ${authMode==='REMOTE'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('REMOTE');setError('')}}>Remote manager</button><button type="button" disabled={apiResumePending} className={`${button} ${authMode==='API'?'border-amber-400 text-amber-200':''}`} onClick={()=>{setAuthMode('API');setError('')}}>ServOS API workspace</button></div>
     <label className="block text-sm">{authMode==='API'?'Staff login':'Email'}<input aria-label={authMode==='API'?'Staff login':'Email'} required type={authMode==='API'?'text':'email'} autoComplete="username" className={`${field} mt-1 w-full`} value={email} onChange={e => setEmail(e.target.value)} /></label>
     <label className="block text-sm">Password<input required type="password" autoComplete="current-password" className={`${field} mt-1 w-full`} value={password} onChange={e => setPassword(e.target.value)} /></label>
     {authMode==='API'&&<label className="block text-sm">New password, if account setup requires it<input type="password" autoComplete="new-password" minLength={12} className={`${field} mt-1 w-full`} value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label>}
+    {apiResumePending&&<p role="status" className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-300">Restoring your ServOS API session…</p>}
     {error && <p role="alert" className="rounded-xl border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-200">{error}</p>}
     {accountNotice&&<p role="status" className="text-sm text-emerald-200">{accountNotice}</p>}
     {authMode==='REMOTE'&&<button type="button" disabled={busy} className="text-sm text-amber-200 underline" onClick={()=>void recover()}>Forgot password?</button>}
-    <div className="flex gap-2"><button disabled={busy} className={primary}>{busy?'Signing in…':'Sign in'}</button><button type="button" className={button} onClick={onBack}>Back</button></div>
+    <div className="flex gap-2"><button disabled={busy||apiResumePending} className={primary}>{apiResumePending?'Restoring session…':busy?'Signing in…':'Sign in'}</button><button type="button" className={button} onClick={onBack}>Back</button></div>
   </form></div>;
 
   if(cloudSession?.enabled)return <WebBusinessApp initialSession={cloudSession} rpc={request} onSignOut={()=>void signOut()}/>;
