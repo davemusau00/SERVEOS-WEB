@@ -75,6 +75,7 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   catalogItems(search=''){return request<{items:ApiCatalogItem[]}>(`/v1/catalog/items?search=${encodeURIComponent(search)}`)},
   customerCreditStatement(customerId:string,cursor?:string,limit=100){const query=new URLSearchParams({limit:String(limit)});if(cursor)query.set('cursor',cursor);return request<ApiCustomerCreditStatementPage>(`/v1/customer-credit/accounts/${encodeURIComponent(customerId)}/statement?${query}`)},
   financeSummary(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiFinanceSummary>(`/v1/finance/summary?${query}`)},
+  roomAvailability(startsAt:string,endsAt:string,guests:number){const query=new URLSearchParams({startsAt,endsAt,guests:String(guests)});return request<{rooms:Array<{id:string;number:string;roomTypeId:string;capacity:number;housekeepingState:string;maintenanceState:string}>}>(`/v1/hospitality/availability?${query}`)},
   bootstrapCatalog(snapshotId?:string){return request<ApiCatalogBootstrapManifest>(snapshotId?`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}`:'/v1/bootstrap/catalog')},
   bootstrapCatalogPage(snapshotId:string,after:number){return request<ApiCatalogBootstrapPage>(`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}/pages?after=${encodeURIComponent(after)}`)},
   enrollmentChallenge(){return request<{challengeId:string;challenge:string;issuedAt:string;expiresAt:string}>('/v1/devices/enrollment-challenges',{method:'POST'},false)},

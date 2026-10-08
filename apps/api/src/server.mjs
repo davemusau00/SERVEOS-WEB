@@ -299,6 +299,12 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||!Number.isFinite(Date.parse(`${from}T00:00:00Z`))||!Number.isFinite(Date.parse(`${to}T00:00:00Z`))||from>to||(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000>366)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid Finance report range of at most 367 calendar days.');
         return json(res,200,await store.financeSummary(actor.businessId,from,to));
       }
+      if(req.method==='GET'&&url.pathname==='/v1/hospitality/availability'){
+        const actor=await authenticate(req);if(!['*','rooms.view','rooms.manage','rooms.operate'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to search room availability.');
+        const startsAt=url.searchParams.get('startsAt')||'',endsAt=url.searchParams.get('endsAt')||'',guestsRaw=url.searchParams.get('guests')||'';const starts=new Date(startsAt),ends=new Date(endsAt),guests=Number(guestsRaw);
+        if(!/(Z|[+-]\d{2}:\d{2})$/u.test(startsAt)||!/(Z|[+-]\d{2}:\d{2})$/u.test(endsAt)||!Number.isFinite(starts.getTime())||!Number.isFinite(ends.getTime())||ends<=starts||ends.getTime()-starts.getTime()>366*24*60*60_000||!/^[1-9]\d{0,3}$/.test(guestsRaw)||!Number.isSafeInteger(guests)||guests>1000)throw new ApiProblem(400,'VALIDATION_FAILED','Enter a valid stay interval of up to 366 days and a guest count from 1 to 1,000.');
+        return json(res,200,{rooms:await store.roomAvailability(actor.businessId,starts.toISOString(),ends.toISOString(),guests)});
+      }
       const creditStatementMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/customer-credit\/accounts\/([0-9a-f-]{36})\/statement$/i);
       if(creditStatementMatch){
         const actor=await authenticate(req),customerId=creditStatementMatch[1];
