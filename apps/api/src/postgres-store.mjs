@@ -476,7 +476,12 @@ export class PostgresStore {
         RETURNING id
       `, [deviceId, businessId, staffId, JSON.stringify(publicKey), at]);
       const created=deviceRows.length===1;
-      if(!created){const existing=await tx.client.query('SELECT id FROM api_enrolled_devices WHERE business_id=$1 AND id=$2 AND staff_id=$3 AND public_key=$4::jsonb AND revoked_at IS NULL FOR UPDATE',[businessId,deviceId,staffId,JSON.stringify(publicKey)]);if(!existing.rows.length){const error=new Error('This device ID is already enrolled to another identity or has been revoked.');error.status=409;error.code='DEVICE_ID_UNAVAILABLE';throw error;}}
+      if(!created){
+        const existing=await tx.client.query('SELECT staff_id AS "staffId" FROM api_enrolled_devices WHERE business_id=$1 AND id=$2 FOR UPDATE',[businessId,deviceId]);
+        if(existing.rows[0]?.staffId!==staffId){const error=new Error('This browser device identity belongs to another staff account.');error.status=409;error.code='DEVICE_ID_OWNED_BY_ANOTHER_STAFF';throw error;}
+        const reusable=await tx.client.query('SELECT id FROM api_enrolled_devices WHERE business_id=$1 AND id=$2 AND staff_id=$3 AND public_key=$4::jsonb AND revoked_at IS NULL FOR UPDATE',[businessId,deviceId,staffId,JSON.stringify(publicKey)]);
+        if(!reusable.rows.length){const error=new Error('This device ID is already enrolled with a different key or has been revoked.');error.status=409;error.code='DEVICE_ID_UNAVAILABLE';throw error;}
+      }
       const {rowCount}=await tx.client.query('UPDATE api_staff_sessions SET device_id=$2 WHERE id=$1 AND business_id=$3 AND staff_id=$4 AND device_id IS NULL AND revoked_at IS NULL AND expires_at>$5',[sessionId,deviceId,businessId,staffId,at]);
       if(rowCount!==1){const error=new Error('The API session could not be bound to this device.');error.status=409;error.code='SESSION_BINDING_FAILED';throw error;}
       await tx.client.query('UPDATE api_device_enrollment_challenges SET consumed_at = $2 WHERE id = $1', [challengeId, at]);

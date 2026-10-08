@@ -219,6 +219,8 @@ Static review found two concurrency gaps. Concurrent role changes or deactivatio
 
 Review of password login found that a non-null `locked_until` was treated as a permanent lock, including after its 15-minute expiry. The login transaction now compares the timestamp to the attempt time, starts a fresh failure count after an expired lock, and does not extend a still-active account lock for attempts made during it. Known and unknown usernames each perform one password-hash verification, using a dummy credential for missing accounts.
 
+Shared-terminal review found the API device row is staff-owned while the browser had only one device identity per business. API sign-in now reuses the legacy identity for its existing owner, saves confirmed identities per staff, and creates a separate staff-scoped identity only when the API reports that the legacy ID belongs to another staff account. Revoked IDs and key mismatches still fail enrollment.
+
 These are source changes only. Tests remain deferred by user direction, and the Phase 1 database, browser, refresh/replay, cookie, and session lifecycle gates remain open.
 
 ## Remaining Auth work is verification

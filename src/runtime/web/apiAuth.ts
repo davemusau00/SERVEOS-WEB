@@ -1,5 +1,5 @@
 import {createServOSApiClient,type ApiStaffLogin} from './apiClient';
-import {enrollWebDeviceWithApi,getOrCreateWebDeviceIdentity,type WebDeviceIdentity} from './deviceIdentity';
+import {createStaffScopedApiWebDeviceIdentity,enrollWebDeviceWithApi,getOrCreateApiWebDeviceIdentity,rememberApiWebDeviceIdentity,WebDeviceEnrollmentError,type WebDeviceIdentity} from './deviceIdentity';
 import {BusinessStore} from './BusinessStore';
 import {loadApiCatalogSnapshot} from './session';
 import {createApiCloudTransport,synchronizeStore} from './sync';
@@ -25,8 +25,14 @@ export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName
     const profile=await client.authSession();
     if(profile.mustChangePassword)throw new Error('Change the initial password before enrolling this device.');
     if(!profile.permissions.includes('*')&&!profile.permissions.includes('devices.register')&&!profile.permissions.includes('devices.manage'))throw new Error('This staff account needs device registration approval before sign-in can continue.');
-    const identity=await getOrCreateWebDeviceIdentity(profile.businessId);device=identity.deviceId;
-    await enrollWebDeviceWithApi(input.apiOrigin,token,profile.businessId,profile.staffId,identity);
+    let identity=await getOrCreateApiWebDeviceIdentity(profile.businessId,profile.staffId);device=identity.deviceId;
+    try{await enrollWebDeviceWithApi(input.apiOrigin,token,profile.businessId,profile.staffId,identity)}
+    catch(error){
+      if(!(error instanceof WebDeviceEnrollmentError)||error.code!=='DEVICE_ID_OWNED_BY_ANOTHER_STAFF')throw error;
+      identity=await createStaffScopedApiWebDeviceIdentity(profile.businessId,profile.staffId);device=identity.deviceId;
+      await enrollWebDeviceWithApi(input.apiOrigin,token,profile.businessId,profile.staffId,identity);
+    }
+    await rememberApiWebDeviceIdentity(profile.businessId,profile.staffId,identity);
     return {client,identity,login,profile,signOut:async()=>{
       try{await client.logout()}finally{token=undefined;sessionId=undefined;device=undefined;login.accessToken=''}
     }};

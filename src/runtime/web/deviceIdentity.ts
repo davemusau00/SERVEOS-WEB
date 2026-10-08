@@ -70,7 +70,7 @@ export async function getOrCreateApiWebDeviceIdentity(businessId:string,staffId:
 /** Use after the API confirms the device belongs to this staff account. */
 export async function rememberApiWebDeviceIdentity(businessId:string,staffId:string,identity:WebDeviceIdentity):Promise<void>{
  const db=await openRegistry();
- try{await createOrReadStaffIdentity(db,businessId,staffId);const existing=await readStaffIdentity(db,businessId,staffId);if(existing?.deviceId===identity.deviceId)return;await new Promise<void>((resolve,reject)=>{const tx=db.transaction('staffDevices','readwrite');tx.objectStore('staffDevices').put({scope:staffScope(businessId,staffId),businessId,staffId,identity});tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||new Error('Could not save staff device identity'));tx.onerror=()=>{}})}
+ try{const existing=await readStaffIdentity(db,businessId,staffId);if(existing){if(existing.deviceId!==identity.deviceId)throw new Error('Another sign-in on this browser enrolled a different staff device. Sign in again to recover the saved identity.');return}await new Promise<void>((resolve,reject)=>{const tx=db.transaction('staffDevices','readwrite');tx.objectStore('staffDevices').add({scope:staffScope(businessId,staffId),businessId,staffId,identity});tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||new Error('Could not save staff device identity'));tx.onerror=()=>{}}).catch(async error=>{const winner=await readStaffIdentity(db,businessId,staffId);if(!winner||winner.deviceId!==identity.deviceId)throw error})}
  finally{db.close()}
 }
 
