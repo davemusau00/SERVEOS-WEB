@@ -3,7 +3,6 @@ import {ApiProblem} from './command-kernel.mjs';
 import {documentHash} from './business-documents.mjs';
 import {queueDocumentPrint} from './print-commands.mjs';
 import {assertUniqueExternalPaymentReference} from './external-payment-references.mjs';
-import {orderProjection} from './pos-commands.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const problem=(status,code,message)=>{throw new ApiProblem(status,code,message)};
@@ -110,6 +109,7 @@ export async function reversePosRoomCharge({tx,command,actor,at,folio,source,rea
  const nextRoomCharge=Number(order.roomChargeMinor)-amountMinor,settled=Number(order.amountPaidMinor)+Number(order.amountCreditedMinor)+nextRoomCharge>=Number(order.grandTotalMinor),orderVersion=await tx.bumpEntityVersion(actor.businessId,'orders',orderId,reviewedOrder);
  await tx.client.query(`UPDATE pos_orders SET room_charge_minor=$3,state=$4,version=$5,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,orderId,nextRoomCharge,settled?'COMPLETED':'FIRED',orderVersion,at]);
  await tx.client.query(`INSERT INTO pos_order_events(business_id,id,order_id,order_version,event_type,event_data,command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,[actor.businessId,randomUUID(),orderId,orderVersion,command.name,JSON.stringify({roomChargeId:charge.id,folioEntryId:posted.entry.id,amountMinor,reason,completed:settled}),command.commandId,actor.staffId,actor.deviceId,at]);
+ const {orderProjection}=await import('./pos-commands.mjs');
  return {entry:posted.entry,folio:posted.folio,journal:posted.journal,reversal:record('roomChargeReversals',reversalRows[0]),order:await orderProjection(tx.client,actor.businessId,orderId)};
 }
 const appendRecords=(target,...records)=>{for(const item of records.flat()){if(item?.records)target.push(...item.records);else if(item)target.push(item)}return target};

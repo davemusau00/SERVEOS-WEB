@@ -4,6 +4,11 @@ ALTER TABLE pos_orders
   ADD CONSTRAINT pos_orders_settlement_total_check
     CHECK (amount_paid_minor + amount_credited_minor + room_charge_minor <= grand_total_minor);
 
+ALTER TABLE business_hospitality_journal_lines
+  DROP CONSTRAINT IF EXISTS business_hospitality_journal_lines_account_code_check,
+  ADD CONSTRAINT business_hospitality_journal_lines_account_code_check
+    CHECK (account_code IN ('ASSET_TENDER','GUEST_RECEIVABLE','GUEST_DEPOSITS','REVENUE_ACCOMMODATION','REVENUE_SERVICE','REVENUE_ADJUSTMENT','REVENUE_SALES','LIABILITY_TAX','LIABILITY_VAT','LIABILITY_LEVY'));
+
 CREATE TABLE pos_order_room_charges (
   business_id uuid NOT NULL REFERENCES businesses(id),
   id uuid NOT NULL,
