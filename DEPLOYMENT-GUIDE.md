@@ -8,7 +8,7 @@
 **Target:** Nginx-hosted ServOS Web/PWA + private Docker PostgreSQL + ServOS Node API and worker  
 **Deployment mode:** Fresh isolated production business, with live activation gated on release and operational acceptance. No Countryside import.
 
-> **Status and source basis (8 October 2026):** The original procedures below are staging-oriented examples, not production authorization. The deployment decision and current read-only VPS findings are recorded in [PRODUCTION-LAUNCH-READINESS.md](PRODUCTION-LAUNCH-READINESS.md). The current checkout is `ee7c8a255bac9920c7451f7c85c29493d142f082`; the historical sample SHA `35803cbbcb5e67b656707ea626e64e2d76719f42` is not an accepted release. **Do not run staging copy/paste blocks against production.** Promote only a pinned SHA after every required release and operational gate passes.
+> **Status and source basis (8 October 2026):** The original procedures below are staging-oriented examples, not production authorization. The deployment decision and current read-only VPS findings are recorded in [PRODUCTION-LAUNCH-READINESS.md](PRODUCTION-LAUNCH-READINESS.md). Local HEAD is `5bac4e6668305f17940b3f343c5b4827db08fa3c`, one commit ahead of remote `ee7c8a255bac9920c7451f7c85c29493d142f082`, and the POS integration test has further uncommitted edits; no hosted CI evidence exists for local HEAD. The historical sample SHA `35803cbbcb5e67b656707ea626e64e2d76719f42` is not an accepted release. **Do not run staging copy/paste blocks against production.** Promote only a pinned SHA after every required release and operational gate passes.
 
 ---
 
