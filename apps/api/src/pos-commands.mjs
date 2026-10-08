@@ -36,7 +36,7 @@ const total=(count,price)=>{
 };
 
 export async function orderProjections(db,businessId,ids=null){
- const {rows}=await db.query(`WITH recent_closed AS (SELECT id FROM pos_orders WHERE business_id=$1 AND state IN ('COMPLETED','VOIDED') ORDER BY updated_at DESC,id LIMIT 1000), pending_preparation AS (SELECT DISTINCT order_id FROM pos_order_lines WHERE business_id=$1 AND state='FIRED' AND preparation_status IN ('FIRED','PREPARING','READY')) SELECT id,current_round_no AS "currentRoundNo",outlet_id AS "outletId",stock_location_id AS "stockLocationId",name,business_snapshot AS "businessSnapshot",receipt_document_id AS "receiptDocumentId",service_destination AS "serviceDestination",service_reference AS "serviceReference",customer_id AS "customerId",customer_name_snapshot AS "customerName",state,currency,grand_total_minor AS "grandTotalMinor",amount_paid_minor AS "amountPaidMinor",amount_credited_minor AS "amountCreditedMinor",room_charge_minor AS "roomChargeMinor",refunded_amount_minor AS "refundedAmountMinor",void_reason AS "voidReason",void_disposition AS "voidDisposition",voided_by AS "voidedBy",voided_at AS "voidedAt",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt" FROM pos_orders WHERE business_id=$1 AND (($2::uuid[] IS NOT NULL AND id=ANY($2)) OR ($2::uuid[] IS NULL AND (state IN ('OPEN','FIRED') OR (state<>'VOIDED' AND id IN (SELECT order_id FROM pending_preparation)) OR id IN (SELECT id FROM recent_closed)))) ORDER BY updated_at DESC,id`,[businessId,ids]);
+ const {rows}=await db.query(`WITH recent_closed AS (SELECT id FROM pos_orders WHERE business_id=$1 AND state IN ('COMPLETED','VOIDED','MERGED') ORDER BY updated_at DESC,id LIMIT 1000), pending_preparation AS (SELECT DISTINCT order_id FROM pos_order_lines WHERE business_id=$1 AND state='FIRED' AND preparation_status IN ('FIRED','PREPARING','READY')) SELECT id,current_round_no AS "currentRoundNo",outlet_id AS "outletId",stock_location_id AS "stockLocationId",name,business_snapshot AS "businessSnapshot",receipt_document_id AS "receiptDocumentId",service_destination AS "serviceDestination",service_reference AS "serviceReference",customer_id AS "customerId",customer_name_snapshot AS "customerName",state,merged_into_order_id AS "mergedIntoOrderId",currency,grand_total_minor AS "grandTotalMinor",amount_paid_minor AS "amountPaidMinor",amount_credited_minor AS "amountCreditedMinor",room_charge_minor AS "roomChargeMinor",refunded_amount_minor AS "refundedAmountMinor",void_reason AS "voidReason",void_disposition AS "voidDisposition",voided_by AS "voidedBy",voided_at AS "voidedAt",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt" FROM pos_orders WHERE business_id=$1 AND (($2::uuid[] IS NOT NULL AND id=ANY($2)) OR ($2::uuid[] IS NULL AND (state IN ('OPEN','FIRED') OR (state NOT IN ('VOIDED','MERGED') AND id IN (SELECT order_id FROM pending_preparation)) OR id IN (SELECT id FROM recent_closed)))) ORDER BY updated_at DESC,id`,[businessId,ids]);
  if(!rows.length)return [];
  const lines=await db.query(`SELECT order_id AS "orderId",id,round_no AS "roundNo",product_id AS "productId",product_version AS "productVersion",product_snapshot AS "productSnapshot",portion_snapshot AS "portionSnapshot",modifier_snapshots AS "modifierSnapshots",notes,preparation_status AS "preparationStatus",preparation_updated_at AS "preparationUpdatedAt",preparation_updated_by AS "preparationUpdatedBy",course_name AS "courseName",fired_at AS "firedAt",tax_snapshot AS "taxSnapshot",net_minor AS "netMinor",vat_minor AS "vatMinor",levy_minor AS "levyMinor",quantity,unit_price_minor AS "unitPriceMinor",line_total_minor AS "lineTotalMinor",gross_minor AS "grossMinor",discount_basis_points AS "discountBasisPoints",discount_minor AS "discountMinor",comped,comp_reason AS "compReason",pricing_reason AS "pricingReason",void_previous_state AS "voidPreviousState",state FROM pos_order_lines WHERE business_id=$1 AND order_id=ANY($2::uuid[]) ORDER BY created_at,id`,[businessId,rows.map(row=>row.id)]);
  const grouped=new Map();
@@ -283,6 +283,52 @@ const transferTable=async({tx,command,actor,at})=>{
  return {value:updated,records:[updated,...tableRecords]};
 };
 
+const mergeTableOrders=async({tx,command,actor,at})=>{
+ const p=command.payload;
+ if(!uuid(p.orderId)||!uuid(p.targetOrderId)||!uuid(p.targetTableId)||p.orderId===p.targetOrderId)fail('Choose two different table orders and a destination table.');
+ const orderIds=[p.orderId,p.targetOrderId].sort();
+ const lockedOrders=await tx.client.query(`SELECT id,outlet_id AS "outletId",service_destination AS "serviceDestination",service_reference AS "serviceReference",customer_id AS "customerId",state,version,amount_paid_minor AS "amountPaidMinor",amount_credited_minor AS "amountCreditedMinor",room_charge_minor AS "roomChargeMinor",refunded_amount_minor AS "refundedAmountMinor",grand_total_minor AS "grandTotalMinor" FROM pos_orders WHERE business_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE`,[actor.businessId,orderIds]);
+ if(lockedOrders.rows.length!==2)throw new ApiProblem(409,'RESOURCE_CONFLICT','One of the reviewed orders no longer exists.');
+ const orderById=new Map(lockedOrders.rows.map(row=>[row.id,row])),sourceOrder=orderById.get(p.orderId),targetOrder=orderById.get(p.targetOrderId);
+ for(const row of [sourceOrder,targetOrder]){
+  if(Number(row.version)!==expected(command,'orders',row.id))throw new ApiProblem(409,'VERSION_CONFLICT','An order changed. Refresh both checks before merging.');
+  if(!['OPEN','FIRED'].includes(row.state))throw new ApiProblem(409,'ORDER_NOT_MERGEABLE','Both table orders must still be open.');
+  if(Number(row.amountPaidMinor)||Number(row.amountCreditedMinor)||Number(row.roomChargeMinor)||Number(row.refundedAmountMinor))throw new ApiProblem(409,'SETTLED_ORDER_CANNOT_MERGE','Reverse every tender and receivable before merging table orders.');
+  if(row.serviceDestination!=='TABLE')fail('Only table-service orders can be merged.');
+ }
+ const sourceTableId=sourceOrder.serviceReference?.tableId,targetTableId=targetOrder.serviceReference?.tableId;
+ if(!uuid(sourceTableId)||!uuid(targetTableId)||sourceTableId===targetTableId||targetTableId!==p.targetTableId)throw new ApiProblem(409,'TABLE_ORDER_CHANGED','The reviewed table assignment changed. Refresh both tables.');
+ if(sourceOrder.outletId!==targetOrder.outletId)throw new ApiProblem(409,'CROSS_OUTLET_MERGE','Merge table orders only within one outlet.');
+ if(sourceOrder.customerId!==targetOrder.customerId)throw new ApiProblem(409,'CUSTOMER_MISMATCH','Merge orders only when both have the same customer assignment.');
+ const sourceTableVersion=expected(command,'tables',sourceTableId),targetTableVersion=expected(command,'tables',targetTableId),tableIds=[sourceTableId,targetTableId].sort(),tablesById=new Map();
+ for(const id of tableIds)tablesById.set(id,await readFloorplanTable(tx.client,actor.businessId,id,true));
+ const sourceTable=tablesById.get(sourceTableId),targetTable=tablesById.get(targetTableId);
+ if(!sourceTable||sourceTable.archivedAt||!targetTable||targetTable.archivedAt)throw new ApiProblem(409,'RESOURCE_CONFLICT','A reviewed table is no longer active.');
+ if(Number(sourceTable.version)!==sourceTableVersion||Number(targetTable.version)!==targetTableVersion)throw new ApiProblem(409,'VERSION_CONFLICT','A table changed. Review both orders and tables again.');
+ if(sourceTable.outletId!==sourceOrder.outletId||targetTable.outletId!==targetOrder.outletId||sourceTable.currentOrderId!==p.orderId||targetTable.currentOrderId!==p.targetOrderId)throw new ApiProblem(409,'TABLE_ORDER_CHANGED','One of the tables no longer owns its reviewed order.');
+ const sourceLines=await tx.client.query(`SELECT id,state,line_total_minor AS "lineTotalMinor" FROM pos_order_lines WHERE business_id=$1 AND order_id=$2 ORDER BY created_at,id FOR UPDATE`,[actor.businessId,p.orderId]);
+ if(sourceLines.rows.some(line=>line.state==='FIRED'))throw new ApiProblem(409,'FIRED_SOURCE_ORDER_CANNOT_MERGE','The source order has already fired items. Transfer it after preparation finishes, or settle the checks separately.');
+ const draftLines=sourceLines.rows.filter(line=>line.state==='DRAFT');
+ if(!draftLines.length)fail('The source table has no held items to move.');
+ const priorConsumption=await tx.client.query('SELECT 1 FROM pos_stock_consumptions WHERE business_id=$1 AND order_id=$2 LIMIT 1',[actor.businessId,p.orderId]);
+ if(priorConsumption.rows.length)throw new ApiProblem(409,'SOURCE_STOCK_HISTORY_CANNOT_MERGE','The source order has stock-consumption history and cannot be merged safely.');
+ const lines=await tx.client.query(`UPDATE pos_order_lines SET order_id=$3,updated_at=$4 WHERE business_id=$1 AND order_id=$2 AND id=ANY($5::uuid[]) RETURNING id,line_total_minor AS "lineTotalMinor"`,[actor.businessId,p.orderId,p.targetOrderId,at,draftLines.map(line=>line.id)]);
+ if(lines.rows.length!==draftLines.length)throw new ApiProblem(409,'ORDER_LINES_CHANGED','The source lines changed while the merge was being reviewed.');
+ const amountResult=await tx.client.query(`SELECT COALESCE(sum(line_total_minor),0)::text AS total FROM pos_order_lines WHERE business_id=$1 AND order_id=$2 AND state<>'VOIDED'`,[actor.businessId,p.targetOrderId]);
+ const amount=Number(amountResult.rows[0].total);if(!Number.isSafeInteger(amount)||amount<0)fail('Merged order total exceeds the supported amount.');
+ const sourceVersion=await tx.bumpEntityVersion(actor.businessId,'orders',p.orderId,expected(command,'orders',p.orderId));
+ const targetVersion=await tx.bumpEntityVersion(actor.businessId,'orders',p.targetOrderId,expected(command,'orders',p.targetOrderId));
+ await tx.client.query(`UPDATE pos_orders SET state='MERGED',merged_into_order_id=$3,grand_total_minor=0,version=$4,updated_at=$5 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,p.targetOrderId,sourceVersion,at]);
+ await tx.client.query(`UPDATE pos_orders SET grand_total_minor=$3,version=$4,updated_at=$5 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.targetOrderId,amount,targetVersion,at]);
+ const tableVersions=new Map();
+ for(const id of tableIds){const baseline=id===sourceTableId?sourceTableVersion:targetTableVersion;tableVersions.set(id,await tx.bumpEntityVersion(actor.businessId,'tables',id,baseline));}
+ await tx.client.query(`UPDATE business_floor_tables SET state='CLEANING',version=$3,updated_at=$4 WHERE business_id=$1 AND id=$2`,[actor.businessId,sourceTableId,tableVersions.get(sourceTableId),at]);
+ await tx.client.query(`UPDATE business_floor_tables SET version=$3,updated_at=$4 WHERE business_id=$1 AND id=$2`,[actor.businessId,targetTableId,tableVersions.get(targetTableId),at]);
+ await event(tx,command,actor,at,p.targetOrderId,targetVersion,{sourceOrderId:p.orderId,sourceOrderVersion:sourceVersion,sourceTableId,targetTableId,sourceTableLabel:sourceTable.label,targetTableLabel:targetTable.label,movedLineIds:lines.rows.map(row=>row.id),movedLineTotalMinor:lines.rows.reduce((sum,row)=>sum+Number(row.lineTotalMinor),0)});
+ const updated=await orderProjection(tx.client,actor.businessId,p.targetOrderId),merged=await orderProjection(tx.client,actor.businessId,p.orderId),tableRecords=(await floorplanProjections(tx.client,actor.businessId)).filter(row=>tableIds.includes(row.id));
+ return {value:{order:updated,mergedOrder:merged},records:[updated,merged,...tableRecords]};
+};
+
 const roomCharge=async({tx,command,actor,at})=>{
  if(!actor.permissions.includes('*')&&!actor.permissions.includes('pos.sell'))throw new ApiProblem(403,'PERMISSION_DENIED','POS selling permission is required to charge a guest room.');
  if(!actor.permissions.includes('*')&&!actor.permissions.includes('folio.room_charge'))throw new ApiProblem(403,'PERMISSION_DENIED','Guest room-charge permission is required.');
@@ -463,3 +509,4 @@ posCommandRegistry.set('order.repeatRound',{permission:'pos.sell',offlinePolicy:
 posCommandRegistry.set('order.assignCustomer',{permission:'pos.open_tab',offlinePolicy:'ONLINE_ONLY',handler:assignCustomer});
 posCommandRegistry.set('pos.roomCharge',{permission:'folio.room_charge',offlinePolicy:'ONLINE_ONLY',handler:roomCharge});
 posCommandRegistry.set('order.transfer',{permission:'order.transfer',offlinePolicy:'ONLINE_ONLY',handler:transferTable});
+posCommandRegistry.set('order.merge',{permission:'order.merge',offlinePolicy:'ONLINE_ONLY',handler:mergeTableOrders});

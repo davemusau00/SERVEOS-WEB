@@ -16,7 +16,7 @@ const save=async({tx,command,actor,at})=>{
  if(!location.rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','Choose an active storage place.');
  if(Number(location.rows[0].version)!==locationVersion)throw new ApiProblem(409,'VERSION_CONFLICT','The storage place changed. Review it again.');
  if(current.rows.length&&(d.archived||current.rows[0].locationId!==d.defaultStockLocationId)){
-  const orders=await tx.client.query(`SELECT 1 FROM pos_orders WHERE business_id=$1 AND outlet_id=$2 AND state NOT IN ('COMPLETED','VOIDED') LIMIT 1`,[actor.businessId,p.id]);
+  const orders=await tx.client.query(`SELECT 1 FROM pos_orders WHERE business_id=$1 AND outlet_id=$2 AND state NOT IN ('COMPLETED','VOIDED','MERGED') LIMIT 1`,[actor.businessId,p.id]);
   const tills=await tx.client.query(`SELECT 1 FROM till_sessions WHERE business_id=$1 AND outlet_id=$2 AND status<>'CLOSED' LIMIT 1`,[actor.businessId,p.id]);
   if(orders.rows.length||tills.rows.length)throw new ApiProblem(409,'OUTLET_IN_USE','Resolve this outlet’s open orders and tills before changing its storage place or archiving it.');
  }
