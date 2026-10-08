@@ -16,8 +16,8 @@ _Updated live-codebase closeout plan_
 
 | Gate | Status | Current evidence |
 | --- | --- | --- |
-| Reviewed source | `cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4` | `reset/vps-platform` matches `origin/reset/vps-platform`; the instruction file is the only dirty path. |
-| Hosted CI | **FAIL** | [Actions run 37790563428](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37790563428): 10 jobs passed; `api-postgres` failed; release-candidate was skipped. |
+| Reviewed source | cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4 | reset/vps-platform matched origin/reset/vps-platform at review time; this update only changes progress documentation. |
+| Hosted CI | **FAIL** | [Actions run 37790563428](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37790563428): 11 jobs passed; `api-postgres` failed; release-candidate was skipped. |
 | Hosted Windows printer shell | **PASS** | The Windows printer-shell job completed successfully on the reviewed SHA. |
 | Hosted PWA/API/PostgreSQL browser acceptance | **PASS** | The browser acceptance step passed in the same API/PostgreSQL job. |
 | Local API/PostgreSQL | **PASS** | 22/22 on the disposable PostgreSQL 16.15 service; local Node is 26.5.0 (CI uses Node 22). |
@@ -35,7 +35,7 @@ Do not continue broad feature expansion.
 The remaining work is now:
 
 - resolve the final hosted API/PostgreSQL integration failure
-- finish current Windows printer-shell gate
+- keep the Windows printer-shell job green at the final SHA
 - close POS / floorplan / transfer / merge acceptance
 - close the full revenue chain
 - close Procurement
@@ -118,30 +118,23 @@ The Windows Print Bridge job passed its hosted checks, including the Windows ser
 ### 2.2 Current hosted API/PostgreSQL failure
 
 The confirmed remaining hosted software failure is:
-api-postgres
-  API unit / PostgreSQL integration tests     FAIL
-  real PWA / API / PostgreSQL acceptance      PASS
+
+| API/PostgreSQL job step | Status |
+| --- | --- |
+| API unit / PostgreSQL integration tests | FAIL |
+| Real PWA / API / PostgreSQL acceptance | PASS |
+
 The browser-to-API-to-PostgreSQL acceptance step passed in the same run. The failed step is the API unit/PostgreSQL integration suite.
 This is the first engineering target.
 
 ### 2.3 Auth locally passed
 
-Current repo evidence records:
-
-- npm run test:api
-- 22 passed
-- 0 failed
-- 0 skipped
-
-- npm run test:browser:api
-- PASS
-
-- web storage acceptance
-- PASS
-
-- root npm test
-- 218 passed
-- 0 failed
+| Check | Result on this checkout |
+| --- | --- |
+| npm run test:api | PASS - 22 passed, 0 failed, 0 skipped |
+| npm run test:browser:api | PASS |
+| Web storage acceptance | PASS |
+| npm test | PASS - 218 passed, 0 failed |
 
 Verified behavior includes:
 
@@ -209,11 +202,15 @@ Current repo evidence includes:
 - response-loss replay
 - operator UI
 - physical-count barcode use
-- Recorded local:
-- API tests PASS
-- real browser/API/PostgreSQL PASS
-- root node tests PASS
-- lint PASS
+
+Recorded local results:
+
+| Check | Result |
+| --- | --- |
+| API tests | PASS |
+| Real browser/API/PostgreSQL | PASS |
+| Root tests | PASS |
+| Lint | PASS |
 
 Treat Catalog as locally closed.
 
@@ -323,7 +320,9 @@ Not allowed:
 - new unrelated dashboard
 - new second migration architecture
 - new competing storage authority
+
 ### 4.3 Do not manufacture green
+
 Never:
 
 - skip a required test
@@ -338,9 +337,12 @@ Fix the product.
 ## 5. Step 1: fix the last hosted API/Postgres failure
 
 This is the highest-priority software blocker.
-Current hosted state:
-npm run test:api                         FAIL
-npm run test:browser:api                 PASS
+
+| Hosted check | Status |
+| --- | --- |
+| npm run test:api | FAIL |
+| npm run test:browser:api | PASS |
+
 Current local evidence is 22/22 against disposable PostgreSQL 16.15 on Node 26.5.0; CI uses Node 22, so the environment difference remains part of the investigation.
 Investigate the CI/local discrepancy as deterministic test-isolation or environment work. The public Actions log endpoint and the API-job artifact download returned HTTP 403, so the test-level failure has not been identified yet.
 Check:
@@ -361,13 +363,20 @@ Check:
 - current_timestamp assumptions
 - Node 22 behavior
 - filesystem assumptions
-- Reproduce with:
+
+**Reproduce with:**
+
 - PostgreSQL 16
 - Node 22
 - fresh dependencies
 - fresh schema
 - same CI environment variables
 
+Required exit:
+
+- api-postgres PASS
+
+The real PWA/API/PostgreSQL browser acceptance must continue to pass.
 Required exit:
 
 - api-postgres PASS
@@ -396,7 +405,8 @@ Exit:
 
 ## 7. Step 3: lock the current green baseline
 
-- Once the two remaining gates above pass, obtain one exact SHA where:
+Once the two remaining gates above pass, obtain one exact SHA where:
+
 - api-postgres             PASS
 - frontend                 PASS
 - browser-preview          PASS
@@ -475,7 +485,9 @@ Verify:
 - change-feed projection converges
 - command replay does not duplicate
 - response loss recovers original result
+
 ### 8.2 Floorplan
+
 Test:
 
 - create/update layout
@@ -489,7 +501,9 @@ Test:
 - table.ready
 - table returns available
 - Use real PostgreSQL concurrency.
+
 ### 8.3 Order transfer
+
 Test:
 
 - source order revision
@@ -512,10 +526,13 @@ Refuse:
 - stale destination
 - already occupied destination
 - Race two transfers to one destination. Only one succeeds.
+
 ### 8.4 Order merge
 
 - Migration 068_pos_order_merge.sql must receive full acceptance.
-- Explicitly define and test:
+
+**Explicitly define and test:**
+
 - which order survives
 - which order becomes MERGED
 - merged_into_order_id
@@ -547,7 +564,9 @@ Race:
 - merge vs transfer
 - two simultaneous merges
 - Response-loss replay must recover the same merge.
+
 ### 8.5 Multi-terminal POS race matrix
+
 At minimum:
 
 - line add
@@ -631,14 +650,19 @@ Supported channels:
 - split tender
 - Customer Credit
 - POS room charge
-- External references are already shared across:
+
+External references are already shared across:
+
 - POS
 - Customer Credit
 - supplier payment
 - guest folio
 - expenses
-- Now prove them.
+
+Now prove them.
+
 ### 10.1 Payments
+
 Test:
 
 - full cash
@@ -650,7 +674,9 @@ Test:
 - duplicate external reference
 - same reference race
 - response loss
+
 ### 10.2 Refund / reversal
+
 Test:
 
 - partial refund
@@ -661,19 +687,26 @@ Test:
 - external refund evidence
 - full reversal
 - response loss
+
 ### 10.3 Till
 
-- Equation:
-- opening float
+**Equation:**
+
+```text
+opening float
+
 + cash sales
 + Customer Credit cash collections
 + paid in
-- cash refunds
-- credit cash reversals
-- cash expenses
-- paid out
-- =
-- expected drawer
+
+cash refunds
+credit cash reversals
+cash expenses
+paid out
+=
+expected drawer
+
+```
 
 Test:
 
@@ -682,12 +715,17 @@ Test:
 - manager variance approval
 - close
 - reopen policy
+
 ### 10.4 Journal
 
-- Every financial operation must satisfy:
+**Every financial operation must satisfy:**
+
 - sum(debit) == sum(credit)
-- No orphan journal, duplicate journal, missing source link or missing tax evidence.
+
+No orphan journal, duplicate journal, missing source link or missing tax evidence.
+
 ### 10.5 Close day
+
 Must reconcile:
 
 - sales
@@ -722,7 +760,8 @@ Exit:
 
 ## 11. Step 7: procurement complete
 
-- Test end-to-end:
+**Test end-to-end:**
+
 - supplier
 - -> PO draft
 - -> approve
@@ -838,7 +877,9 @@ Current source covers:
 - POS room charge
 - room-charge reversal
 - documents
+
 ### 13.1 Property masters
+
 Test:
 
 - room type create/edit
@@ -847,7 +888,9 @@ Test:
 - rate plan create/edit
 - invalid reference
 - stale revision
+
 ### 13.2 Availability + reservation
+
 Test:
 
 - availability
@@ -864,7 +907,9 @@ Hard concurrency:
 
 - two overlapping incompatible reservations
 - => only one succeeds
+
 ### 13.3 Stay lifecycle
+
 Test:
 
 - reservation check-in
@@ -873,7 +918,9 @@ Test:
 - room move
 - stale room/stay version
 - double check-in refusal
+
 ### 13.4 Folio
+
 Test:
 
 - nightly charge
@@ -884,7 +931,9 @@ Test:
 - external payment
 - balance
 - document
+
 ### 13.5 POS room charge
+
 Verify:
 
 - active checked-in guest
@@ -897,7 +946,9 @@ Verify:
 - order settlement
 - receipt
 - print queue
-- Reversal:
+
+**Reversal:**
+
 - eligible unpaid charge
 - exact versions
 - folio reversal
@@ -905,7 +956,9 @@ Verify:
 - journal consistency
 - single reversal
 - response loss
+
 ### 13.6 Checkout
+
 Test:
 
 - zero-balance checkout
@@ -914,7 +967,9 @@ Test:
 - room transition
 - housekeeping queue
 - folio immutability
+
 ### 13.7 Housekeeping / maintenance
+
 Test:
 
 - DIRTY
@@ -1076,7 +1131,9 @@ Test:
 - wrong business refusal
 - expired claim refusal
 - revoked device refusal
+
 ### 17.2 Pair / revoke
+
 Test:
 
 - pair
@@ -1084,9 +1141,11 @@ Test:
 - unknown refusal
 - revoke
 - revoked device cannot print
+
 ### 17.3 Crash / uncertainty
 
-- Terminate processes at:
+**Terminate processes at:**
+
 - before persistence
 - after persistence
 - before transport
@@ -1095,13 +1154,17 @@ Test:
 - before server outcome
 - after server outcome
 - before browser response
-- Invariant:
+
+**Invariant:**
+
 - possible physical output
 - => DELIVERY_UNCERTAIN
 - No blind auto-reprint.
+
 ### 17.4 Windows service
 
-- Prove on Windows:
+**Prove on Windows:**
+
 - install
 - SCM registration
 - LocalService identity
@@ -1114,7 +1177,9 @@ Test:
 - stop
 - uninstall
 - journal preservation
+
 ### 17.5 Physical printer
+
 If target hardware is available, run:
 
 - sale receipt
@@ -1225,8 +1290,9 @@ Exit:
 
 ## 20. Step 16: complete synthetic staging scenario
 
-- No Countryside business data.
-- Run one contiguous scenario:
+No Countryside business data.
+**Run one contiguous scenario:**
+
 - Admin setup
 - staff
 - device
@@ -1307,7 +1373,8 @@ Reconcile:
 
 ## 21. Step 17: legacy authority cleanup
 
-- Search for remaining legacy business writers:
+**Search for remaining legacy business writers:**
+
 - /rest/v1
 - rpc/servos_v2_
 - Supabase mutation paths
@@ -1329,36 +1396,40 @@ No silent fallback.
 
 The reset-era truth docs are historical.
 Create a clean current-codebase reference set:
-docs/current/00-SYSTEM-OVERVIEW.md
-docs/current/01-ARCHITECTURE.md
-docs/current/02-REPOSITORY-STRUCTURE.md
-docs/current/03-DATABASE-AND-MIGRATIONS.md
-docs/current/04-AUTH-STAFF-DEVICE-SESSIONS.md
-docs/current/05-COMMAND-KERNEL-SYNC-RECOVERY.md
-docs/current/06-CATALOG-INVENTORY.md
-docs/current/07-POS-FLOORPLAN-TABLE-SERVICE.md
-docs/current/08-PAYMENTS-TILLS-JOURNALS-CLOSE-DAY.md
-docs/current/09-PROCUREMENT.md
-docs/current/10-CUSTOMER-CREDIT.md
-docs/current/11-HOTEL-PMS.md
-docs/current/12-FINANCE-ASSETS.md
-docs/current/13-OFFLINE-POS.md
-docs/current/14-PRINT-BRIDGE.md
-docs/current/15-DEPLOYMENT-VPS.md
-docs/current/16-BACKUP-RESTORE.md
-docs/current/17-TESTING-ACCEPTANCE.md
-docs/current/18-SECURITY-MODEL.md
-docs/current/19-OPERATIONS-RUNBOOK.md
-docs/current/20-RELEASE-CUTOVER-READINESS.md
 
-docs/current/CURRENT-IMPLEMENTATION-STATUS.md
-docs/current/COMMAND-CATALOG.md
-docs/current/PERMISSION-CATALOG.md
-docs/current/DOCUMENT-CATALOG.md
-docs/current/MIGRATION-CATALOG.md
+- docs/current/00-SYSTEM-OVERVIEW.md
+- docs/current/01-ARCHITECTURE.md
+- docs/current/02-REPOSITORY-STRUCTURE.md
+- docs/current/03-DATABASE-AND-MIGRATIONS.md
+- docs/current/04-AUTH-STAFF-DEVICE-SESSIONS.md
+- docs/current/05-COMMAND-KERNEL-SYNC-RECOVERY.md
+- docs/current/06-CATALOG-INVENTORY.md
+- docs/current/07-POS-FLOORPLAN-TABLE-SERVICE.md
+- docs/current/08-PAYMENTS-TILLS-JOURNALS-CLOSE-DAY.md
+- docs/current/09-PROCUREMENT.md
+- docs/current/10-CUSTOMER-CREDIT.md
+- docs/current/11-HOTEL-PMS.md
+- docs/current/12-FINANCE-ASSETS.md
+- docs/current/13-OFFLINE-POS.md
+- docs/current/14-PRINT-BRIDGE.md
+- docs/current/15-DEPLOYMENT-VPS.md
+- docs/current/16-BACKUP-RESTORE.md
+- docs/current/17-TESTING-ACCEPTANCE.md
+- docs/current/18-SECURITY-MODEL.md
+- docs/current/19-OPERATIONS-RUNBOOK.md
+- docs/current/20-RELEASE-CUTOVER-READINESS.md
+
+- docs/current/CURRENT-IMPLEMENTATION-STATUS.md
+- docs/current/COMMAND-CATALOG.md
+- docs/current/PERMISSION-CATALOG.md
+- docs/current/DOCUMENT-CATALOG.md
+- docs/current/MIGRATION-CATALOG.md
+
 Generate from current source. Do not blindly copy old reset docs.
 npm run docs:check must pass afterward.
-23. COUNTRYSIDE MIGRATION - EXCLUDED BY SCOPE
+
+## 23. Countryside migration - excluded by scope
+
 Do not perform:
 
 - live terminal extraction
@@ -1391,8 +1462,12 @@ The later process remains:
 - -> final import
 
 This is intentionally outside this sweep.
-24. FINAL RELEASE VERIFICATION
+
+## 24. Final release verification
+
 At the final candidate SHA run:
+
+```sh
 npm run verify:fast
 npm run test:api
 npm run test:browser:api
@@ -1405,6 +1480,8 @@ npm run test:desktop
 npm run protocol:check
 npm run audit:ui:gate
 npm run docs:check
+```
+
 Run the Print Bridge matrix again.
 Push one exact SHA and require:
 api-postgres             PASS
@@ -1570,12 +1647,15 @@ The sweep is complete only when:
 - API mode has zero silent legacy business writers
 
 - fresh current-codebase documentation is complete and passes docs checks
-- The only allowed EXCLUDED BY SCOPE item is:
+
+**The only allowed EXCLUDED BY SCOPE item is:**
+
 - ACTUAL CURRENT COUNTRYSIDE DATA MIGRATION
 
 ## 28. Final report required
 
-- Produce one final report containing:
+**Produce one final report containing:**
+
 - FINAL SHA
 - BRANCH
 - MIGRATION HIGH-WATER
