@@ -24,6 +24,7 @@ import {deviceProjections} from './device-commands.mjs';
 import {roomProjections} from './room-commands.mjs';
 import {hospitalityProjections} from './hospitality-commands.mjs';
 import {financeAssetProjections} from './finance-asset-commands.mjs';
+import {floorplanProjections} from './floorplan-commands.mjs';
 const redactCommandSecrets=value=>Array.isArray(value)?value.map(redactCommandSecrets):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).filter(([key])=>!/(?:password|secret|token|credential|pin)/i.test(key)).map(([key,item])=>[key,redactCommandSecrets(item)])):value;
 const receiptProjection = row => {
   const data={...row,receivedAt:row.receivedAt.toISOString()};
@@ -189,6 +190,7 @@ export class PostgresStore {
     const customers=await customerProjections(db,businessId);
     const hospitality=[...await roomProjections(db,businessId),...await hospitalityProjections(db,businessId)];
     const financeAssets=await financeAssetProjections(db,businessId);
+    const tables=await floorplanProjections(db,businessId);
     const customerCreditAccounts=await customerCreditAccountProjections(db,businessId);
     const customerCreditEntries=await customerCreditEntryProjections(db,businessId);
     const customerCreditReconciliations=await customerCreditReconciliationProjections(db,businessId);
@@ -197,6 +199,7 @@ export class PostgresStore {
       ...customers,
       ...hospitality,
       ...financeAssets,
+      ...tables,
       ...customerCreditAccounts,
       ...customerCreditEntries,
       ...customerCreditReconciliations,
