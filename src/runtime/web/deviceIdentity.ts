@@ -19,6 +19,11 @@ const readStaffIdentity=(db:IDBDatabase,businessId:string,staffId:string)=>new P
  request.onsuccess=()=>resolve(request.result?.identity as WebDeviceIdentity|undefined);
  request.onerror=()=>reject(request.error||new Error('Could not read staff device identity'));
 });
+const readIdentityForDevice=(db:IDBDatabase,storeName:'devices'|'staffDevices',key:string)=>new Promise<WebDeviceIdentity|undefined>((resolve,reject)=>{
+ const request=db.transaction(storeName,'readonly').objectStore(storeName).get(key);
+ request.onsuccess=()=>resolve(request.result?.identity as WebDeviceIdentity|undefined);
+ request.onerror=()=>reject(request.error||new Error('Could not read enrolled device identity'));
+});
 
 async function createIdentity(deviceId:string):Promise<WebDeviceIdentity>{
  const generated=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']) as CryptoKeyPair;
@@ -62,9 +67,22 @@ async function createOrReadStaffIdentity(db:IDBDatabase,businessId:string,staffI
 /** Reuse the legacy business key for its existing owner, then keep each staff identity separate. */
 export async function getOrCreateApiWebDeviceIdentity(businessId:string,staffId:string):Promise<WebDeviceIdentity>{
  if(!businessId||!staffId)throw new Error('Business and staff identities are required');
+ if(!globalThis.isSecureContext||!crypto?.subtle)throw new Error('Secure browser context with WebCrypto is required for device enrollment');
  const db=await openRegistry();
  try{return await readStaffIdentity(db,businessId,staffId)||await readIdentity(db,businessId)||await createOrReadStaffIdentity(db,businessId,staffId)}
  finally{db.close()}
+}
+
+/** Recover only the key already bound to this staff session; never create or silently replace it. */
+export async function findApiWebDeviceIdentity(businessId:string,staffId:string,deviceId:string):Promise<WebDeviceIdentity>{
+ if(!businessId||!staffId||!deviceId)throw new Error('Business, staff and device identities are required');
+ if(!globalThis.isSecureContext||!crypto?.subtle)throw new Error('Secure browser context with WebCrypto is required for device recovery');
+ const db=await openRegistry();
+ try{
+  const scoped=await readIdentityForDevice(db,'staffDevices',staffScope(businessId,staffId));if(scoped?.deviceId===deviceId)return scoped;
+  const legacy=await readIdentityForDevice(db,'devices',businessId);if(legacy?.deviceId===deviceId)return legacy;
+  throw new Error('The enrolled device key is unavailable in this browser. Sign in again to enroll a replacement device.');
+ }finally{db.close()}
 }
 
 /** Use after the API confirms the device belongs to this staff account. */
@@ -77,6 +95,7 @@ export async function rememberApiWebDeviceIdentity(businessId:string,staffId:str
 /** A staff-specific identity is used only after the API reports an ownership collision. */
 export async function createStaffScopedApiWebDeviceIdentity(businessId:string,staffId:string):Promise<WebDeviceIdentity>{
  if(!businessId||!staffId)throw new Error('Business and staff identities are required');
+ if(!globalThis.isSecureContext||!crypto?.subtle)throw new Error('Secure browser context with WebCrypto is required for device enrollment');
  const db=await openRegistry();try{return await createOrReadStaffIdentity(db,businessId,staffId)}finally{db.close()}
 }
 

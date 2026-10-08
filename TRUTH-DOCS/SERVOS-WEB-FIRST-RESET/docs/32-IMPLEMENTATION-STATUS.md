@@ -1004,6 +1004,7 @@ The active continuation refers to `final-sprint.md`, but that file is absent fro
 
 ### Phase 1 staff lifecycle hardening (2026-10-08; tests deferred)
 
+- The current local branch is at `76c5e7ad9b99e781b4cd2ea505aac0b218fe812e`, two commits ahead of `origin/reset/vps-platform` at `8158b462551808e26722a8f3fe9d2d9db31a6ee9`; the working tree has these checkpoint documents plus the source edit for consistent secure-context checks.
 - Static review found a last-Admin write-skew race: concurrent role changes or deactivations against different Admin profiles could both pass the active-Admin count before either transaction committed.
 - `staff.update` and `staff.deactivate` now acquire the same transaction-scoped advisory lock keyed by business before reading the target profile and checking the Admin set. This serializes those lifecycle changes and lets the later transaction observe the first transaction's result.
 - Device enrollment challenge issuance previously counted and inserted in separate transactions, so parallel requests could exceed the hourly cap. Count and insert now run under one staff-scoped transaction advisory lock.

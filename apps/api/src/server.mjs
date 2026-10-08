@@ -175,7 +175,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if(req.method==='GET'&&url.pathname==='/v1/auth/session'){
         const actor=await authenticateStaffSession(req,store);const profile=await store.staffCredential(actor.businessId,actor.staffId);
-        return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,displayName:profile?.displayName,permissions:actor.permissions,mustChangePassword:profile?.mustChangePassword===true});
+        return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId??null,displayName:profile?.displayName,permissions:actor.permissions,mustChangePassword:profile?.mustChangePassword===true});
       }
       if(req.method==='GET'&&url.pathname==='/v1/auth/sessions'){
         const actor=await authenticateStaffSession(req,store);return json(res,200,{sessions:await store.ownSessions({businessId:actor.businessId,staffId:actor.staffId,currentSessionId:actor.sessionId})});
