@@ -332,14 +332,18 @@ export class PostgresStore {
     });
   }
 
-  async authenticatePassword({loginName,password,at,verifyPassword,sessionId,accessTokenId,accessTokenHash,accessExpiresAt,refreshFamilyId,refreshTokenId,refreshTokenHash,refreshExpiresAt,sessionExpiresAt}) {
+  async authenticatePassword({loginName,password,at,verifyPassword,dummyCredentialHash,sessionId,accessTokenId,accessTokenHash,accessExpiresAt,refreshFamilyId,refreshTokenId,refreshTokenHash,refreshExpiresAt,sessionExpiresAt}) {
     return this.transaction(async tx=>{
       const {rows}=await tx.client.query(`SELECT business_id AS "businessId",staff_id AS "staffId",display_name AS "displayName",credential_hash AS "credentialHash",failed_login_count AS "failedLoginCount",locked_until AS "lockedUntil",must_change_password AS "mustChangePassword" FROM api_staff_profiles WHERE lower(login_name)=lower($1) AND active FOR UPDATE`,[loginName]);
       const staff=rows[0];
-      // Do equivalent work for unknown usernames to reduce account enumeration timing differences.
-      const valid=staff&&!staff.lockedUntil&&await verifyPassword(password,staff.credentialHash);
+      // Verify exactly one hash for known, unknown, and temporarily locked accounts.
+      const passwordMatches=await verifyPassword(password,staff?.credentialHash??dummyCredentialHash);
+      const currentlyLocked=Boolean(staff?.lockedUntil&&staff.lockedUntil>at);
+      const valid=Boolean(staff)&&!currentlyLocked&&passwordMatches;
       if(!valid){
-        if(staff){const failures=Number(staff.failedLoginCount)+1;await tx.client.query('UPDATE api_staff_profiles SET failed_login_count=$3,locked_until=$4,updated_at=$5 WHERE business_id=$1 AND staff_id=$2',[staff.businessId,staff.staffId,failures,failures>=5?new Date(at.getTime()+15*60_000):null,at]);}
+        // Do not let attempts during the lock extend it. Once it expires, start
+        // a fresh failure window so an old counter cannot immediately relock it.
+        if(staff&&!currentlyLocked){const expiredLock=Boolean(staff.lockedUntil&&staff.lockedUntil<=at),failures=expiredLock?1:Number(staff.failedLoginCount)+1;await tx.client.query('UPDATE api_staff_profiles SET failed_login_count=$3,locked_until=$4,updated_at=$5 WHERE business_id=$1 AND staff_id=$2',[staff.businessId,staff.staffId,failures,failures>=5?new Date(at.getTime()+15*60_000):null,at]);}
         return null;
       }
       await tx.client.query('UPDATE api_staff_profiles SET failed_login_count=0,locked_until=NULL,updated_at=$3 WHERE business_id=$1 AND staff_id=$2',[staff.businessId,staff.staffId,at]);
@@ -418,21 +422,24 @@ export class PostgresStore {
   }
 
   async issueDeviceEnrollmentChallenge({challengeId, challenge, businessId, staffId, issuedAt, expiresAt}) {
-    const {rows: recent} = await this.pool.query(`
-      SELECT count(*)::int AS count FROM api_device_enrollment_challenges
-      WHERE business_id = $1 AND staff_id = $2 AND issued_at > $3
-    `, [businessId, staffId, new Date(issuedAt.getTime() - 60 * 60_000)]);
-    if (recent[0].count >= 10) {
-      const error = new Error('Too many device enrollment challenges were requested.');
-      error.status = 429;
-      error.code = 'RATE_LIMITED';
-      throw error;
-    }
-    await this.pool.query(`
-      INSERT INTO api_device_enrollment_challenges (id, challenge, business_id, staff_id, issued_at, expires_at)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [challengeId, challenge, businessId, staffId, issuedAt, expiresAt]);
-    return {challengeId, challenge, issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString()};
+    return this.transaction(async tx=>{
+      await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`device-enrollment:${businessId}:${staffId}`]);
+      const {rows: recent} = await tx.client.query(`
+        SELECT count(*)::int AS count FROM api_device_enrollment_challenges
+        WHERE business_id = $1 AND staff_id = $2 AND issued_at > $3
+      `, [businessId, staffId, new Date(issuedAt.getTime() - 60 * 60_000)]);
+      if (recent[0].count >= 10) {
+        const error = new Error('Too many device enrollment challenges were requested.');
+        error.status = 429;
+        error.code = 'RATE_LIMITED';
+        throw error;
+      }
+      await tx.client.query(`
+        INSERT INTO api_device_enrollment_challenges (id, challenge, business_id, staff_id, issued_at, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [challengeId, challenge, businessId, staffId, issuedAt, expiresAt]);
+      return {challengeId, challenge, issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString()};
+    });
   }
 
   async deviceEnrollmentChallenge(challengeId, businessId, staffId) {

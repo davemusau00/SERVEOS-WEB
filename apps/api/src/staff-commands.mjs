@@ -18,6 +18,7 @@ const rolePermissions={
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
 const cleanText=(value,min,max,label)=>{if(typeof value!=='string'||value.trim().length<min||value.trim().length>max||/[\u0000-\u001f\u007f]/u.test(value))fail(`${label} must contain ${min} to ${max} plain-text characters.`);return value.trim()};
 const requirePermission=(actor,p)=>{if(!actor.permissions.includes('*')&&!actor.permissions.includes(p))throw new ApiProblem(403,'PERMISSION_DENIED',`Staff ${p.split('.').at(-1)} permission is required.`)};
+const lockStaffAdministration=async(tx,businessId)=>tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`staff-administration:${businessId}`]);
 const credentialHash=async password=>{const salt=randomBytes(16),derived=await scrypt(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024});return `scrypt$16384$8$1$${salt.toString('base64url')}$${Buffer.from(derived).toString('base64url')}`};
 const assignedPermissions=(role,extras,actor)=>{
  if(role==='Admin')throw new ApiProblem(403,'ADMIN_ROLE_RESERVED','The Admin role is reserved for initial setup and cannot be assigned here.');
@@ -49,6 +50,8 @@ const create=async({tx,command,actor,at})=>{
 const update=async({tx,command,actor,at})=>{
  requirePermission(actor,'staff.update');const p=command.payload;if(!uuid(p.staffId)||p.id!==p.staffId)fail('Choose a staff profile.');
  const expected=command.expectedVersions[`employees:${p.staffId}`];if(!Number.isSafeInteger(expected)||expected<1)fail('Review the current staff profile revision.');
+ // Serialize changes across Admin rows so concurrent demotions cannot both pass the last-Admin check.
+ await lockStaffAdministration(tx,actor.businessId);
  const prior=await staffRecord(tx.client,actor.businessId,p.staffId,true);if(!prior||prior.archived)throw new ApiProblem(409,'STAFF_UNAVAILABLE','This staff profile is no longer active.');
  const name=cleanText(p.displayName,1,160,'Staff name'),role=cleanText(p.role,1,40,'Role');
  if(role!==prior.data.role)requirePermission(actor,'staff.change_role');
@@ -64,6 +67,8 @@ const update=async({tx,command,actor,at})=>{
 const deactivate=async({tx,command,actor,at})=>{
  requirePermission(actor,'staff.deactivate');const p=command.payload;if(!uuid(p.staffId)||p.id!==p.staffId||p.staffId===actor.staffId)fail('Choose a different staff profile to deactivate.');
  const expected=command.expectedVersions[`employees:${p.staffId}`];if(!Number.isSafeInteger(expected)||expected<1)fail('Review the current staff profile revision.');
+ // Use the same per-business lock as staff.update before reading the Admin set.
+ await lockStaffAdministration(tx,actor.businessId);
  const prior=await staffRecord(tx.client,actor.businessId,p.staffId,true);if(!prior||prior.archived)throw new ApiProblem(409,'STAFF_UNAVAILABLE','This staff profile is already inactive or unavailable.');
  if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.trim().length>300)fail('Enter a deactivation reason.');
  if(prior.data.role==='Admin'){const count=await tx.client.query("SELECT count(*)::int AS count FROM api_staff_profiles WHERE business_id=$1 AND role='Admin' AND active AND staff_id<>$2",[actor.businessId,p.staffId]);if(count.rows[0].count===0)throw new ApiProblem(409,'LAST_ADMIN','Keep at least one active Admin account.');}

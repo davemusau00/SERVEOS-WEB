@@ -127,7 +127,7 @@ source/target reconciliation is mandatory
 
 # 2. PHASE 0 — RESTORE A GREEN BASELINE
 
-This remains the immediate hard stop.
+This remains open and unpassed. Per user direction, work is continuing into Phase 1 with tests deferred; this does not close or pass Phase 0.
 
 ## Live checkpoint — 2026-10-08
 
@@ -212,6 +212,14 @@ Migrations:
 060 refresh tokens
 061 refresh rotation recovery
 ```
+
+## Phase 1 source checkpoint — 2026-10-08 (tests deferred)
+
+Static review found two concurrency gaps. Concurrent role changes or deactivations on different Admin rows could each observe two active Admins and both remove one; `staff.update` and `staff.deactivate` now take the same transaction-scoped, per-business advisory lock before reading the target profile and checking the active Admin count. Device challenge issuance also counted and inserted in separate transactions, allowing parallel requests to exceed the hourly cap; count and insert now share a staff-scoped transaction advisory lock. Later transactions observe the first transaction's committed result in both cases.
+
+Review of password login found that a non-null `locked_until` was treated as a permanent lock, including after its 15-minute expiry. The login transaction now compares the timestamp to the attempt time, starts a fresh failure count after an expired lock, and does not extend a still-active account lock for attempts made during it. Known and unknown usernames each perform one password-hash verification, using a dummy credential for missing accounts.
+
+These are source changes only. Tests remain deferred by user direction, and the Phase 1 database, browser, refresh/replay, cookie, and session lifecycle gates remain open.
 
 ## Remaining Auth work is verification
 
