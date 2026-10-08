@@ -420,7 +420,7 @@ export class PostgresStore {
   }
 
   async initialSetupComplete(){
-    const {rows}=await this.pool.query("SELECT to_regclass('public.api_staff_profiles') IS NOT NULL AS schema_ready");
+    const {rows}=await this.pool.query("SELECT to_regclass('api_staff_profiles') IS NOT NULL AS schema_ready");
     if(!rows[0]?.schema_ready)return false;
     const result=await this.pool.query('SELECT EXISTS(SELECT 1 FROM api_staff_profiles) AS complete');return result.rows[0]?.complete===true;
   }
