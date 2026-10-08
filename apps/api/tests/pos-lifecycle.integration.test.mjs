@@ -8,8 +8,7 @@ import {executeCommand} from '../src/command-kernel.mjs';
 import {catalogCommandRegistry} from '../src/catalog-commands.mjs';
 import {businessTaxCommandRegistry} from '../src/business-tax.mjs';
 import {outletCommandRegistry} from '../src/outlet-commands.mjs';
-import {floorplanCommandRegistry} from '../src/floorplan-commands.mjs';
-import {floorplanProjections} from '../src/floorplan-commands.mjs';
+import {floorplanCommandRegistry,floorplanProjections} from '../src/floorplan-commands.mjs';
 import {paymentAccountCommandRegistry} from '../src/payment-accounts.mjs';
 import {tillCommandRegistry} from '../src/till-commands.mjs';
 import {posCommandRegistry} from '../src/pos-commands.mjs';
@@ -238,6 +237,7 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  const firedTableCommand={commandId:randomUUID(),name:'order.fire',payload:{orderId:firedTableOrderId,itemIds:[firedTableLineId],expectedBalanceVersions:{[`${stockId}:${locationId}`]:Number(firedTableBalance.rows[0].version)}},expectedVersions:{[`orders:${firedTableOrderId}`]:firedTableDraft.result.version,[`stockItems:${stockId}`]:Number(firedTableStockVersion.rows[0].version),[`stockLocations:${locationId}`]:1}};
  const firedTable=await executeCommand({db:store,actor,registry,command:firedTableCommand});assert.equal(firedTable.kind,'CONFIRMED');
  const tableVersion=async id=>Number((await pool.query('SELECT version FROM business_floor_tables WHERE business_id=$1 AND id=$2',[businessId,id])).rows[0].version);
+ const entityVersion=async(type,id)=>Number((await pool.query('SELECT version FROM business_entity_versions WHERE business_id=$1 AND entity_type=$2 AND entity_id=$3',[businessId,type,id])).rows[0].version);
  const preparingTransfer=await run('order.transfer',{orderId:firedTableOrderId,targetTableId:firedTargetTableId},{[`orders:${firedTableOrderId}`]:firedTable.result.order.version,[`tables:${firedSourceTableId}`]:await tableVersion(firedSourceTableId),[`tables:${firedTargetTableId}`]:await tableVersion(firedTargetTableId)});
  assert.equal(preparingTransfer.kind,'CONFLICT');assert.equal(preparingTransfer.error.code,'PREPARATION_IN_PROGRESS','fired work cannot move while preparation is active');
  let firedTableVersion=firedTable.result.order.version;
@@ -245,7 +245,8 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  const servedTransfer=await confirmed('order.transfer',{orderId:firedTableOrderId,targetTableId:firedTargetTableId},{[`orders:${firedTableOrderId}`]:firedTableVersion,[`tables:${firedSourceTableId}`]:await tableVersion(firedSourceTableId),[`tables:${firedTargetTableId}`]:await tableVersion(firedTargetTableId)});
  assert.equal(servedTransfer.result.data.tableId,firedTargetTableId,'a fully served fired order can transfer');
  const tableSaleAmount=servedTransfer.result.data.grandTotalMinor;
- const tableSettlement=await confirmed('payment.split',{orderId:firedTableOrderId,tillSessionId:tillId,payments:[{accountId,amountMinor:tableSaleAmount,cashTenderedMinor:tableSaleAmount}]},{[`orders:${firedTableOrderId}`]:servedTransfer.result.version,[`tillSessions:${tillId}`]:1,[`paymentAccounts:${accountId}`]:1});
+ const tableCashAmount=Math.floor(tableSaleAmount/2),tableMpesaAmount=tableSaleAmount-tableCashAmount;
+ const tableSettlement=await confirmed('payment.split',{orderId:firedTableOrderId,tillSessionId:tillId,payments:[{accountId,amountMinor:tableCashAmount,cashTenderedMinor:tableCashAmount},{accountId:mpesaAccountId,amountMinor:tableMpesaAmount,manuallyConfirmed:true,reference:'TABLE-SERVED-ACCEPTANCE',receivedAmountMinor:tableMpesaAmount,receivedAt:new Date(Date.now()-1000).toISOString()}]},{[`orders:${firedTableOrderId}`]:servedTransfer.result.version,[`tillSessions:${tillId}`]:await entityVersion('tillSessions',tillId),[`paymentAccounts:${accountId}`]:await entityVersion('paymentAccounts',accountId),[`paymentAccounts:${mpesaAccountId}`]:await entityVersion('paymentAccounts',mpesaAccountId)});
  assert.equal(tableSettlement.result.order.data.state,'COMPLETED');
  const settledTransfer=await run('order.transfer',{orderId:firedTableOrderId,targetTableId:mergeTargetTableId},{[`orders:${firedTableOrderId}`]:tableSettlement.result.order.version,[`tables:${firedTargetTableId}`]:await tableVersion(firedTargetTableId),[`tables:${mergeTargetTableId}`]:await tableVersion(mergeTargetTableId)});
  assert.equal(settledTransfer.kind,'CONFLICT','settled table orders cannot transfer');
@@ -253,10 +254,10 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  const settledMerge=await run('order.merge',{orderId:firedTableOrderId,targetOrderId:mergeTargetOrderId,targetTableId:mergeTargetTableId},{[`orders:${firedTableOrderId}`]:tableSettlement.result.order.version,[`orders:${mergeTargetOrderId}`]:mergeTargetOrder.result.version,[`tables:${firedTargetTableId}`]:await tableVersion(firedTargetTableId),[`tables:${mergeTargetTableId}`]:await tableVersion(mergeTargetTableId)});
  assert.equal(settledMerge.kind,'CONFLICT','settled source checks cannot merge');assert.equal(settledMerge.error.code,'ORDER_NOT_MERGEABLE');
 
- const finalFloorplan=await floorplanProjections(pool,businessId),archivedTableId=mergeSourceId,archivedTable=finalFloorplan.find(row=>row.id===archivedTableId);
+ const finalFloorplan=await floorplanProjections(pool,businessId),archivedTableId=mergeSourceId;
  const archiveLayout=finalFloorplan.filter(row=>row.data.outletId===outletId&&row.id!==archivedTableId).map(row=>({id:row.id,label:row.data.label,section:row.data.section,capacity:row.data.capacity,posX:row.data.posX,posY:row.data.posY,minimumSpend:row.data.minimumSpend,shape:row.data.shape,isJoinable:row.data.isJoinable,assignedServerId:row.data.assignedServerId}));
  const archived=await confirmed('floorplan.save',{outletId,baseline:finalFloorplan.filter(row=>row.data.outletId===outletId).map(row=>({id:row.id,version:row.version})),tables:archiveLayout});
- assert.equal(archived.result.records.find(row=>row.id===archivedTableId).archived,true,'an inactive table can be archived');
+ assert.equal((await floorplanProjections(pool,businessId)).find(row=>row.id===archivedTableId).archived,true,'an inactive table can be archived');
  assert.equal((await pool.query('SELECT archived_at IS NOT NULL AS archived FROM business_floor_tables WHERE business_id=$1 AND id=$2',[businessId,archivedTableId])).rows[0].archived,true);
 
  const changes=await store.changesAfter(businessId,0,100);
