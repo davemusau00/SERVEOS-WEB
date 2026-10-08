@@ -1,26 +1,6 @@
 ALTER TABLE customer_credit_entries
  DROP CONSTRAINT customer_credit_entries_settlement_evidence_check;
 
-UPDATE customer_credit_entries e
- SET till_session_id=(
-  SELECT session.id
-  FROM till_sessions session
-  WHERE session.business_id=e.business_id
-   AND session.operator_id=e.actor_id
-   AND session.opened_at<=e.occurred_at
-   AND COALESCE(session.closed_at,'infinity'::timestamptz)>=e.occurred_at
-  ORDER BY session.opened_at DESC,session.id
-  LIMIT 1
- )
- WHERE e.kind='CHARGE' AND e.till_session_id IS NULL
-  AND EXISTS (
-   SELECT 1 FROM till_sessions session
-   WHERE session.business_id=e.business_id
-    AND session.operator_id=e.actor_id
-    AND session.opened_at<=e.occurred_at
-    AND COALESCE(session.closed_at,'infinity'::timestamptz)>=e.occurred_at
-  );
-
 ALTER TABLE customer_credit_entries
  ADD CONSTRAINT customer_credit_entries_settlement_evidence_check CHECK (
   (kind='SETTLEMENT' AND payment_account_id IS NOT NULL AND payment_account_snapshot IS NOT NULL
