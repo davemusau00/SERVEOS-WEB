@@ -1,88 +1,257 @@
-# SERVOS FINAL SWEEP — DEVELOPMENT INSTRUCTION
+# ServOS Final Sweep - Development Instruction
 
-## Mission
+_Updated live-codebase closeout plan_
 
-Finish the Web/API/PostgreSQL reset in one continuous engineering pass.
+| Field | Reviewed value |
+| --- | --- |
+| Repository | `davemusau00/SERVEOS-WEB` |
+| Branch | `reset/vps-platform` |
+| Reviewed HEAD | `cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4` |
+| Branch delta | 193 commits ahead of `main`, 0 behind |
+| Migration high-water | `068_pos_order_merge.sql` |
+| Primary goal | Finish the Web/API/PostgreSQL reset in one continuous engineering sweep |
+| Scope exclusion | Actual current Countryside terminal data migration/import |
 
-**Repository:** `davemusau00/SERVEOS-WEB`  
-**Branch:** `reset/vps-platform`  
-**Reviewed baseline HEAD:** `a12676dfe7ec2c20d73c86fdf2dc275288566f08`  
-**Branch delta at review:** 191 commits ahead of `main`, 0 behind  
-**Migration high-water at review:** `068_pos_order_merge.sql`
+## Live progress - 2026-10-08
 
-The only intentionally excluded task is:
+| Gate | Status | Current evidence |
+| --- | --- | --- |
+| Reviewed source | `cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4` | `reset/vps-platform` matches `origin/reset/vps-platform`; the instruction file is the only dirty path. |
+| Hosted CI | **FAIL** | [Actions run 37790563428](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37790563428): 10 jobs passed; `api-postgres` failed; release-candidate was skipped. |
+| Hosted Windows printer shell | **PASS** | The Windows printer-shell job completed successfully on the reviewed SHA. |
+| Hosted PWA/API/PostgreSQL browser acceptance | **PASS** | The browser acceptance step passed in the same API/PostgreSQL job. |
+| Local API/PostgreSQL | **PASS** | 22/22 on the disposable PostgreSQL 16.15 service; local Node is 26.5.0 (CI uses Node 22). |
+| Local source checks | **PASS** | Root tests 218/218, lint, and UI prompt gate passed on this checkout. |
+| UI operator review | **OPEN** | The UI gate found no browser prompt/confirm calls; 619 review findings remain unaccepted, so workflows are not marked reviewed. |
+| Local desktop compilation | **OPEN** | A prior check ran out of C: drive space; only 0.01 GiB was free during this review. |
+| Final green release SHA | **OPEN** | Do not start the POS acceptance phase until the API/PostgreSQL hosted failure is resolved and the full baseline is green. |
 
-```text
-ACTUAL CURRENT COUNTRYSIDE DATA MIGRATION
-```
+The CI failure is isolated to the API/PostgreSQL test step; its real browser-to-API acceptance passed. The public job-log endpoint and artifact download both returned HTTP 403, so the exact failing test is still unknown.
 
-Do not extract, normalize, map, import, reconcile, freeze or cut over the existing Countryside terminal data during this sweep.
+## 0. Executive instruction
 
-Everything else required to make ServOS ready to receive that data later must be finished now.
+The repository is now feature-near-complete and materially more verified than the earlier sprint documents reflected.
+Do not continue broad feature expansion.
+The remaining work is now:
 
----
+- resolve the final hosted API/PostgreSQL integration failure
+- finish current Windows printer-shell gate
+- close POS / floorplan / transfer / merge acceptance
+- close the full revenue chain
+- close Procurement
+- close Customer Credit
+- close PMS
+- close Finance / Assets
+- prove bounded offline cash POS
+- finish physical Print Bridge acceptance
+- finish staging / restore / rollback
+- remove silent legacy authority paths
+- replace stale documentation with a current-codebase documentation set
+- obtain one exact fully-green release SHA
 
-# 1. EXECUTION MODE
+Do not perform the live Countryside data migration in this sweep.
+The system should finish this sweep ready to receive that data later.
 
-This is a final sweep, not another feature-expansion phase.
+## 1. Current completion state
 
-Do not stop at “source implemented”.
+Inherited planning estimates (not remeasured in this progress update and never release evidence):
 
-Do not write “tests deferred”.
+| Measure | Estimate |
+| --- | ---: |
+| Source implementation | ~98-99% |
+| Workflow coverage | ~97-98% |
+| Verified implementation | ~81% |
+| Production readiness | ~72% |
+| Web-first reset | ~97% |
 
-Do not leave known failing CI, unapplied migrations, concurrency holes, response-loss gaps, accounting mismatches, browser-recovery gaps, unsafe printer retry behavior, or silent legacy writers.
+Domain estimates inherited from the prior code review:
 
-Continue until each domain’s acceptance gate passes.
+| Area | Estimate |
+| --- | ---: |
+| Architecture / platform | 98% source |
+| API / PostgreSQL kernel | 97% |
+| Auth / Staff / Device / Session | 99% |
+| Bootstrap / browser recovery | 96% |
+| Catalog | 98% |
+| Inventory | 96% |
+| POS | 95% |
+| Floorplan / table service | 85% |
+| Revenue chain | 86% |
+| Procurement | 86% |
+| Customer Credit | 91% |
+| Print Bridge | 97% |
+| Offline cash POS | 48% |
+| Hotel / PMS | 79% |
+| Finance / Expenses | 72% |
+| Assets / Maintenance | 73% |
+| Deployment / VPS | 28% |
+| Backup / restore | 18% |
 
-If a test exposes a defect:
+Percentages are planning aids only. Final completion is determined by evidence-backed PASS/FAIL gates.
 
-```text
-fix behavior
-add regression coverage
-rerun the narrow gate
-rerun the full gate
-continue
-```
+## 2. What has already been proven
 
-Do not weaken tests just to obtain green.
+Do not treat the following as blank phases. They must still be rerun at the final release SHA, but substantial evidence already exists.
 
----
+### 2.1 Hosted CI at the reviewed head
 
-# 2. SCOPE FREEZE
+GitHub Actions run [#37790563428](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37790563428) completed on `cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4`.
 
-Permitted:
+| Job | Status |
+| --- | --- |
+| `frontend` | PASS |
+| `browser-preview` | PASS |
+| `browser-production` | PASS |
+| `native-domain` | PASS |
+| `cloud-protocol-base` | PASS |
+| `cloud-protocol-v2` | PASS |
+| `desktop-shell` | PASS |
+| `windows-printer-shell` | PASS |
+| Print Bridge - Ubuntu | PASS |
+| Print Bridge - Windows | PASS |
+| `evidence-summary` | PASS |
+| `api-postgres` | FAIL |
+| `release-candidate` | SKIPPED |
 
-```text
-finish established workflows
-fix required UX
-close invariants
-add missing constraints
-add tests
-add audit/reconciliation evidence
-finish existing documents
-finish security/recovery/deployment behavior
-remove/fence legacy writers
-refresh documentation
-```
+The Windows Print Bridge job passed its hosted checks, including the Windows service job. Keep these green while fixing the API suite.
 
-Not permitted:
+### 2.2 Current hosted API/PostgreSQL failure
 
-```text
-new unrelated business modules
-new speculative dashboards
-new migration UI for Countryside
-new shared database authority
-new browser-direct business mutation
-new Tauri business authority
-new Supabase business authority
-```
+The confirmed remaining hosted software failure is:
+api-postgres
+  API unit / PostgreSQL integration tests     FAIL
+  real PWA / API / PostgreSQL acceptance      PASS
+The browser-to-API-to-PostgreSQL acceptance step passed in the same run. The failed step is the API unit/PostgreSQL integration suite.
+This is the first engineering target.
 
----
+### 2.3 Auth locally passed
 
-# 3. ARCHITECTURE TO PRESERVE
+Current repo evidence records:
 
-Shared authority:
+- npm run test:api
+- 22 passed
+- 0 failed
+- 0 skipped
 
+- npm run test:browser:api
+- PASS
+
+- web storage acceptance
+- PASS
+
+- root npm test
+- 218 passed
+- 0 failed
+
+Verified behavior includes:
+
+- initial Admin concurrency
+- setup-secret retirement
+- password lifecycle
+- device challenge / enrollment / replay
+- cross-staff device collision
+- staff create/update/deactivate
+- permission ceilings
+- last-Admin protection
+- session review/revocation
+- device revocation
+- 15-minute access expiry
+- refresh rotation
+- refresh retry
+- refresh replay/family revocation
+- logout
+- disabled staff refusal
+- password-change session invalidation
+- multi-tab refresh locking
+- SSE refresh
+- credential redaction/storage rules
+
+Treat Auth as locally closed unless regression evidence appears.
+
+### 2.4 Bootstrap / browser recovery locally passed
+
+Current repo evidence includes:
+
+- interrupted snapshot transfer
+- same-snapshot resume
+- manifest corruption refusal
+- page hash corruption refusal
+- collection-count mismatch
+- high-water validation
+- snapshot expiry
+- pending-command guard
+- OUTCOME_UNKNOWN guard
+- QuotaExceededError simulation
+- IndexedDB activation abort rollback
+- large 1,203-record snapshot
+- projection deletion + server rebuild
+- authorization tuple binding
+
+Treat Bootstrap as locally closed and guard against regression.
+
+### 2.5 Catalog locally passed
+
+Current repo evidence includes:
+
+- barcodes
+- aliases
+- purchase packages
+- recipes
+- portions
+- modifiers
+- outlet assignments
+- archive blockers
+- reactivation
+- duplicate-code/barcode refusal
+- stale versions
+- bootstrap tombstones
+- concurrent archive/edit
+- response-loss replay
+- operator UI
+- physical-count barcode use
+- Recorded local:
+- API tests PASS
+- real browser/API/PostgreSQL PASS
+- root node tests PASS
+- lint PASS
+
+Treat Catalog as locally closed.
+
+### 2.6 Inventory core locally passed
+
+Current repo evidence includes:
+
+- package conversion
+- weighted-average cost
+- concurrent receives
+- duplicate receipt source reference
+- response-loss replay
+- sealed bottle receiving
+- full physical count
+- selected count
+- count revision race
+- transfer replay
+- waste reversal
+- transfer reversal
+- later-activity reversal refusal
+- sealed/open bottle conservation
+- browser Full Count
+- browser Quick Count
+
+Remaining Inventory work is mostly cross-domain acceptance:
+
+- POS consumption
+- modifier consumption
+- void return
+- GRN / partial GRN
+- supplier physical return
+- batch preparation
+
+Do not reopen Inventory architecture.
+
+## 3. Non-negotiable architecture
+
+**Canonical authority:**
 ```text
 PWA
  |
@@ -90,1355 +259,1076 @@ ServOS API
  |
 PostgreSQL
 ```
-
-Shared mutation:
-
+**Canonical command path:**
 ```text
 UI intent
 -> durable command UUID
 -> canonical payload
 -> authentication
--> permission
+-> permissions
 -> expected versions
 -> manager approval if required
 -> PostgreSQL transaction
--> immutable/audited evidence
+-> audit / immutable evidence
 -> ordered change feed
--> durable outcome
+-> durable command outcome
 -> local projection
 ```
-
-Browser rebuild:
-
+**Canonical browser recovery:**
 ```text
 authenticated snapshot
--> manifest/high-water
--> deterministic pages
--> SHA-256 verification
--> staged IndexedDB install
--> count/hash validation
+-> manifest
+-> high-water cursor
+-> page hashes
+-> staged IndexedDB data
+-> count/hash verification
 -> atomic activation
 -> change-feed continuation
 ```
-
-Printing:
-
+**Canonical printing:**
 ```text
 PWA
 -> signed localhost HTTPS
 -> Print Bridge
 -> API claim verification
--> durable print journal
--> Rust renderer/transport
+-> durable local print journal
+-> Rust renderer / transport
 -> Windows RAW or TCP 9100
--> physical printer
+-> printer
 ```
+No dual writers. No direct browser shared-database mutation. No silent Supabase fallback. No Tauri/SQLite shared business authority after cutover.
 
-No dual writers.
+## 4. Final sweep execution rules
 
----
+### 4.1 No more tests deferred
 
-# 4. CURRENT SOURCE STATE
+Every changed workflow must receive acceptance coverage in the same sweep.
 
-The branch already contains substantial implementation for:
+### 4.2 No broad new module
 
-```text
-API command kernel
-PostgreSQL authority
-Auth / Staff / Device / Session
-rotating access + refresh tokens
-manager approvals
-bootstrap snapshots
-Catalog
-Inventory
-POS
-courses / preparation / rounds
-floorplan / table service
-order transfer
-order merge
-payments / refunds
-tills
-financial journals
-close day
-Procurement
-supplier payables / credits
-Customer Credit
-Print Bridge
-offline cash POS foundation
-Hotel / PMS
-Finance / Expenses
-Assets / Maintenance
-VPS / backup foundations
-```
+Allowed:
 
-Recent migrations:
+- complete an existing workflow
+- fix an invariant
+- add a required constraint
+- fix operator UX required by an existing workflow
+- add missing acceptance tests
+- add missing audit/reconciliation evidence
+- finish deployment/recovery behavior
+- remove obsolete authority
 
-```text
-057 staff management
-058 device events
-059 session events
-060 refresh tokens
-061 refresh rotation recovery
-062 bootstrap snapshots
-063 hospitality core
-064 hospitality folios
-065 finance/assets
-066 POS room charges
-067 floorplan tables
-068 POS order merge
-```
+Not allowed:
 
-Do not redesign. Finish and prove.
+- new speculative business module
+- new unrelated dashboard
+- new second migration architecture
+- new competing storage authority
+### 4.3 Do not manufacture green
+Never:
 
----
+- skip a required test
+- weaken a constraint to satisfy a test
+- remove assertions because behavior is broken
+- hide a race with arbitrary delay
+- catch-and-ignore an accounting mismatch
+- convert a real failure into a warning
 
-# 5. PHASE 0 — RESTORE A FULL GREEN BASELINE
+Fix the product.
 
-Current recent CI evidence:
+## 5. Step 1: fix the last hosted API/Postgres failure
 
-```text
-frontend:
-  lint   PASS
-  build  PASS
-  tests  FAIL
+This is the highest-priority software blocker.
+Current hosted state:
+npm run test:api                         FAIL
+npm run test:browser:api                 PASS
+Current local evidence is 22/22 against disposable PostgreSQL 16.15 on Node 26.5.0; CI uses Node 22, so the environment difference remains part of the investigation.
+Investigate the CI/local discrepancy as deterministic test-isolation or environment work. The public Actions log endpoint and the API-job artifact download returned HTTP 403, so the test-level failure has not been identified yet.
+Check:
 
-api-postgres:
-  recent runs FAIL
-  real PWA/API/PostgreSQL acceptance also failed on recent head
+- test ordering
+- schema isolation
+- migration 045 constraint fix
+- environment variables
+- parallelism
+- shared fixture IDs
+- time dependence
+- timezone
+- token expiry timing
+- PostgreSQL advisory locks
+- service startup timing
+- fixture cleanup
+- sequence values
+- current_timestamp assumptions
+- Node 22 behavior
+- filesystem assumptions
+- Reproduce with:
+- PostgreSQL 16
+- Node 22
+- fresh dependencies
+- fresh schema
+- same CI environment variables
 
-Print Bridge:
-  formatting now passes
-  clippy/tests/release steps are finally executing
+Required exit:
 
-browser-preview / production:
-  must pass on final exact SHA
-```
+- api-postgres PASS
 
-Start here.
+The real PWA/API/PostgreSQL browser acceptance must continue to pass.
 
-Run:
+## 6. Step 2: finish Windows printer shell hosted gate
 
-```bash
-npm ci
-npm run lint
-npm run build
-npm test
-npm run audit:ui
-npm run docs:check
-```
+At the reviewed SHA, the hosted `windows-printer-shell` job completed successfully in run [#37790563428](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37790563428).
+The job covered the Windows desktop check, desktop tests, native Rust tests, and artifact upload.
+Status for the reviewed SHA:
 
-Then:
+| Check | Status |
+| --- | --- |
+| npm install | PASS |
+| Rust toolchain | PASS |
+| `npm run check:desktop` | PASS |
+| `npm run test:desktop` | PASS |
+| `cargo test src-tauri` | PASS |
+| Artifact upload | PASS |
 
-```bash
-npm ci --prefix apps/api
-npm run test:api
-npm run test:browser:api
-```
-
-Then:
-
-```bash
-npm run test:browser
-npm run test:browser:production
-npm run test:native
-npm run check:desktop
-npm run test:desktop
-npm run test:cloud:base
-npm run test:cloud:v2
-npm run protocol:check
-```
-
-Print Bridge:
-
-```bash
-cargo fmt --manifest-path apps/print-bridge/Cargo.toml -- --check
-cargo fmt --manifest-path crates/servos-printer-transport/Cargo.toml -- --check
-
-cargo clippy --locked --manifest-path apps/print-bridge/Cargo.toml --all-targets -- -D warnings
-cargo clippy --locked --manifest-path crates/servos-printer-transport/Cargo.toml --all-targets -- -D warnings
-
-cargo test --locked --manifest-path apps/print-bridge/Cargo.toml --all-targets
-cargo test --locked --manifest-path crates/servos-printer-transport/Cargo.toml --all-targets
-
-cargo build --locked --release --manifest-path apps/print-bridge/Cargo.toml
-cargo build --locked --release --manifest-path crates/servos-printer-transport/Cargo.toml
-```
-
-On Windows:
-
-```bash
-cargo clippy --locked --manifest-path apps/print-bridge/Cargo.toml --features windows-service --bin servos-print-bridge-service -- -D warnings
-cargo build --locked --release --manifest-path apps/print-bridge/Cargo.toml --features windows-service --bin servos-print-bridge-service
-```
-
-Required hosted matrix on one exact commit:
-
-```text
-api-postgres           PASS
-frontend               PASS
-browser-preview        PASS
-browser-production     PASS
-native-domain          PASS
-cloud-protocol-base    PASS
-cloud-protocol-v2      PASS
-desktop-shell          PASS
-windows-printer-shell  PASS
-print-bridge Ubuntu    PASS
-print-bridge Windows   PASS
-evidence-summary       PASS
-```
-
-No “green except”.
-
----
-
-# 6. PHASE 1 — AUTH / STAFF / DEVICE / SESSION
-
-Verify existing source, do not redesign.
-
-Acceptance:
-
-```text
-initial Admin setup
-concurrent initial setup
-restart after setup
-secret retirement
-
-staff.create
-forced password change
-staff.update
-role change
-permission ceiling
-routine Admin grant refusal
-last-Admin concurrency
-staff.deactivate
-
-device enrollment
-device-owner collision
-repeat enrollment
-device revoke
-
-own-session list
-other-own-session revoke
-current-session sign-out
-
-15-minute access expiry
-refresh rotation
-retry inside recovery window
-reuse after recovery window
-refresh-family revoke
-cross-tab Web Locks
-SSE refresh
-
-password change revokes other sessions
-device revoke revokes linked sessions/families
-staff deactivate revokes devices/sessions/families
-logout
-```
-
-Security assertions:
-
-```text
-no refresh credential in IndexedDB
-no refresh credential in localStorage
-no raw password in command outcome
-no approval token in support/recovery evidence
-revoked session refused
-disabled staff refused
-```
-
+This gate is closed for the reviewed SHA and must be rerun on the final candidate SHA. If it regresses, fix it without regressing the dedicated Windows Print Bridge job.
 Exit:
 
-```text
-AUTH PASS
-STAFF PASS
-DEVICE PASS
-SESSION PASS
-REFRESH PASS
-REPLAY PASS
-CONCURRENCY PASS
-```
+- windows-printer-shell PASS
 
----
+## 7. Step 3: lock the current green baseline
 
-# 7. PHASE 2 — BOOTSTRAP / BROWSER RECOVERY
+- Once the two remaining gates above pass, obtain one exact SHA where:
+- api-postgres             PASS
+- frontend                 PASS
+- browser-preview          PASS
+- browser-production       PASS
+- native-domain            PASS
+- cloud-protocol-base      PASS
+- cloud-protocol-v2        PASS
+- desktop-shell            PASS
+- windows-printer-shell    PASS
+- print-bridge Ubuntu      PASS
+- print-bridge Windows     PASS
+- evidence-summary         PASS
+- Record the SHA as the final-sweep baseline.
+- All later domain work must keep this matrix green.
 
-Finish migration 062 acceptance.
+## 8. Step 4: POS / floorplan / table service acceptance
+
+This is now the biggest unclosed core domain.
+Current source includes:
+
+- counter orders
+- takeaway orders
+- table orders
+- selling options
+- modifiers
+- notes
+- courses
+- partial fire
+- preparation states
+- KOT / BOT
+- rounds
+- repeat round
+- discount
+- item comp
+- order comp
+- void
+- customer assignment
+- floorplan
+- table.ready
+- order.transfer
+- order.merge
+- room charge
+
+Do not add more features. Close what exists.
+
+### 8.1 Standard POS lifecycle
 
 Test:
 
-```text
-fresh browser
-empty IndexedDB
-deleted IndexedDB
-partial staged snapshot
-reload during transfer
-resume
-snapshot expiry
-permission change
-session change
-device revoke
-manifest tamper
-page tamper
-count mismatch
-high-water mismatch
-storage quota failure
-IndexedDB abort
-pending command blocks rebuild
-OUTCOME_UNKNOWN blocks rebuild
-atomic activation
-failed activation preserves old projection
-post-snapshot changes replay cleanly
-large dataset
-```
-
-Exit:
-
-```text
-BOOTSTRAP PASS
-RESUME PASS
-HASH PASS
-ATOMIC ACTIVATION PASS
-CORRUPTION RECOVERY PASS
-```
-
----
-
-# 8. PHASE 3 — CATALOG
-
-Close:
-
-```text
-product.save
-stockItem.save
-stockLocation.save
-catalog.createWithOpeningStock
-
-product.archive/reactivate
-stockItem.archive/reactivate
-stockLocation.archive/reactivate
-```
-
-Test dependency blockers:
-
-```text
-draft orders
-nonzero stock
-direct consumption
-recipe use
-modifier use
-open PO
-supplier returns
-outlet defaults
-duplicate code/barcode on restore
-stale versions
-concurrent archive/edit
-response loss
-bootstrap tombstones
-reload
-```
-
-Also validate:
-
-```text
-selling options
-portions
-recipes
-purchase packages
-tax classes
-outlet assignment
-modifiers
-barcode scanning
-```
-
-Exit:
-
-```text
-CATALOG PASS
-ARCHIVE/RESTORE PASS
-BARCODE PASS
-RECIPE PASS
-MODIFIER PASS
-```
-
----
-
-# 9. PHASE 4 — INVENTORY
+- open till
+- create order
+- add product
+- scan barcode
+- selling option
+- modifier
+- note
+- course
+- partial fire
+- KOT
+- BOT
+- prep transition
+- repeat round
+- later round
+- discount
+- comp
+- void
+- customer assignment
+- settlement
+- receipt
 
 Verify:
 
-```text
-opening stock
-receive
-full count
-selected count
-transfer
-waste
-adjust
-batch production
-movement reversal
-POS consumption
-modifier consumption
-void return
-GRN posting
-supplier-return movement
-```
+- stock consumption exactly once
+- events exactly once
+- documents exactly once
+- change-feed projection converges
+- command replay does not duplicate
+- response loss recovers original result
+### 8.2 Floorplan
+Test:
 
-Critical cases:
+- create/update layout
+- archive inactive table
+- refuse destructive active-table edit
+- open table order
+- second terminal races same table
+- only one succeeds
+- finish order
+- table becomes cleaning
+- table.ready
+- table returns available
+- Use real PostgreSQL concurrency.
+### 8.3 Order transfer
+Test:
 
-```text
-package conversion
-weighted average cost
-sealed/open bottle receive
-one-open-bottle rule
-bottle conservation
-stale revisions
-receive race
-count race
-transfer race
-waste race
-batch race
-later-activity reversal blocker
-original-cost reversal
-replay
-response loss
-```
+- source order revision
+- source table revision
+- destination table revision
+- same outlet
+- unsettled order
+- no active prep
+- destination available
+- atomic transfer
+- source cleaning
+- destination occupied
 
-Conservation must hold:
+Refuse:
 
-```text
-opening
-+ receive
-+ transfer in
-- transfer out
-- sales/recipe/modifier consumption
-- waste
-+/- adjustment
-+ production
-- supplier return
-=
-closing
-```
+- settled
+- cross-outlet
+- active preparation
+- stale source
+- stale destination
+- already occupied destination
+- Race two transfers to one destination. Only one succeeds.
+### 8.4 Order merge
 
-Exit:
+- Migration 068_pos_order_merge.sql must receive full acceptance.
+- Explicitly define and test:
+- which order survives
+- which order becomes MERGED
+- merged_into_order_id
+- line preservation
+- round preservation
+- preparation preservation
+- customer identity policy
+- discount/comp preservation
+- table state
+- payment eligibility
+- receipt behavior
+- close-day behavior
+- stock behavior
 
-```text
-INVENTORY PASS
-BOTTLE PASS
-COSTING PASS
-REVERSAL PASS
-CONCURRENCY PASS
-RECONCILIATION PASS
-```
+Hard invariants:
 
----
-
-# 10. PHASE 5 — POS / FLOORPLAN / TABLE SERVICE
-
-Current source includes:
-
-```text
-counter/takeaway/table orders
-line operations
-selling options
-modifiers
-notes
-courses
-partial fire
-KOT/BOT
-preparation states
-rounds/repeat round
-discount
-comp
-void
-customer assignment
-floorplan
-table.ready
-order.transfer
-order.merge
-room charge
-```
-
-## Standard POS
-
-Prove:
-
-```text
-open till
-create order
-scan item
-modifier
-note
-course
-partial fire
-KOT/BOT
-prep state
-repeat round
-later round
-discount
-comp
-void
-customer
-settlement
-receipt
-```
-
-## Floorplan
-
-Prove:
-
-```text
-save/edit layout
-refuse active-table destructive edit
-open table order
-two-terminal same-table race
-complete order
-cleaning state
-table.ready
-available state
-```
-
-## Order transfer
-
-Prove:
-
-```text
-same outlet
-version checks
-destination availability
-source cleaning
-destination occupied
-settled refusal
-active preparation refusal
-cross-outlet refusal
-response loss
-destination race
-```
-
-## Order merge
-
-Migration 068 must be fully finished and tested.
-
-Prove:
-
-```text
-eligible source/target
-locks
-MERGED state
-merged_into_order_id
-source immutable after merge
-target total
-line preservation
-customer policy
-payment policy
-prep policy
-discount/comp policy
-table states
-no stock re-consumption
-no duplicate fire
-no duplicate tickets
-close-day no double count
-response loss
-concurrent merge
-```
-
-## Multi-terminal matrix
+- no stock consumed twice
+- no fired line fired twice
+- no KOT/BOT duplicated
+- MERGED order cannot accept new business mutation
+- merged source not double-counted in sales/close day
+- target version advances
+- source version advances
 
 Race:
 
-```text
-line add
-qty
-modifier
-note
-course
-fire
-prep
-repeat round
-discount
-comp
-void
-transfer
-merge
-payment
-room charge
-customer credit
-```
+- merge vs payment
+- merge vs add-line
+- merge vs transfer
+- two simultaneous merges
+- Response-loss replay must recover the same merge.
+### 8.5 Multi-terminal POS race matrix
+At minimum:
+
+- line add
+- quantity
+- modifier
+- note
+- course
+- fire
+- prep state
+- round
+- repeat round
+- discount
+- comp
+- void
+- transfer
+- merge
+- payment
+- customer credit
+- room charge
+
+No last-write-wins business loss.
+Exit:
+
+- POS PASS
+- FLOORPLAN PASS
+- TRANSFER PASS
+- MERGE PASS
+- MULTI-TERMINAL PASS
+
+## 9. Step 5: close inventory cross-domain linkage
+
+- Core Inventory is locally proven. Finish only remaining integration edges.
+- POS linkage
+
+Verify:
+
+- direct-stock product
+- recipe product
+- selling-option quantity
+- portion
+- modifier ingredients
+- repeat round
+- void return
+- comp policy
+- Procurement linkage
+
+Verify:
+
+- GRN
+- partial GRN
+- second GRN
+- package conversion
+- weighted cost
+- supplier physical return
+- Batch preparation
+
+Verify:
+
+- ingredient versions
+- finished output
+- weighted cost
+- sealed/open constraints
+- response loss
+- concurrent stock mutation
 
 Exit:
 
-```text
-POS PASS
-FLOORPLAN PASS
-TRANSFER PASS
-MERGE PASS
-MULTI-TERMINAL PASS
-PREPARATION PASS
-ROUNDS PASS
-```
+- POS STOCK LINK PASS
+- PROCUREMENT STOCK LINK PASS
+- BATCH PASS
+- CONSERVATION PASS
 
----
+## 10. Step 6: revenue / payments / tills / journals / close day
 
-# 11. PHASE 6 — REVENUE CHAIN
+Treat this as one atomic business domain.
+Supported channels:
 
-Treat as one domain:
+- cash
+- manual M-Pesa
+- manual card / external
+- split tender
+- Customer Credit
+- POS room charge
+- External references are already shared across:
+- POS
+- Customer Credit
+- supplier payment
+- guest folio
+- expenses
+- Now prove them.
+### 10.1 Payments
+Test:
 
-```text
-payments
-refunds
-reversals
-tills
-journals
-close day
-```
+- full cash
+- full M-Pesa
+- full card
+- cash + M-Pesa
+- cash + card
+- multiple partial payment
+- duplicate external reference
+- same reference race
+- response loss
+### 10.2 Refund / reversal
+Test:
 
-Tenders:
+- partial refund
+- second partial refund
+- full remaining refund
+- over-refund refusal
+- cash refund
+- external refund evidence
+- full reversal
+- response loss
+### 10.3 Till
 
-```text
-cash
-manual M-Pesa
-manual card/external
-split tender
-partial/multiple payment
-```
-
-External-reference uniqueness must hold across:
-
-```text
-POS
-Customer Credit
-supplier payment
-guest folio
-expenses
-```
-
-Refunds/reversals:
-
-```text
-partial
-multiple partial
-full reversal
-over-refund refusal
-cash return
-external return reference
-response loss
-```
-
-Till equation:
-
-```text
-opening float
+- Equation:
+- opening float
 + cash sales
-+ cash credit collections
++ Customer Credit cash collections
 + paid in
 - cash refunds
-- credit cash returns
+- credit cash reversals
 - cash expenses
 - paid out
-=
-expected drawer
-```
-
-Close day must reconcile:
-
-```text
-sales
-merged-order exclusion
-discounts/comps
-zero sales
-cash
-M-Pesa
-card
-refunds
-credit accrual
-credit reversal
-credit collections
-room-charge settlement
-VAT
-levy
-journals
-drawer
-variance
-```
-
-Exit:
-
-```text
-PAYMENTS PASS
-REFUNDS PASS
-TILLS PASS
-JOURNALS PASS
-CLOSE DAY PASS
-MONEY RECONCILIATION PASS
-```
-
----
-
-# 12. PHASE 7 — PROCUREMENT
-
-Happy path:
-
-```text
-supplier
--> PO draft
--> approve
--> issue
--> partial GRN
--> later GRN
--> inventory
--> payable
--> invoice
--> payment
-```
-
-Return/credit:
-
-```text
-supplier return
--> physical stock
--> credit note
--> credit application
--> payable settlement
-```
+- =
+- expected drawer
 
 Test:
 
-```text
-duplicate GRN
-over-receive
-manager over-receive
-concurrent GRN
-package conversion
-weighted cost
-duplicate invoice
-external-reference race
-partial supplier payment
-multi-payment
-payment after credit
-credit after payment
-return cancel
-later stock activity
-response loss
-```
+- blind count
+- variance
+- manager variance approval
+- close
+- reopen policy
+### 10.4 Journal
+
+- Every financial operation must satisfy:
+- sum(debit) == sum(credit)
+- No orphan journal, duplicate journal, missing source link or missing tax evidence.
+### 10.5 Close day
+Must reconcile:
+
+- sales
+- MERGED-order exclusion
+- discounts
+- comps
+- zero-value sales
+- cash
+- M-Pesa
+- card
+- refunds
+- Customer Credit sales accrual
+- credit reversal
+- credit collection
+- POS room charge
+- room-charge reversal
+- VAT
+- levy
+- journals
+- drawer
+- variance
+- expenses where included
 
 Exit:
 
-```text
-PROCUREMENT PASS
-PAYABLE PASS
-SUPPLIER PAYMENT PASS
-RETURN PASS
-SUPPLIER CREDIT PASS
-RECONCILIATION PASS
-```
+- PAYMENTS PASS
+- REFUNDS PASS
+- TILL PASS
+- JOURNALS PASS
+- CLOSE DAY PASS
+- MONEY RECONCILIATION PASS
 
----
+## 11. Step 7: procurement complete
 
-# 13. PHASE 8 — CUSTOMER CREDIT
+- Test end-to-end:
+- supplier
+- -> PO draft
+- -> approve
+- -> issue
+- -> partial GRN
+- -> second GRN
+- -> Inventory
+- -> payable
+- -> invoice match
+- -> supplier payment
+
+Then:
+
+- supplier return
+- -> physical return
+- -> supplier credit note
+- -> credit application
+- -> payable settlement
+
+Edge acceptance:
+
+- duplicate receive
+- over-receive refusal
+- manager-approved over-receive
+- concurrent GRN
+- package conversion
+- weighted average cost
+- duplicate invoice
+- duplicate external payment reference
+- partial supplier payment
+- multiple payments
+- payment after credit
+- credit after payment
+- return cancel
+- later stock movement
+- response loss
+- Reconcile Inventory, payable, supplier payment, credit note, credit application, documents and journals/evidence.
+
+Exit:
+
+- PROCUREMENT PASS
+- PAYABLE PASS
+- SUPPLIER PAYMENT PASS
+- SUPPLIER RETURN PASS
+- SUPPLIER CREDIT PASS
+
+## 12. Step 8: Customer Credit complete
+
+Run full matrix:
+
+- customer create
+- account configure
+- terms
+- limit
+- credit sale
+- limit refusal
+- manager override
+- journal
+- statement
+- partial settlement
+- second settlement
+- cash settlement
+- external settlement
+- duplicate external reference
+- write-off
+- charge reversal
+- settlement reversal
+- write-off reversal
+- FIFO allocation
+- aging
+- statement continuation
+- stable high-water
+- reconcile match
+- reconcile mismatch
+- discrepancy resolution
+- close-day accrual
+- close-day cash collection
+- response loss
+- concurrency
+- Reconcile customer ledger, AR journal, order, till, close day, statement and aging.
+
+Exit:
+
+- CUSTOMER CREDIT PASS
+- AGING PASS
+- STATEMENTS PASS
+- RECONCILIATION PASS
+- DOCUMENTS PASS
+
+## 13. Step 9: hotel / PMS complete
+
+PMS source is already broad. Apply migrations and test, do not redesign.
+Current source covers:
+
+- room types
+- rooms
+- rate plans
+- availability
+- reservation
+- modification
+- cancellation
+- no-show
+- walk-in
+- check-in
+- stay
+- extension
+- room move
+- folio
+- folio payment
+- checkout
+- housekeeping
+- maintenance
+- POS room charge
+- room-charge reversal
+- documents
+### 13.1 Property masters
+Test:
+
+- room type create/edit
+- capacity rule
+- room create/edit
+- rate plan create/edit
+- invalid reference
+- stale revision
+### 13.2 Availability + reservation
+Test:
+
+- availability
+- guest count
+- date/timezone
+- reserve
+- modify
+- cancel
+- no-show
+- walk-in
+- maintenance exclusion
+
+Hard concurrency:
+
+- two overlapping incompatible reservations
+- => only one succeeds
+### 13.3 Stay lifecycle
+Test:
+
+- reservation check-in
+- walk-in check-in
+- stay extension
+- room move
+- stale room/stay version
+- double check-in refusal
+### 13.4 Folio
+Test:
+
+- nightly charge
+- service charge
+- POS room charge
+- manual adjustment
+- cash payment
+- external payment
+- balance
+- document
+### 13.5 POS room charge
+Verify:
+
+- active checked-in guest
+- open folio
+- fully fired order
+- remaining order balance
+- pos.roomCharge
+- folio receivable
+- sales/tax journal
+- order settlement
+- receipt
+- print queue
+- Reversal:
+- eligible unpaid charge
+- exact versions
+- folio reversal
+- linked order reversal
+- journal consistency
+- single reversal
+- response loss
+### 13.6 Checkout
+Test:
+
+- zero-balance checkout
+- explicit unpaid-balance rule
+- checkout evidence
+- room transition
+- housekeeping queue
+- folio immutability
+### 13.7 Housekeeping / maintenance
+Test:
+
+- DIRTY
+- CLEANING
+- INSPECTED
+- READY
+- OUT_OF_SERVICE
+
+- maintenance block
+- availability exclusion
+- work order
+- resolution
+- return to service
+
+Exit:
+
+- PMS MASTERS PASS
+- AVAILABILITY PASS
+- BOOKING CONCURRENCY PASS
+- CHECK-IN PASS
+- STAY PASS
+- FOLIO PASS
+- ROOM CHARGE PASS
+- CHECKOUT PASS
+- HOUSEKEEPING PASS
+- MAINTENANCE PASS
+
+## 14. Step 10: finance / expenses complete
+
+- Migration 065 source already exists.
 
 Verify:
 
-```text
-customer
-account configuration
-terms/limit
-credit sale
-limit refusal
-manager override
-journal
-statement
-partial settlement
-second settlement
-cash settlement
-external settlement
-duplicate reference
-write-off
-charge reversal
-settlement reversal
-write-off reversal
-FIFO allocation
-aging
-statement pagination
-stable high-water
-reconcile match
-reconcile mismatch
-discrepancy resolution
-close-day accrual
-cash collection
-response loss
-concurrency
-```
+- expense category create
+- expense category edit
+- stage expense
+- approve/post
+- reject
+- cash expense
+- external expense
+- unique external reference
+- till cash outflow
+- balanced journal
+- voucher
+- event history
+- sales/expense period report
+- debtor aging
+- payable aging
+- supplier-payment summary
+- property timezone handling
+- invalid calendar date rejection
 
-Reconcile:
-
-```text
-ledger
-AR journal
-order
-till
-close day
-statement
-aging
-```
-
+Do not expand into a full enterprise general ledger.
 Exit:
 
-```text
-CUSTOMER CREDIT PASS
-STATEMENTS PASS
-AGING PASS
-RECONCILIATION PASS
-DOCUMENTS PASS
-```
+- EXPENSES PASS
+- CASH LINK PASS
+- JOURNALS PASS
+- VOUCHERS PASS
+- REPORTS PASS
 
----
-
-# 14. PHASE 9 — HOTEL / PMS
-
-Apply and prove migrations 063, 064 and 066.
-
-## Property
-
-```text
-room types
-rooms
-rates
-edit constraints
-capacity rules
-```
-
-## Reservation
-
-```text
-availability
-reserve
-modify
-cancel
-no-show
-walk-in
-maintenance exclusion
-timezone/date handling
-```
-
-Hard race:
-
-```text
-two overlapping incompatible bookings
-=> only one succeeds
-```
-
-## Stay
-
-```text
-check-in
-walk-in check-in
-extension
-room move
-state transitions
-```
-
-## Folio
-
-```text
-nightly/accommodation charge
-room-service/POS charge
-service charge
-adjustment
-cash payment
-external payment
-balance
-immutable folio
-```
-
-## POS room charge
-
-Prove:
-
-```text
-checked-in guest
-open folio
-fully fired order
-remaining balance
-pos.roomCharge
-folio receivable
-sales/tax journal
-order settlement
-receipt
-print queue
-```
-
-Reversal:
-
-```text
-eligible unpaid room charge
-exact versions
-folio reversal
-order reversal
-journal/evidence consistency
-no duplicate reversal
-response loss
-```
-
-## Checkout
-
-```text
-zero-balance checkout
-unpaid-balance policy
-checkout evidence
-room transition
-housekeeping creation
-folio immutability
-```
-
-## Housekeeping / Maintenance
-
-```text
-dirty
-cleaning
-inspected
-ready
-out of service
-
-maintenance block
-work order
-resolution
-return to service
-```
-
-Exit:
-
-```text
-PMS MASTERS PASS
-AVAILABILITY PASS
-BOOKING CONCURRENCY PASS
-CHECK-IN PASS
-STAY PASS
-FOLIO PASS
-ROOM CHARGE PASS
-CHECKOUT PASS
-HOUSEKEEPING PASS
-MAINTENANCE PASS
-```
-
----
-
-# 15. PHASE 10 — FINANCE / EXPENSES
-
-Apply migration 065.
+## 15. Step 11: assets / maintenance complete
 
 Verify:
 
-```text
-expense category create/edit
-stage expense
-approve/post
-reject
-cash expense
-external expense
-external-ref uniqueness
-till outflow
-balanced journal
-voucher
-events
-sales/expense period report
-debtor aging
-payable aging
-supplier payment summary
-timezone/date validation
-```
-
-Do not expand into a full general-ledger product.
+- asset category
+- asset create/edit
+- unique tag
+- location
+- room/area linkage
+- custodian
+- reviewed staff revision
+- condition
+- history
+- maintenance request
+- work order
+- vendor/assignee
+- cost
+- status
+- resolution
+- Unify with PMS maintenance rules. There must not be contradictory room-maintenance authorities.
 
 Exit:
 
-```text
-EXPENSES PASS
-VOUCHERS PASS
-CASH LINK PASS
-JOURNALS PASS
-REPORTS PASS
-```
+- ASSETS PASS
+- CUSTODY PASS
+- HISTORY PASS
+- WORK ORDERS PASS
+- PMS LINK PASS
 
----
+## 16. Step 12: bounded Offline Cash POS
 
-# 16. PHASE 11 — ASSETS / MAINTENANCE
+- Keep scope to order.offlineCashSale.
 
 Verify:
 
-```text
-asset category
-asset register
-unique tag
-location
-room/area
-custodian
-staff revision
-condition
-history
-maintenance request
-work order
-vendor/assignee
-cost
-status
-resolution
-```
+- obtain explicit grant while connected
+- one-command authorization
+- <= 30 minute grant
+- permissions
+- review product versions
+- review stock balance revisions
+- review till/account/settings
+- disconnect
+- queue one sale
+- close browser
+- restart Windows
+- reopen
+- recover queued command
+- reconnect
+- submit original UUID
+- order once
+- stock once
+- cash payment once
+- receipt only after server confirmation
+- grant quota once
+- rejected/conflicted command consumes quota
+- response-loss recovery
+- stale stock rejection
+- operator reconciliation instruction
 
-Ensure PMS room-maintenance state and asset work orders do not create contradictory authorities.
+Explicitly refuse offline:
 
-Exit:
-
-```text
-ASSETS PASS
-CUSTODY PASS
-HISTORY PASS
-MAINTENANCE PASS
-ROOM LINK PASS
-```
-
----
-
-# 17. PHASE 12 — BOUNDED OFFLINE CASH POS
-
-Keep scope to `order.offlineCashSale`.
-
-Verify:
-
-```text
-connected authorization
-one-command grant
-<=30-minute grant
-permissions
-review product/stock/till/account/settings
-disconnect
-queue one cash sale
-close browser
-restart Windows
-reopen
-recover command
-reconnect
-same UUID
-order once
-stock once
-cash payment once
-receipt after server confirmation
-quota once
-rejected/conflict quota behavior
-response loss
-stale stock rejection
-reconciliation message
-```
-
-Explicitly keep offline-disabled:
-
-```text
-M-Pesa
-card
-credit
-refund
-full reversal
-manager approval issuance
-supplier payment
-room charge
-kitchen/bar routed sale
-staff/device/session admin
-```
+- M-Pesa
+- card
+- credit
+- refund
+- full reversal
+- managerApproval.issue
+- supplier payment
+- room charge
+- kitchen/bar preparation-routed sale
+- staff/device/session management
 
 Exit:
 
-```text
-OFFLINE CASH PASS
-RESTART PASS
-RECONNECT PASS
-IDEMPOTENCY PASS
-STOCK PASS
-MONEY PASS
-```
+- OFFLINE CASH PASS
+- RESTART PASS
+- RECONNECT PASS
+- IDEMPOTENCY PASS
+- STOCK PASS
+- MONEY PASS
 
----
+## 17. Step 13: Print Bridge runtime / hardware closeout
 
-# 18. PHASE 13 — PRINT BRIDGE
+- Automated Linux and Windows Print Bridge CI is already green on current HEAD.
 
-Finish all automated gates.
+Do not rebuild its architecture. Finish runtime proof.
 
-Security:
+### 17.1 Crypto / trust
 
-```text
-TS signature -> Rust
-API claim -> Rust
-live claim check
-tamper refusal
-expiry
-revocation
-wrong business/device/job refusal
-```
+Test:
 
-Pairing:
+- TypeScript signature -> Rust verification
+- API claim -> Rust verification
+- live API claim check
+- tampered payload refusal
+- tampered device refusal
+- wrong business refusal
+- expired claim refusal
+- revoked device refusal
+### 17.2 Pair / revoke
+Test:
 
-```text
-pair
-approve
-reject unknown
-revoke
-revoked device refused
-```
+- pair
+- approve
+- unknown refusal
+- revoke
+- revoked device cannot print
+### 17.3 Crash / uncertainty
 
-Crash matrix:
+- Terminate processes at:
+- before persistence
+- after persistence
+- before transport
+- during transport
+- after possible spool
+- before server outcome
+- after server outcome
+- before browser response
+- Invariant:
+- possible physical output
+- => DELIVERY_UNCERTAIN
+- No blind auto-reprint.
+### 17.4 Windows service
 
-```text
-before persist
-after persist
-before send
-during send
-after possible spool
-before outcome
-after outcome
-before browser response
-```
+- Prove on Windows:
+- install
+- SCM registration
+- LocalService identity
+- ProgramData ACL
+- certificate / TLS
+- approved config
+- service start
+- worker start
+- restart
+- stop
+- uninstall
+- journal preservation
+### 17.5 Physical printer
+If target hardware is available, run:
 
-Rule:
+- sale receipt
+- refund
+- KOT
+- BOT
+- cancel
+- void
+- close day
+- PO
+- GRN
+- supplier return
+- supplier payment
+- customer credit invoice
+- customer payment acknowledgement
+- folio
+- logo
+- M-Pesa QR
+- long document
+- margins
+- cutter
+- paper out
+- printer off
+- queue stall
+- USB interruption
+- TCP/LAN interruption
+- power interruption
 
-```text
-possible output => DELIVERY_UNCERTAIN
-```
+If hardware is unavailable, do not fake PASS. Create a precise terminal acceptance harness and mark EXTERNAL GATE.
 
-Never blind auto-reprint.
+## 18. Step 14: VPS / production readiness
 
-Windows service:
-
-```text
-install
-SCM registration
-LocalService
-ProgramData ACL
-TLS
-trusted config
-start
-worker
-restart
-stop
-uninstall
-journal preservation
-```
-
-Physical printer, if accessible:
-
-```text
-sale receipt
-refund
-KOT
-BOT
-cancel
-void
-close day
-PO
-GRN
-supplier return
-supplier payment
-credit invoice
-credit payment acknowledgement
-folio
-logo
-M-Pesa QR
-long receipt
-margins
-cut
-paper out
-printer off
-queue stall
-USB/LAN interruption
-power interruption
-```
-
-If hardware is unavailable, do not fake PASS. Produce an exact acceptance harness/checklist.
-
----
-
-# 19. PHASE 14 — VPS / PRODUCTION READINESS
-
-Finish production topology:
-
-```text
+Finish production-like topology:
+Internet
+ |
 Nginx
--> static PWA
--> API
--> private PostgreSQL
--> worker
--> backup
-```
-
+ |--- PWA
+ |
+ +--- API
+       |
+    private network
+      /       \
+PostgreSQL   worker
+      \
+      backup
 Verify:
 
-```text
-TLS
-CORS
-refresh cookies
-private DB
-secret loading
-migration application
-restart behavior
-health
-readiness
-resource limits
-disk monitoring
-logging
-release SHA
-schema version
-backup age
-immutable activation
-rollback
-```
+- TLS
+- strict CORS
+- refresh-cookie behavior
+- private PostgreSQL
+- secret loading
+- migrations
+- API restart
+- PostgreSQL restart
+- worker restart
+- health
+- readiness
+- release SHA
+- schema version
+- resource limits
+- disk monitoring
+- logging
+- backup age
+- immutable activation
+- rollback
 
-Readiness must check expected migration level and critical config, not merely migration-table existence.
+Readiness must validate database reachability, expected migration high-water, critical schema objects, required config and required secrets.
 
----
+## 19. Step 15: backup / restore proof
 
-# 20. PHASE 15 — BACKUP / RESTORE
-
-Use synthetic/staging data only.
-
+Use synthetic/staging data only. Do not use Countryside live data.
 Prove:
 
-```text
-staging PostgreSQL
--> dump
--> encrypt
--> off-node configured target/simulation
--> clean PostgreSQL
--> decrypt
--> restore
--> start API
--> login
--> verify representative records
-```
+- staging PostgreSQL
+- -> pg_dump
+- -> encryption
+- -> off-node destination or configured simulation
+- -> clean PostgreSQL
+- -> decrypt
+- -> restore
+- -> start API
+- -> login
+- -> verify representative data
 
 Verify:
 
-```text
-Auth
-Catalog
-Inventory
-POS
-Revenue
-Procurement
-Customer Credit
-PMS
-Finance
-Assets
-audit
-commands
-documents
-```
+- Auth
+- Catalog
+- Inventory
+- POS
+- Revenue
+- Procurement
+- Customer Credit
+- PMS
+- Finance
+- Assets
+- audit
+- commands
+- documents
+- Record backup duration, backup size, restore duration, commands and verification outcome.
 
-Record duration, size, commands and result.
+Exit:
 
----
+- BACKUP PASS
+- RESTORE PASS
+- RUNBOOK PASS
 
-# 21. PHASE 16 — COMPLETE SYNTHETIC STAGING SCENARIO
+## 20. Step 16: complete synthetic staging scenario
 
-Do not use Countryside live data.
+- No Countryside business data.
+- Run one contiguous scenario:
+- Admin setup
+- staff
+- device
+- session
+- manager approval
+- bootstrap rebuild
 
-Run:
+- Catalog
+- Inventory receive/count/transfer/waste
 
-```text
-Admin setup
-staff/device/session
-manager approval
-bootstrap rebuild
+- supplier
+- PO
+- GRN
+- payable
+- invoice
+- supplier payment
+- supplier return
+- supplier credit
 
-Catalog
-Inventory
+- counter POS
+- table POS
+- floorplan
+- course
+- round
+- KOT/BOT
+- transfer
+- merge
+- discount
+- comp
+- void
 
-supplier -> PO -> GRN -> payable -> invoice -> payment
+- cash
+- manual M-Pesa
+- manual external/card
+- split
+- refund
+- reversal
 
-counter POS
-table POS
-floorplan
-courses
-rounds
-KOT/BOT
-transfer
-merge
-discount
-comp
-void
+- Customer Credit
+- statement
+- settlement
 
-cash
-M-Pesa/manual external
-split
-refund
-reversal
+- room type
+- room
+- rate
+- reservation
+- check-in
+- POS room charge
+- folio payment
+- room move
+- checkout
+- housekeeping
 
-customer credit
+- expense
+- asset
+- maintenance
 
-room/rate
-reservation
-check-in
-room charge
-folio
-room move
-checkout
-housekeeping
+- Print Bridge contract
 
-expense
-asset
-maintenance
-
-Print Bridge contract
-
-backup
-restore
-rollback
-```
+- backup
+- restore
+- release rollback
 
 Reconcile:
 
-```text
-stock
-cash
-external tender evidence
-journals
-AR
-supplier payable
-customer credit
-folios
-room states
-till
-close day
-```
+- stock
+- cash
+- external payment references
+- journals
+- AR
+- supplier payables
+- Customer Credit
+- folios
+- room states
+- till
+- close day
+- Zero unexplained variance.
 
-Zero unexplained variance.
+## 21. Step 17: legacy authority cleanup
 
----
+- Search for remaining legacy business writers:
+- /rest/v1
+- rpc/servos_v2_
+- Supabase mutation paths
+- Tauri business mutation paths
+- SQLite business writers
+- legacy POS mutation
+- legacy hospitality mutation
+- legacy finance mutation
 
-# 22. PHASE 17 — AUTHORITY CLEANUP
+Required production invariant:
 
-Search for remaining legacy business writers:
+- API authority active
+- => ZERO silent legacy business writers
 
-```text
-/rest/v1
-rpc/servos_v2_
-Supabase business mutations
-Tauri business mutations
-SQLite business writers
-legacy POS/hotel/finance mutations
-```
+Legacy source may remain only for migration evidence, parity fixtures, historical migrations, explicit read-only fallback or useful native printer transport.
+No silent fallback.
 
-Required invariant:
+## 22. Step 18: fresh current documentation set
 
-```text
-API authority active
-=> ZERO silent legacy business-writer fallback
-```
-
-Legacy code may remain only for explicit migration/parity/history purposes.
-
----
-
-# 23. PHASE 18 — FRESH CURRENT DOCUMENTATION
-
-Create a new authoritative documentation set from current source:
-
-```text
+The reset-era truth docs are historical.
+Create a clean current-codebase reference set:
 docs/current/00-SYSTEM-OVERVIEW.md
 docs/current/01-ARCHITECTURE.md
 docs/current/02-REPOSITORY-STRUCTURE.md
@@ -1466,59 +1356,43 @@ docs/current/COMMAND-CATALOG.md
 docs/current/PERMISSION-CATALOG.md
 docs/current/DOCUMENT-CATALOG.md
 docs/current/MIGRATION-CATALOG.md
-```
+Generate from current source. Do not blindly copy old reset docs.
+npm run docs:check must pass afterward.
+23. COUNTRYSIDE MIGRATION - EXCLUDED BY SCOPE
+Do not perform:
 
-Do not blindly copy old reset docs.
-
-The new set must describe actual current code.
-
----
-
-# 24. COUNTRYSIDE DATA MIGRATION EXCLUSION
-
-Do NOT:
-
-```text
-extract current Countryside DB
-inspect its live SQLite contents
-normalize its records
-map live IDs
-create final stock/credit/payable balances
-import current Countryside data
-freeze the Countryside terminal
-perform final data cutover
-```
+- live terminal extraction
+- live SQLite inspection
+- Countryside-specific record mapping
+- Countryside-specific normalized CSV generation
+- final stock balance conversion
+- customer-credit cutover conversion
+- supplier payable cutover conversion
+- live import
+- terminal write freeze
+- final business cutover
 
 Allowed:
 
-```text
-retain forensic export script/instructions
-keep destination schema ready
-keep generic reconciliation utilities
-document the later migration entry point
-```
+- retain migration templates
+- retain forensic export script
+- retain generic reconciliation utilities
+- retain destination schema readiness
+- document later migration entry point
 
-No permanent migration cathedral.
+The later process remains:
 
-The later operation remains:
+- terminal forensic export
+- -> inspect actual DB
+- -> normalize actual data
+- -> dry run
+- -> reconcile
+- -> final frozen export
+- -> final import
 
-```text
-terminal forensic export
--> inspect actual DB
--> normalize externally
--> dry run
--> reconcile
--> final frozen export
--> final import
-```
-
----
-
-# 25. FINAL RELEASE VERIFICATION
-
-Run:
-
-```bash
+This is intentionally outside this sweep.
+24. FINAL RELEASE VERIFICATION
+At the final candidate SHA run:
 npm run verify:fast
 npm run test:api
 npm run test:browser:api
@@ -1531,194 +1405,218 @@ npm run test:desktop
 npm run protocol:check
 npm run audit:ui:gate
 npm run docs:check
-```
-
 Run the Print Bridge matrix again.
+Push one exact SHA and require:
+api-postgres             PASS
+frontend                 PASS
+browser-preview          PASS
+browser-production       PASS
+native-domain            PASS
+cloud-protocol-base      PASS
+cloud-protocol-v2        PASS
+desktop-shell            PASS
+windows-printer-shell    PASS
+print-bridge Ubuntu      PASS
+print-bridge Windows     PASS
+evidence-summary         PASS
 
-Push one exact candidate SHA.
+## 25. Updated one-swoop execution order
 
-Require all hosted CI jobs green.
+Do not repeat already-proven phases unless required for regression verification.
+Work in this exact order:
+1. FIX HOSTED API/POSTGRES INTEGRATION TEST FAILURE
 
----
+2. FINISH WINDOWS-PRINTER-SHELL CURRENT RUN
 
-# 26. ONE-SWOOP EXECUTION ORDER
+3. OBTAIN ONE FULL GREEN BASELINE SHA
 
-```text
-1. repository hygiene / baseline
+4. CLOSE POS CORE ACCEPTANCE
 
-2. fix frontend node tests
+5. CLOSE FLOORPLAN / TABLE CONCURRENCY
 
-3. fix API/PostgreSQL tests
+6. CLOSE ORDER TRANSFER
 
-4. fix real PWA/API/PostgreSQL acceptance
+7. CLOSE ORDER MERGE
 
-5. fix browser preview/production
+8. CLOSE REMAINING INVENTORY CROSS-DOMAIN LINKS
 
-6. finish Print Bridge CI
+9. CLOSE PAYMENTS / REFUNDS
 
-7. close Auth
+10. CLOSE TILLS / JOURNALS / CLOSE DAY
 
-8. close Bootstrap/Recovery
+11. CLOSE PROCUREMENT
 
-9. close Catalog
+12. CLOSE CUSTOMER CREDIT
 
-10. close Inventory
+13. CLOSE HOTEL / PMS
 
-11. close POS
+14. CLOSE FINANCE / EXPENSES
 
-12. close Floorplan/Table Service
+15. CLOSE ASSETS / MAINTENANCE
 
-13. close Order Transfer
+16. CLOSE BOUNDED OFFLINE CASH POS
 
-14. close Order Merge
+17. CLOSE PRINT BRIDGE RUNTIME / SERVICE / TRUST / CRASH RECOVERY
 
-15. close Revenue Chain
+18. RUN REAL PRINTER ACCEPTANCE IF HARDWARE AVAILABLE
+    ELSE DELIVER EXACT EXTERNAL ACCEPTANCE HARNESS
 
-16. close Procurement
+19. FINISH VPS PRODUCTION READINESS
 
-17. close Customer Credit
+20. PROVE BACKUP RESTORE
 
-18. close Hotel/PMS + POS Room Charge
+21. RUN COMPLETE SYNTHETIC STAGING SCENARIO
 
-19. close Finance/Expenses
+22. REMOVE / FENCE LEGACY BUSINESS WRITERS
 
-20. close Assets/Maintenance
+23. GENERATE FRESH CURRENT-CODEBASE DOCUMENTATION
 
-21. close Offline Cash POS
+24. RUN FULL LOCAL RELEASE MATRIX
 
-22. finish Print Bridge security/recovery/Windows service
+25. PUSH FINAL CANDIDATE SHA
 
-23. run physical printer acceptance if hardware is available,
-    otherwise produce the exact terminal acceptance harness
+26. REQUIRE FULL HOSTED CI GREEN
 
-24. finish VPS production readiness
-
-25. prove backup restore
-
-26. run complete synthetic staging acceptance
-
-27. remove/fence legacy authority paths
-
-28. create fresh current-codebase docs
-
-29. run complete local release verification
-
-30. obtain one exact fully-green hosted CI SHA
-
-31. write final release-readiness report
+27. PRODUCE FINAL RELEASE-READINESS REPORT
 
 STOP.
 
 DO NOT PERFORM COUNTRYSIDE LIVE-DATA MIGRATION.
-```
 
----
+## 26. Domain exit matrix
 
-# 27. DEFINITION OF DONE
+Previously accepted locally; rerun at the final release SHA:
 
-The development sweep is complete when:
+| Domain | Last recorded state |
+| --- | --- |
+| Auth / Staff / Device / Session | PASS locally |
+| Bootstrap / Recovery | PASS locally |
+| Catalog | PASS locally |
+| Inventory core | PASS locally |
 
-```text
-one exact commit passes every required CI job
+Still open in this sweep:
 
-all migrations through the final migration high-water execute on a fresh
-PostgreSQL database
+| Gate | Current state |
+| --- | --- |
+| Hosted API/PostgreSQL | OPEN ? hosted test failure |
+| POS | OPEN |
+| Floorplan | OPEN |
+| Order transfer | OPEN |
+| Order merge | OPEN |
+| Inventory cross-domain | OPEN |
+| Revenue | OPEN |
+| Procurement | OPEN |
+| Customer Credit | OPEN |
+| PMS | OPEN |
+| Finance | OPEN |
+| Assets | OPEN |
+| Offline cash | OPEN |
+| Print runtime / physical | OPEN / EXTERNAL GATE |
+| VPS | OPEN |
+| Backup restore | OPEN |
+| Synthetic staging | OPEN |
+| Legacy authority cleanup | OPEN |
+| Current documentation | OPEN |
+| Final green SHA | OPEN |
 
-API/PostgreSQL integration passes
+## 27. Definition of done
 
-real PWA/API/PostgreSQL acceptance passes
+The sweep is complete only when:
 
-preview and production browser suites pass
+- one exact SHA passes the complete CI matrix
 
-Auth/Staff/Device/Session passes
+- API/PostgreSQL integration passes hosted
 
-Bootstrap recovery passes
+- real PWA/API/PostgreSQL acceptance remains green
 
-Catalog passes
+- Auth remains green
 
-Inventory passes
+- Bootstrap remains green
 
-POS/Floorplan/Transfer/Merge passes
+- Catalog remains green
 
-Payments/Refunds/Tills/Journals/Close Day pass
+- Inventory remains green including POS/procurement linkage
 
-Procurement passes
+- POS / floorplan / transfer / merge passes
 
-Customer Credit passes
+- Revenue chain reconciles
 
-Hotel/PMS passes
+- Procurement reconciles
 
-Finance/Assets passes
+- Customer Credit reconciles
 
-bounded Offline Cash POS passes
+- PMS passes reservation/stay/folio/room-charge/checkout concurrency
 
-Print Bridge fmt/clippy/tests/release builds pass on Linux and Windows
+- Finance/Expenses passes
 
-Windows service host builds and installation workflow is ready
+- Assets/Maintenance passes
 
-physical printer acceptance is either executed or represented by a complete
-operator harness without a fake PASS
+- bounded Offline Cash survives restart/reconnect
 
-production-like staging is deployable
+- Print Bridge Linux and Windows CI remains green
 
-encrypted backup restore is proven on synthetic/staging data
+- Windows service runtime behavior is proven
 
-release activation and rollback are proven
+- physical printer is either proven or clearly marked EXTERNAL GATE
 
-API mode has no silent legacy business-writer fallback
+- VPS staging is deployable
 
-fresh current-codebase documentation exists and passes docs checks
+- backup restore is proven
 
-repository is ready to receive the Countryside data later
-```
+- release rollback is proven
 
-The only item allowed to be marked:
+- synthetic staging scenario has zero unexplained variance
 
-```text
-EXCLUDED BY SCOPE
-```
+- API mode has zero silent legacy business writers
 
-is:
+- fresh current-codebase documentation is complete and passes docs checks
+- The only allowed EXCLUDED BY SCOPE item is:
+- ACTUAL CURRENT COUNTRYSIDE DATA MIGRATION
 
-```text
-actual current Countryside data migration
-```
+## 28. Final report required
 
----
+- Produce one final report containing:
+- FINAL SHA
+- BRANCH
+- MIGRATION HIGH-WATER
 
-# 28. FINAL REPORT FORMAT
+- HOSTED CI MATRIX
+- LOCAL RELEASE MATRIX
 
-At the end, produce:
+- AUTH
+- BOOTSTRAP
+- CATALOG
+- INVENTORY
+- POS
+- FLOORPLAN
+- TRANSFER
+- MERGE
+- REVENUE
+- PROCUREMENT
+- CUSTOMER CREDIT
+- PMS
+- FINANCE
+- ASSETS
+- OFFLINE CASH
+- PRINT BRIDGE
+- VPS
+- BACKUP / RESTORE
+- ROLLBACK
+- SYNTHETIC STAGING
+- LEGACY AUTHORITY
+- DOCUMENTATION
 
-```text
-FINAL SHA
-BRANCH
-MIGRATION HIGH-WATER
-CI MATRIX
-LOCAL RELEASE MATRIX
-DOMAIN GATES
-STAGING RESULT
-RESTORE RESULT
-ROLLBACK RESULT
-PRINT BRIDGE RESULT
-PHYSICAL PRINTER RESULT or EXTERNAL GATE
-LEGACY AUTHORITY STATUS
-DOCUMENTATION INDEX
-KNOWN LIMITATIONS
-COUNTRYSIDE MIGRATION: EXCLUDED BY SCOPE / NOT PERFORMED
-```
+- PHYSICAL PRINTER:
+- PASS or EXTERNAL GATE
+
+- COUNTRYSIDE LIVE-DATA MIGRATION:
+- EXCLUDED BY SCOPE / NOT PERFORMED
 
 Use only:
 
-```text
-PASS
-FAIL
-EXTERNAL GATE
-EXCLUDED BY SCOPE
-```
+- PASS
+- FAIL
+- EXTERNAL GATE
+- EXCLUDED BY SCOPE
 
-Do not substitute completion percentages for evidence.
-
-The target is not more code.
-
-The target is a codebase that is demonstrably ready for the later Countryside data import and controlled production cutover.
+Do not use percentages as final evidence.
