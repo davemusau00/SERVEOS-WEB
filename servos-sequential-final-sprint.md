@@ -3,9 +3,9 @@
 
 **Repository:** `davemusau00/SERVEOS-WEB`  
 **Branch:** `reset/vps-platform`  
-**Current remote HEAD:** `76c5e7ad9b99e781b4cd2ea505aac0b218fe812e`
-**Current local HEAD:** `7121a7238b380e89ace447fc80df9cf186a5a139`
-**Branch position:** 171 commits ahead of `main`, 0 behind; local branch is 1 commit ahead of origin, with two checkpoint documents and three source files modified in the working tree
+**Current remote HEAD at continuation start:** `2508b2072476588a9ed4351ce0c5c73db8f0e255`
+**Current local HEAD at continuation start:** `2508b2072476588a9ed4351ce0c5c73db8f0e255`
+**Branch position:** See the latest source checkpoint for pending edits and branch ancestry.
 **Checkpoint:** 2026-10-08  
 **Execution principle:** sequential domain completion, not parallel feature expansion
 
@@ -417,6 +417,12 @@ Smart Item opening stock
 Do not add more catalog architecture.
 
 ## Finish acceptance only
+
+### Catalog archive and restore source checkpoint (2026-10-08; tests deferred)
+
+Static review found the Catalog screen exposed archive and restore controls whose six API command names were absent from the command registry. Added online-only, versioned and reason-bearing archive/reactivation handlers for products, stock items and stock locations. Product restore verifies active stock and outlet references; stock restore checks active code and barcode uniqueness. Archive blockers protect open product lines, nonzero or physical bottle balances, active product/recipe/modifier consumption, open POs, draft/approved supplier returns, outlet defaults and open orders. Shared catalog, procurement and till-policy locks serialize these checks with their writers. Bootstrap and command projections now retain archive tombstones so the restore controls survive reload. PWA routing and permission checks now admit these handlers; location master commands honor inventory-adjust permission, and location saves cannot implicitly unarchive a record.
+
+`npm run lint` (TypeScript), `node --check` for the edited API modules, and `git diff --check` passed. No tests, migrations, API/PostgreSQL execution or browser runs were performed. Catalog archive/restore acceptance and all Catalog exit gates remain open.
 
 ```text
 whole-item sale
@@ -1816,6 +1822,10 @@ continue
 ```
 
 ---
+
+## User continuation direction (2026-10-08)
+
+Continue implementation through Phases 1–12 without pausing at test gates. Defer test execution as requested. This changes the work order only: all phase acceptance and production gates remain unpassed until their required evidence is collected.
 
 # 24. CURRENT TARGET
 

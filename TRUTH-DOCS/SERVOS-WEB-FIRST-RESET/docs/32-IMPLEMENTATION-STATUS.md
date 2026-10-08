@@ -1016,3 +1016,13 @@ The active continuation refers to `final-sprint.md`, but that file is absent fro
 ### Phase 2 bootstrap authorization hardening (source only; tests deferred)
 
 - The PWA now keys its cached API projection policy to the current permission set. If staff authorization changes, it hides the prior projection, resolves saved API commands under the current permissions, and rebuilds from a newly filtered catalog snapshot before showing records. Snapshot, permission-revocation, and storage recovery acceptance remain unverified.
+
+### Phase 3 catalog archive and restore source continuation (2026-10-08; tests deferred)
+
+- At continuation start, local `HEAD` and `origin/reset/vps-platform` were both `2508b2072476588a9ed4351ce0c5c73db8f0e255`. Current source and checkpoint edits are not yet committed.
+- Added online-only `product.archive` / `product.reactivate`, `stockItem.archive` / `stockItem.reactivate`, and `stockLocation.archive` / `stockLocation.reactivate` handlers. Every transition requires the current expected entity version and an operator reason and writes the next business entity version in the same PostgreSQL transaction.
+- Product archive refuses open draft order lines. Stock archive refuses nonzero balances including sealed/open bottle state, active direct/recipe/modifier consumption, open purchase orders, and draft/approved supplier returns. Location archive refuses balances, active outlet defaults, open orders, and draft/approved returns. Shared catalog, procurement and till-policy transaction locks serialize these blockers with catalog, receiving/procurement, order-opening and outlet configuration writes.
+- Restore checks duplicate active codes/barcodes and prevents reactivating products whose stock or outlet references remain archived. Bootstrap now includes archived master tombstones, and archive/restore change-feed entries carry the complete current master projection so recovery survives reload.
+- Catalog UI now requests an archive/restore reason and restricts restore controls by permission. PWA command routing admits the six online-only operations; stock-location commands honor either catalog-management or inventory-adjust permission, matching the workspace controls. Offline-grant permission discovery now respects command `permissionAny`.
+- Location saves no longer clear `archived_at` implicitly; edits to archived products, stock items or locations are rejected until explicit restore.
+- `npm run lint` (TypeScript), `node --check` for `catalog-commands.mjs`, `postgres-store.mjs`, and `server.mjs`, and `git diff --check` passed. No tests, database migrations, API/PostgreSQL runtime, browser execution or production acceptance ran. Catalog archive/restore and all sprint gates remain unverified.
