@@ -3,8 +3,10 @@ import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
 import {parseMoneyToMinor,parsePercentToBasisPoints} from '../../utils/fiscal';
 import {businessDateTimeAfterBusinessDays,businessDateTimeInput,businessDateTimeToUtc} from '../../utils/businessTime';
 import {allowed,type BusinessRecord,type WebSession} from './session';
+import type {createServOSApiClient} from './apiClient';
 
 type Command=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
+type ApiClient=ReturnType<typeof createServOSApiClient>;
 const field='mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2';
 const button='min-h-11 rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
 const primary='min-h-11 rounded bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40';
@@ -14,11 +16,12 @@ const money=(amount:unknown)=>(Number(amount||0)/100).toLocaleString('en-KE',{st
 const messageFor=(outcome:CommandOutcome,success:string)=>isCommandConfirmed(outcome)?success:outcome.kind==='DRAFT_SAVED'?'Saved as a draft; no reservation or room change was made.':outcome.kind==='PENDING'?'Saved and waiting to synchronize.':outcome.kind==='OUTCOME_UNKNOWN'||outcome.kind==='REJECTED'||outcome.kind==='CONFLICT'||outcome.kind==='BLOCKED'?outcome.message:'The action was not confirmed.';
 const uuid=()=>crypto.randomUUID();
 
-export function WebApiRoomsView({records,session,disabled,command}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command}){
+export function WebApiRoomsView({records,session,disabled,command,client}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;client:ApiClient}){
  const canManage=allowed(session,'rooms.manage'),canOperate=allowed(session,'rooms.operate');
  const roomTypes=active(records,'roomTypes'),rooms=active(records,'rooms'),rates=active(records,'ratePlans'),reservations=active(records,'roomReservations'),customers=active(records,'customers'),folios=active(records,'folios');
  const hospitality=active(records,'hospitalitySettings')[0],propertyTimeZone=String(hospitality?.data.timeZone||session.propertyContext?.timeZone||'Africa/Nairobi'),checkoutTime=String(hospitality?.data.nightlyCheckoutTime||session.propertyContext?.nightlyCheckoutTime||'10:00'),dayCutoff=String(hospitality?.data.dayStayCutoffTime||session.propertyContext?.dayStayCutoffTime||'18:00');
  const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const [editingReservationId,setEditingReservationId]=useState(''),[availabilityIds,setAvailabilityIds]=useState<string[]>([]),[availabilityState,setAvailabilityState]=useState<'CHECKING'|'READY'|'OFFLINE'|'ERROR'>('CHECKING');
  const [typeId,setTypeId]=useState(''),[typeName,setTypeName]=useState(''),[typeCode,setTypeCode]=useState(''),[typeCapacity,setTypeCapacity]=useState('2');
  const [roomNumber,setRoomNumber]=useState(''),[roomTypeId,setRoomTypeId]=useState(''),[roomCapacity,setRoomCapacity]=useState('2'),[turnaround,setTurnaround]=useState('30');
  const [rateName,setRateName]=useState(''),[rateTypeId,setRateTypeId]=useState(''),[rateMode,setRateMode]=useState<'NIGHTLY'|'DAY_USE'>('NIGHTLY'),[ratePrice,setRatePrice]=useState(''),[rateTax,setRateTax]=useState('0'),[dayMinutes,setDayMinutes]=useState('480');
@@ -27,7 +30,19 @@ export function WebApiRoomsView({records,session,disabled,command}:{records:Busi
  const typeById=useMemo(()=>new Map(roomTypes.map(row=>[row.id,row])),[roomTypes]);
  const selectedRoom=rooms.find(row=>row.id===reservationRoomId);
  const matchingRates=rates.filter(row=>row.data.roomTypeId===selectedRoom?.data.roomTypeId);
- const roomBlocks=active(records,'roomBlocks'),workOrders=active(records,'maintenanceWorkOrders');let requestedStart=NaN,requestedEnd=NaN;try{requestedStart=Date.parse(businessDateTimeToUtc(arrival,propertyTimeZone));requestedEnd=Date.parse(businessDateTimeToUtc(departure,propertyTimeZone))}catch{}const potentiallyAvailableRooms=rooms.filter(room=>room.data.housekeepingState==='READY'&&room.data.maintenanceState==='AVAILABLE'&&(!Number.isFinite(requestedStart)||!Number.isFinite(requestedEnd)||requestedEnd<=requestedStart||(!reservations.some(row=>row.data.roomId===room.id&&['RESERVED','CHECKED_IN'].includes(String(row.data.status))&&Date.parse(String(row.data.startsAt))<requestedEnd+(Number(room.data.turnaroundMinutes||0)*60000)&&Date.parse(String(row.data.blockedUntil||row.data.endsAt))>requestedStart)&&!roomBlocks.some(row=>row.data.roomId===room.id&&row.data.status==='ACTIVE'&&Date.parse(String(row.data.startsAt))<requestedEnd+(Number(room.data.turnaroundMinutes||0)*60000)&&(!row.data.endsAt||Date.parse(String(row.data.endsAt))>requestedStart)))));
+ const workOrders=active(records,'maintenanceWorkOrders');
+ useEffect(()=>{
+  let activeRequest=true;
+  if(typeof navigator!=='undefined'&&!navigator.onLine){setAvailabilityIds([]);setAvailabilityState('OFFLINE');return()=>{activeRequest=false}}
+  let startsAt:string,endsAt:string;
+  try{startsAt=businessDateTimeToUtc(arrival,propertyTimeZone);endsAt=businessDateTimeToUtc(departure,propertyTimeZone);if(Date.parse(endsAt)<=Date.parse(startsAt))throw new Error('Departure must be after arrival.')}catch{setAvailabilityIds([]);setAvailabilityState('ERROR');return()=>{activeRequest=false}}
+  setAvailabilityState('CHECKING');
+  const timer=window.setTimeout(()=>{void client.roomAvailability(startsAt,endsAt,Number(guestCount)).then(result=>{if(activeRequest){setAvailabilityIds(result.rooms.map(room=>room.id));setAvailabilityState('READY')}}).catch(()=>{if(activeRequest){setAvailabilityIds([]);setAvailabilityState('ERROR')}})},250);
+  return()=>{activeRequest=false;window.clearTimeout(timer)};
+ },[arrival,departure,guestCount,propertyTimeZone,client]);
+ const potentiallyAvailableRooms=rooms.filter(room=>availabilityIds.includes(room.id));
+ const editingReservation=reservations.find(row=>row.id===editingReservationId);
+ const selectableRooms=editingReservation?rooms.filter(room=>availabilityIds.includes(room.id)||room.id===editingReservation.data.roomId):potentiallyAvailableRooms;
 
  const run=async(operation:string,collection:string,id:string,payload:Record<string,unknown>,success:string)=>{
   if(disabled||busy)return;setBusy(true);setMessage('');
@@ -53,10 +68,13 @@ export function WebApiRoomsView({records,session,disabled,command}:{records:Busi
  const reserve=async(event:React.FormEvent,walkIn=false)=>{
   event.preventDefault();const room=rooms.find(row=>row.id===reservationRoomId),rate=matchingRates.find(row=>row.id===reservationRateId),guest=customers.find(row=>row.id===guestId);if(!room||!rate||!guest)return setMessage('Choose an available room, matching rate and named guest.');
   let startsAt:string,endsAt:string;try{startsAt=businessDateTimeToUtc(arrival,propertyTimeZone);endsAt=businessDateTimeToUtc(departure,propertyTimeZone)}catch(error){return setMessage(error instanceof Error?error.message:'Enter valid property-local arrival and departure times.')}
-  const id=uuid(),operation=walkIn?'roomReservation.walkIn':'roomReservation.create';
-  if(await run(operation,'roomReservations',id,{id,roomId:room.id,ratePlanId:rate.id,customerId:guest.id,stayType:rate.data.mode==='DAY_USE'?'DAY':'NIGHTLY',guests:Number(guestCount),startsAt,endsAt,expectedVersions:[{collection:'roomReservations',id,version:0},baseline(room),baseline(rate),baseline(guest)]},walkIn?'Walk-in checked in.':'Reservation confirmed.')){
-   setGuestId('');setGuestCount('1');setArrival(businessDateTimeInput(new Date(),propertyTimeZone));setDeparture(businessDateTimeInput(businessDateTimeAfterBusinessDays(new Date(),1,checkoutTime,propertyTimeZone),propertyTimeZone));
+  const id=editingReservation?.id||uuid(),operation=editingReservation?'roomReservation.modify':walkIn?'roomReservation.walkIn':'roomReservation.create';
+  if(await run(operation,'roomReservations',id,{id,roomId:room.id,ratePlanId:rate.id,customerId:guest.id,stayType:rate.data.mode==='DAY_USE'?'DAY':'NIGHTLY',guests:Number(guestCount),startsAt,endsAt,expectedVersions:[baseline(editingReservation||{collection:'roomReservations',id,version:0} as BusinessRecord),baseline(room),baseline(rate),baseline(guest)]},editingReservation?'Reservation updated.':walkIn?'Walk-in checked in.':'Reservation confirmed.')){
+   setEditingReservationId('');setReservationRoomId('');setReservationRateId('');setGuestId('');setGuestCount('1');setArrival(businessDateTimeInput(new Date(),propertyTimeZone));setDeparture(businessDateTimeInput(businessDateTimeAfterBusinessDays(new Date(),1,checkoutTime,propertyTimeZone),propertyTimeZone));
   }
+ };
+ const editReservation=(reservation:BusinessRecord)=>{
+  try{setEditingReservationId(reservation.id);setReservationRoomId(String(reservation.data.roomId||''));setReservationRateId(String(reservation.data.ratePlanId||''));setGuestId(String(reservation.data.customerId||''));setGuestCount(String(reservation.data.guests||1));setArrival(businessDateTimeInput(new Date(String(reservation.data.startsAt)),propertyTimeZone));setDeparture(businessDateTimeInput(new Date(String(reservation.data.endsAt)),propertyTimeZone));setMessage('Editing this reservation. Availability and the latest reservation version will be checked by the API when saved.')}catch{setMessage('Reservation dates could not be loaded for editing.')}
  };
  const cancel=async(reservation:BusinessRecord)=>{
   const reason=window.prompt('Cancellation reason (required)');if(!reason?.trim())return;
