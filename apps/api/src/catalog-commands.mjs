@@ -134,8 +134,9 @@ const productSave = async ({tx, command, actor, at}) => {
   return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeIngredients,recipeYield,portionVolume,sellingMode,portions,modifiers,outletIds,updatedAt:at.toISOString()}};
 };
 
-const masterArchive=({table,entityType,collection,archive,blockers})=>async({tx,command,actor,at})=>{
+const masterArchive=({table,entityType,collection,archive,lockDependencies,blockers})=>async({tx,command,actor,at})=>{
   await tx.lockInventoryCatalog(actor.businessId);
+  await lockDependencies?.(tx,actor.businessId);
   const {id}=command.payload;
   if(!uuid(id))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid catalog record.');
   const reason=text(command.payload.reason,'Review reason',500);
@@ -177,8 +178,9 @@ const archiveProduct=masterArchive({table:'products',entityType:'products',colle
   return open.rows.length?{code:'OPEN_ORDER_DEPENDENCY',message:'Remove this product from open orders before archiving it.'}:null;
 }});
 const reactivateProduct=masterArchive({table:'products',entityType:'products',collection:'products',archive:false});
-const archiveStockItem=masterArchive({table:'stock_items',entityType:'stockItems',collection:'stockItems',archive:true,blockers:async(tx,businessId,id)=>{
+const archiveStockItem=masterArchive({table:'stock_items',entityType:'stockItems',collection:'stockItems',archive:true,lockDependencies:async(tx,businessId)=>{
   await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`procurement:${businessId}`]);
+},blockers:async(tx,businessId,id)=>{
   const balance=await tx.client.query(`SELECT 1 FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND (quantity<>0 OR COALESCE(sealed_containers,0)<>0 OR COALESCE(open_quantity,0)<>0) LIMIT 1`,[businessId,id]);
   if(balance.rows.length)return {code:'STOCK_BALANCE_REMAINS',message:'Bring every location balance, including sealed and open bottle quantities, to zero before archiving this stock item.'};
   if((await tx.productConsumptionIds(businessId,id)).length)return {code:'ACTIVE_PRODUCT_DEPENDENCY',message:'Remove this stock item from active product, recipe, and modifier consumption before archiving it.'};
@@ -189,9 +191,10 @@ const archiveStockItem=masterArchive({table:'stock_items',entityType:'stockItems
   return null;
 }});
 const reactivateStockItem=masterArchive({table:'stock_items',entityType:'stockItems',collection:'stockItems',archive:false});
-const archiveStockLocation=masterArchive({table:'stock_locations',entityType:'stockLocations',collection:'stockLocations',archive:true,blockers:async(tx,businessId,id)=>{
+const archiveStockLocation=masterArchive({table:'stock_locations',entityType:'stockLocations',collection:'stockLocations',archive:true,lockDependencies:async(tx,businessId)=>{
   await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`till-policy:${businessId}`]);
   await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`procurement:${businessId}`]);
+},blockers:async(tx,businessId,id)=>{
   const balance=await tx.client.query(`SELECT 1 FROM inventory_location_balances WHERE business_id=$1 AND location_id=$2 AND (quantity<>0 OR COALESCE(sealed_containers,0)<>0 OR COALESCE(open_quantity,0)<>0) LIMIT 1`,[businessId,id]);
   if(balance.rows.length)return {code:'LOCATION_STOCK_REMAINS',message:'Move or reconcile stock at this location before archiving it.'};
   const outlet=await tx.client.query(`SELECT 1 FROM business_outlets WHERE business_id=$1 AND default_stock_location_id=$2 AND archived_at IS NULL LIMIT 1`,[businessId,id]);
