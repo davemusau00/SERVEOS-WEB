@@ -10,6 +10,7 @@ import {priceLine} from './pos-pricing.mjs';
 import {requireManagerApproval} from './manager-approvals.mjs';
 import {postPosRoomCharge} from './hospitality-commands.mjs';
 import {allocationDelta,remainingPaymentBasis} from './financial-journals.mjs';
+import {floorplanProjections,readFloorplanTable} from './floorplan-commands.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
@@ -42,7 +43,8 @@ export async function orderProjections(db,businessId,ids=null){
  for(const line of lines.rows){const list=grouped.get(line.orderId)||[];list.push(line);grouped.set(line.orderId,list)}
  return rows.map(row=>{
  const items=(grouped.get(row.id)||[]).map(line=>({...line,productVersion:Number(line.productVersion),firedAt:line.firedAt?.toISOString()??null,preparationUpdatedAt:line.preparationUpdatedAt?.toISOString()??null,netMinor:line.netMinor===null?null:Number(line.netMinor),vatMinor:line.vatMinor===null?null:Number(line.vatMinor),levyMinor:line.levyMinor===null?null:Number(line.levyMinor),quantity:Number(line.quantity),grossMinor:Number(line.grossMinor),discountMinor:Number(line.discountMinor),unitPriceMinor:Number(line.unitPriceMinor),lineTotalMinor:Number(line.lineTotalMinor),ingredientSnapshot:line.productSnapshot.ingredientSnapshot,portionSnapshot:line.portionSnapshot,name:line.productSnapshot.name,routeTo:line.productSnapshot.routeTo,stockFired:line.state==='FIRED'||line.voidPreviousState==='FIRED'}));
- return {collection:'orders',id:row.id,version:Number(row.version),archived:false,data:{...row,version:Number(row.version),grandTotalMinor:Number(row.grandTotalMinor),amountPaidMinor:Number(row.amountPaidMinor),amountCreditedMinor:Number(row.amountCreditedMinor),roomChargeMinor:Number(row.roomChargeMinor),refundedAmountMinor:Number(row.refundedAmountMinor),voidedAt:row.voidedAt?.toISOString()??null,createdAt:row.createdAt.toISOString(),updatedAt:row.updatedAt.toISOString(),items}};
+ const serviceReference=row.serviceReference&&typeof row.serviceReference==='object'?row.serviceReference:{};
+ return {collection:'orders',id:row.id,version:Number(row.version),archived:false,data:{...row,tableId:typeof serviceReference.tableId==='string'?serviceReference.tableId:null,tableName:typeof serviceReference.tableName==='string'?serviceReference.tableName:null,version:Number(row.version),grandTotalMinor:Number(row.grandTotalMinor),amountPaidMinor:Number(row.amountPaidMinor),amountCreditedMinor:Number(row.amountCreditedMinor),roomChargeMinor:Number(row.roomChargeMinor),refundedAmountMinor:Number(row.refundedAmountMinor),voidedAt:row.voidedAt?.toISOString()??null,createdAt:row.createdAt.toISOString(),updatedAt:row.updatedAt.toISOString(),items}};
  });
 }
 export async function orderProjection(db,businessId,id){return (await orderProjections(db,businessId,[id]))[0]??null;}
@@ -92,8 +94,7 @@ const create=async({tx,command,actor,at})=>{
  const p=command.payload,id=p.id;
  if(!uuid(id)||!uuid(p.outletId)||typeof p.name!=='string'||!p.name.trim()||p.name.trim().length>120)fail('Order ID, outlet and a name of up to 120 characters are required.');
  if(expected(command,'orders',id)!==0)fail('A new order must have version zero.');
- // Service references will be enabled with their canonical table/customer/room registries.
- if(p.tableId||p.roomId||p.serviceReference)fail('Referenced service destinations are not yet available through the API.');
+ if(p.roomId||p.serviceReference)fail('Room references and caller-supplied service snapshots are not accepted by the POS API.');
  let customer=null;
  if(p.customerId){
   if(!uuid(p.customerId))fail('Choose a valid named customer.');
@@ -104,7 +105,21 @@ const create=async({tx,command,actor,at})=>{
   if(Number(found.rows[0].version)!==customerVersion)throw new ApiProblem(409,'VERSION_CONFLICT','The selected customer changed. Refresh and review the order again.');
   customer=found.rows[0];
  }
- const destination=p.serviceDestination??'COUNTER';if(!['COUNTER','TAKEAWAY'].includes(destination))fail('Choose counter or takeaway for an unassigned order.');
+ const destination=p.tableId?'TABLE':p.serviceDestination??'COUNTER';if(!['COUNTER','TAKEAWAY','TABLE'].includes(destination)||destination==='TABLE'&&!p.tableId||destination!=='TABLE'&&p.tableId)fail('Choose counter, takeaway, or one available table.');
+ let serviceReference={},tableId=null;
+ if(destination==='TABLE'){
+  if(!uuid(p.tableId))fail('Choose a valid service table.');
+  const tableVersion=expected(command,'tables',p.tableId);
+  const table=await tx.client.query(`SELECT id,outlet_id AS "outletId",label,state,version,archived_at AS "archivedAt",EXISTS(SELECT 1 FROM pos_orders active WHERE active.business_id=t.business_id AND active.service_destination='TABLE' AND active.service_reference->>'tableId'=t.id::text AND active.state IN ('OPEN','FIRED')) AS occupied FROM business_floor_tables t WHERE business_id=$1 AND id=$2 FOR UPDATE`,[actor.businessId,p.tableId]);
+  if(!table.rows.length||table.rows[0].archivedAt)throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected table is no longer active.');
+  const row=table.rows[0];if(row.outletId!==p.outletId)throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected table belongs to another outlet.');
+  if(Number(row.version)!==tableVersion)throw new ApiProblem(409,'VERSION_CONFLICT','The selected table changed. Refresh and review the order.');
+  if(row.state!=='AVAILABLE'||row.occupied)throw new ApiProblem(409,'TABLE_NOT_AVAILABLE','The selected table is cleaning or already has an active order.');
+  const nextTableVersion=await tx.bumpEntityVersion(actor.businessId,'tables',p.tableId,tableVersion);
+  await tx.client.query('UPDATE business_floor_tables SET version=$3,updated_at=$4 WHERE business_id=$1 AND id=$2',[actor.businessId,p.tableId,nextTableVersion,at]);
+  tableId=p.tableId;
+  serviceReference={tableId:row.id,tableName:row.label};
+ }
  const {rows}=await tx.client.query(`SELECT o.default_stock_location_id AS "locationId" FROM business_outlets o JOIN stock_locations l ON l.business_id=o.business_id AND l.id=o.default_stock_location_id AND l.archived_at IS NULL WHERE o.business_id=$1 AND o.id=$2 AND o.archived_at IS NULL FOR SHARE OF o,l`,[actor.businessId,p.outletId]);
  if(!rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The outlet needs an active stock location before opening an order.');
  expected(command,'outlets',p.outletId);expected(command,'stockLocations',rows[0].locationId);
@@ -112,8 +127,9 @@ const create=async({tx,command,actor,at})=>{
  if(!settings)throw new ApiProblem(409,'TAX_CONFIGURATION_REQUIRED','Configure business identity and tax rates before trading.');
  if(expected(command,'businessSettings',actor.businessId)!==settings.version)throw new ApiProblem(409,'VERSION_CONFLICT','Business settings changed. Review them before opening the order.');
  const version=await tx.bumpEntityVersion(actor.businessId,'orders',id,0);
- await tx.client.query(`INSERT INTO pos_orders(business_id,id,outlet_id,stock_location_id,name,service_destination,version,created_by,device_id,created_at,updated_at,business_snapshot,customer_id,customer_name_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11::jsonb,$12,$13)`,[actor.businessId,id,p.outletId,rows[0].locationId,p.name.trim(),destination,version,actor.staffId,actor.deviceId,at,JSON.stringify(settings),p.customerId??null,customer?.name??null]);
- await event(tx,command,actor,at,id,version,{outletId:p.outletId,name:p.name.trim(),serviceDestination:destination,customerId:p.customerId??null});return result(tx,actor.businessId,id);
+ await tx.client.query(`INSERT INTO pos_orders(business_id,id,outlet_id,stock_location_id,name,service_destination,service_reference,version,created_by,device_id,created_at,updated_at,business_snapshot,customer_id,customer_name_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$11,$12::jsonb,$13,$14)`,[actor.businessId,id,p.outletId,rows[0].locationId,p.name.trim(),destination,JSON.stringify(serviceReference),version,actor.staffId,actor.deviceId,at,JSON.stringify(settings),p.customerId??null,customer?.name??null]);
+ await event(tx,command,actor,at,id,version,{outletId:p.outletId,name:p.name.trim(),serviceDestination:destination,serviceReference,customerId:p.customerId??null});
+ const output=await result(tx,actor.businessId,id);return tableId?{...output,records:[...output.records,...(await floorplanProjections(tx.client,actor.businessId)).filter(record=>record.id===tableId)]}:output;
 };
 
 const assignCustomer=async({tx,command,actor,at})=>{
@@ -240,6 +256,31 @@ const fire=async({tx,command,actor,at})=>{
  const outcome=await finish(tx,command,actor,at,p.orderId,{firedLineIds:lines.map(line=>line.id),courseName:selectedCourse,roundAdvanced:completesRound,previousRoundNo:order.data.currentRoundNo,heldLineIds:order.data.items.filter(line=>line.state==='DRAFT'&&!lines.some(selected=>selected.id===line.id)).map(line=>line.id),documentIds:documents});
  if(outcome.value.data.receiptDocumentId)documents.push(outcome.value.data.receiptDocumentId);
  return {value:{order:outcome.value,documentIds:documents},records:[...outcome.records,...records]};
+};
+
+const transferTable=async({tx,command,actor,at})=>{
+ const p=command.payload;if(!uuid(p.orderId)||!uuid(p.targetTableId))fail('Choose a valid table order and destination table.');
+ await editable(tx,command,actor,p.orderId);const order=await orderProjection(tx.client,actor.businessId,p.orderId),sourceId=order.data.tableId;
+ if(order.data.serviceDestination!=='TABLE'||!uuid(sourceId)||sourceId===p.targetTableId)fail('Choose an order assigned to a different table.');
+ if(Number(order.data.amountPaidMinor)||Number(order.data.amountCreditedMinor)||Number(order.data.roomChargeMinor)||Number(order.data.refundedAmountMinor))throw new ApiProblem(409,'SETTLED_ORDER_CANNOT_TRANSFER','Orders with recorded tenders or receivables cannot be transferred.');
+ if(order.data.items.some(line=>line.state==='FIRED'&&line.preparationStatus!=='SERVED'))throw new ApiProblem(409,'PREPARATION_IN_PROGRESS','Finish or cancel active kitchen/bar preparation before transferring the table order.');
+ const sourceVersion=expected(command,'tables',sourceId),targetVersion=expected(command,'tables',p.targetTableId),ids=[sourceId,p.targetTableId].sort();
+ const locked=new Map();for(const id of ids)locked.set(id,await readFloorplanTable(tx.client,actor.businessId,id,true));
+ const source=locked.get(sourceId),target=locked.get(p.targetTableId);
+ if(!source||source.archivedAt||!target||target.archivedAt)throw new ApiProblem(409,'RESOURCE_CONFLICT','The source or destination table is no longer active.');
+ if(Number(source.version)!==sourceVersion||Number(target.version)!==targetVersion)throw new ApiProblem(409,'VERSION_CONFLICT','A table changed. Review the source order and destination again.');
+ if(source.currentOrderId!==p.orderId)throw new ApiProblem(409,'TABLE_ORDER_CHANGED','The source table no longer owns this order.');
+ if(source.outletId!==target.outletId||source.outletId!==order.data.outletId)throw new ApiProblem(409,'CROSS_OUTLET_TRANSFER','Move the order only to an available table in the same outlet.');
+ if(target.state!=='AVAILABLE'||target.currentOrderId)throw new ApiProblem(409,'TABLE_NOT_AVAILABLE','The destination table is occupied or needs cleaning.');
+ const tableVersions=new Map();
+ for(const id of ids){const row=locked.get(id),baseline=id===sourceId?sourceVersion:targetVersion;tableVersions.set(id,await tx.bumpEntityVersion(actor.businessId,'tables',id,baseline));}
+ await tx.client.query(`UPDATE business_floor_tables SET state='CLEANING',version=$3,updated_at=$4 WHERE business_id=$1 AND id=$2`,[actor.businessId,sourceId,tableVersions.get(sourceId),at]);
+ await tx.client.query(`UPDATE business_floor_tables SET version=$3,updated_at=$4 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.targetTableId,tableVersions.get(p.targetTableId),at]);
+ const nextOrderVersion=await tx.bumpEntityVersion(actor.businessId,'orders',p.orderId,expected(command,'orders',p.orderId)),serviceReference={tableId:target.id,tableName:target.label};
+ await tx.client.query(`UPDATE pos_orders SET service_reference=$3::jsonb,version=$4,updated_at=$5 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,JSON.stringify(serviceReference),nextOrderVersion,at]);
+ await event(tx,command,actor,at,p.orderId,nextOrderVersion,{sourceTableId:sourceId,targetTableId:target.id,sourceLabel:source.label,targetLabel:target.label});
+ const updated=await orderProjection(tx.client,actor.businessId,p.orderId),tableRecords=(await floorplanProjections(tx.client,actor.businessId)).filter(row=>ids.includes(row.id));
+ return {value:updated,records:[updated,...tableRecords]};
 };
 
 const roomCharge=async({tx,command,actor,at})=>{
@@ -421,3 +462,4 @@ posCommandRegistry.set('order.kds',{permission:'kds.update',offlinePolicy:'ONLIN
 posCommandRegistry.set('order.repeatRound',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:repeatRound});
 posCommandRegistry.set('order.assignCustomer',{permission:'pos.open_tab',offlinePolicy:'ONLINE_ONLY',handler:assignCustomer});
 posCommandRegistry.set('pos.roomCharge',{permission:'folio.room_charge',offlinePolicy:'ONLINE_ONLY',handler:roomCharge});
+posCommandRegistry.set('order.transfer',{permission:'order.transfer',offlinePolicy:'ONLINE_ONLY',handler:transferTable});
