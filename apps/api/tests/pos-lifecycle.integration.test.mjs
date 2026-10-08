@@ -13,6 +13,7 @@ import {paymentAccountCommandRegistry} from '../src/payment-accounts.mjs';
 import {tillCommandRegistry} from '../src/till-commands.mjs';
 import {posCommandRegistry} from '../src/pos-commands.mjs';
 import {paymentCommandRegistry} from '../src/payment-commands.mjs';
+import {customerCommandRegistry} from '../src/customer-commands.mjs';
 
 const databaseUrl=process.env.TEST_DATABASE_URL;
 
@@ -29,7 +30,7 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  const registry=new Map([
   ...catalogCommandRegistry,...businessTaxCommandRegistry,...outletCommandRegistry,
   ...floorplanCommandRegistry,...paymentAccountCommandRegistry,...tillCommandRegistry,
-  ...posCommandRegistry,...paymentCommandRegistry,
+  ...posCommandRegistry,...paymentCommandRegistry,...customerCommandRegistry,
  ]);
  await pool.query('INSERT INTO businesses(id,name) VALUES($1,$2)',[businessId,'Disposable POS Acceptance']);
  await pool.query("INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password) VALUES($1,$2,$3,$4,'Admin','test-hash',false)",[businessId,staffId,`pos-${staffId}@example.invalid`,'POS Integration Admin']);
@@ -48,13 +49,17 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  await confirmed('stockItem.save',{id:stockId,data:{name:'Coffee beans',code:`COF-${stockId.slice(0,6)}`,baseUnit:'kg',averageUnitCostMinor:1000,scanUnitQuantity:1,reorderLevel:0,purchasePackages:[]}},{[`stockItems:${stockId}`]:0});
  await store.transaction(tx=>tx.setInventoryBalance({businessId,stockItemId:stockId,locationId,quantity:10}));
  const productId=randomUUID();
- await confirmed('product.save',{id:productId,data:{name:'Filter coffee',code:`DRK-${productId.slice(0,6)}`,priceMinor:500,category:'Coffee',routeTo:'KITCHEN',taxClassId:'A_16',stockItemId:stockId,recipeIngredients:[{stockItemId:stockId,quantity:0.25,unit:'kg'}]}},{[`products:${productId}`]:0});
+ await confirmed('product.save',{id:productId,data:{name:'Filter coffee',code:`DRK-${productId.slice(0,6)}`,priceMinor:500,category:'Coffee',routeTo:'KITCHEN',taxClassId:'A_16',stockItemId:stockId,portions:[{id:'regular',name:'Regular',priceMinor:500,volume:0.25}],modifiers:[{id:'oat',name:'Oat milk',priceDeltaMinor:50,ingredientAdjustments:[]}],recipeIngredients:[{stockItemId:stockId,quantity:0.25,unit:'kg'}]}},{[`products:${productId}`]:0});
+ const barProductId=randomUUID();
+ await confirmed('product.save',{id:barProductId,data:{name:'Bar tea',code:`TEA-${barProductId.slice(0,6)}`,priceMinor:400,category:'Tea',routeTo:'BAR',taxClassId:'A_16',stockItemId:stockId,portions:[{id:'regular',name:'Regular',priceMinor:400,volume:0.25}],recipeIngredients:[{stockItemId:stockId,quantity:0.25,unit:'kg'}]}},{[`products:${barProductId}`]:0});
 
  await confirmed('business.settings.save',{data:{businessName:'Disposable POS Acceptance',address:'Test address',contact:'',taxPin:'',footer:'Thank you',vatRateBasisPoints:1600,levyRateBasisPoints:0},reason:'Configure POS acceptance tax policy'},{[`businessSettings:${businessId}`]:0});
  const outletId=randomUUID();
  await confirmed('outlet.save',{id:outletId,data:{name:'Main outlet',defaultStockLocationId:locationId,archived:false},reason:'Configure POS acceptance outlet'},{[`outlets:${outletId}`]:0,[`stockLocations:${locationId}`]:1});
  const accountId=randomUUID();
  await confirmed('paymentAccount.save',{id:accountId,reason:'Configure POS acceptance cash account',data:{name:'Cash',code:`CASH-${accountId.slice(0,6)}`,method:'CASH',currency:'KES',referenceRequired:false,archived:false}},{[`paymentAccounts:${accountId}`]:0});
+ const mpesaAccountId=randomUUID();
+ await confirmed('paymentAccount.save',{id:mpesaAccountId,reason:'Configure POS acceptance M-Pesa account',data:{name:'M-Pesa',code:`MPESA-${mpesaAccountId.slice(0,6)}`,method:'MPESA',currency:'KES',referenceRequired:true,mpesaMode:'TILL',mpesaNumber:'123456',archived:false}},{[`paymentAccounts:${mpesaAccountId}`]:0});
  const tillId=randomUUID();
  await confirmed('till.open',{id:tillId,outletId,openingFloatMinor:0},{[`tillSessions:${tillId}`]:0,[`outlets:${outletId}`]:1,[`tillPolicy:${businessId}`]:0});
 
@@ -72,27 +77,70 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  assert.equal(blockedEdit.error.code,'TABLE_HAS_ACTIVE_ORDER');
  assert.equal((await pool.query('SELECT label,version FROM business_floor_tables WHERE business_id=$1 AND id=$2',[businessId,tableId])).rows[0].label,'T1');
 
+ const customerId=randomUUID();
+ const customer=await confirmed('customer.save',{id:customerId,reason:'Create POS acceptance customer',data:{name:'POS Guest',phone:'',email:'',notes:''}},{[`customers:${customerId}`]:0});
  const orderId=randomUUID();
  const opened=await confirmed('order.create',{id:orderId,name:'Counter sale',outletId,serviceDestination:'COUNTER'},{[`orders:${orderId}`]:0,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1});
+ const assigned=await confirmed('order.assignCustomer',{orderId,customerId},{[`orders:${orderId}`]:opened.result.version,[`customers:${customerId}`]:customer.result.version});
  const lineId=randomUUID();
- const added=await confirmed('order.addItem',{orderId,itemId:lineId,productId,quantity:2,note:'Extra hot',courseName:'Drinks'},{[`orders:${orderId}`]:opened.result.version,[`products:${productId}`]:1,[`businessSettings:${businessId}`]:1});
+ const added=await confirmed('order.addItem',{orderId,itemId:lineId,productId,quantity:1,portionId:'regular',modifierIds:['oat'],note:'Extra hot',courseName:'First'},{[`orders:${orderId}`]:assigned.result.version,[`products:${productId}`]:1,[`businessSettings:${businessId}`]:1});
  assert.equal(added.result.data.items[0].notes,'Extra hot');
+ assert.equal(added.result.data.items[0].portionSnapshot.id,'regular');
+ assert.equal(added.result.data.items[0].modifierSnapshots[0].id,'oat');
+ const barLineId=randomUUID();
+ const addedBar=await confirmed('order.addItem',{orderId,itemId:barLineId,productId:barProductId,quantity:1,portionId:'regular',note:'No sugar',courseName:'Second'},{[`orders:${orderId}`]:added.result.version,[`products:${barProductId}`]:1,[`businessSettings:${businessId}`]:1});
+ const discounted=await confirmed('order.discount',{orderId,percentBasisPoints:1000,reason:'Service recovery discount'},{[`orders:${orderId}`]:addedBar.result.version});
+ assert.equal(discounted.result.data.items.find(line=>line.id===lineId).lineTotalMinor,495);
+ const comped=await confirmed('order.compItem',{orderId,itemId:barLineId,reason:'Manager approved hospitality comp'},{[`orders:${orderId}`]:discounted.result.version});
+ assert.equal(comped.result.data.items.find(line=>line.id===barLineId).lineTotalMinor,0);
  const {rows:beforeFire}=await pool.query('SELECT version::int AS version FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId]);
- const fireCommand={commandId:randomUUID(),name:'order.fire',payload:{orderId,expectedBalanceVersions:{[`${stockId}:${locationId}`]:beforeFire[0].version}},expectedVersions:{[`orders:${orderId}`]:added.result.version,[`stockItems:${stockId}`]:1,[`stockLocations:${locationId}`]:1}};
+ const fireCommand={commandId:randomUUID(),name:'order.fire',payload:{orderId,itemIds:[lineId],expectedBalanceVersions:{[`${stockId}:${locationId}`]:beforeFire[0].version}},expectedVersions:{[`orders:${orderId}`]:comped.result.version,[`stockItems:${stockId}`]:1,[`stockLocations:${locationId}`]:1}};
  const fireResponse=await executeCommand({db:store,actor,registry,command:fireCommand});
  assert.equal(fireResponse.kind,'CONFIRMED');
  // Treat the first successful response as lost; recovery must return its stored outcome.
  const recoveredFire=await executeCommand({db:store,actor,registry,command:fireCommand});
  assert.deepEqual(recoveredFire,fireResponse);
  assert.equal(recoveredFire.result.documentIds.length,1);
- assert.equal((await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity,'9.500000');
+ assert.equal((await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity,'9.750000');
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM inventory_movements WHERE business_id=$1 AND source_command_id=$2',[businessId,fireCommand.commandId])).rows[0].count,1);
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_stock_consumptions WHERE business_id=$1 AND command_id=$2',[businessId,fireCommand.commandId])).rows[0].count,1);
  assert.equal((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='KOT'",[businessId,fireCommand.commandId])).rows[0].count,1);
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_events WHERE business_id=$1 AND command_id=$2',[businessId,fireCommand.commandId])).rows[0].count,1);
 
- const firedOrder=fireResponse.result.order;
- const paymentCommand={commandId:randomUUID(),name:'payment.record',payload:{orderId,tillSessionId:tillId,accountId,amountMinor:firedOrder.data.grandTotalMinor,cashTenderedMinor:firedOrder.data.grandTotalMinor},expectedVersions:{[`orders:${orderId}`]:firedOrder.version,[`tillSessions:${tillId}`]:1,[`paymentAccounts:${accountId}`]:1}};
+ let lifecycleOrder=fireResponse.result.order;
+ assert.deepEqual(lifecycleOrder.data.items.filter(line=>line.state==='DRAFT').map(line=>line.id),[barLineId]);
+ const fireBar={commandId:randomUUID(),name:'order.fire',payload:{orderId,itemIds:[barLineId],expectedBalanceVersions:{[`${stockId}:${locationId}`]:2}},expectedVersions:{[`orders:${orderId}`]:lifecycleOrder.version,[`stockItems:${stockId}`]:2,[`stockLocations:${locationId}`]:1}};
+ const firedBar=await executeCommand({db:store,actor,registry,command:fireBar});
+ assert.equal(firedBar.kind,'CONFIRMED');assert.equal(firedBar.result.documentIds.length,1);
+ assert.equal((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='BOT'",[businessId,fireBar.commandId])).rows[0].count,1);
+ lifecycleOrder=firedBar.result.order;assert.equal(lifecycleOrder.data.currentRoundNo,2);
+ for(const [station,itemId] of [['KITCHEN',lineId]]){
+  for(const status of ['PREPARING','READY','SERVED']){
+   const advanced=await confirmed('order.kds',{orderId,itemId,station,status},{[`orders:${orderId}`]:lifecycleOrder.version});
+   lifecycleOrder=advanced.result;
+  }
+ }
+ assert.equal(lifecycleOrder.data.items.find(line=>line.id===lineId).preparationStatus,'SERVED');
+ const stockBeforeRepeat=(await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity;
+ const repeated=await confirmed('order.repeatRound',{orderId},{[`orders:${orderId}`]:lifecycleOrder.version,[`products:${productId}`]:1,[`products:${barProductId}`]:1,[`businessSettings:${businessId}`]:1});
+ assert.equal(repeated.result.data.currentRoundNo,2);
+ assert.equal(repeated.result.data.items.length,4);
+ assert.equal(repeated.result.data.items.filter(line=>line.state==='DRAFT'&&line.roundNo===2).length,2);
+ assert.equal(repeated.result.data.items.find(line=>line.id===lineId).lineTotalMinor,495);
+ assert.equal((await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity,stockBeforeRepeat,'repeating a round holds new lines without consuming stock');
+ const laterLineId=randomUUID();
+ const laterLine=await confirmed('order.addItem',{orderId,itemId:laterLineId,productId:barProductId,quantity:1,portionId:'regular',courseName:'Third'},{[`orders:${orderId}`]:repeated.result.version,[`products:${barProductId}`]:1,[`businessSettings:${businessId}`]:1});
+ const laterFire={commandId:randomUUID(),name:'order.fire',payload:{orderId,expectedBalanceVersions:{[`${stockId}:${locationId}`]:3}},expectedVersions:{[`orders:${orderId}`]:laterLine.result.version,[`stockItems:${stockId}`]:3,[`stockLocations:${locationId}`]:1}};
+ const firedLater=await executeCommand({db:store,actor,registry,command:laterFire});
+ assert.equal(firedLater.kind,'CONFIRMED');assert.equal(firedLater.result.documentIds.length,2);
+ assert.equal(firedLater.result.order.data.currentRoundNo,3);
+ assert.equal(firedLater.result.order.data.items.filter(line=>line.state==='FIRED').length,5);
+ assert.equal((await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity,'8.750000');
+ assert.equal((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type IN ('KOT','BOT')",[businessId,laterFire.commandId])).rows[0].count,2);
+
+ const firedOrder=firedLater.result.order;
+ const mpesaAmount=firedOrder.data.grandTotalMinor-900;
+ const paymentCommand={commandId:randomUUID(),name:'payment.split',payload:{orderId,tillSessionId:tillId,payments:[{accountId,amountMinor:900,cashTenderedMinor:900},{accountId:mpesaAccountId,amountMinor:mpesaAmount,manuallyConfirmed:true,reference:'POS-ACCEPTANCE-001',receivedAmountMinor:mpesaAmount,receivedAt:new Date(Date.now()-1000).toISOString()}]},expectedVersions:{[`orders:${orderId}`]:firedOrder.version,[`tillSessions:${tillId}`]:1,[`paymentAccounts:${accountId}`]:1,[`paymentAccounts:${mpesaAccountId}`]:1}};
  const paymentResponse=await executeCommand({db:store,actor,registry,command:paymentCommand});
  assert.equal(paymentResponse.kind,'CONFIRMED');
  const recoveredPayment=await executeCommand({db:store,actor,registry,command:paymentCommand});
@@ -100,13 +148,33 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  assert.equal(paymentResponse.result.order.data.state,'COMPLETED');
  assert.equal(paymentResponse.result.order.data.amountPaidMinor,paymentResponse.result.order.data.grandTotalMinor);
  assert.ok(paymentResponse.result.order.data.receiptDocumentId);
- assert.equal((await pool.query('SELECT count(*)::int AS count FROM order_payments WHERE business_id=$1 AND source_command_id=$2',[businessId,paymentCommand.commandId])).rows[0].count,1);
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM order_payments WHERE business_id=$1 AND source_command_id=$2',[businessId,paymentCommand.commandId])).rows[0].count,2,'split settlement writes one row per recorded tender');
  assert.equal((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='SALES_RECEIPT'",[businessId,paymentCommand.commandId])).rows[0].count,1);
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_events WHERE business_id=$1 AND command_id=$2',[businessId,paymentCommand.commandId])).rows[0].count,1);
 
+ const voidOrderId=randomUUID();
+ const voidOrder=await confirmed('order.create',{id:voidOrderId,name:'Consumed void acceptance',outletId,serviceDestination:'COUNTER'},{[`orders:${voidOrderId}`]:0,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1});
+ const voidLineId=randomUUID();
+ const voidDraft=await confirmed('order.addItem',{orderId:voidOrderId,itemId:voidLineId,productId,quantity:1,portionId:'regular',modifierIds:['oat'],note:'Prepared then cancelled',courseName:'Test'},{[`orders:${voidOrderId}`]:voidOrder.result.version,[`products:${productId}`]:1,[`businessSettings:${businessId}`]:1});
+ const voidFire={commandId:randomUUID(),name:'order.fire',payload:{orderId:voidOrderId,expectedBalanceVersions:{[`${stockId}:${locationId}`]:4}},expectedVersions:{[`orders:${voidOrderId}`]:voidDraft.result.version,[`stockItems:${stockId}`]:4,[`stockLocations:${locationId}`]:1}};
+ const consumedFire=await executeCommand({db:store,actor,registry,command:voidFire});
+ assert.equal(consumedFire.kind,'CONFIRMED');
+ const voidCommand={commandId:randomUUID(),name:'order.void',payload:{orderId:voidOrderId,reason:'Prepared order was cancelled and consumed',disposition:'CONSUMED',operatorConfirmedDisposition:true},expectedVersions:{[`orders:${voidOrderId}`]:consumedFire.result.order.version}};
+ const voidResponse=await executeCommand({db:store,actor,registry,command:voidCommand});
+ assert.equal(voidResponse.kind,'CONFIRMED');
+ const recoveredVoid=await executeCommand({db:store,actor,registry,command:voidCommand});
+ assert.deepEqual(recoveredVoid,voidResponse);
+ assert.equal(voidResponse.result.order.data.state,'VOIDED');
+ assert.equal(voidResponse.result.order.data.voidDisposition,'CONSUMED');
+ assert.equal((await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity,'8.500000','consumed stock remains consumed after void');
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM inventory_movements WHERE business_id=$1 AND source_command_id=$2',[businessId,voidCommand.commandId])).rows[0].count,0,'a consumed void does not create a fictitious stock return');
+ assert.ok((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type IN ('ORDER_VOID_NOTICE','KOT_CANCEL')",[businessId,voidCommand.commandId])).rows[0].count>=1);
+
  const changes=await store.changesAfter(businessId,0,100);
- const posChanges=changes.changes.filter(change=>[fireCommand.commandId,paymentCommand.commandId].includes(change.commandId));
- assert.equal(posChanges.length,2,'fire and payment each publish one ordered change-feed entry');
+ const posCommandIds=[fireCommand.commandId,fireBar.commandId,laterFire.commandId,paymentCommand.commandId,voidFire.commandId,voidCommand.commandId];
+ const posChanges=changes.changes.filter(change=>posCommandIds.includes(change.commandId));
+ assert.equal(posChanges.length,posCommandIds.length,'each fire and payment publishes one ordered change-feed entry');
  assert.ok(posChanges[0].sequence<posChanges[1].sequence);
+ assert.deepEqual(new Set(posChanges.map(change=>change.commandId)),new Set(posCommandIds));
  assert.ok(posChanges.every(change=>change.records.length>0));
 });
