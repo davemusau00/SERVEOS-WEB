@@ -36,6 +36,7 @@ import {promisify} from 'node:util';
 import {catalogCommandRegistry} from './catalog-commands.mjs';
 import {readConfig} from './config.mjs';
 import {floorplanCommandRegistry} from './floorplan-commands.mjs';
+import {applyImport,cancelImport,getImportBatch,getImportPlan,importTemplates,listImportBatches,planImport,stageImport} from './csv-import.mjs';
 
 const json = (res, status, value) => {
   res.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
@@ -287,6 +288,32 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         return;
       }
       if(req.method==='POST'&&url.pathname==='/v1/print-bridge/check-claim'){res.setHeader('cache-control','no-store');return json(res,200,await checkBridgeClaim(store.pool,await readJson(req)));}
+      if(url.pathname==='/v1/import/templates'&&req.method==='GET'){
+        const actor=await authenticate(req);return json(res,200,await importTemplates(actor));
+      }
+      if(url.pathname==='/v1/import/batches'&&req.method==='GET'){
+        const actor=await authenticate(req);return json(res,200,await listImportBatches(store.pool,actor));
+      }
+      if(url.pathname==='/v1/import/batches'&&req.method==='POST'){
+        const actor=await authenticate(req);return json(res,201,await stageImport(store.pool,actor,await readJson(req)));
+      }
+      const importBatchMatch=url.pathname.match(/^\/v1\/import\/batches\/([0-9a-f-]{36})(?:\/(plan|cancel))?$/i);
+      if(importBatchMatch&&req.method==='GET'&&!importBatchMatch[2]){
+        const actor=await authenticate(req);return json(res,200,await getImportBatch(store.pool,actor,importBatchMatch[1]));
+      }
+      if(importBatchMatch&&req.method==='POST'&&importBatchMatch[2]==='plan'){
+        const actor=await authenticate(req);return json(res,200,await planImport({store,registry,actor,batchId:importBatchMatch[1]}));
+      }
+      if(importBatchMatch&&req.method==='POST'&&importBatchMatch[2]==='cancel'){
+        const actor=await authenticate(req);const input=await readJson(req);return json(res,200,await cancelImport(store.pool,actor,importBatchMatch[1],input.reason));
+      }
+      const importPlanMatch=url.pathname.match(/^\/v1\/import\/plans\/([0-9a-f-]{36})(?:\/(apply))?$/i);
+      if(importPlanMatch&&req.method==='GET'&&!importPlanMatch[2]){
+        const actor=await authenticate(req);return json(res,200,await getImportPlan(store.pool,actor,importPlanMatch[1]));
+      }
+      if(importPlanMatch&&req.method==='POST'&&importPlanMatch[2]==='apply'){
+        const actor=await authenticate(req);return json(res,200,await applyImport({store,registry,actor,planId:importPlanMatch[1]}));
+      }
       if (req.method === 'GET' && url.pathname === '/v1/catalog/items') {
         const actor = await authenticate(req);
         if (!actor.permissions?.includes('*') && !actor.permissions?.includes('catalog.view') && !actor.permissions?.includes('catalog.manage')) {

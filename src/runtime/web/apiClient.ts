@@ -10,6 +10,11 @@ export interface ApiCustomerCreditStatementPage {protocolVersion:1;customerId:st
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
 export interface ApiStaffSession {sessionId:string;deviceId:string|null;createdAt:string;expiresAt:string;revokedAt:string|null;current:boolean;deviceRevoked:boolean;expired:boolean}
 export interface ApiFinanceSummary {from:string;to:string;timeZone:string;currency:'KES';salesRevenueMinor:number;postedExpensesMinor:number;operatingResultBeforeTaxMinor:number;expensesByTender:{cashMinor:number;externalMinor:number};expensesByCategory:Array<{categoryId:string;name:string;amountMinor:number}>;debtorAging:Record<string,number>;payableAging:Record<string,number>;supplierPayments:{count:number;amountMinor:number}}
+export interface ApiImportTemplate {key:string;label:string;headers:string[];required:string[];permission:string;importable:boolean}
+export interface ApiImportRow {rowNumber:number;status:'VALID'|'INVALID';externalId:string|null;normalized:Record<string,string>;errors:string[];warnings:string[]}
+export interface ApiImportPlanStep {rowNumber:number;action:'CREATE'|'BLOCKED'|'CONFLICT';status:'PLANNED'|'BLOCKED'|'CONFLICT'|'APPLIED'|'FAILED';operation:string|null;targetCollection:string|null;targetId:string|null;reason:string;error:string|null}
+export interface ApiImportPlan {id:string;batchId:string;status:string;createdBy:string;createdAt:string;updatedAt:string;sourceHash:string;summary:{total:number;create:number;noChange:number;blocked:number;conflict:number;applied:number;failed:number};steps:ApiImportPlanStep[];stepsTruncated:boolean}
+export interface ApiImportBatch {id:string;templateKey:string;fileName:string;status:string;createdBy:string;createdAt:string;updatedAt:string;rowCount:number;validCount:number;invalidCount:number;sourceHash:string;headers:string[];notes:string;rows?:ApiImportRow[];rowsTruncated?:boolean;plan?:ApiImportPlan}
 
 export class ApiHttpError extends Error {
  constructor(readonly status:number,readonly code:string,message:string,readonly details?:unknown){super(message);this.name='ApiHttpError'}
@@ -81,5 +86,13 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   enrollmentChallenge(){return request<{challengeId:string;challenge:string;issuedAt:string;expiresAt:string}>('/v1/devices/enrollment-challenges',{method:'POST'},false)},
   enrollDevice(body:{challengeId:string;deviceId:string;publicKey:JsonWebKey;signature:string}){return request<{deviceId:string;businessId:string;createdAt:string}>('/v1/devices/enroll',{method:'POST',body:JSON.stringify(body)},false)},
   issueOfflineGrant(input:{allowedCommands?:string[];maxCommands?:number;durationMinutes?:number}){return request<OfflineGrantEnvelope>('/v1/offline-grants',{method:'POST',body:JSON.stringify(input)})},
+  importTemplates(){return request<{templates:ApiImportTemplate[];limits:{maxBytes:number;maxRows:number;previewRows:number};excluded:Array<{key:string;reason:string}>}>('/v1/import/templates')},
+  importBatches(){return request<{batches:ApiImportBatch[]}>('/v1/import/batches')},
+  importBatch(batchId:string){return request<{batch:ApiImportBatch;plan?:ApiImportPlan}>(`/v1/import/batches/${encodeURIComponent(batchId)}`)},
+  stageImport(input:{id:string;templateKey:string;fileName:string;csvText:string}){return request<{batch:ApiImportBatch}>('/v1/import/batches',{method:'POST',body:JSON.stringify(input)})},
+  planImport(batchId:string){return request<{plan:ApiImportPlan}>(`/v1/import/batches/${encodeURIComponent(batchId)}/plan`,{method:'POST',body:'{}'})},
+  importPlan(planId:string){return request<{plan:ApiImportPlan}>(`/v1/import/plans/${encodeURIComponent(planId)}`)},
+  applyImport(planId:string){return request<{plan:ApiImportPlan}>(`/v1/import/plans/${encodeURIComponent(planId)}/apply`,{method:'POST',body:'{}'})},
+  cancelImport(batchId:string,reason:string){return request<{cancelled:boolean;batchId:string;status:string}>(`/v1/import/batches/${encodeURIComponent(batchId)}/cancel`,{method:'POST',body:JSON.stringify({reason})})},
  };
 }
