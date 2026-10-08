@@ -7,7 +7,7 @@
 
 ## Current decision
 
-**NO-GO for ServOS production deployment or live transactions.** Release candidate `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8` passed the required hosted matrix, and TLS validates for both selected names, but the names still serve the previous upstream. Do not switch that upstream to ServOS, start ServOS containers, run production migrations, or initialize an Admin until the recovery, operational, and cutover gates below pass.
+**NO-GO for ServOS production deployment or live transactions.** Candidate `25010b707a581d50b0c82823ae926d751775d43a` includes the append-only ledger migration correction and is undergoing its required hosted matrix in run [37814669605](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37814669605). TLS validates for both selected names, but they still serve the previous upstream. Do not switch that upstream to ServOS, start ServOS containers, run production migrations, or initialize an Admin until the full release matrix and the recovery, operational, and cutover gates below pass.
 
 The production domains resolve to `93.127.131.55`. A new ECDSA Let's Encrypt certificate named `serveos-production` covers both names and is valid through 6 January 2027; Certbot renewal dry-run passed. A new exact-hostname Nginx site is enabled and `nginx -t` plus reload passed. HTTPS checks validate, while the PWA hostname still redirects to `/dashboard` and the API health route still returns 404 from the pre-existing upstream. This preserves the previous behavior until ServOS passes its gates. Confirm the currently served application's safe cutover with its owner before changing the upstream.
 
@@ -15,8 +15,8 @@ The production domains resolve to `93.127.131.55`. A new ECDSA Let's Encrypt cer
 
 | Area | Finding | Deployment consequence |
 |---|---|---|
-| Candidate source | `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8` is the exact candidate SHA. The worktree is clean. | Build and pin the PWA and API image from this same SHA; record the immutable API digest before deployment. |
-| Hosted CI | Run [37812482737](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37812482737) completed successfully on `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8`. All required jobs passed, including API/PostgreSQL, real PWA/API/PostgreSQL acceptance, production and preview browser suites, desktop, native, and printer-shell jobs. The `release-candidate` summary job was skipped by workflow rules. | Required software release matrix passes on this exact SHA. Physical printer/scanner acceptance and live business workflow readiness remain separate gates. |
+| Candidate source | `25010b707a581d50b0c82823ae926d751775d43a` is the current code candidate; the worktree is clean. Earlier SHA `59b0d20` passed its matrix but predates the final migration immutability correction. | Keep `25010b7` unaccepted until its full required hosted run completes green. |
+| Hosted CI | Run [37814669605](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37814669605) tests candidate `25010b707a581d50b0c82823ae926d751775d43a` and is still in progress. API/PostgreSQL, frontend, cloud, native, production and preview browser, and Print Bridge jobs have passed. `desktop-shell` is still in its Linux dependency installation step; Windows printer-shell has passed. | Candidate remains blocked until all required jobs and evidence summary complete green on this SHA. |
 | API/PostgreSQL failures resolved | The setup-secret assertion was caused by `initialSetupComplete()` resolving `public.api_staff_profiles` instead of the active isolated schema; it now uses `to_regclass('api_staff_profiles')`. Run `37811416603` exposed a second failure: close-day SQL referenced nonexistent `pos_orders.till_session_id`. New customer-credit charges now store their till attribution, and the close-day report uses it. Migration `070_customer_credit_till_attribution.sql` preserves existing append-only ledger rows. | Legacy credit charges with no verified till attribution deliberately block close-day reporting for manual reconciliation rather than being changed or omitted. |
 | Duplicate receipt-key log | The PostgreSQL log also emitted a duplicate `inventory_receipts_business_id_source_key_key` error. `inventory-lifecycle.integration.test.mjs` deliberately submits the same source reference a second time and asserts a durable `DUPLICATE_REFERENCE` conflict; the integration test passes. | This log line is expected conflict coverage, not test-state contamination. |
 | Local API suite | Full API/PostgreSQL suite passed serially against a newly created, disposable PostgreSQL database: 28/28, including auth, inventory, POS, revenue, and close-day integration tests. The disposable database was dropped afterward. | Hosted required matrix is the release evidence; local suite is a reproducibility check. |
@@ -40,7 +40,7 @@ The production domains resolve to `93.127.131.55`. A new ECDSA Let's Encrypt cer
 
 ## Ordered execution gates
 
-1. **Release SHA:** Complete. Candidate `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8` passed the required hosted CI matrix, including API/PostgreSQL, real PWA/API/PostgreSQL browser acceptance, and Windows printer shell. Build the production API and PWA from this same SHA and record their immutable artifacts before deployment.
+1. **Release SHA:** In progress. Candidate `25010b707a581d50b0c82823ae926d751775d43a` has passed API/PostgreSQL, browser acceptance, and all completed jobs. Wait for desktop-shell and the complete evidence summary before accepting it; then build the production API and PWA from that exact SHA.
 2. **Domain ownership and routing:** Confirm the currently served application can be safely moved/retired by its owner. The new certificate and vhost are additive and preserve its previous upstream; do not switch that upstream until an approved cutover plan exists.
 3. **Preflight:** Recheck host identity, ports, Nginx enabled-site inventory, provider and host firewall, storage/inodes/RAM, Docker and Compose versions, and all running containers/volumes. Capture a timestamped inventory. Abort on any ambiguous collision.
 4. **Independent recovery:** Configure the real off-VPS encrypted backup destination, prove one backup upload, retrieve and decrypt it with separately protected recovery material away from production, restore to an isolated PostgreSQL instance, and record schema plus representative row/count checks. Document the restore point and rollback owner.
@@ -57,7 +57,7 @@ Do not record passwords, setup tokens, private keys, database URLs, session cook
 
 ## Not yet evidenced
 
-- Production API image digest and PWA manifest built from candidate `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8`.
+- Exact fully green release SHA and production API image digest/PWA manifest built from that SHA.
 - Domain owner approval and safe reassignment of currently served hostnames.
 - ServOS API/PWA activation behind the valid TLS hostnames; currently those hostnames still reach the prior upstream.
 - Production backup provider configuration and isolated restore rehearsal.
