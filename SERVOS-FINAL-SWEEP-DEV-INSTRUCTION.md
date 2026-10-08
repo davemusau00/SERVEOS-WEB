@@ -6,8 +6,10 @@ _Updated live-codebase closeout plan_
 | --- | --- |
 | Repository | `davemusau00/SERVEOS-WEB` |
 | Branch | `reset/vps-platform` |
-| Reviewed HEAD | `cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4` |
-| Branch delta | 193 commits ahead of `main`, 0 behind |
+| Last locally tested source SHA | `cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4` |
+| Current source-equivalent SHA | `e05870e8afeda56bf060aebb8d1e18ccaec02ea2` (instruction-only change since the tested source) |
+| Current documentation HEAD | `f46e2bf1dd419421eab8d81432c9f74a47ebbdcf` |
+| Branch delta | 196 commits ahead of `main`, 0 behind |
 | Migration high-water | `068_pos_order_merge.sql` |
 | Primary goal | Finish the Web/API/PostgreSQL reset in one continuous engineering sweep |
 | Scope exclusion | Actual current Countryside terminal data migration/import |
@@ -16,14 +18,15 @@ _Updated live-codebase closeout plan_
 
 | Gate | Status | Current evidence |
 | --- | --- | --- |
-| Reviewed source | cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4 | reset/vps-platform matched origin/reset/vps-platform at review time; this update only changes progress documentation. |
-| Hosted CI | **FAIL** | [Actions run 37790563428](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37790563428): 11 jobs passed; `api-postgres` failed; release-candidate was skipped. |
-| Hosted Windows printer shell | **PASS** | The Windows printer-shell job completed successfully on the reviewed SHA. |
+| Reviewed source | `e05870e8afeda56bf060aebb8d1e18ccaec02ea2` | Application source matches the locally tested `cb1cce` tree; the intervening change only reformatted this instruction. |
+| Current branch | `f46e2bf1dd419421eab8d81432c9f74a47ebbdcf` | `reset/vps-platform` matches origin; later commits update progress documentation only. |
+| Hosted CI | **FAIL** | [Actions run 37795083074](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37795083074): 11 jobs passed; `api-postgres` failed; release-candidate was skipped. |
+| Hosted Windows printer shell | **PASS** | The Windows printer-shell job completed successfully on the source-equivalent SHA. |
 | Hosted PWA/API/PostgreSQL browser acceptance | **PASS** | The browser acceptance step passed in the same API/PostgreSQL job. |
 | Local API/PostgreSQL | **PASS** | 22/22 on the disposable PostgreSQL 16.15 service; local Node is 26.5.0 (CI uses Node 22). |
 | Local source checks | **PASS** | Root tests 218/218, lint, and UI prompt gate passed on this checkout. |
 | UI operator review | **OPEN** | The UI gate found no browser prompt/confirm calls; 619 review findings remain unaccepted, so workflows are not marked reviewed. |
-| Local desktop compilation | **OPEN** | A prior check ran out of C: drive space; only 0.01 GiB was free during this review. |
+| Local desktop compilation | **PASS** | `npm run check:desktop` passed on the source-equivalent tree; Cargo reported six warnings and no errors. |
 | Final green release SHA | **OPEN** | Do not start the POS acceptance phase until the API/PostgreSQL hosted failure is resolved and the full baseline is green. |
 
 The CI failure is isolated to the API/PostgreSQL test step; its real browser-to-API acceptance passed. The public job-log endpoint and artifact download both returned HTTP 403, so the exact failing test is still unknown.
@@ -93,9 +96,9 @@ Percentages are planning aids only. Final completion is determined by evidence-b
 
 Do not treat the following as blank phases. They must still be rerun at the final release SHA, but substantial evidence already exists.
 
-### 2.1 Hosted CI at the reviewed head
+### 2.1 Hosted CI at the reviewed source
 
-GitHub Actions run [#37790563428](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37790563428) completed on `cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4`.
+GitHub Actions run [#37795083074](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37795083074) completed on `e05870e8afeda56bf060aebb8d1e18ccaec02ea2`. This commit changes the instruction document only relative to the locally tested source SHA.
 
 | Job | Status |
 | --- | --- |
@@ -383,9 +386,9 @@ Required exit:
 
 The real PWA/API/PostgreSQL browser acceptance must continue to pass.
 
-## 6. Step 2: finish Windows printer shell hosted gate
+## 6. Step 2: confirm Windows printer shell hosted gate
 
-At the reviewed SHA, the hosted `windows-printer-shell` job completed successfully in run [#37790563428](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37790563428).
+At the current source-equivalent SHA, the hosted `windows-printer-shell` job completed successfully in run [#37795083074](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37795083074).
 The job covered the Windows desktop check, desktop tests, native Rust tests, and artifact upload.
 Status for the reviewed SHA:
 
@@ -398,14 +401,14 @@ Status for the reviewed SHA:
 | `cargo test src-tauri` | PASS |
 | Artifact upload | PASS |
 
-This gate is closed for the reviewed SHA and must be rerun on the final candidate SHA. If it regresses, fix it without regressing the dedicated Windows Print Bridge job.
+This gate is closed for the current source-equivalent SHA and must be rerun on the final candidate SHA. If it regresses, fix it without regressing the dedicated Windows Print Bridge job.
 Exit:
 
 - windows-printer-shell PASS
 
 ## 7. Step 3: lock the current green baseline
 
-Once the two remaining gates above pass, obtain one exact SHA where:
+Once the hosted API/PostgreSQL test passes and the Windows printer-shell job remains green, obtain one exact SHA where:
 
 - api-postgres             PASS
 - frontend                 PASS
@@ -1503,7 +1506,7 @@ Do not repeat already-proven phases unless required for regression verification.
 Work in this exact order:
 1. FIX HOSTED API/POSTGRES INTEGRATION TEST FAILURE
 
-2. FINISH WINDOWS-PRINTER-SHELL CURRENT RUN
+2. KEEP WINDOWS-PRINTER-SHELL GREEN IN THE BASELINE RUN
 
 3. OBTAIN ONE FULL GREEN BASELINE SHA
 
