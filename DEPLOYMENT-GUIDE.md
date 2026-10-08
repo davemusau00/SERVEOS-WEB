@@ -6,9 +6,9 @@
 **SSH username:** `administrator`  
 **Authentication:** existing **local SSH private key** (never copy the private key to the VPS or GitHub)  
 **Target:** Nginx-hosted ServOS Web/PWA + private Docker PostgreSQL + ServOS Node API and worker  
-**Deployment mode:** **isolated staging/rehearsal first**, followed by production promotion only after acceptance.
+**Deployment mode:** Fresh isolated production business, with live activation gated on release and operational acceptance. No Countryside import.
 
-> **Status and source basis (8 October 2026):** This guide is grounded in the inspected `reset/vps-platform` branch at `35803cbbcb5e67b656707ea626e64e2d76719f42` and its `TRUTH-DOCS/SERVOS-WEB-FIRST-RESET` materials. The branch evolves rapidly. At inspection, the current-sha CI run was in progress and a recent completed CI run had failed. **A successful build/deployment is not evidence of production readiness.** Deploy a pinned accepted commit. This document supplies an operator procedure, not a claim that the commands have already run on the VPS.
+> **Status and source basis (8 October 2026):** The original procedures below are staging-oriented examples, not production authorization. The deployment decision and current read-only VPS findings are recorded in [PRODUCTION-LAUNCH-READINESS.md](PRODUCTION-LAUNCH-READINESS.md). The current checkout is `ee7c8a255bac9920c7451f7c85c29493d142f082`; the historical sample SHA `35803cbbcb5e67b656707ea626e64e2d76719f42` is not an accepted release. **Do not run staging copy/paste blocks against production.** Promote only a pinned SHA after every required release and operational gate passes.
 
 ---
 
