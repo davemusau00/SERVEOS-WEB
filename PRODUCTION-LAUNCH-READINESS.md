@@ -7,7 +7,7 @@
 
 ## Current decision
 
-**NO-GO for ServOS production deployment or live transactions.** TLS now validates for both selected names, but they still serve the previous upstream. Do not switch that upstream to ServOS, start ServOS containers, run production migrations, or initialize an Admin until the release, recovery, operational, and cutover gates below pass.
+**NO-GO for ServOS production deployment or live transactions.** Release candidate `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8` passed the required hosted matrix, and TLS validates for both selected names, but the names still serve the previous upstream. Do not switch that upstream to ServOS, start ServOS containers, run production migrations, or initialize an Admin until the recovery, operational, and cutover gates below pass.
 
 The production domains resolve to `93.127.131.55`. A new ECDSA Let's Encrypt certificate named `serveos-production` covers both names and is valid through 6 January 2027; Certbot renewal dry-run passed. A new exact-hostname Nginx site is enabled and `nginx -t` plus reload passed. HTTPS checks validate, while the PWA hostname still redirects to `/dashboard` and the API health route still returns 404 from the pre-existing upstream. This preserves the previous behavior until ServOS passes its gates. Confirm the currently served application's safe cutover with its owner before changing the upstream.
 
@@ -15,10 +15,11 @@ The production domains resolve to `93.127.131.55`. A new ECDSA Let's Encrypt cer
 
 | Area | Finding | Deployment consequence |
 |---|---|---|
-| Current source | HEAD is `d972864bda3b0a230f71262512902656d5d313df`. The local tree has targeted, uncommitted fixes in customer-credit till attribution and close-day reporting; no files were reset or discarded. | Do not package from this dirty checkout. Select a committed candidate only after the hosted matrix is green on that exact SHA. |
-| Hosted CI | Run [37811416603](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37811416603) tests `d972864bda3b0a230f71262512902656d5d313df`; its `api-postgres` job failed while the other completed jobs shown passed. The Windows printer shell job was still in progress at last inspection. | No accepted green release SHA. The failing job log endpoint requires GitHub authentication. Local `gh auth status` reports unauthenticated; a device login code was provided to the user and awaits approval. |
-| API/PostgreSQL failure | The earlier reported auth failure came from `initialSetupComplete()` resolving `public.api_staff_profiles` instead of the active isolated schema. HEAD `d972864` changes it to `to_regclass('api_staff_profiles')`. The newer hosted failure still needs its exact job log reviewed. | Keep the candidate blocked until the current failure is resolved and the full required matrix is green. |
-| Local API suite | The current worktree passed the full API suite serially against a newly created, disposable PostgreSQL database: 28/28, including auth, inventory, POS, revenue, and close-day integration tests. The disposable database was dropped afterward. | Local evidence does not replace hosted CI. The local database's default-parallel run previously hit its shared-memory lock limit; serial acceptance passed. |
+| Candidate source | `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8` is the exact candidate SHA. The worktree is clean. | Build and pin the PWA and API image from this same SHA; record the immutable API digest before deployment. |
+| Hosted CI | Run [37812482737](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37812482737) completed successfully on `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8`. All required jobs passed, including API/PostgreSQL, real PWA/API/PostgreSQL acceptance, production and preview browser suites, desktop, native, and printer-shell jobs. The `release-candidate` summary job was skipped by workflow rules. | Required software release matrix passes on this exact SHA. Physical printer/scanner acceptance and live business workflow readiness remain separate gates. |
+| API/PostgreSQL failures resolved | The setup-secret assertion was caused by `initialSetupComplete()` resolving `public.api_staff_profiles` instead of the active isolated schema; it now uses `to_regclass('api_staff_profiles')`. Run `37811416603` exposed a second failure: close-day SQL referenced nonexistent `pos_orders.till_session_id`. Customer-credit charges now store their till attribution, the close-day report uses it, and migration `070_customer_credit_till_attribution.sql` backfills charges that can be matched to an operator's shift. | Unmatched legacy credit charges deliberately block close-day reporting for manual reconciliation rather than being omitted. |
+| Duplicate receipt-key log | The PostgreSQL log also emitted a duplicate `inventory_receipts_business_id_source_key_key` error. `inventory-lifecycle.integration.test.mjs` deliberately submits the same source reference a second time and asserts a durable `DUPLICATE_REFERENCE` conflict; the integration test passes. | This log line is expected conflict coverage, not test-state contamination. |
+| Local API suite | Full API/PostgreSQL suite passed serially against a newly created, disposable PostgreSQL database: 28/28, including auth, inventory, POS, revenue, and close-day integration tests. The disposable database was dropped afterward. | Hosted required matrix is the release evidence; local suite is a reproducibility check. |
 | VPS identity | SSH read-only access succeeded as `administrator`; host is Ubuntu 24.04.5, hostname `mail.detailskilonzo.com`. | Host is shared with other deployments; use strict isolation and preserve all existing state. |
 | Capacity | 4 vCPU, 7.8 GiB RAM, 115 GiB free on `/`, 2 GiB swap. | No resource blocker observed in this snapshot; recheck immediately before deployment. |
 | Existing services | Nginx and Docker are active. Existing apps bind localhost ports 3000 and 3001. Nginx has existing enabled sites. | Do not use ports 3000/3001, alter existing site files, restart Docker, or reuse any volume/network/database. Port 3101 appeared free during this read-only check; recheck at deployment time. |
@@ -39,7 +40,7 @@ The production domains resolve to `93.127.131.55`. A new ECDSA Let's Encrypt cer
 
 ## Ordered execution gates
 
-1. **Release SHA:** Resolve the hosted `api-postgres` failure. The working tree's local test changes are user work and must not be discarded or silently included. Select a clean committed candidate; require every required CI job green on that exact SHA, including API/PostgreSQL, PWA/API/PostgreSQL browser acceptance, and Windows printer shell.
+1. **Release SHA:** Complete. Candidate `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8` passed the required hosted CI matrix, including API/PostgreSQL, real PWA/API/PostgreSQL browser acceptance, and Windows printer shell. Build the production API and PWA from this same SHA and record their immutable artifacts before deployment.
 2. **Domain ownership and routing:** Confirm the currently served application can be safely moved/retired by its owner. The new certificate and vhost are additive and preserve its previous upstream; do not switch that upstream until an approved cutover plan exists.
 3. **Preflight:** Recheck host identity, ports, Nginx enabled-site inventory, provider and host firewall, storage/inodes/RAM, Docker and Compose versions, and all running containers/volumes. Capture a timestamped inventory. Abort on any ambiguous collision.
 4. **Independent recovery:** Configure the real off-VPS encrypted backup destination, prove one backup upload, retrieve and decrypt it with separately protected recovery material away from production, restore to an isolated PostgreSQL instance, and record schema plus representative row/count checks. Document the restore point and rollback owner.
@@ -56,7 +57,7 @@ Do not record passwords, setup tokens, private keys, database URLs, session cook
 
 ## Not yet evidenced
 
-- Exact fully green release SHA.
+- Production API image digest and PWA manifest built from candidate `59b0d20000ddab1850bd035044e4c1a8ccd2d3c8`.
 - Domain owner approval and safe reassignment of currently served hostnames.
 - ServOS API/PWA activation behind the valid TLS hostnames; currently those hostnames still reach the prior upstream.
 - Production backup provider configuration and isolated restore rehearsal.
