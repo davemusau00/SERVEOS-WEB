@@ -222,7 +222,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         let privateJwk;try{privateJwk=JSON.parse(process.env.OFFLINE_GRANT_PRIVATE_JWK)}catch{throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing is not configured.')}
         if(privateJwk.kty!=='EC'||privateJwk.crv!=='P-256'||typeof privateJwk.d!=='string')throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing key is invalid.');
         const input=await readJson(req);const requested=input.allowedCommands;
-        const eligible=[...registry].filter(([,definition])=>definition.offlinePolicy==='GRANTED_ONLY'&&(actor.permissions.includes('*')||actor.permissions.includes(definition.permission))).map(([name])=>name);
+        const eligible=[...registry].filter(([,definition])=>definition.offlinePolicy==='GRANTED_ONLY'&&(actor.permissions.includes('*')||(definition.permissionAny??[definition.permission]).some(permission=>actor.permissions.includes(permission)))).map(([name])=>name);
         const allowedCommands=requested===undefined?eligible:requested;
         if(!Array.isArray(allowedCommands)||!allowedCommands.length||allowedCommands.some(name=>!eligible.includes(name))||new Set(allowedCommands).size!==allowedCommands.length)throw new ApiProblem(400,'VALIDATION_FAILED','Choose one or more supported offline operations.');
         const maxCommands=input.maxCommands??10;const durationMinutes=input.durationMinutes??60;

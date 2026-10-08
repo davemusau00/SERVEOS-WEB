@@ -31,6 +31,8 @@ const stockItemSave = async ({tx, command, actor, at}) => {
   const {id, data} = command.payload;
   if (!uuid(id) || !data || typeof data !== 'object' || Array.isArray(data)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Stock item payload is malformed.');
   const expected = expectedVersion(command, 'stockItems', id);
+  const existing=await tx.client.query('SELECT archived_at FROM stock_items WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,id]);
+  if(existing.rows[0]?.archived_at)throw new ApiProblem(409,'MASTER_ARCHIVED','Restore this stock item before editing it.');
   const name = text(data.name, 'Name');
   const code = text(data.code, 'Code', 80);
   const baseUnit = text(data.baseUnit, 'Base unit', 40);
@@ -60,10 +62,14 @@ const stockItemSave = async ({tx, command, actor, at}) => {
 };
 
 const stockLocationSave=async({tx,command,actor})=>{
+  await tx.lockInventoryCatalog(actor.businessId);
   const {id,data}=command.payload;
   if(!uuid(id)||!data||typeof data!=='object'||Array.isArray(data))throw new ApiProblem(400,'VALIDATION_FAILED','Stock location payload is malformed.');
   const name=text(data.name,'Location name',120);const code=text(data.code||id,'Location code',80).toUpperCase();const type=text(data.type||'STORE','Location type',20).toUpperCase();
   if(!['STORE','FRIDGE','BAR','KITCHEN','OTHER'].includes(type))throw new ApiProblem(400,'VALIDATION_FAILED','Location type is unsupported.');
+  const existing=await tx.client.query('SELECT archived_at FROM stock_locations WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,id]);
+  if(existing.rows[0]?.archived_at)throw new ApiProblem(409,'MASTER_ARCHIVED','Restore this stock location before editing it.');
+  if(await tx.findBusinessCode('stock_locations',actor.businessId,code,id))throw new ApiProblem(409,'DUPLICATE_REFERENCE','That code is already assigned to an active stock location.');
   const version=await tx.bumpEntityVersion(actor.businessId,'stockLocations',id,expectedVersion(command,'stockLocations',id));
   await tx.saveStockLocation({businessId:actor.businessId,id,name,code,type,version});
   return {collection:'stockLocations',id,version,data:{name,code,type},archived:false};
@@ -74,6 +80,8 @@ const productSave = async ({tx, command, actor, at}) => {
   const {id, data} = command.payload;
   if (!uuid(id) || !data || typeof data !== 'object' || Array.isArray(data)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Product payload is malformed.');
   const expected = expectedVersion(command, 'products', id);
+  const existing=await tx.client.query('SELECT archived_at FROM products WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,id]);
+  if(existing.rows[0]?.archived_at)throw new ApiProblem(409,'MASTER_ARCHIVED','Restore this product before editing it.');
   const name = text(data.name, 'Name');
   const code = text(data.code, 'Code', 80);
   const priceMinor = data.priceMinor ?? (Number.isFinite(data.price) ? Math.round(data.price * 100) : undefined);
@@ -125,6 +133,75 @@ const productSave = async ({tx, command, actor, at}) => {
   await tx.saveProduct({businessId:actor.businessId,staffId:actor.staffId,id,name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeYield,portionVolume,sellingMode,portions,modifiers,outletIds,recipe:recipeIngredients.length > 0,recipeIngredients,version});
   return {collection:'products',id,version,data:{name,code,priceMinor,category,routeTo,stockItemId,barcode,favorite,taxClassId,inventoryType,recipeIngredients,recipeYield,portionVolume,sellingMode,portions,modifiers,outletIds,updatedAt:at.toISOString()}};
 };
+
+const masterArchive=({table,entityType,collection,archive,blockers})=>async({tx,command,actor,at})=>{
+  await tx.lockInventoryCatalog(actor.businessId);
+  const {id}=command.payload;
+  if(!uuid(id))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid catalog record.');
+  const reason=text(command.payload.reason,'Review reason',500);
+  if(reason.length<3)throw new ApiProblem(400,'VALIDATION_FAILED','Explain why this catalog record is being archived or restored.');
+  const found=await tx.client.query(`SELECT id,version,archived_at AS "archivedAt" FROM ${table} WHERE business_id=$1 AND id=$2 FOR UPDATE`,[actor.businessId,id]);
+  const row=found.rows[0];
+  if(!row)throw new ApiProblem(404,'MASTER_NOT_FOUND','Catalog record was not found.');
+  if(archive?row.archivedAt!==null:row.archivedAt===null)throw new ApiProblem(409,archive?'MASTER_ALREADY_ARCHIVED':'MASTER_ALREADY_ACTIVE',archive?'This catalog record is already archived.':'This catalog record is already active.');
+  const version=await tx.bumpEntityVersion(actor.businessId,entityType,id,expectedVersion(command,collection,id));
+  if(archive){
+    const blocker=await blockers?.(tx,actor.businessId,id);
+    if(blocker)throw new ApiProblem(409,blocker.code,blocker.message);
+  }else if(table==='products'){
+    const product=await tx.productRecordProjection(actor.businessId,id);
+    const data=product?.data;
+    if(!data)throw new ApiProblem(409,'MASTER_NOT_FOUND','Archived product details are unavailable.');
+    const stockIds=[data.stockItemId,...(data.recipeIngredients||[]).map(item=>item.stockItemId),...(data.modifiers||[]).flatMap(modifier=>(modifier.ingredientAdjustments||[]).map(item=>item.stockItemId))].filter(Boolean);
+    if(!await tx.requireStockItems(actor.businessId,stockIds))throw new ApiProblem(409,'RESOURCE_CONFLICT','Restore or replace every archived stock reference before restoring this product.');
+    if(!await tx.requireOutlets(actor.businessId,data.outletIds||[]))throw new ApiProblem(409,'RESOURCE_CONFLICT','Restore or replace every archived service area before restoring this product.');
+    await duplicateCheck(tx,'products',actor.businessId,String(data.code),data.barcode,id);
+  }else if(table==='stock_items'){
+    const stock=await tx.stockRecordProjection(actor.businessId,id);
+    const data=stock?.data;
+    if(!data)throw new ApiProblem(409,'MASTER_NOT_FOUND','Archived stock item details are unavailable.');
+    await duplicateCheck(tx,'stock_items',actor.businessId,String(data.code),data.barcode,id);
+    const barcodes=[data.barcode,...(data.barcodeAliases||[]),...(data.purchasePackages||[]).map(pack=>pack.barcode)].filter(Boolean);
+    for(const barcode of barcodes)if(await tx.findStockBarcode(actor.businessId,barcode,id))throw new ApiProblem(409,'DUPLICATE_REFERENCE','A stock or package barcode is already assigned to another active item.');
+  }else if(table==='stock_locations'){
+    const location=await tx.client.query('SELECT code FROM stock_locations WHERE business_id=$1 AND id=$2',[actor.businessId,id]);
+    if(location.rows[0]?.code&&await tx.findBusinessCode('stock_locations',actor.businessId,location.rows[0].code,id))throw new ApiProblem(409,'DUPLICATE_REFERENCE','That code is already assigned to an active stock location.');
+  }
+  if(table==='stock_locations')await tx.client.query('UPDATE stock_locations SET archived_at=$3,version=$4 WHERE business_id=$1 AND id=$2',[actor.businessId,id,archive?at:null,version]);
+  else await tx.client.query(`UPDATE ${table} SET archived_at=$3,version=$4,updated_by=$5,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,id,archive?at:null,version,actor.staffId,at]);
+  return {collection,id,version,archived:archive,data:{reason,updatedBy:actor.staffId,updatedAt:at.toISOString()}};
+};
+
+const archiveProduct=masterArchive({table:'products',entityType:'products',collection:'products',archive:true,blockers:async(tx,businessId,id)=>{
+  const open=await tx.client.query(`SELECT 1 FROM pos_order_lines l JOIN pos_orders o ON o.business_id=l.business_id AND o.id=l.order_id WHERE l.business_id=$1 AND l.product_id=$2 AND l.state='DRAFT' AND o.state='OPEN' LIMIT 1`,[businessId,id]);
+  return open.rows.length?{code:'OPEN_ORDER_DEPENDENCY',message:'Remove this product from open orders before archiving it.'}:null;
+}});
+const reactivateProduct=masterArchive({table:'products',entityType:'products',collection:'products',archive:false});
+const archiveStockItem=masterArchive({table:'stock_items',entityType:'stockItems',collection:'stockItems',archive:true,blockers:async(tx,businessId,id)=>{
+  await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`procurement:${businessId}`]);
+  const balance=await tx.client.query(`SELECT 1 FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND (quantity<>0 OR COALESCE(sealed_containers,0)<>0 OR COALESCE(open_quantity,0)<>0) LIMIT 1`,[businessId,id]);
+  if(balance.rows.length)return {code:'STOCK_BALANCE_REMAINS',message:'Bring every location balance, including sealed and open bottle quantities, to zero before archiving this stock item.'};
+  if((await tx.productConsumptionIds(businessId,id)).length)return {code:'ACTIVE_PRODUCT_DEPENDENCY',message:'Remove this stock item from active product, recipe, and modifier consumption before archiving it.'};
+  const po=await tx.client.query(`SELECT 1 FROM procurement_purchase_order_lines l JOIN procurement_purchase_orders p ON p.business_id=l.business_id AND p.id=l.po_id WHERE l.business_id=$1 AND l.stock_item_id=$2 AND p.status IN ('DRAFT','APPROVED','ISSUED','PARTIALLY_RECEIVED') LIMIT 1`,[businessId,id]);
+  if(po.rows.length)return {code:'OPEN_PURCHASE_ORDER_DEPENDENCY',message:'Resolve open purchase orders for this stock item before archiving it.'};
+  const returns=await tx.client.query(`SELECT 1 FROM procurement_supplier_return_lines l JOIN procurement_supplier_returns r ON r.business_id=l.business_id AND r.id=l.return_id WHERE l.business_id=$1 AND l.stock_item_id=$2 AND r.status IN ('DRAFT','APPROVED') LIMIT 1`,[businessId,id]);
+  if(returns.rows.length)return {code:'OPEN_SUPPLIER_RETURN_DEPENDENCY',message:'Resolve draft or approved supplier returns for this stock item before archiving it.'};
+  return null;
+}});
+const reactivateStockItem=masterArchive({table:'stock_items',entityType:'stockItems',collection:'stockItems',archive:false});
+const archiveStockLocation=masterArchive({table:'stock_locations',entityType:'stockLocations',collection:'stockLocations',archive:true,blockers:async(tx,businessId,id)=>{
+  await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`till-policy:${businessId}`]);
+  await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`procurement:${businessId}`]);
+  const balance=await tx.client.query(`SELECT 1 FROM inventory_location_balances WHERE business_id=$1 AND location_id=$2 AND (quantity<>0 OR COALESCE(sealed_containers,0)<>0 OR COALESCE(open_quantity,0)<>0) LIMIT 1`,[businessId,id]);
+  if(balance.rows.length)return {code:'LOCATION_STOCK_REMAINS',message:'Move or reconcile stock at this location before archiving it.'};
+  const outlet=await tx.client.query(`SELECT 1 FROM business_outlets WHERE business_id=$1 AND default_stock_location_id=$2 AND archived_at IS NULL LIMIT 1`,[businessId,id]);
+  if(outlet.rows.length)return {code:'ACTIVE_OUTLET_DEPENDENCY',message:'Choose another default stock location for every active outlet before archiving this location.'};
+  const order=await tx.client.query(`SELECT 1 FROM pos_orders WHERE business_id=$1 AND stock_location_id=$2 AND state='OPEN' LIMIT 1`,[businessId,id]);
+  if(order.rows.length)return {code:'OPEN_ORDER_DEPENDENCY',message:'Close or move open orders that use this stock location before archiving it.'};
+  const returns=await tx.client.query(`SELECT 1 FROM procurement_supplier_return_lines l JOIN procurement_supplier_returns r ON r.business_id=l.business_id AND r.id=l.return_id WHERE l.business_id=$1 AND l.location_id=$2 AND r.status IN ('DRAFT','APPROVED') LIMIT 1`,[businessId,id]);
+  return returns.rows.length?{code:'OPEN_SUPPLIER_RETURN_DEPENDENCY',message:'Resolve draft or approved supplier returns at this location before archiving it.'}:null;
+}});
+const reactivateStockLocation=masterArchive({table:'stock_locations',entityType:'stockLocations',collection:'stockLocations',archive:false});
 
 const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   await tx.lockInventoryCatalog(actor.businessId);
@@ -361,8 +438,14 @@ const inventoryProduceBatch=async({tx,command,actor,at})=>{
 
 export const catalogCommandRegistry = new Map([
   ['stockItem.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:stockItemSave}],
-  ['stockLocation.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:stockLocationSave}],
+  ['stockLocation.save', {permission:'catalog.manage',permissionAny:['catalog.manage','inventory.adjust'],offlinePolicy:'GRANTED_ONLY',handler:stockLocationSave}],
   ['product.save', {permission:'catalog.manage',offlinePolicy:'GRANTED_ONLY',handler:productSave}],
+  ['product.archive',{permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:archiveProduct}],
+  ['product.reactivate',{permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:reactivateProduct}],
+  ['stockItem.archive',{permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:archiveStockItem}],
+  ['stockItem.reactivate',{permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:reactivateStockItem}],
+  ['stockLocation.archive',{permission:'inventory.adjust',offlinePolicy:'ONLINE_ONLY',handler:archiveStockLocation}],
+  ['stockLocation.reactivate',{permission:'inventory.adjust',offlinePolicy:'ONLINE_ONLY',handler:reactivateStockLocation}],
   ['catalog.createWithOpeningStock', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:catalogCreateWithOpeningStock}],
   ['inventory.countLocation',{permission:'inventory.count',offlinePolicy:'ONLINE_ONLY',handler:inventoryCount}],
   ['inventory.countSelected',{permission:'inventory.count',offlinePolicy:'ONLINE_ONLY',handler:inventoryCount}],
@@ -425,9 +508,15 @@ export const catalogCommandRegistry = new Map([
 // Every registered handler names its changed projections explicitly. Business value
 // objects may contain arbitrary nested data without accidentally publishing records.
 const changeRecords=new Map([
- ['stockItem.save',async(value,{tx,actor,command})=>[await tx.stockRecordProjection(actor.businessId,command.payload.id)]],
- ['stockLocation.save',async value=>[value]],
- ['product.save',async value=>[value]],
+  ['stockItem.save',async(value,{tx,actor,command})=>[await tx.stockRecordProjection(actor.businessId,command.payload.id)]],
+  ['stockLocation.save',async value=>[value]],
+  ['product.save',async value=>[value]],
+  ['product.archive',async(value,{tx,actor})=>[await tx.productRecordProjection(actor.businessId,value.id)]],
+  ['product.reactivate',async(value,{tx,actor})=>[await tx.productRecordProjection(actor.businessId,value.id)]],
+  ['stockItem.archive',async(value,{tx,actor})=>[await tx.stockRecordProjection(actor.businessId,value.id)]],
+  ['stockItem.reactivate',async(value,{tx,actor})=>[await tx.stockRecordProjection(actor.businessId,value.id)]],
+  ['stockLocation.archive',async(value,{tx,actor})=>[await tx.stockLocationProjection(actor.businessId,value.id)]],
+  ['stockLocation.reactivate',async(value,{tx,actor})=>[await tx.stockLocationProjection(actor.businessId,value.id)]],
  ['catalog.item.create',async value=>[value]],
  ['catalog.createWithOpeningStock',async(value,{tx,actor})=>[await tx.stockRecordProjection(actor.businessId,value.id),...(value.product?[value.product]:[]),...value.openingMovements]],
  ['inventory.countLocation',async value=>[value.count,...value.stockItems,...value.stockMovements]],
