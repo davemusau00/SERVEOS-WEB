@@ -21,7 +21,7 @@ import {resolveOperationDependencies} from './dependencies';
 import {captureCountRecovery} from './countRecovery';
 import {WebStorageDiagnostics} from './WebStorageDiagnostics';
 import {startAutomaticSync,subscribeSyncUpdates,synchronizeStore} from './sync';
-import {allowed,loadAuthorizedSnapshot,openWebDevice,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
+import {allowed,apiAuthorizationPolicyVersion,loadApiCatalogSnapshot,loadAuthorizedSnapshot,openWebDevice,type BusinessRecord,type Rpc,type WebGuidanceProgress,type WebSession} from './session';
 import {createApiCloudTransport} from './sync';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
 import {ApiHttpError} from './apiClient';
@@ -143,6 +143,13 @@ export function WebBusinessApp({initialSession,rpc,onSignOut,apiAuth,apiStore}:{
       if(profile.businessId!==opened.scope||profile.staffId!==opened.actorId||profile.mustChangePassword)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in again before continuing in this workspace.');
       if(stopped)return;
       const latest={...sessionRef.current,permissions:profile.permissions};sessionRef.current=latest;setSession(latest);
+      const authorizedPolicy=await apiAuthorizationPolicyVersion(profile.permissions);
+      if(authorizedPolicy!==await opened.policyVersion()){
+        setReady(false);setRecords([]);
+        if(await opened.hasPending())await synchronizeStore(opened,apiTransport.current!);
+        if(stopped)return;
+        await loadApiCatalogSnapshot(opened,apiAuth.client,authorizedPolicy);
+      }
       await synchronizeStore(opened,apiTransport.current!);
       await refresh();if(!stopped){setReady(true);setError('')};return;
     }

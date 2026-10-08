@@ -337,6 +337,10 @@ atomic projection activation
 
 This is a major reduction in the old browser-recovery gap.
 
+## Phase 2 source hardening — 2026-10-08 (tests deferred)
+
+The API-authoritative browser projection previously reused the same `api-catalog-v3` marker for every permission set. If staff permissions were reduced, the browser could keep showing records from the older, broader snapshot even though subsequent API reads were filtered. The PWA now derives its local projection policy from the sorted current permission set. On startup and each authenticated sync, a changed policy hides the old records, recovers pending commands under current authorization, then installs a fresh filtered snapshot before rendering again. Bootstrap and permission-change acceptance remain unverified.
+
 ## Required bootstrap acceptance
 
 Test:

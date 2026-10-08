@@ -16,6 +16,10 @@ export interface WebGuidanceProgress {guideId:string;guideVersion:number;state:'
 export type BusinessRecord=RecordVersion & {data:Record<string,unknown>;archived:boolean};
 export type Rpc=(path:string,body?:unknown)=>Promise<any>;
 const stableSnapshotJson=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(stableSnapshotJson).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${stableSnapshotJson((value as Record<string,unknown>)[key])}`).join(',')}}`;
+export async function apiAuthorizationPolicyVersion(permissions:string[]):Promise<string>{
+ const normalized=[...new Set(permissions)].sort(),bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(stableSnapshotJson(normalized)));
+ const hash=Array.from(new Uint8Array(bytes),byte=>byte.toString(16).padStart(2,'0')).join('');return `api-catalog-v3:${hash}`;
+}
 interface SnapshotPage {cursor:number;policyVersion:string;records:BusinessRecord[];hasMore:boolean;afterCollection:string;afterId:string}
 export const allowed=(session:WebSession,permission:string)=>session.permissions.includes('*')||session.permissions.includes(permission);
 

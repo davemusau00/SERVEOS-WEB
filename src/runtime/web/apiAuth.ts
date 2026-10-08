@@ -1,7 +1,7 @@
 import {createServOSApiClient,type ApiStaffLogin} from './apiClient';
 import {createStaffScopedApiWebDeviceIdentity,enrollWebDeviceWithApi,findApiWebDeviceIdentity,getOrCreateApiWebDeviceIdentity,rememberApiWebDeviceIdentity,WebDeviceEnrollmentError,WebDeviceIdentityUnavailableError,type WebDeviceIdentity} from './deviceIdentity';
 import {BusinessStore} from './BusinessStore';
-import {loadApiCatalogSnapshot} from './session';
+import {apiAuthorizationPolicyVersion,loadApiCatalogSnapshot} from './session';
 import {createApiCloudTransport,synchronizeStore} from './sync';
 import {ApiHttpError} from './apiClient';
 
@@ -80,9 +80,10 @@ export async function resumeApiDeviceSession(input:{apiOrigin:string;fetcher?:ty
 export async function openApiBusinessStore(session:ApiAuthenticatedDeviceSession){
   const store=await BusinessStore.open(session.profile.businessId,session.identity.deviceId,session.profile.staffId,0,'API');
   try{
+    const policyVersion=await apiAuthorizationPolicyVersion(session.profile.permissions);
     // Recover durable commands before installing a replacement projection.
     // An initialized projection is reused, including an empty zero-cursor catalog.
-    if(await store.policyVersion()!=='api-catalog-v3'&&await store.hasPending())await synchronizeStore(store,createApiCloudTransport(session.client));
-    await loadApiCatalogSnapshot(store,session.client);return store;
+    if(await store.policyVersion()!==policyVersion&&await store.hasPending())await synchronizeStore(store,createApiCloudTransport(session.client));
+    await loadApiCatalogSnapshot(store,session.client,policyVersion);return store;
   }catch(error){store.close();throw error}
 }

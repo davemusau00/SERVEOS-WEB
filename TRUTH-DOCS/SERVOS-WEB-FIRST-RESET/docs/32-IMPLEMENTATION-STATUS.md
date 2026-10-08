@@ -1012,3 +1012,7 @@ The active continuation refers to `final-sprint.md`, but that file is absent fro
 - API devices are owned by one staff profile, but the browser previously reused one device identity across the whole business. The IndexedDB registry now keeps staff-scoped API identities while retaining the legacy business identity; sign-in falls back to a new staff identity only for the server's explicit other-owner collision response. Revoked IDs and key mismatches remain errors.
 - Reload now resumes API authentication using only a non-secret session UUID stored in localStorage plus the existing session-scoped HttpOnly refresh cookie. The bearer remains in memory, the PWA rechecks its profile and exact device binding, and a missing bound private key requires sign-in again. Reload, revocation and cookie behavior remain unverified.
 - Source change is untested by user direction. Phase 1 exit gates remain open; Phase 0's hosted frontend/API failures also remain unresolved and unpassed.
+
+### Phase 2 bootstrap authorization hardening (source only; tests deferred)
+
+- The PWA now keys its cached API projection policy to the current permission set. If staff authorization changes, it hides the prior projection, resolves saved API commands under the current permissions, and rebuilds from a newly filtered catalog snapshot before showing records. Snapshot, permission-revocation, and storage recovery acceptance remain unverified.
