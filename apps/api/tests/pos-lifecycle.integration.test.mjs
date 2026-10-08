@@ -77,6 +77,47 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  assert.equal(blockedEdit.error.code,'TABLE_HAS_ACTIVE_ORDER');
  assert.equal((await pool.query('SELECT label,version FROM business_floor_tables WHERE business_id=$1 AND id=$2',[businessId,tableId])).rows[0].label,'T1');
 
+ const transferSourceId=randomUUID(),transferDestinationId=randomUUID(),raceSourceA=randomUUID(),raceSourceB=randomUUID(),raceDestination=randomUUID(),mergeSourceId=randomUUID();
+ const tableDefinition=(id,label,posX)=>({id,label,section:'Main',capacity:2,posX,posY:20,minimumSpend:0,shape:'SQUARE',isJoinable:true,assignedServerId:null});
+ await confirmed('floorplan.save',{outletId,baseline:[{id:tableId,version:2}],tables:[
+  {...tableDefinition(tableId,'T1',10),shape:'ROUND'},tableDefinition(transferSourceId,'Transfer source',20),tableDefinition(transferDestinationId,'Transfer destination',30),
+  tableDefinition(raceSourceA,'Race source A',40),tableDefinition(raceSourceB,'Race source B',50),tableDefinition(raceDestination,'Race destination',60),tableDefinition(mergeSourceId,'Merge source',70),
+ ]},{[`tables:${tableId}`]:2});
+ const createTableOrder=async(id,table)=>confirmed('order.create',{id,name:`Table ${table}`,outletId,tableId:table},{[`orders:${id}`]:0,[`tables:${table}`]:1,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1});
+ const transferOrderId=randomUUID();
+ const transferOrder=await createTableOrder(transferOrderId,transferSourceId);
+ const transfer=await confirmed('order.transfer',{orderId:transferOrderId,targetTableId:transferDestinationId},{[`orders:${transferOrderId}`]:transferOrder.result.version,[`tables:${transferSourceId}`]:2,[`tables:${transferDestinationId}`]:1});
+ assert.equal(transfer.result.data.tableId,transferDestinationId);
+ const transferState=await pool.query('SELECT id,state,version FROM business_floor_tables WHERE business_id=$1 AND id=ANY($2::uuid[])',[businessId,[transferSourceId,transferDestinationId]]);
+ assert.equal(transferState.rows.find(row=>row.id===transferSourceId).state,'CLEANING');
+ assert.equal(Number(transferState.rows.find(row=>row.id===transferDestinationId).version),2);
+
+ const transferRaceOrders=await Promise.all([[randomUUID(),raceSourceA],[randomUUID(),raceSourceB]].map(([id,table])=>createTableOrder(id,table)));
+ const raceSourceOrderIds=transferRaceOrders.map(row=>row.result.id);
+ const transferCommands=transferRaceOrders.map((row,index)=>({commandId:randomUUID(),name:'order.transfer',payload:{orderId:raceSourceOrderIds[index],targetTableId:raceDestination},expectedVersions:{[`orders:${raceSourceOrderIds[index]}`]:row.result.version,[`tables:${index===0?raceSourceA:raceSourceB}`]:2,[`tables:${raceDestination}`]:1}}));
+ const transferRace=await Promise.all(transferCommands.map(command=>executeCommand({db:store,actor,registry,command})));
+ assert.deepEqual(transferRace.map(row=>row.kind).sort(),['CONFIRMED','CONFLICT']);
+ assert.equal((await pool.query("SELECT count(*)::int AS count FROM pos_orders WHERE business_id=$1 AND service_destination='TABLE' AND service_reference->>'tableId'=$2 AND state IN ('OPEN','FIRED')",[businessId,raceDestination])).rows[0].count,1);
+
+ const mergeSourceOrderId=randomUUID();
+ const mergeSourceOrder=await createTableOrder(mergeSourceOrderId,mergeSourceId);
+ const mergeLineId=randomUUID();
+ const mergeDraft=await confirmed('order.addItem',{orderId:mergeSourceOrderId,itemId:mergeLineId,productId,quantity:1,portionId:'regular',note:'Held for merge'},{[`orders:${mergeSourceOrderId}`]:mergeSourceOrder.result.version,[`products:${productId}`]:1,[`businessSettings:${businessId}`]:1});
+ const raceWinnerCommand=tableOrders.find(command=>command.commandId===raceWinner.commandId);
+ const merge=await confirmed('order.merge',{orderId:mergeSourceOrderId,targetOrderId:raceWinnerCommand.payload.id,targetTableId:tableId},{[`orders:${mergeSourceOrderId}`]:mergeDraft.result.version,[`orders:${raceWinnerCommand.payload.id}`]:raceWinner.result.version,[`tables:${mergeSourceId}`]:2,[`tables:${tableId}`]:3});
+ assert.equal(merge.result.mergedOrder.data.state,'MERGED');
+ assert.equal(merge.result.mergedOrder.data.mergedIntoOrderId,raceWinnerCommand.payload.id);
+ assert.equal(merge.result.order.data.items.length,1);
+ assert.equal(merge.result.order.data.items[0].id,mergeLineId);
+ const changedSource=await run('order.addItem',{orderId:mergeSourceOrderId,itemId:randomUUID(),productId,quantity:1},{[`orders:${mergeSourceOrderId}`]:merge.result.mergedOrder.version,[`products:${productId}`]:1,[`businessSettings:${businessId}`]:1});
+ assert.equal(changedSource.kind,'CONFLICT','a merged source order refuses further business mutations');
+ const mergedVoid=await confirmed('order.void',{orderId:raceWinnerCommand.payload.id,reason:'Close merged acceptance check',operatorConfirmedDisposition:true},{[`orders:${raceWinnerCommand.payload.id}`]:merge.result.order.version});
+ assert.equal(mergedVoid.result.order.data.state,'VOIDED');
+ const targetReady=await confirmed('table.ready',{tableId},{[`tables:${tableId}`]:4});
+ assert.equal(targetReady.result.data.state,'AVAILABLE');
+ const sourceReady=await confirmed('table.ready',{tableId:mergeSourceId},{[`tables:${mergeSourceId}`]:3});
+ assert.equal(sourceReady.result.data.state,'AVAILABLE');
+
  const customerId=randomUUID();
  const customer=await confirmed('customer.save',{id:customerId,reason:'Create POS acceptance customer',data:{name:'POS Guest',phone:'',email:'',notes:''}},{[`customers:${customerId}`]:0});
  const orderId=randomUUID();
