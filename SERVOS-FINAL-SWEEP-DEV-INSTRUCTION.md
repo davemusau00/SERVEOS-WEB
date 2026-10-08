@@ -23,7 +23,7 @@ _Updated live-codebase closeout plan_
 | Hosted CI | **FAIL** | [Actions run 37795083074](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37795083074): 11 jobs passed; `api-postgres` failed; release-candidate was skipped. |
 | Hosted Windows printer shell | **PASS** | The Windows printer-shell job completed successfully on the source-equivalent SHA. |
 | Hosted PWA/API/PostgreSQL browser acceptance | **PASS** | The browser acceptance step passed in the same API/PostgreSQL job. |
-| Local API/PostgreSQL | **PASS** | 22/22 on the disposable PostgreSQL 16.15 service; local Node is 26.5.0 (CI uses Node 22). |
+| Local API/PostgreSQL | **PASS** | 22/22 on PostgreSQL 16.15 under Node 26.5.0 and Node 22.23.3; seven Linux Node 22 runs also passed, including a CI-style clean install and Playwright setup. |
 | Local source checks | **PASS** | Root tests 218/218, lint, and UI prompt gate passed on this checkout. |
 | UI operator review | **OPEN** | The UI gate found no browser prompt/confirm calls; 619 review findings remain unaccepted, so workflows are not marked reviewed. |
 | Local desktop compilation | **PASS** | `npm run check:desktop` passed on the source-equivalent tree; Cargo reported six warnings and no errors. |
@@ -346,7 +346,7 @@ This is the highest-priority software blocker.
 | npm run test:api | FAIL |
 | npm run test:browser:api | PASS |
 
-Current local evidence is 22/22 against disposable PostgreSQL 16.15 on Node 26.5.0; CI uses Node 22, so the environment difference remains part of the investigation.
+Current local evidence is 22/22 against PostgreSQL 16.15 under Node 26.5.0 and Node 22.23.3. Seven Linux Node 22.23.3 runs passed; three used a two-CPU limit, and one repeated the CI sequence with fresh API/root installs, Playwright system/browser installation, CI environment flags, and the exact npm test script.
 Investigate the CI/local discrepancy as deterministic test-isolation or environment work. The public Actions log endpoint and the API-job artifact download returned HTTP 403, so the test-level failure has not been identified yet.
 Check:
 
