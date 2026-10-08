@@ -42,6 +42,7 @@ const json = (res, status, value) => {
 };
 const scrypt=promisify(scryptCallback);
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const calendarDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(`${value}T00:00:00Z`))&&new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;
 const ACCESS_TOKEN_TTL=15*60_000,REFRESH_TOKEN_TTL=30*24*60*60_000,REFRESH_FAMILY_TTL=90*24*60*60_000,REFRESH_COOKIE_PREFIX='servos_refresh_';
 const refreshCookieName=sessionId=>`${REFRESH_COOKIE_PREFIX}${sessionId}`;
 const deriveRotatedRefreshToken=(parentToken,childTokenId)=>createHmac('sha256',Buffer.from(parentToken,'base64url')).update(`serveos-refresh-rotation:${childTokenId}`).digest('base64url');
@@ -296,7 +297,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if(req.method==='GET'&&url.pathname==='/v1/finance/summary'){
         const actor=await authenticate(req);if(!['*','accounting.view','reports.view','finance.expense.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view Finance reports.');
-        const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||!Number.isFinite(Date.parse(`${from}T00:00:00Z`))||!Number.isFinite(Date.parse(`${to}T00:00:00Z`))||from>to||(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000>366)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid Finance report range of at most 367 calendar days.');
+        const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';if(!calendarDate(from)||!calendarDate(to)||from>to||(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000>366)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid Finance report range of at most 367 calendar days.');
         return json(res,200,await store.financeSummary(actor.businessId,from,to));
       }
       if(req.method==='GET'&&url.pathname==='/v1/hospitality/availability'){

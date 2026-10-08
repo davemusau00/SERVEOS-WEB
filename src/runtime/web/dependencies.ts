@@ -63,7 +63,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
   if (operation === 'roomStay.settings') add('property', 'property');
   const data = (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>;
   for (const [target, targetId] of [
-    ['roomTypes', data.roomTypeId], ['customers', data.customerId], ['assetCategories', data.assetCategoryId],
+    ['roomTypes', data.roomTypeId], ['customers', data.customerId], ['employees', data.custodianStaffId], ['assetCategories', data.assetCategoryId],
     ['expenseCategories', data.categoryId], ['assets', data.assetId], ['assetWorkOrders', data.workOrderId],
     ['stockItems', data.stockItemId], ['stockLocations', data.locationId], ['rooms', data.roomId],
     ['rooms', payload.roomId], ['customers', payload.customerId], ['folios', payload.folioId],

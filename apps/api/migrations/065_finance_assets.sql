@@ -62,7 +62,7 @@ CREATE TABLE business_expenses (
  FOREIGN KEY(business_id,document_id) REFERENCES business_documents(business_id,id),
  CHECK((status='DRAFT' AND posted_by IS NULL AND posted_at IS NULL AND rejected_by IS NULL AND rejected_at IS NULL AND document_id IS NULL)
     OR (status='POSTED' AND posted_by IS NOT NULL AND posted_at IS NOT NULL AND rejected_by IS NULL AND rejected_at IS NULL AND document_id IS NOT NULL AND account_id IS NOT NULL AND account_snapshot IS NOT NULL)
-    OR (status='REJECTED' AND rejected_by IS NOT NULL AND rejected_at IS NOT NULL AND length(btrim(rejection_reason))>=3 AND posted_by IS NULL AND posted_at IS NULL AND document_id IS NULL)),
+    OR (status='REJECTED' AND rejected_by IS NOT NULL AND rejected_at IS NOT NULL AND rejection_reason IS NOT NULL AND length(btrim(rejection_reason))>=3 AND posted_by IS NULL AND posted_at IS NULL AND document_id IS NULL)),
  CHECK((kind='CASH' AND external_reference IS NULL AND manually_confirmed=false AND confirmed_received_at IS NULL
         AND (status='DRAFT' OR till_session_id IS NOT NULL))
     OR (kind='EXTERNAL' AND till_session_id IS NULL
@@ -221,7 +221,7 @@ CREATE TABLE business_asset_work_orders (
  version bigint NOT NULL CHECK(version>0),
  PRIMARY KEY(business_id,id),
  FOREIGN KEY(business_id,asset_id) REFERENCES business_assets(business_id,id),
- CHECK((status='OPEN' AND resolved_by IS NULL AND resolved_at IS NULL) OR (status IN ('RESOLVED','CANCELLED') AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL AND length(btrim(resolution))>=3))
+ CHECK((status='OPEN' AND resolved_by IS NULL AND resolved_at IS NULL AND resolution IS NULL) OR (status IN ('RESOLVED','CANCELLED') AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL AND resolution IS NOT NULL AND length(btrim(resolution))>=3))
 );
 CREATE INDEX business_asset_work_orders_open_idx ON business_asset_work_orders(business_id,asset_id,opened_at DESC) WHERE status='OPEN';
 CREATE TABLE business_asset_events (
