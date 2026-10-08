@@ -189,6 +189,8 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  assert.equal(paymentResponse.result.order.data.state,'COMPLETED');
  assert.equal(paymentResponse.result.order.data.amountPaidMinor,paymentResponse.result.order.data.grandTotalMinor);
  assert.ok(paymentResponse.result.order.data.receiptDocumentId);
+ const settledComp=await run('order.comp',{orderId,reason:'Attempt after settlement'},{[`orders:${paymentResponse.result.order.version}`]:paymentResponse.result.order.version});
+ assert.equal(settledComp.kind,'CONFLICT','settled orders cannot be repriced or comped');
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM order_payments WHERE business_id=$1 AND source_command_id=$2',[businessId,paymentCommand.commandId])).rows[0].count,2,'split settlement writes one row per recorded tender');
  assert.equal((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='SALES_RECEIPT'",[businessId,paymentCommand.commandId])).rows[0].count,1);
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_events WHERE business_id=$1 AND command_id=$2',[businessId,paymentCommand.commandId])).rows[0].count,1);
@@ -210,6 +212,19 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  assert.equal((await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity,'8.500000','consumed stock remains consumed after void');
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM inventory_movements WHERE business_id=$1 AND source_command_id=$2',[businessId,voidCommand.commandId])).rows[0].count,0,'a consumed void does not create a fictitious stock return');
  assert.ok((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type IN ('ORDER_VOID_NOTICE','KOT_CANCEL')",[businessId,voidCommand.commandId])).rows[0].count>=1);
+
+ const compOrderId=randomUUID();
+ const compOrder=await confirmed('order.create',{id:compOrderId,name:'Order-level comp acceptance',outletId,serviceDestination:'COUNTER'},{[`orders:${compOrderId}`]:0,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1});
+ const compLineIds=[randomUUID(),randomUUID()];let compVersion=compOrder.result.version;
+ for(const itemId of compLineIds){const addedCompLine=await confirmed('order.addItem',{orderId:compOrderId,itemId,productId,quantity:1,portionId:'regular'},{[`orders:${compOrderId}`]:compVersion,[`products:${productId}`]:1,[`businessSettings:${businessId}`]:1});compVersion=addedCompLine.result.version}
+ const stockBeforeComp=(await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity;
+ const orderComp=await confirmed('order.comp',{orderId:compOrderId,reason:'Manager approved full-order recovery'},{[`orders:${compOrderId}`]:compVersion});
+ assert.equal(orderComp.result.data.grandTotalMinor,0);assert.ok(orderComp.result.data.items.filter(item=>compLineIds.includes(item.id)).every(item=>item.comped&&item.lineTotalMinor===0));
+ assert.equal((await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity,stockBeforeComp,'comps do not fire stock');
+ const repeatedComp=await run('order.comp',{orderId:compOrderId,reason:'Duplicate full-order comp'},{[`orders:${compOrderId}`]:orderComp.result.version});
+ assert.equal(repeatedComp.kind,'CONFLICT','a second comp cannot rewrite already comped lines');
+ const compEvent=await pool.query("SELECT event_data FROM pos_order_events WHERE business_id=$1 AND order_id=$2 AND event_type='order.comp' ORDER BY occurred_at DESC LIMIT 1",[businessId,compOrderId]);
+ assert.equal(compEvent.rows.length,1);assert.equal(compEvent.rows[0].event_data.reason,'Manager approved full-order recovery');assert.equal(compEvent.rows[0].event_data.adjustments.length,2);
 
  const changes=await store.changesAfter(businessId,0,100);
  const posCommandIds=[fireCommand.commandId,fireBar.commandId,laterFire.commandId,paymentCommand.commandId,voidFire.commandId,voidCommand.commandId];

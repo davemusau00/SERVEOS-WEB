@@ -446,7 +446,7 @@ const reprice=kind=>async({tx,command,actor,at})=>{
  if(kind==='discount'&&(!Number.isInteger(p.percentBasisPoints)||p.percentBasisPoints<1||p.percentBasisPoints>10000))fail('Discount must be greater than zero and at most 100 percent with two decimals.');
  if(kind==='compItem'&&!uuid(p.itemId))fail('Choose the exact line to comp.');
  const order=await orderProjection(tx.client,actor.businessId,p.orderId);
- const lines=order.data.items.filter(line=>line.state!=='VOIDED'&&(kind!=='compItem'||line.id===p.itemId)&&(kind!=='discount'||!line.comped));
+ const lines=order.data.items.filter(line=>line.state!=='VOIDED'&&(kind!=='compItem'||line.id===p.itemId)&&(kind!=='discount'||!line.comped)&&(!['comp','compItem'].includes(kind)||!line.comped));
  if(!lines.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','No eligible active lines remain for this adjustment.');
  const evidence=[];
  for(const line of lines){
