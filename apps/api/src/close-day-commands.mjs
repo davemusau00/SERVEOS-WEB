@@ -55,9 +55,11 @@ const generate=async({tx,command,actor,at})=>{
  ) SELECT count(*)::text AS "entryCount",count(*) FILTER(WHERE journal_count=1)::text AS "journalCount",COALESCE(sum(CASE WHEN kind='SETTLEMENT' THEN amount_minor ELSE -amount_minor END),0)::text AS "expectedNetMinor",COALESCE(sum(tender_net),0)::text AS "tenderNetMinor",COALESCE(sum(ar_net),0)::text AS "arNetMinor" FROM posted`,[actor.businessId,p.tillId]);
  const creditFlow=creditReversalJournals.rows[0];
  if(integer(creditFlow.entryCount)!==integer(creditFlow.journalCount)||integer(creditFlow.expectedNetMinor)!==integer(creditFlow.tenderNetMinor)||integer(creditFlow.expectedNetMinor)!==integer(creditFlow.arNetMinor))conflict('Cash customer-credit collections and reversals do not reconcile to their AR and tender journals.');
+ const unattributedCredit=await tx.client.query(`SELECT 1 FROM customer_credit_entries WHERE business_id=$1 AND kind='CHARGE' AND till_session_id IS NULL LIMIT 1`,[actor.businessId]);
+ if(unattributedCredit.rows.length)conflict('A legacy customer-credit sale has no verified till attribution. Reconcile its original shift before issuing a close-day report.');
  const creditSalesResult=await tx.client.query(`WITH entries AS (
-  SELECT e.id,e.kind,e.amount_minor FROM customer_credit_entries e JOIN pos_orders o ON o.business_id=e.business_id AND o.id=e.order_id WHERE e.business_id=$1 AND e.kind='CHARGE' AND o.till_session_id=$2
-  UNION ALL SELECT r.id,r.kind,r.amount_minor FROM customer_credit_entries r JOIN customer_credit_entries original ON original.business_id=r.business_id AND original.id=r.reverses_entry_id AND original.kind='CHARGE' JOIN pos_orders o ON o.business_id=original.business_id AND o.id=original.order_id WHERE r.business_id=$1 AND r.kind='CHARGE_REVERSAL' AND o.till_session_id=$2
+  SELECT e.id,e.kind,e.amount_minor FROM customer_credit_entries e WHERE e.business_id=$1 AND e.kind='CHARGE' AND e.till_session_id=$2
+  UNION ALL SELECT r.id,r.kind,r.amount_minor FROM customer_credit_entries r JOIN customer_credit_entries original ON original.business_id=r.business_id AND original.id=r.reverses_entry_id AND original.kind='CHARGE' WHERE r.business_id=$1 AND r.kind='CHARGE_REVERSAL' AND original.till_session_id=$2
  ), posted AS (
   SELECT e.id,e.kind,e.amount_minor,count(DISTINCT j.id) AS journal_count,
    COALESCE(sum(l.debit_minor-l.credit_minor) FILTER(WHERE l.account_code='ASSET_CUSTOMER_AR'),0) AS ar_net,

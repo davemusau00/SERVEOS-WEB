@@ -8,7 +8,7 @@
 **Target:** Nginx-hosted ServOS Web/PWA + private Docker PostgreSQL + ServOS Node API and worker  
 **Deployment mode:** Fresh isolated production business, with live activation gated on release and operational acceptance. No Countryside import.
 
-> **Status and source basis (8 October 2026):** The original procedures below are staging-oriented examples, not production authorization. The deployment decision and current read-only VPS findings are recorded in [PRODUCTION-LAUNCH-READINESS.md](PRODUCTION-LAUNCH-READINESS.md). Local HEAD is `5bac4e6668305f17940b3f343c5b4827db08fa3c`, one commit ahead of remote `ee7c8a255bac9920c7451f7c85c29493d142f082`, and the POS integration test has further uncommitted edits; no hosted CI evidence exists for local HEAD. The historical sample SHA `35803cbbcb5e67b656707ea626e64e2d76719f42` is not an accepted release. **Do not run staging copy/paste blocks against production.** Promote only a pinned SHA after every required release and operational gate passes.
+> **Status and source basis (8 October 2026):** The procedures below are staging-oriented examples, not production authorization. Current server and release evidence is recorded in [PRODUCTION-LAUNCH-READINESS.md](PRODUCTION-LAUNCH-READINESS.md). Local HEAD is `d972864bda3b0a230f71262512902656d5d313df`; the working tree has uncommitted customer-credit till attribution and close-day fixes. Hosted run [37811416603](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37811416603) has a failed `api-postgres` job, so no release SHA is accepted. TLS now validates for both production names, and an additive exact-hostname Nginx site still routes to the previous `127.0.0.1:3001` backend. **Do not run staging copy/paste blocks against production.** Promote only a pinned SHA after every required release and operational gate passes.
 
 ---
 
@@ -326,7 +326,7 @@ Only once PostgreSQL is `healthy`:
 sudo docker compose --env-file env/staging.env run --rm --no-deps api npm run migrate
 ```
 
-`apps/api/src/migrate.mjs` executes numbered SQL migrations in order, under a transaction with an advisory lock, and records applied names in `api_schema_migrations`. At the inspected SHA, the file set runs through `068_pos_order_merge.sql`. Do not edit old migration history on the deployed DB, and do not treat the health check as proof of every expected migration's effects.
+`apps/api/src/migrate.mjs` executes numbered SQL migrations in order, under a transaction with an advisory lock, and records applied names in `api_schema_migrations`. The current working tree adds `070_customer_credit_till_attribution.sql` after `069_controlled_csv_import.sql`; production has not applied it. Do not edit old migration history on the deployed DB, and do not treat the health check as proof of every expected migration's effects.
 
 Verify:
 

@@ -3,27 +3,28 @@
 **Reviewed:** 8 October 2026 (Africa/Nairobi)  
 **Repository:** `davemusau00/SERVEOS-WEB`, branch `reset/vps-platform`  
 **Launch intent:** Fresh isolated production business, using `serveos.davemusau.co.ke` and `serveosapi.davemusau.co.ke`; no Countryside data import.  
-**Protection rule:** Existing server deployments, Nginx sites, DNS, containers, volumes, and services are protected. Discovery below was read-only. No server-side files, services, DNS, certificates, or data were changed.
+**Protection rule:** Existing server deployments, Nginx sites, DNS, containers, volumes, and services are protected. The only server changes so far are an additive Let's Encrypt certificate and a new exact-hostname Nginx site for the two ServOS names. The new site still proxies to the same pre-existing `127.0.0.1:3001` upstream those names previously reached. No existing vhost, certificate, DNS record, container, volume, database, or application data was replaced or changed.
 
 ## Current decision
 
-**NO-GO for production deployment or live transactions.** Do not point the selected domains at ServOS, replace their certificates, add Nginx sites, start ServOS containers, run migrations, or initialize an Admin until the domain ownership/routing conflict and release gates below are resolved.
+**NO-GO for ServOS production deployment or live transactions.** TLS now validates for both selected names, but they still serve the previous upstream. Do not switch that upstream to ServOS, start ServOS containers, run production migrations, or initialize an Admin until the release, recovery, operational, and cutover gates below pass.
 
-The production domains resolve to `93.127.131.55`, but HTTPS certificate validation fails for both names from the deployment workstation. When certificate verification is bypassed for diagnosis only, the web hostname redirects to `/dashboard`, and the API health URLs return a Next.js 404 page. The VPS Nginx configuration contains no ServOS virtual host. This is evidence that the names currently route to another application or default site. Confirm domain ownership and the intended cutover with the owner of the currently served site before changing DNS or Nginx. Never replace its route or certificate as a deployment shortcut.
+The production domains resolve to `93.127.131.55`. A new ECDSA Let's Encrypt certificate named `serveos-production` covers both names and is valid through 6 January 2027; Certbot renewal dry-run passed. A new exact-hostname Nginx site is enabled and `nginx -t` plus reload passed. HTTPS checks validate, while the PWA hostname still redirects to `/dashboard` and the API health route still returns 404 from the pre-existing upstream. This preserves the previous behavior until ServOS passes its gates. Confirm the currently served application's safe cutover with its owner before changing the upstream.
 
 ## Verified read-only facts
 
 | Area | Finding | Deployment consequence |
 |---|---|---|
-| Current source | Local HEAD is `5bac4e6668305f17940b3f343c5b4827db08fa3c`, one commit ahead of `origin/reset/vps-platform` at `ee7c8a255bac9920c7451f7c85c29493d142f082`; `apps/api/tests/pos-lifecycle.integration.test.mjs` has further uncommitted edits and remains untouched. | Do not package from this dirty checkout. The local commit has no hosted CI evidence yet. Pick a committed candidate and build PWA/API from the same full SHA. |
-| Hosted CI | Run [37804629553](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37804629553) tested predecessor SHA `ee7c8a255bac9920c7451f7c85c29493d142f082`: `api-postgres` failed its API unit/PostgreSQL integration step; browser acceptance and the other reported jobs passed, including Windows printer shell. | No accepted green release SHA. The failing artifact requires GitHub authentication to retrieve; reproduce/investigate the failure and require a complete green run on one exact SHA. |
-| Local API suite | Clean detached HEAD `5bac4e6668305f17940b3f343c5b4827db08fa3c` passed `npm run test:api` 27/27 against a uniquely created PostgreSQL 16 test database; the database and temporary worktree were removed. | This does not replace hosted CI. The difference between the hosted failure on `ee7c8a2` and local pass on `5bac4e6` remains unexplained until `5bac4e6` receives hosted CI and logs are reviewed. |
+| Current source | HEAD is `d972864bda3b0a230f71262512902656d5d313df`. The local tree has targeted, uncommitted fixes in customer-credit till attribution and close-day reporting; no files were reset or discarded. | Do not package from this dirty checkout. Select a committed candidate only after the hosted matrix is green on that exact SHA. |
+| Hosted CI | Run [37811416603](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37811416603) tests `d972864bda3b0a230f71262512902656d5d313df`; its `api-postgres` job failed while the other completed jobs shown passed. The Windows printer shell job was still in progress at last inspection. | No accepted green release SHA. The failing job log endpoint requires GitHub authentication. Local `gh auth status` reports unauthenticated; a device login code was provided to the user and awaits approval. |
+| API/PostgreSQL failure | The earlier reported auth failure came from `initialSetupComplete()` resolving `public.api_staff_profiles` instead of the active isolated schema. HEAD `d972864` changes it to `to_regclass('api_staff_profiles')`. The newer hosted failure still needs its exact job log reviewed. | Keep the candidate blocked until the current failure is resolved and the full required matrix is green. |
+| Local API suite | The current worktree passed the full API suite serially against a newly created, disposable PostgreSQL database: 28/28, including auth, inventory, POS, revenue, and close-day integration tests. The disposable database was dropped afterward. | Local evidence does not replace hosted CI. The local database's default-parallel run previously hit its shared-memory lock limit; serial acceptance passed. |
 | VPS identity | SSH read-only access succeeded as `administrator`; host is Ubuntu 24.04.5, hostname `mail.detailskilonzo.com`. | Host is shared with other deployments; use strict isolation and preserve all existing state. |
 | Capacity | 4 vCPU, 7.8 GiB RAM, 115 GiB free on `/`, 2 GiB swap. | No resource blocker observed in this snapshot; recheck immediately before deployment. |
 | Existing services | Nginx and Docker are active. Existing apps bind localhost ports 3000 and 3001. Nginx has existing enabled sites. | Do not use ports 3000/3001, alter existing site files, restart Docker, or reuse any volume/network/database. Port 3101 appeared free during this read-only check; recheck at deployment time. |
 | Firewall | UFW reported inactive. | Before exposing or changing anything, review provider firewall and host nftables/iptables policy with the VPS owner. Do not modify global firewall policy as part of ServOS setup. |
-| Domain routing | Both names resolve to this VPS. Requests return another site's response; TLS hostname validation fails. | Domain ownership and any intentional reassignment must be resolved before configuring production virtual hosts or certificates. |
-| Nginx | `nginx -t` passes. | This only validates current configuration; it is not permission to edit/reload it. |
+| Domain routing and TLS | Both names resolve to this VPS. HTTPS validates against the new `serveos-production` certificate. The new exact-hostname vhost proxies to the same prior `127.0.0.1:3001` backend; API health is not yet ServOS. Renewal dry-run passed. | TLS is ready. Keep the current upstream until the release and owner cutover gates pass; verify again immediately before application activation. |
+| Nginx | The additive site `/etc/nginx/sites-available/serveos-production` is enabled. `nginx -t`, reload, unrelated-host smoke checks, and Certbot renewal dry-run passed. Existing enabled site files were preserved. | Before cutover, review and back up only the new vhost and prepare its rollback to the existing upstream. |
 | Backups | Off-VPS destination, credentials, encryption identity custody, scheduled job, and restore evidence have not been supplied or verified. | No production migrations or real transactions before verified off-host backup and isolated restore rehearsal. |
 
 ## Production topology and isolation requirements
@@ -39,7 +40,7 @@ The production domains resolve to `93.127.131.55`, but HTTPS certificate validat
 ## Ordered execution gates
 
 1. **Release SHA:** Resolve the hosted `api-postgres` failure. The working tree's local test changes are user work and must not be discarded or silently included. Select a clean committed candidate; require every required CI job green on that exact SHA, including API/PostgreSQL, PWA/API/PostgreSQL browser acceptance, and Windows printer shell.
-2. **Domain ownership and routing:** Confirm the two names are authorized for ServOS and that the currently served application can be safely moved/retired by its owner. Preserve its existing site and certificate until an approved cutover plan exists. Confirm a valid certificate can be issued/installed for both names without overwriting unrelated certificate material.
+2. **Domain ownership and routing:** Confirm the currently served application can be safely moved/retired by its owner. The new certificate and vhost are additive and preserve its previous upstream; do not switch that upstream until an approved cutover plan exists.
 3. **Preflight:** Recheck host identity, ports, Nginx enabled-site inventory, provider and host firewall, storage/inodes/RAM, Docker and Compose versions, and all running containers/volumes. Capture a timestamped inventory. Abort on any ambiguous collision.
 4. **Independent recovery:** Configure the real off-VPS encrypted backup destination, prove one backup upload, retrieve and decrypt it with separately protected recovery material away from production, restore to an isolated PostgreSQL instance, and record schema plus representative row/count checks. Document the restore point and rollback owner.
 5. **Isolated installation:** From the accepted SHA, create only new `/opt/serveos` production configuration and release paths, a uniquely named project/network/volume, and a loopback API binding on a rechecked free port. Start only the new PostgreSQL service, verify health, and apply migrations from the pinned image after a fresh verified checkpoint. Record migration names and high-water mark.
@@ -57,9 +58,9 @@ Do not record passwords, setup tokens, private keys, database URLs, session cook
 
 - Exact fully green release SHA.
 - Domain owner approval and safe reassignment of currently served hostnames.
-- Correct production TLS for both hostnames.
+- ServOS API/PWA activation behind the valid TLS hostnames; currently those hostnames still reach the prior upstream.
 - Production backup provider configuration and isolated restore rehearsal.
 - Production migrations, fresh business/Admin creation, real-origin browser acceptance, shift rehearsal, monitoring, or rollback rehearsal.
 - Physical printer/scanner acceptance and offline signing-key acceptance.
 
-No live production deployment has been performed by this review.
+No ServOS production application deployment, production migration, fresh business setup, or live transaction has been performed. The TLS certificate and preserving hostname vhost are active.
