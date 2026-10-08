@@ -6,9 +6,9 @@ _Updated live-codebase closeout plan_
 | --- | --- |
 | Repository | `davemusau00/SERVEOS-WEB` |
 | Branch | `reset/vps-platform` |
-| Last locally tested source SHA | `cb1ccebb9e481e9868df79b0fb09c1962cbb2ed4` |
-| Current source-equivalent SHA | `e05870e8afeda56bf060aebb8d1e18ccaec02ea2` (instruction-only change since the tested source) |
-| Current documentation HEAD | `f46e2bf1dd419421eab8d81432c9f74a47ebbdcf` |
+| Last hosted source SHA | `e05870e8afeda56bf060aebb8d1e18ccaec02ea2` |
+| Current locally verified source | Hosted source plus the uncommitted POS PostgreSQL acceptance in `apps/api/tests/pos-lifecycle.integration.test.mjs` |
+| Current documentation HEAD | `760cfa4e8fec9ca3fb5832a1045ec3ab51ce1135` (progress edits remain in the worktree) |
 | Branch delta | 196 commits ahead of `main`, 0 behind |
 | Migration high-water | `068_pos_order_merge.sql` |
 | Primary goal | Finish the Web/API/PostgreSQL reset in one continuous engineering sweep |
@@ -18,16 +18,16 @@ _Updated live-codebase closeout plan_
 
 | Gate | Status | Current evidence |
 | --- | --- | --- |
-| Reviewed source | `e05870e8afeda56bf060aebb8d1e18ccaec02ea2` | Application source matches the locally tested `cb1cce` tree; the intervening change only reformatted this instruction. |
-| Current branch | `f46e2bf1dd419421eab8d81432c9f74a47ebbdcf` | `reset/vps-platform` matches origin; later commits update progress documentation only. |
+| Reviewed source | `e05870e8afeda56bf060aebb8d1e18ccaec02ea2` | This is the latest source commit covered by hosted CI; the local POS integration suite is an additional uncommitted test file. |
+| Current branch | `760cfa4e8fec9ca3fb5832a1045ec3ab51ce1135` | `reset/vps-platform` matches origin; the new acceptance test and current progress edits are local worktree changes. |
 | Hosted CI | **FAIL** | [Actions run 37795083074](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37795083074): 11 jobs passed; `api-postgres` failed; release-candidate was skipped. |
 | Hosted Windows printer shell | **PASS** | The Windows printer-shell job completed successfully on the source-equivalent SHA. |
 | Hosted PWA/API/PostgreSQL browser acceptance | **PASS** | The browser acceptance step passed in the same API/PostgreSQL job. |
-| Local API/PostgreSQL | **PASS** | 22/22 on PostgreSQL 16.15 under Node 26.5.0 and Node 22.23.3; seven Linux Node 22 runs also passed, including a CI-style clean install and Playwright setup. |
+| Local API/PostgreSQL | **PASS** | 23/23 on disposable PostgreSQL 16.15 under Node 26.5.0, including the new POS settlement/replay/table-race acceptance; earlier Node 22 and Linux CI-style replays also passed. |
 | Local source checks | **PASS** | Root tests 218/218, lint, and UI prompt gate passed on this checkout. |
 | UI operator review | **OPEN** | The UI gate found no browser prompt/confirm calls; 619 review findings remain unaccepted, so workflows are not marked reviewed. |
 | Local desktop compilation | **PASS** | `npm run check:desktop` passed on the source-equivalent tree; Cargo reported six warnings and no errors. |
-| Final green release SHA | **OPEN** | Do not start the POS acceptance phase until the API/PostgreSQL hosted failure is resolved and the full baseline is green. |
+| Final green release SHA | **OPEN** | The hosted API/PostgreSQL failure still blocks a full green baseline. Targeted POS development and local acceptance have proceeded as directed; neither closes this release gate. |
 
 The CI failure is isolated to the API/PostgreSQL test step; its real browser-to-API acceptance passed. The public job-log endpoint and artifact download both returned HTTP 403, so the exact failing test is still unknown.
 
@@ -454,6 +454,12 @@ Current source includes:
 - room charge
 
 Do not add more features. Close what exists.
+
+#### Verified API/PostgreSQL slice (2026-10-08)
+
+`apps/api/tests/pos-lifecycle.integration.test.mjs` now covers a real PostgreSQL counter sale through manual cash settlement, including immutable receipt creation and replay of the successful fire/payment command outcomes. It verifies exactly one stock movement, stock-consumption row, event and KOT per fire; two concurrent table opens produce one winner; and an active table layout edit is rejected.
+
+`npm run test:api` passed **23/23** against disposable PostgreSQL 16.15, and root `npm test` passed **218/218**. This is a targeted starting slice, not POS phase completion. Partial courses, KOT/BOT round progression, modifiers/portions, preparation, discount/comp/void, transfer/merge, browser cashier workflow, and full table-cleaning lifecycle remain open. The hosted `api-postgres` check also remains failed with inaccessible logs.
 
 ### 8.1 Standard POS lifecycle
 
