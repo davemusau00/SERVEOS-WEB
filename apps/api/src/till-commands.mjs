@@ -68,7 +68,7 @@ const close=async({tx,command,actor,at})=>{
  await businessLock(tx,actor.businessId);
  const p=command.payload,id=p.id,till=await requireOpenTill(tx,actor,id,expected(command,'tillSessions',id));
  const counted=moneyMinor(p.countedCashMinor,true);
- const unresolved=await tx.client.query(`SELECT 1 FROM api_commands WHERE business_id=$1 AND command_id<>$2 AND status IN ('RECEIVED','PROCESSING') AND command_name IN ('payment.record','payment.split','payment.refund','payment.reverse','credit.settle','credit.reverse','till.cashMovement','expense.post') LIMIT 1`,[actor.businessId,command.commandId]);
+ const unresolved=await tx.client.query(`SELECT 1 FROM api_commands WHERE business_id=$1 AND command_id<>$2 AND status IN ('RECEIVED','PROCESSING') AND command_name IN ('payment.record','payment.split','payment.refund','payment.reverse','order.offlineCashSale','credit.settle','credit.reverse','till.cashMovement','expense.post') LIMIT 1`,[actor.businessId,command.commandId]);
  if(unresolved.rows.length)throw new ApiProblem(409,'UNRESOLVED_MONEY_COMMANDS','Recover unresolved money command outcomes before closing the till.');
  const orders=await tx.client.query(`SELECT 1 FROM pos_orders WHERE business_id=$1 AND outlet_id=$2 AND state NOT IN ('COMPLETED','VOIDED') LIMIT 1`,[actor.businessId,till.outletId]);if(orders.rows.length)throw new ApiProblem(409,'UNSETTLED_ORDERS','Resolve open orders in this outlet before closing the till.');
  const entries=await tx.client.query('SELECT COALESCE(sum(amount_delta_minor),0) AS delta FROM till_cash_entries WHERE business_id=$1 AND till_session_id=$2',[actor.businessId,id]);
