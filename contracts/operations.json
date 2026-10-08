@@ -95,7 +95,26 @@
     "inventory.countSelected",
     "procurement.reverseUnusedReceipt",
     "record.reactivate",
-    "inventory.reverseMovement"
+    "inventory.reverseMovement",
+    "credit.reconcile",
+    "credit.discrepancy.resolve",
+    "customer.save",
+    "hospitality.settings.save",
+    "order.offlineCashSale",
+    "print.claim",
+    "print.report",
+    "procurement.receive",
+    "procurement.saveDraft",
+    "supplierCredit.apply",
+    "supplierReturn.create",
+    "supplierReturn.matchCreditNote",
+    "order.assignCustomer",
+    "customerCredit.configure",
+    "credit.settle",
+    "credit.writeOff",
+    "credit.reverse",
+    "inventory.policy.save",
+    "outlet.save"
   ],
   "payloadSchemas": "UNSPECIFIED_PENDING_WP04_FIXTURES"
 }

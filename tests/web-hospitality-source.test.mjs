@@ -40,7 +40,7 @@ test('web hospitality uses queued authoritative stay, folio, and housekeeping co
 test('guest-account payment inputs clear only after explicit command confirmation',()=>{
   const view=read('src/runtime/web/WebHospitalityViews.tsx');
   assert.match(view,/const pay=async\(operation:'folio\.deposit'\|'folio\.pay'\)/);
-  assert.match(view,/if\(isCommandConfirmed\(result\)\)setAmount\(''\)/);
+  assert.match(view,/if\(isCommandConfirmed\(result\)\)\{setAmount\(''\);setCashTendered\(''\);setReference\(''\);setExternalConfirmed\(false\)\}/);
   assert.doesNotMatch(view,/\.then\(\(\)=>setAmount\(''\)\)/);
   assert.match(view,/role=\{blockingOutcome\?'alert':'status'\}/);
   assert.match(view,/busyRef\.current/);

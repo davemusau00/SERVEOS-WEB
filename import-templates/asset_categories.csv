@@ -1,0 +1,2 @@
+external_id,name,code,depreciation_method,useful_life_months,active
+assetcat-electronics,Electronics,ELEC,STRAIGHT_LINE,60,true

@@ -26,6 +26,7 @@ export type Permission =
   | 'assets.view' | 'assets.manage' | 'assets.operate' | 'maintenance.view' | 'maintenance.manage'
   | 'kds.view' | 'kds.update'
   | 'accounting.view' | 'reports.view' | 'audit.view'
+  | 'finance.expense.view' | 'finance.expense.record' | 'finance.expense.approve'
   | 'backup.create' | 'backup.restore' | 'sync.manual' | 'system.configure' | 'help.view'
   | 'data.import.view' | 'data.import.stage' | 'data.import.execute';
 

@@ -1,0 +1,2 @@
+external_id,stock_item_external_id,stock_item_name,code,barcode,base_unit,location_external_id,opening_quantity,average_unit_cost,reorder_level
+inventory-001,stock-coke300,Coca-Cola 300ml,COKE300,616110000001,bottle,stock-main,24,65.00,12

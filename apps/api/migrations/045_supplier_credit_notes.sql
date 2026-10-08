@@ -1,6 +1,6 @@
 ALTER TABLE procurement_payables ADD COLUMN credited_minor bigint NOT NULL DEFAULT 0 CHECK(credited_minor BETWEEN 0 AND amount_minor);
-ALTER TABLE procurement_payables DROP CONSTRAINT procurement_payables_paid_minor_check;
-ALTER TABLE procurement_payables ADD CHECK(paid_minor+credited_minor<=amount_minor);
+ALTER TABLE procurement_payables DROP CONSTRAINT procurement_payables_check;
+ALTER TABLE procurement_payables ADD CONSTRAINT procurement_payables_settlement_total_check CHECK(paid_minor+credited_minor<=amount_minor);
 ALTER TABLE procurement_payables DROP CONSTRAINT procurement_payables_payment_state;
 ALTER TABLE procurement_payables ADD CONSTRAINT procurement_payables_payment_state CHECK(
  (status IN ('RECEIVED_UNINVOICED','MATCHED_UNPAID') AND paid_minor=0)

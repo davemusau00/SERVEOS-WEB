@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs';
+import {readFileSync,writeFileSync} from 'node:fs';
 
 const readJson=file=>JSON.parse(readFileSync(file,'utf8'));
 const quoted=value=>JSON.stringify(value);
@@ -45,6 +45,7 @@ const generated=[
   ['supabase/generated/permission_contract.sql',renderSql(permissions)]
 ];
 for(const [file,expected] of generated){
+  if(process.argv.includes('--write')){writeFileSync(file,expected);continue}
   let actual='';
   try{actual=readFileSync(file,'utf8')}catch{throw new Error(`Missing generated contract artifact: ${file}`)}
   if(actual.replaceAll('\r\n','\n')!==expected.replaceAll('\r\n','\n'))throw new Error(`Generated contract drift: ${file}`);

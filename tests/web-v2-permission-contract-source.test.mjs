@@ -26,7 +26,7 @@ test('11F canonical permissions cover established staged backend and web permiss
 
   for(const name of readdirSync('src/runtime/web').filter(name=>name.endsWith('.tsx')||name.endsWith('.ts'))){
     const source=read(path.join('src/runtime/web',name));
-    for(const match of source.matchAll(/allowed\(session,'([^']+)'\)/g))consumed.add(match[1]);
+    for(const match of source.matchAll(/allowed\(session,'([^']+)'\)/g))if(match[1]!=='*')consumed.add(match[1]);
   }
 
   for(const permission of ['customers.manage','suppliers.manage','assetCategories.manage','roomTypes.manage']){

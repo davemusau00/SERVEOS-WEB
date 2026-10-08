@@ -1,0 +1,2 @@
+external_id,asset_tag,name,category_external_id,serial_number,location_external_id,acquisition_date,acquisition_cost,status,notes
+asset-tv-001,TV-001,Guest Room Smart TV,assetcat-electronics,SN-EXAMPLE-001,room-101,2026-01-15,45000.00,IN_SERVICE,Example asset row

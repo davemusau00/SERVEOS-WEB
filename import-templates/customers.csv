@@ -1,0 +1,2 @@
+external_id,name,phone,email,credit_limit,notes,active
+customer-001,Example Customer,+254722000000,customer@example.com,0,Opening customer record,true

@@ -377,7 +377,7 @@ async function main() {
   const {rows} = await pool.query('SELECT 1');
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
-  if(await store.initialSetupComplete())delete process.env.INITIAL_ADMIN_SETUP_SECRET;
+  await retireInitialAdminSetupSecret(store);
   const hospitalityRegistry=new Map(hospitalityCommandRegistry);
   const baseWalkIn=roomCommandRegistry.get('roomReservation.walkIn');
   if(baseWalkIn)hospitalityRegistry.set('roomReservation.walkIn',{...baseWalkIn,handler:hospitalityWalkInHandler(baseWalkIn.handler)});
@@ -386,6 +386,12 @@ async function main() {
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
+}
+
+export async function retireInitialAdminSetupSecret(store){
+  if(!await store.initialSetupComplete())return false;
+  delete process.env.INITIAL_ADMIN_SETUP_SECRET;
+  return true;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

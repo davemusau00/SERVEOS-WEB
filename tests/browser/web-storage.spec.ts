@@ -77,10 +77,11 @@ test('typed drafts survive storage upgrade and promote exactly once without reta
     const saved=await one.resumeDraft('draft-1');
     const two=await BusinessStore.open('draft-test','device','actor');
     const attempts=await Promise.allSettled([one.promoteDraftToCommand('draft-1'),two.promoteDraftToCommand('draft-1')]);
-    const queue=await one.queue();const drafts=await one.drafts();one.close();two.close();
-    return {attempts:attempts.map((attempt:any)=>attempt.status),queue,drafts,saved};
+    const queue=await one.queue();const drafts=await one.drafts();const evidence=await one.recoveryEvidence();one.close();two.close();
+    return {attempts:attempts.map((attempt:any)=>attempt.status),queue,drafts,saved,evidence};
   });
   expect(result.attempts.filter((status:string)=>status==='fulfilled')).toHaveLength(1);
   expect(result.queue).toHaveLength(1);expect(result.queue[0].command.payload.approvalToken).toBeUndefined();expect(result.drafts).toHaveLength(0);
   expect(result.saved.inputValues.approvalToken).toBeUndefined();expect(result.saved.fields[1].value).toBe('');expect(result.saved.validationSummary[0]).toContain('[redacted]');
+  expect(JSON.stringify(result.evidence)).not.toContain('do-not-store');expect(JSON.stringify(result.evidence)).not.toContain('eyJheader.eyJpayload.signature');
 });

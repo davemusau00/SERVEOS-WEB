@@ -14,6 +14,7 @@
     "floorplan.view", "floorplan.manage", "rooms.view", "rooms.manage", "rooms.operate", "rooms.guests.view",
     "folio.view", "folio.manage", "folio.reverse", "folio.room_charge",
     "assets.view", "assets.manage", "assets.operate", "maintenance.view", "maintenance.manage", "kds.view", "kds.update",
+    "finance.expense.view", "finance.expense.record", "finance.expense.approve",
     "accounting.view", "accounting.manage", "reports.view", "audit.view", "data.import.view", "data.import.stage", "data.import.execute",
     "backup.create", "backup.restore", "sync.manual", "system.configure", "help.view",
     "devices.register", "devices.manage", "records.view", "payments.view", "payments.manage"

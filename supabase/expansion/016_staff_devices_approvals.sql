@@ -59,7 +59,7 @@ returns text[] language sql immutable set search_path='' as $$
  'catalog.view','catalog.manage','pricing.manage','inventory.view','inventory.receive','inventory.transfer','inventory.waste','inventory.count','inventory.adjust',
  'procurement.view','procurement.manage','procurement.receive','procurement.over_receive','procurement.pay',
  'floorplan.view','floorplan.manage','rooms.view','rooms.manage','rooms.operate','rooms.guests.view','folio.view','folio.manage','folio.reverse','folio.room_charge',
- 'assets.view','assets.manage','assets.operate','maintenance.view','maintenance.manage','kds.view','kds.update',
+ 'assets.view','assets.manage','assets.operate','maintenance.view','maintenance.manage','kds.view','kds.update','finance.expense.view','finance.expense.record','finance.expense.approve',
  'accounting.view','accounting.manage','reports.view','audit.view','data.import.view','data.import.stage','data.import.execute','backup.create','backup.restore','sync.manual','system.configure','help.view',
  'devices.register','devices.manage','records.view','payments.view','payments.manage'
  ]
@@ -76,7 +76,7 @@ begin
   when 'Server' then array['business.view','staff.view','pos.sell','pos.open_tab','pos.manage_table','order.fire','payment.record','mpesa.record','credit.view','credit.charge','catalog.view','floorplan.view','folio.room_charge','kds.view','kds.update','help.view','records.view']
   when 'Chef' then array['business.view','kds.view','kds.update','help.view','records.view']
   when 'Housekeeper' then array['business.view','rooms.view','rooms.operate','help.view','records.view']
-  when 'Accountant' then array['business.view','accounting.view','reports.view','payments.view','audit.view','credit.view','credit.settle','credit.reconcile','credit.write_off','mpesa.reconcile','help.view','records.view']
+  when 'Accountant' then array['business.view','accounting.view','reports.view','payments.view','audit.view','credit.view','credit.settle','credit.reconcile','credit.write_off','mpesa.reconcile','finance.expense.view','finance.expense.record','help.view','records.view']
   when 'Custom' then array['business.view','help.view','records.view']
   else null end;
  if base is null or extras is null or not extras <@ all_permissions then raise exception 'VALIDATION_FAILED: unknown role or non-canonical permission';end if;

@@ -1,0 +1,2 @@
+external_id,name,room_type_external_id,meal_plan,currency,nightly_rate,min_nights,max_nights,active
+rate-standard-bb,Standard BB,roomtype-standard,BB,KES,7500.00,1,30,true

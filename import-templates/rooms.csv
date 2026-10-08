@@ -1,0 +1,2 @@
+external_id,room_number,room_type_external_id,floor,wing,initial_status,active
+room-101,101,roomtype-standard,1,Main,READY,true

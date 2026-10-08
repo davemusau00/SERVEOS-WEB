@@ -1,0 +1,2 @@
+external_id,name,type,phone,address,default_stock_location_external_id,active
+outlet-main,Main Bar,BAR,+254700000000,Ground Floor,stock-main,true

@@ -21,8 +21,8 @@ test('CI names every active engine and uploads failure evidence',()=>{
   assert.ok((workflow.match(/if: always\(\)/g)||[]).length>=5);
   assert.match(workflow,/name: Install preview browser prerequisites[\s\S]*run: npx playwright install --with-deps chromium[\s\S]*name: Run preview browser suite/);
   assert.match(workflow,/name: Install production browser prerequisites[\s\S]*run: npx playwright install --with-deps chromium[\s\S]*name: Run production acceptance browser suite/);
-  assert.match(workflow,/evidence-summary:[\s\S]*if: always\(\)[\s\S]*needs: \[api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell\]/);
-  assert.match(workflow,/release-candidate:[\s\S]*if: github\.ref == 'refs\/heads\/main'[\s\S]*needs: \[api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, evidence-summary\]/);
+  assert.match(workflow,/evidence-summary:[\s\S]*if: always\(\)[\s\S]*needs: \[api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, print-bridge\]/);
+  assert.match(workflow,/release-candidate:[\s\S]*if: github\.ref == 'refs\/heads\/main'[\s\S]*needs: \[api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, print-bridge, evidence-summary\]/);
   for(const marker of ['SERVOS_JOB_API_POSTGRES','SERVOS_JOB_FRONTEND','SERVOS_JOB_BROWSER_PREVIEW','SERVOS_JOB_BROWSER_PRODUCTION','SERVOS_JOB_NATIVE','SERVOS_JOB_CLOUD_BASE','SERVOS_JOB_CLOUD_V2','SERVOS_JOB_DESKTOP','SERVOS_JOB_WINDOWS_PRINTER'])assert.ok(workflow.includes(marker),marker);
   assert.match(workflow,/name: Run real PWA API PostgreSQL acceptance[\s\S]*?run: npm run test:browser:api/);
   assert.match(workflow,/playwright-report\/api-postgres/);

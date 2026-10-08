@@ -110,11 +110,11 @@ test('parity ledger distinguishes implemented Web flows from different operation
   assert.match(pos,/posDialog==='MERGE'\?'order\.merge'/);
   assert.match(manifest,/operation: 'order\.transfer'.*web: 'implemented'/);
   assert.match(manifest,/operation: 'order\.merge'.*web: 'implemented'/);
-  assert.match(manifest,/operation: 'order\.discount'.*web: 'partial'.*manager-approval token/);
+  assert.match(manifest,/operation: 'order\.discount'.*web: 'implemented'.*manager-approval token/);
   // Migration 047 closes both splits. order.compItem is a real item-level comp,
   // distinct from the whole-order order.comp, and customerCredit.charge is routed
   // into the canonical credit.charge implementation.
-  assert.match(manifest,/operation: 'order\.compItem'.*backend: 'implemented'.*web: 'missing'/);
+  assert.match(manifest,/operation: 'order\.compItem'.*backend: 'implemented'.*web: 'implemented'/);
   assert.match(manifest,/operation: 'order\.comp'.*native: 'implemented'.*backend: 'implemented'/);
   assert.match(finance,/mpesa\.discrepancy/);
   assert.match(finance,/mpesa\.discrepancy\.resolve/);
@@ -207,8 +207,8 @@ test('WebBusinessApp entity select fields use SearchCombobox IDs',()=>{
 test('Web staff role controls use searchable labels while preserving role IDs',()=>{
   const source = readFileSync('src/runtime/web/WebStaffAdminView.tsx','utf8');
   assert.match(source, /import \{SearchCombobox\}/);
-  assert.match(source, /options=\{roles\.map\(value=>\(\{id:value,label:value\}\)\)\}/);
-  assert.match(source, /onValueChange=\{role=>void run\('staff\.update'/);
+  assert.match(source, /options=\{roles\.filter\(value=>value!==['"]Admin['"]\)\.map\(value=>\(\{id:value,label:value\}\)\)\}/);
+  assert.match(source, /onValueChange=\{role=>apiAuthority\?void changeApiRole\(person,role\):void run\('staff\.update'/);
   assert.doesNotMatch(source, /<select[^>]+Change \$\{String\(person\.data\.name\)\}/);
 });
 

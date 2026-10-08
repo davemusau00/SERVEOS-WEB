@@ -73,6 +73,9 @@ export const CANONICAL_PERMISSIONS = Object.freeze([
   "maintenance.manage",
   "kds.view",
   "kds.update",
+  "finance.expense.view",
+  "finance.expense.record",
+  "finance.expense.approve",
   "accounting.view",
   "accounting.manage",
   "reports.view",
@@ -191,6 +194,8 @@ export const ROLE_PERMISSION_MODES = Object.freeze({
       "credit.reconcile",
       "credit.write_off",
       "mpesa.reconcile",
+      "finance.expense.view",
+      "finance.expense.record",
       "help.view",
       "records.view"
     ]
