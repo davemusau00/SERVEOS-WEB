@@ -1867,3 +1867,11 @@ Cutover           accepted
 The final sprint is no longer a race to add code.
 
 It is a conveyor belt: one domain enters, gets proven, exits at 100%, then the next domain moves forward.
+
+### Phase 10 offline cash POS source checkpoint (2026-10-08; tests deferred)
+
+- Added `order.offlineCashSale` as one API transaction that composes the existing order-create, line-add, fire/stock-consumption and cash-payment handlers. Child operations share the durable parent command ID; the API publishes only the final merged projection records.
+- The signed-grant endpoint now checks every permission required by a command. Offline cash authorization is an explicit one-command grant with a maximum 30-minute lifetime; general catalog grants do not include this sale command. Rejected and conflicting granted commands also consume their quota, and grant consumption is idempotent across response loss.
+- The PWA can queue one counter/takeaway cash sale from its saved projection, including reviewed product, outlet, stock-location, balance, till and cash-account revisions. It accepts no external tender and excludes kitchen/bar routed items. The local queue is pending evidence only: no offline receipt, payment projection or confirmed-sale message is created before API synchronization.
+- If the API rejects or conflicts after reconnection, the PWA tells the operator to reconcile physical cash and stock before entering another sale. Preparation-routed work stays on the connected POS path.
+- `npm run lint`, `node --check` for the changed API modules and `git diff --check` passed. Tests, real PostgreSQL, browser/offline/restart/reconnect, stock-concurrency, print delivery and pilot acceptance remain deferred and unverified. Phase 10 is not accepted; the prior domain and Phase 0 gates also remain open.

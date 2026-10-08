@@ -275,7 +275,7 @@ export class BusinessStore {
     const grants=await this.offlineGrants();const now=Date.now();return grants.some(grant=>this.offlineGrantEligible(grant,operation,now));
   }
   private offlineGrantEligible(grant:OfflineGrantEnvelope,operation:string,now:number):boolean{
-    if(this.commandAuthority!=='API'||!['product.save','stockItem.save','stockLocation.save'].includes(operation))return false;
+    if(this.commandAuthority!=='API'||!['product.save','stockItem.save','stockLocation.save','order.offlineCashSale'].includes(operation))return false;
     if(!grant||grant.policyVersion!==1||typeof grant.grantId!=='string'||!grant.grantId||typeof grant.signature!=='string'||!grant.signature||typeof grant.keyVersion!=='string'||!grant.keyVersion)return false;
     const issued=Date.parse(grant.issuedAt),expires=Date.parse(grant.expiresAt),used=grant.usedCommands??0;
     return grant.businessId===this.scope&&grant.deviceId===this.deviceId&&grant.staffId===this.actorId

@@ -4,7 +4,7 @@ import {ApiProblem} from './command-kernel.mjs';
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const fail=(message)=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
-const allowedPermissions=new Set(['procurement.over_receive','order.discount','order.comp','order.void','payment.reverse','till.override_variance','folio.reverse','credit.write_off','credit.override_limit','mpesa.reconcile']);
+const allowedPermissions=new Set(['procurement.over_receive','order.discount','order.comp','order.void','payment.reverse','till.override_variance','folio.reverse','credit.write_off','credit.override_limit','mpesa.reconcile','finance.expense.approve']);
 
 const issue=async({tx,command,actor,at})=>{
  const p=command.payload;

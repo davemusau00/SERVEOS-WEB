@@ -77,6 +77,17 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
     // same immutable envelope must be able to complete after recovery.
     const retryable=!Number.isInteger(error.status)||error.status>=500;
     if(retryable)throw error;
+    // A rejected offline command still spends its bounded grant slot. Its
+    // business transaction has rolled back, so reserve the slot separately
+    // before storing the durable rejection/conflict outcome.
+    if(command.offlineGrantId&&definition?.offlinePolicy==='GRANTED_ONLY'&&typeof db.transaction==='function'){
+      try{
+        await db.transaction(tx=>tx.consumeOfflineGrant({grantId:command.offlineGrantId,businessId:actor.businessId,deviceId:actor.deviceId,staffId:actor.staffId,commandName:command.name,commandId:command.commandId,at:now()}));
+      }catch(grantError){
+        if(!Number.isInteger(grantError?.status)||grantError.status>=500)throw grantError;
+        error=grantError;
+      }
+    }
     const status=error.status===409||error.code==='VERSION_CONFLICT'?'CONFLICT':'REJECTED';
     const safe={code:error.code||'COMMAND_REJECTED',message:retryable?'The request could not be completed.':error.message,retryable};
     if(typeof db.finalizeCommandFailure==='function')return db.finalizeCommandFailure({businessId:actor.businessId,commandId:command.commandId,name:command.name,actor,status,error:safe,at:now()});

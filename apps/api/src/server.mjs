@@ -23,6 +23,10 @@ import {paymentAccountCommandRegistry} from './payment-accounts.mjs';
 import {tillCommandRegistry} from './till-commands.mjs';
 import {filterRecords,filterChangePage} from './projection-access.mjs';
 import {posCommandRegistry} from './pos-commands.mjs';
+import {offlinePosCommandRegistry} from './offline-pos-commands.mjs';
+import {roomCommandRegistry} from './room-commands.mjs';
+import {hospitalityCommandRegistry,hospitalityWalkInHandler} from './hospitality-commands.mjs';
+import {financeAssetCommandRegistry} from './finance-asset-commands.mjs';
 import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
@@ -217,16 +221,17 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if(req.method==='POST'&&url.pathname==='/v1/offline-grants'){
         const actor=await authenticate(req);
-        if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('catalog.manage'))throw new ApiProblem(403,'PERMISSION_DENIED','Catalog management permission is required for these offline operations.');
         if(!process.env.OFFLINE_GRANT_PRIVATE_JWK)throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing is not configured.');
         let privateJwk;try{privateJwk=JSON.parse(process.env.OFFLINE_GRANT_PRIVATE_JWK)}catch{throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing is not configured.')}
         if(privateJwk.kty!=='EC'||privateJwk.crv!=='P-256'||typeof privateJwk.d!=='string')throw new ApiProblem(503,'OFFLINE_GRANTS_UNAVAILABLE','Offline grant signing key is invalid.');
         const input=await readJson(req);const requested=input.allowedCommands;
-        const eligible=[...registry].filter(([,definition])=>definition.offlinePolicy==='GRANTED_ONLY'&&(actor.permissions.includes('*')||(definition.permissionAny??[definition.permission]).some(permission=>actor.permissions.includes(permission)))).map(([name])=>name);
-        const allowedCommands=requested===undefined?eligible:requested;
+        const hasPermission=permission=>actor.permissions?.includes('*')||actor.permissions?.includes(permission);
+        const eligible=[...registry].filter(([,definition])=>definition.offlinePolicy==='GRANTED_ONLY'&&(definition.permissionAny??[definition.permission]).some(hasPermission)&&(definition.offlineRequiredPermissions??[]).every(hasPermission)).map(([name])=>name);
+        const allowedCommands=requested===undefined?eligible.filter(name=>name!=='order.offlineCashSale'):requested;
         if(!Array.isArray(allowedCommands)||!allowedCommands.length||allowedCommands.some(name=>!eligible.includes(name))||new Set(allowedCommands).size!==allowedCommands.length)throw new ApiProblem(400,'VALIDATION_FAILED','Choose one or more supported offline operations.');
         const maxCommands=input.maxCommands??10;const durationMinutes=input.durationMinutes??60;
         if(!Number.isInteger(maxCommands)||maxCommands<1||maxCommands>20||!Number.isInteger(durationMinutes)||durationMinutes<1||durationMinutes>120)throw new ApiProblem(400,'VALIDATION_FAILED','Offline grant limits exceed policy.');
+        if(allowedCommands.includes('order.offlineCashSale')&&(allowedCommands.length!==1||maxCommands!==1||durationMinutes>30))throw new ApiProblem(400,'VALIDATION_FAILED','Offline cash sale grants authorize one sale for at most 30 minutes.');
         const issuedAt=new Date();const expiresAt=new Date(issuedAt.getTime()+durationMinutes*60_000);const grant={grantId:randomUUID(),businessId:actor.businessId,deviceId:actor.deviceId,staffId:actor.staffId,issuedAt:issuedAt.toISOString(),expiresAt:expiresAt.toISOString(),policyVersion:1,allowedCommands,maxCommands,keyVersion:process.env.OFFLINE_GRANT_KEY_VERSION||'offline-2026-10',scope:{}};
         const signature=signBytes('sha256',Buffer.from(stableJson(grant)),{key:createPrivateKey({key:privateJwk,format:'jwk'}),dsaEncoding:'ieee-p1363'}).toString('base64url');
         await store.issueOfflineGrant({...grant,issuedAt,expiresAt,signature});
@@ -289,6 +294,11 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         if (search.length > 100) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Search text is too long.');
         return json(res, 200, {items: await store.listCatalogItems(actor.businessId, search)});
       }
+      if(req.method==='GET'&&url.pathname==='/v1/finance/summary'){
+        const actor=await authenticate(req);if(!['*','accounting.view','reports.view','finance.expense.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view Finance reports.');
+        const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||!Number.isFinite(Date.parse(`${from}T00:00:00Z`))||!Number.isFinite(Date.parse(`${to}T00:00:00Z`))||from>to||(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000>366)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid Finance report range of at most 367 calendar days.');
+        return json(res,200,await store.financeSummary(actor.businessId,from,to));
+      }
       const creditStatementMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/customer-credit\/accounts\/([0-9a-f-]{36})\/statement$/i);
       if(creditStatementMatch){
         const actor=await authenticate(req),customerId=creditStatementMatch[1];
@@ -303,7 +313,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       const bootstrapSnapshotMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/bootstrap\/catalog\/([0-9a-f-]{36})$/i);
       if (req.method === 'GET' && (url.pathname === '/v1/bootstrap/catalog'||bootstrapSnapshotMatch||bootstrapPageMatch)) {
         const actor = await authenticate(req);
-        if (!['*','procurement.view','procurement.manage','procurement.receive','procurement.pay','suppliers.manage','catalog.view','catalog.manage','pos.sell','order.fire','order.void','order.discount','order.comp','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','kds.update','business.configure','order.refund','payment.reverse','reports.view','accounting.view','audit.view','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
+        if (!['*','procurement.view','procurement.manage','procurement.receive','procurement.pay','suppliers.manage','catalog.view','catalog.manage','pos.sell','order.fire','order.void','order.discount','order.comp','payment.record','till.open','till.close','till.view','till.override_variance','kds.view','kds.update','business.configure','order.refund','payment.reverse','reports.view','accounting.view','audit.view','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off','rooms.view','rooms.manage','rooms.operate','rooms.guests.view','folio.view','folio.manage','finance.expense.view','finance.expense.record','finance.expense.approve','assets.view','assets.manage','assets.operate','maintenance.view','maintenance.manage'].some(permission=>actor.permissions?.includes(permission))) throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to load this business workspace.');
         const authorizationHash=createHash('sha256').update(stableJson([...actor.permissions].sort())).digest('hex');
         if(bootstrapPageMatch){
           const snapshotId=bootstrapPageMatch[1],afterRaw=url.searchParams.get('after')??'0';
@@ -360,7 +370,10 @@ async function main() {
   if (!rows.length) throw new Error('Database readiness check returned no row.');
   const store = new PostgresStore(pool);
   if(await store.initialSetupComplete())delete process.env.INITIAL_ADMIN_SETUP_SECRET;
-  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...customerCommandRegistry,...customerCreditCommandRegistry,...customerCreditReconciliationCommandRegistry,...staffCommandRegistry,...deviceCommandRegistry,...managerApprovalCommandRegistry,...supplierCommandRegistry,...purchaseOrderCommandRegistry,...goodsReceiptCommandRegistry,...supplierInvoiceCommandRegistry,...supplierPaymentCommandRegistry,...supplierReturnCommandRegistry,...supplierCreditCommandRegistry,...supplierCreditApplicationCommandRegistry,...posCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
+  const hospitalityRegistry=new Map(hospitalityCommandRegistry);
+  const baseWalkIn=roomCommandRegistry.get('roomReservation.walkIn');
+  if(baseWalkIn)hospitalityRegistry.set('roomReservation.walkIn',{...baseWalkIn,handler:hospitalityWalkInHandler(baseWalkIn.handler)});
+  const server = createApiServer({store, registry: new Map([...catalogCommandRegistry,...customerCommandRegistry,...customerCreditCommandRegistry,...customerCreditReconciliationCommandRegistry,...staffCommandRegistry,...deviceCommandRegistry,...managerApprovalCommandRegistry,...supplierCommandRegistry,...purchaseOrderCommandRegistry,...goodsReceiptCommandRegistry,...supplierInvoiceCommandRegistry,...supplierPaymentCommandRegistry,...supplierReturnCommandRegistry,...supplierCreditCommandRegistry,...supplierCreditApplicationCommandRegistry,...posCommandRegistry,...offlinePosCommandRegistry,...roomCommandRegistry,...hospitalityRegistry,...financeAssetCommandRegistry,...tillCommandRegistry,...paymentAccountCommandRegistry,...paymentCommandRegistry,...businessTaxCommandRegistry,...printCommandRegistry,...outletCommandRegistry,...refundCommandRegistry,...closeDayCommandRegistry]), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
   server.listen(config.port, config.host, () => console.log(JSON.stringify({event: 'api_started', port: config.port, environment: config.nodeEnv, logLevel: config.logLevel})));
   const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
   process.on('SIGTERM', shutdown);

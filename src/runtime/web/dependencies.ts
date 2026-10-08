@@ -64,12 +64,14 @@ export function resolveOperationDependencies(operation: string, collection: stri
   const data = (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>;
   for (const [target, targetId] of [
     ['roomTypes', data.roomTypeId], ['customers', data.customerId], ['assetCategories', data.assetCategoryId],
+    ['expenseCategories', data.categoryId], ['assets', data.assetId], ['assetWorkOrders', data.workOrderId],
     ['stockItems', data.stockItemId], ['stockLocations', data.locationId], ['rooms', data.roomId],
     ['rooms', payload.roomId], ['customers', payload.customerId], ['folios', payload.folioId],
     ['orders', payload.orderId], ['orders', payload.targetOrderId], ['tables', payload.sourceTableId],
     ['tables', payload.targetTableId], ['ratePlans', payload.ratePlanId],
     ['outlets', payload.outletId], ['products', payload.productId], ['paymentAccounts', payload.accountId],
     ['tillSessions', payload.tillSessionId], ['tillSessions', payload.tillId],
+    ['assets', payload.assetId], ['assetWorkOrders', payload.workOrderId],
   ] as Array<[string, unknown]>) add(target, targetId);
   const paymentLines = operation === 'payment.split' && Array.isArray(payload.payments)
     ? payload.payments.filter((line): line is Record<string, unknown> => !!line && typeof line === 'object')
@@ -157,12 +159,22 @@ export function resolveOperationDependencies(operation: string, collection: stri
     }
   }
   if (operation.startsWith('roomReservation.') || operation.startsWith('stay.') || operation.startsWith('folio.')) {
-    const reservationId = String(payload.reservationId || (operation.startsWith('roomReservation.') ? id : ''));
+    const reservationId = String(payload.reservationId || id || '');
     const reservation = reservationId ? byKey.get(key('roomReservations', reservationId)) : undefined;
-    add('roomReservations', reservationId); add('stays', payload.stayId || (operation.startsWith('stay.') ? id : reservationId));
-    add('folios', payload.folioId || reservationId || (operation.startsWith('folio.') ? id : ''));
-    add('rooms', payload.sourceRoomId); add('rooms', payload.destinationRoomId || payload.targetRoomId);
-    add('rooms', reservation?.data.roomId); add('ratePlans', reservation?.data.ratePlanId); add('property', 'property');
+    add('roomReservations', reservationId);
+    if (operation.startsWith('stay.') || payload.stayId) add('stays', payload.stayId || reservationId);
+    if (operation.startsWith('folio.') || payload.folioId) add('folios', payload.folioId || reservationId);
+    add('rooms', payload.sourceRoomId); add('rooms', payload.roomId || payload.destinationRoomId || payload.targetRoomId);
+    add('rooms', reservation?.data.roomId); add('ratePlans', payload.ratePlanId || reservation?.data.ratePlanId);
+    add('paymentAccounts', payload.accountId || (payload.payment && typeof payload.payment === 'object' ? (payload.payment as Record<string, unknown>).accountId : undefined));
+    add('hotelServices', payload.serviceId);
+    add('customers', payload.customerId || reservation?.data.customerId);
+  }
+  if (operation === 'hospitality.settings.save') add('hospitalitySettings', id);
+  if (operation === 'hotelService.save') add('hotelServices', id);
+  if (operation.startsWith('maintenance.')) {
+    const workOrderId = String(payload.id || id || '');
+    add('maintenanceWorkOrders', workOrderId); add('rooms', payload.roomId || workOrderId);
   }
   return [...dependencies.values()].sort((left, right) => left.collection.localeCompare(right.collection) || left.id.localeCompare(right.id));
 }

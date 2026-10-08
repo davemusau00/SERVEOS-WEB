@@ -1,8 +1,22 @@
 const has=(actor,...permissions)=>actor.permissions?.includes('*')||permissions.some(permission=>actor.permissions?.includes(permission));
 export function visibleRecord(actor,record){
  const {collection,data}=record;
- if(collection==='customers')return has(actor,'customers.manage','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off','pos.sell','pos.open_tab');
+ if(collection==='customers')return has(actor,'customers.manage','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off','pos.sell','pos.open_tab','rooms.guests.view');
  if(collection==='employees')return has(actor,'staff.view','staff.update','staff.create','staff.deactivate')||data.staffId===actor.staffId;
+ if(collection==='roomTypes')return has(actor,'rooms.view','rooms.manage','rooms.operate','roomTypes.manage');
+ if(['rooms','ratePlans'].includes(collection))return has(actor,'rooms.view','rooms.manage','rooms.operate');
+ if(collection==='roomReservations')return has(actor,'rooms.manage','rooms.operate','rooms.guests.view','folio.view','folio.manage');
+ if(collection==='stays')return has(actor,'rooms.operate','rooms.guests.view','folio.view','folio.manage');
+ if(['folios','folioEntries','hospitalityPayments','hospitalityJournalEntries'].includes(collection))return has(actor,'folio.view','folio.manage','folio.reverse','accounting.view','audit.view');
+ if(collection==='hotelServices')return has(actor,'folio.view','folio.manage','business.configure');
+ if(collection==='hospitalitySettings')return has(actor,'business.configure','rooms.view','rooms.manage','rooms.operate');
+ if(collection==='stayEvents')return has(actor,'rooms.operate','rooms.manage','rooms.guests.view','folio.view','folio.manage','audit.view');
+ if(collection==='stayExtensions')return has(actor,'rooms.operate','rooms.guests.view','folio.view','folio.manage');
+ if(collection==='roomBlocks'||collection==='maintenanceWorkOrders')return has(actor,'maintenance.view','maintenance.manage','rooms.manage','rooms.operate');
+ if(['assets','assetCategories','assetWorkOrders','assetEvents'].includes(collection))return has(actor,'assets.view','assets.manage','assets.operate','maintenance.view','maintenance.manage','accounting.view','audit.view');
+ if(['expenses','expenseCategories','expenseEvents','expenseJournals'].includes(collection))return has(actor,'finance.expense.view','finance.expense.record','finance.expense.approve','accounting.view','reports.view','audit.view');
+ if(['roomTypes','rooms','ratePlans'].includes(collection))return has(actor,'rooms.view','rooms.manage','rooms.operate');
+ if(collection==='roomReservations')return has(actor,'rooms.manage','rooms.operate','rooms.guests.view','folio.view','folio.manage');
  if(collection==='enrolledDevices')return has(actor,'devices.manage')||data.staffId===actor.staffId;
  if(collection==='managerApprovals')return has(actor,'staff.update','audit.view')||data.recipientStaffId===actor.staffId;
  if(collection==='customerCreditAccounts'||collection==='customerCreditEntries')return has(actor,'credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off');
@@ -23,9 +37,11 @@ export function visibleRecord(actor,record){
  if(collection==='businessDocuments'&&data.type==='CUSTOMER_CREDIT_PAYMENT_ACKNOWLEDGEMENT')return has(actor,'credit.view','credit.settle','accounting.view','audit.view');
  if(collection==='businessDocuments'&&data.type==='CUSTOMER_CREDIT_WRITE_OFF_NOTICE')return has(actor,'credit.view','credit.write_off','accounting.view','audit.view');
  if(collection==='businessDocuments'&&data.type==='CUSTOMER_CREDIT_REVERSAL_NOTICE')return has(actor,'credit.view','credit.write_off','accounting.view','audit.view');
+ if(collection==='businessDocuments'&&['GUEST_FOLIO','GUEST_CHECKOUT','RESERVATION_CONFIRMATION'].includes(data.type))return has(actor,'folio.view','folio.manage','rooms.operate','rooms.guests.view','audit.view');
+ if(collection==='businessDocuments'&&data.type==='EXPENSE_PAYMENT_VOUCHER')return has(actor,'finance.expense.view','finance.expense.record','finance.expense.approve','accounting.view','reports.view','audit.view');
  if(collection==='businessDocuments'&&data.type==='ORDER_VOID_NOTICE')return has(actor,'pos.sell','order.void','order.discount','order.comp','reports.view','audit.view');
  if(collection==='businessDocuments')return data.type==='CLOSE_DAY_REPORT'?has(actor,'reports.view','accounting.view','audit.view'):['KOT','BOT','KOT_CANCEL','BOT_CANCEL'].includes(data.type)?has(actor,'pos.sell','order.void','order.discount','order.comp','kds.view','kds.update','system.configure'):has(actor,'order.fire','order.discount','order.comp','payment.record','order.refund','payment.reverse','payments.view','accounting.view','reports.view');
- if(collection==='printJobs')return has(actor,'procurement.view','procurement.manage','procurement.receive','procurement.pay','pos.sell','order.void','order.discount','order.comp','kds.view','kds.update','payment.record','order.refund','payment.reverse','credit.view','credit.charge','credit.settle','credit.write_off','system.configure','reports.view','accounting.view','audit.view');
+ if(collection==='printJobs')return has(actor,'procurement.view','procurement.manage','procurement.receive','procurement.pay','pos.sell','order.void','order.discount','order.comp','kds.view','kds.update','payment.record','order.refund','payment.reverse','credit.view','credit.charge','credit.settle','credit.write_off','folio.view','folio.manage','rooms.operate','rooms.guests.view','maintenance.manage','assets.view','assets.manage','finance.expense.view','finance.expense.record','finance.expense.approve','system.configure','reports.view','accounting.view','audit.view');
  return true;
 }
 export const filterRecords=(actor,records)=>records.filter(record=>visibleRecord(actor,record));

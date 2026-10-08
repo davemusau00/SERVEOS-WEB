@@ -21,6 +21,9 @@ import {documentProjections} from './business-documents.mjs';
 import {orderProjections} from './pos-commands.mjs';
 import {staffProjections} from './staff-commands.mjs';
 import {deviceProjections} from './device-commands.mjs';
+import {roomProjections} from './room-commands.mjs';
+import {hospitalityProjections} from './hospitality-commands.mjs';
+import {financeAssetProjections} from './finance-asset-commands.mjs';
 const redactCommandSecrets=value=>Array.isArray(value)?value.map(redactCommandSecrets):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).filter(([key])=>!/(?:password|secret|token|credential|pin)/i.test(key)).map(([key,item])=>[key,redactCommandSecrets(item)])):value;
 const receiptProjection = row => {
   const data={...row,receivedAt:row.receivedAt.toISOString()};
@@ -127,6 +130,22 @@ export class PostgresStore {
     return {items,hasMore,highWater:String(highWater),before:items.at(-1)?.data.entrySequence??null};
   }
 
+  async financeSummary(businessId,from,to){
+    const business=await this.pool.query('SELECT time_zone AS "timeZone" FROM businesses WHERE id=$1',[businessId]);
+    const timeZone=business.rows[0]?.timeZone||'Africa/Nairobi';
+    const [revenue,expenses,expenseCategories,payables,supplierPayments]=await Promise.all([
+      this.pool.query(`SELECT COALESCE(sum(l.credit_minor-l.debit_minor),0)::text AS amount FROM financial_journals j JOIN financial_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id WHERE j.business_id=$1 AND j.occurred_at AT TIME ZONE $4 >= $2::date AND j.occurred_at AT TIME ZONE $4 < ($3::date+1) AND l.account_code='REVENUE_SALES'`,[businessId,from,to,timeZone]),
+      this.pool.query(`SELECT COALESCE(sum(amount_minor),0)::text AS amount,COALESCE(sum(amount_minor) FILTER(WHERE kind='CASH'),0)::text AS cash,COALESCE(sum(amount_minor) FILTER(WHERE kind='EXTERNAL'),0)::text AS external FROM business_expenses WHERE business_id=$1 AND status='POSTED' AND occurred_at AT TIME ZONE $4 >= $2::date AND occurred_at AT TIME ZONE $4 < ($3::date+1)`,[businessId,from,to,timeZone]),
+      this.pool.query(`SELECT c.id,c.name,COALESCE(sum(e.amount_minor),0)::text AS amount FROM business_expense_categories c LEFT JOIN business_expenses e ON e.business_id=c.business_id AND e.category_id=c.id AND e.status='POSTED' AND e.occurred_at AT TIME ZONE $4 >= $2::date AND e.occurred_at AT TIME ZONE $4 < ($3::date+1) WHERE c.business_id=$1 GROUP BY c.id,c.name ORDER BY lower(c.name),c.id`,[businessId,from,to,timeZone]),
+      this.pool.query(`WITH outstanding AS (SELECT GREATEST(0,p.amount_minor-p.paid_minor-p.credited_minor)::numeric AS amount,p.due_date,(statement_timestamp() AT TIME ZONE $2)::date AS today FROM procurement_payables p WHERE p.business_id=$1 AND p.status NOT IN ('PAID','SETTLED','REVERSED') AND p.amount_minor>p.paid_minor+p.credited_minor) SELECT COALESCE(sum(amount) FILTER(WHERE due_date IS NULL),0)::text AS "undatedMinor",COALESCE(sum(amount) FILTER(WHERE due_date IS NOT NULL AND due_date >= today),0)::text AS "currentMinor",COALESCE(sum(amount) FILTER(WHERE today-due_date BETWEEN 1 AND 30),0)::text AS "days1To30Minor",COALESCE(sum(amount) FILTER(WHERE today-due_date BETWEEN 31 AND 60),0)::text AS "days31To60Minor",COALESCE(sum(amount) FILTER(WHERE today-due_date BETWEEN 61 AND 90),0)::text AS "days61To90Minor",COALESCE(sum(amount) FILTER(WHERE today-due_date>90),0)::text AS "over90DaysMinor",COALESCE(sum(amount),0)::text AS "totalMinor" FROM outstanding`,[businessId,timeZone]),
+      this.pool.query(`SELECT count(*)::text AS count,COALESCE(sum(amount_minor),0)::text AS amount FROM procurement_supplier_payments WHERE business_id=$1 AND recorded_at AT TIME ZONE $4 >= $2::date AND recorded_at AT TIME ZONE $4 < ($3::date+1)`,[businessId,from,to,timeZone]),
+    ]);
+    const revenueMinor=Number(revenue.rows[0].amount),expenseMinor=Number(expenses.rows[0].amount),numberObject=row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key,key==='totalMinor'||key.endsWith('Minor')?Number(value):value]));
+    const debtorAging={currentMinor:0,days1To30Minor:0,days31To60Minor:0,days61To90Minor:0,over90DaysMinor:0};
+    for(const account of await customerCreditAccountProjections(this.pool,businessId))for(const key of Object.keys(debtorAging))debtorAging[key]+=Number(account.data.aging?.[key]||0);
+    return {from,to,timeZone,currency:'KES',salesRevenueMinor:revenueMinor,postedExpensesMinor:expenseMinor,operatingResultBeforeTaxMinor:revenueMinor-expenseMinor,expensesByTender:{cashMinor:Number(expenses.rows[0].cash),externalMinor:Number(expenses.rows[0].external)},expensesByCategory:expenseCategories.rows.map(row=>({categoryId:row.id,name:row.name,amountMinor:Number(row.amount)})),debtorAging,payableAging:numberObject(payables.rows[0]||{}),supplierPayments:{count:Number(supplierPayments.rows[0].count),amountMinor:Number(supplierPayments.rows[0].amount)}};
+  }
+
   async catalogProjection(businessId, db=this.pool) {
     const [productsResult,stockResult,locationsResult,outletsResult] = await Promise.all([
       db.query(`SELECT p.id,p.name,p.code,p.price_minor AS "priceMinor",p.category,p.route_to AS "routeTo",p.stock_item_id AS "stockItemId",p.barcode,p.favorite,p.tax_class_id AS "taxClassId",p.inventory_type AS "inventoryType",p.recipe_yield AS "recipeYield",p.portion_volume AS "portionVolume",p.selling_mode AS "sellingMode",p.portions,p.modifiers,p.outlet_ids AS "outletIds",p.version,p.archived_at AS "archivedAt" FROM products p WHERE p.business_id=$1 ORDER BY p.name,p.id`,[businessId]),
@@ -163,12 +182,16 @@ export class PostgresStore {
     const supplierCredits=await supplierCreditBalanceProjections(db,businessId);
     const supplierCreditApplications=await supplierCreditApplicationProjections(db,businessId);
     const customers=await customerProjections(db,businessId);
+    const hospitality=[...await roomProjections(db,businessId),...await hospitalityProjections(db,businessId)];
+    const financeAssets=await financeAssetProjections(db,businessId);
     const customerCreditAccounts=await customerCreditAccountProjections(db,businessId);
     const customerCreditEntries=await customerCreditEntryProjections(db,businessId);
     const customerCreditReconciliations=await customerCreditReconciliationProjections(db,businessId);
     const customerCreditDiscrepancies=await customerCreditDiscrepancyProjections(db,businessId);
     return [
       ...customers,
+      ...hospitality,
+      ...financeAssets,
       ...customerCreditAccounts,
       ...customerCreditEntries,
       ...customerCreditReconciliations,
@@ -792,6 +815,12 @@ class PostgresTransaction {
   }
 
   async consumeOfflineGrant({grantId, businessId, deviceId, staffId, commandName, commandId, at}) {
+    await this.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`offline-grant-command:${commandId}`]);
+    const prior=await this.client.query('SELECT grant_id AS "grantId" FROM offline_grant_commands WHERE command_id=$1',[commandId]);
+    if(prior.rows.length){
+      if(prior.rows[0].grantId===grantId)return;
+      const error=new Error('This command ID was already used with a different offline grant.');error.status=403;error.code='OFFLINE_GRANT_INVALID';throw error;
+    }
     const {rows} = await this.client.query(`
       UPDATE offline_grants
       SET used_commands = used_commands + 1
