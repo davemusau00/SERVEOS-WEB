@@ -70,6 +70,7 @@ CREATE TABLE business_expenses (
 );
 CREATE INDEX business_expenses_period_idx ON business_expenses(business_id,occurred_at DESC,id) WHERE status='POSTED';
 CREATE INDEX business_expenses_category_idx ON business_expenses(business_id,category_id,occurred_at DESC) WHERE status='POSTED';
+CREATE UNIQUE INDEX business_expenses_external_reference_uq ON business_expenses(business_id,(account_snapshot->>'method'),upper(btrim(external_reference))) WHERE status='POSTED' AND kind='EXTERNAL' AND external_reference IS NOT NULL AND btrim(external_reference)<>'';
 
 CREATE TABLE business_expense_events (
  business_id uuid NOT NULL,
@@ -123,7 +124,7 @@ CREATE TABLE business_expense_journal_lines (
 CREATE FUNCTION servos_check_expense_journal() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE journal_key uuid; header business_expense_journals%ROWTYPE; debits numeric; credits numeric; expense_row business_expenses%ROWTYPE;
 BEGIN
- journal_key:=CASE WHEN TG_TABLE_NAME='business_expense_journals' THEN NEW.id ELSE NEW.journal_id END;
+ IF TG_TABLE_NAME='business_expense_journals' THEN journal_key:=NEW.id; ELSE journal_key:=NEW.journal_id; END IF;
  SELECT * INTO STRICT header FROM business_expense_journals WHERE business_id=NEW.business_id AND id=journal_key;
  SELECT * INTO STRICT expense_row FROM business_expenses WHERE business_id=header.business_id AND id=header.expense_id;
  SELECT COALESCE(sum(debit_minor),0),COALESCE(sum(credit_minor),0) INTO debits,credits FROM business_expense_journal_lines WHERE business_id=header.business_id AND journal_id=journal_key;

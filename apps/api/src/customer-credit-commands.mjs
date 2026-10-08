@@ -6,6 +6,7 @@ import {queueDocumentPrint} from './print-commands.mjs';
 import {orderProjection} from './pos-commands.mjs';
 import {requireOpenTill,tillSessionProjection} from './till-commands.mjs';
 import {requireManagerApproval} from './manager-approvals.mjs';
+import {assertUniqueExternalPaymentReference} from './external-payment-references.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
@@ -155,9 +156,7 @@ const settle=async({tx,command,actor,at})=>{
   if(!Number.isSafeInteger(p.receivedAmountMinor)||p.receivedAmountMinor!==p.amountMinor)throw new ApiProblem(409,'CREDIT_RECEIPT_AMOUNT_MISMATCH','The confirmed external receipt must equal this settlement amount.');
   if(typeof p.receivedAt!=='string'||!/(Z|[+-]\d{2}:\d{2})$/.test(p.receivedAt)||!Number.isFinite(Date.parse(p.receivedAt))||Date.parse(p.receivedAt)>at.getTime()+300000)fail('Record the actual external receipt timestamp with its timezone.');
   receivedAt=new Date(p.receivedAt);
-  await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`external-payment:${actor.businessId}:${tender.method}:${normalized}`]);
-  const duplicate=await tx.client.query(`SELECT 1 FROM order_payments WHERE business_id=$1 AND method=$2 AND normalized_reference=$3 UNION ALL SELECT 1 FROM customer_credit_entries WHERE business_id=$1 AND payment_method=$2 AND normalized_reference=$3 LIMIT 1`,[actor.businessId,tender.method,normalized]);
-  if(duplicate.rows.length)throw new ApiProblem(409,'PAYMENT_REFERENCE_DUPLICATE','This payment reference is already recorded. Reconcile the original receipt before continuing.');
+  await assertUniqueExternalPaymentReference(tx,actor.businessId,tender.method,normalized);
  }
  const balanceRows=await tx.client.query(`SELECT COALESCE(sum(balance_delta_minor),0) AS balance FROM customer_credit_entries WHERE business_id=$1 AND customer_id=$2`,[actor.businessId,p.customerId]);
  const balance=Number(balanceRows.rows[0].balance);if(!Number.isSafeInteger(balance)||p.amountMinor>balance)throw new ApiProblem(409,'CREDIT_SETTLEMENT_EXCEEDS_BALANCE','Settlement cannot exceed the outstanding customer credit balance.');

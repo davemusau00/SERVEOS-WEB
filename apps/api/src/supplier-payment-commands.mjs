@@ -4,6 +4,7 @@ import {queueDocumentPrint} from './print-commands.mjs';
 import {randomUUID} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
 import {payableProjections} from './procurement-payables.mjs';
+import {assertUniqueExternalPaymentReference} from './external-payment-references.mjs';
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message);};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
 const text=(value,min,max)=>{if(typeof value!=='string'||value.trim().length<min||value.trim().length>max||/[\u0000-\u001f\u007f]/.test(value))fail('Payment reference/reason is invalid.');return value.trim();};
@@ -22,6 +23,7 @@ async function pay({tx,command,actor,at}){
  if(!account||!['CASH','BANK','MPESA'].includes(account.method)||account.currency!=='KES'||Number(account.version)!==accountVersion)throw new ApiProblem(409,'PAYMENT_ACCOUNT_CHANGED','Review an active KES cash, bank or M-Pesa account.');
  if(account.method==='CASH'&&p.cashOutsidePosTill!==true)fail('Confirm this is petty cash outside the POS till. Till cash must use a separate reviewed cash withdrawal.');
  const paid=BigInt(payable.paid_minor)+BigInt(p.amountMinor);if(paid+BigInt(payable.credited_minor)>BigInt(payable.amount_minor))fail('Payment exceeds the outstanding payable after supplier credits.');
+ if(account.method!=='CASH')await assertUniqueExternalPaymentReference(tx,actor.businessId,account.method,reference);
  const duplicate=await tx.client.query('SELECT id FROM procurement_supplier_payments WHERE business_id=$1 AND method=$2 AND lower(btrim(reference))=lower($3)',[actor.businessId,account.method,reference]);if(duplicate.rows.length)throw new ApiProblem(409,'DUPLICATE_SUPPLIER_PAYMENT','This payment reference was already recorded. Recover the original payment.');
  const origin=account.method==='CASH'?'MANUALLY_CONFIRMED_PETTY_CASH':'MANUALLY_CONFIRMED_EXTERNAL',snapshot={...account,version:Number(account.version)},journalId=randomUUID();
  const business=await receiptSettings(tx.client,actor.businessId);if(!business?.businessName)throw new ApiProblem(409,'BUSINESS_IDENTITY_REQUIRED','Configure business identity before recording supplier payment.');
