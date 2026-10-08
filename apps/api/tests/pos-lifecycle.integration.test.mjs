@@ -80,7 +80,7 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  const transferSourceId=randomUUID(),transferDestinationId=randomUUID(),raceSourceA=randomUUID(),raceSourceB=randomUUID(),raceDestination=randomUUID(),mergeSourceId=randomUUID();
  const tableDefinition=(id,label,posX)=>({id,label,section:'Main',capacity:2,posX,posY:20,minimumSpend:0,shape:'SQUARE',isJoinable:true,assignedServerId:null});
  await confirmed('floorplan.save',{outletId,baseline:[{id:tableId,version:2}],tables:[
-  {...tableDefinition(tableId,'T1',10),shape:'ROUND'},tableDefinition(transferSourceId,'Transfer source',20),tableDefinition(transferDestinationId,'Transfer destination',30),
+  {...tableDefinition(tableId,'T1',10),posY:10,shape:'ROUND'},tableDefinition(transferSourceId,'Transfer source',20),tableDefinition(transferDestinationId,'Transfer destination',30),
   tableDefinition(raceSourceA,'Race source A',40),tableDefinition(raceSourceB,'Race source B',50),tableDefinition(raceDestination,'Race destination',60),tableDefinition(mergeSourceId,'Merge source',70),
  ]},{[`tables:${tableId}`]:2});
  const createTableOrder=async(id,table)=>confirmed('order.create',{id,name:`Table ${table}`,outletId,tableId:table},{[`orders:${id}`]:0,[`tables:${table}`]:1,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1});
@@ -114,9 +114,9 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  const mergedVoid=await confirmed('order.void',{orderId:raceWinnerCommand.payload.id,reason:'Close merged acceptance check',operatorConfirmedDisposition:true},{[`orders:${raceWinnerCommand.payload.id}`]:merge.result.order.version});
  assert.equal(mergedVoid.result.order.data.state,'VOIDED');
  const targetReady=await confirmed('table.ready',{tableId},{[`tables:${tableId}`]:4});
- assert.equal(targetReady.result.data.state,'AVAILABLE');
+ assert.equal(targetReady.result.state,'AVAILABLE');
  const sourceReady=await confirmed('table.ready',{tableId:mergeSourceId},{[`tables:${mergeSourceId}`]:3});
- assert.equal(sourceReady.result.data.state,'AVAILABLE');
+ assert.equal(sourceReady.result.state,'AVAILABLE');
 
  const customerId=randomUUID();
  const customer=await confirmed('customer.save',{id:customerId,reason:'Create POS acceptance customer',data:{name:'POS Guest',phone:'',email:'',notes:''}},{[`customers:${customerId}`]:0});
