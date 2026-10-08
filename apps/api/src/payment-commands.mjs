@@ -62,7 +62,7 @@ const record=split=>async({tx,command,actor,at})=>{
   }
   plans.push(plan);
  }
- const outstanding=order.data.grandTotalMinor-order.data.amountPaidMinor-order.data.amountCreditedMinor;
+ const outstanding=order.data.grandTotalMinor-order.data.amountPaidMinor-order.data.amountCreditedMinor-order.data.roomChargeMinor;
  if(sum>outstanding||sum<=0||split&&sum!==outstanding)throw new ApiProblem(409,'PAYMENT_BALANCE_CONFLICT','Payment cannot exceed the outstanding balance; split tender must settle it exactly.');
  const references=plans.filter(plan=>plan.normalized).map(plan=>`${plan.account.method}:${plan.normalized}`);
  if(new Set(references).size!==references.length)fail('A split tender cannot reuse an external reference.');
@@ -81,7 +81,7 @@ const record=split=>async({tx,command,actor,at})=>{
   await tx.bumpEntityVersion(actor.businessId,'payments',plan.id,0);
   const {rows}=await tx.client.query(`INSERT INTO order_payments(business_id,id,order_id,account_id,account_snapshot,till_session_id,method,amount_minor,cash_tendered_minor,change_minor,external_reference,normalized_reference,received_amount_minor,external_received_at,origin,staff_id,device_id,recorded_at,source_command_id,tender_index) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING ${columns}`,[actor.businessId,plan.id,p.orderId,plan.account.id,JSON.stringify(plan.account),p.tillSessionId,plan.account.method,plan.amount,plan.cashTendered,plan.change,plan.reference,plan.normalized,plan.receivedAmount,plan.receivedAt,plan.origin,actor.staffId,actor.deviceId,at,command.commandId,plan.index]);
   records.push(paymentProjection(rows[0]));
-  const allocation=allocationDelta(allocationBasis.remaining,allocatedPaid,plan.amount);
+  const allocation=allocationDelta(allocationBasis.remaining,order.data.amountCreditedMinor+order.data.roomChargeMinor+allocatedPaid,plan.amount);
   records.push(await postFinancialJournal(tx,{actor,command,at,paymentId:plan.id,accountId:plan.account.id,currency:order.data.currency,allocation,basisSnapshot:{policyVersion:1,rounding:'CUMULATIVE_COMBINED_TAX_THEN_VAT',orderId:p.orderId,orderVersion:baseline,...allocationBasis,paidBeforeMinor:order.data.amountPaidMinor+allocatedPaid,paidAfterMinor:order.data.amountPaidMinor+allocatedPaid+plan.amount,allocation,accountSnapshot:plan.account}}));
   allocatedPaid+=plan.amount;
   if(plan.account.method==='CASH'){
@@ -90,7 +90,7 @@ const record=split=>async({tx,command,actor,at})=>{
    records.push({collection:'cashMovements',id,version:1,archived:false,data:{id,tillSessionId:p.tillSessionId,kind:'SALE',amountDeltaMinor:plan.amount,reason,sourceCommandId:command.commandId,staffId:actor.staffId,deviceId:actor.deviceId,occurredAt:at.toISOString()}});
   }
  }
- const paid=order.data.amountPaidMinor+sum,complete=paid+order.data.amountCreditedMinor===order.data.grandTotalMinor;
+ const paid=order.data.amountPaidMinor+sum,complete=paid+order.data.amountCreditedMinor+order.data.roomChargeMinor===order.data.grandTotalMinor;
  const orderVersion=await tx.bumpEntityVersion(actor.businessId,'orders',p.orderId,baseline);
  await tx.client.query(`UPDATE pos_orders SET amount_paid_minor=$3,state=$4,version=$5,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,paid,complete?'COMPLETED':'FIRED',orderVersion,at]);
  const tillVersion=await tx.bumpEntityVersion(actor.businessId,'tillSessions',p.tillSessionId,Number(till.version));await tx.client.query('UPDATE till_sessions SET version=$3 WHERE business_id=$1 AND id=$2',[actor.businessId,p.tillSessionId,tillVersion]);
@@ -98,7 +98,7 @@ const record=split=>async({tx,command,actor,at})=>{
  const value=await orderProjection(tx.client,actor.businessId,p.orderId);records.push(value,await tillSessionProjection(tx.client,actor.businessId,p.tillSessionId));
  // This document acknowledges funds received; fiscal sales documents use tax snapshots.
  const documentId=randomUUID(),documentNumber=`PAY-${command.commandId}`;
- const snapshot={orderId:p.orderId,orderName:order.data.name,currency:order.data.currency,amountReceivedMinor:sum,orderTotalMinor:order.data.grandTotalMinor,amountPaidMinor:paid,amountCreditedMinor:order.data.amountCreditedMinor,balanceMinor:order.data.grandTotalMinor-paid-order.data.amountCreditedMinor,payments:records.filter(row=>row.collection==='payments').map(row=>row.data),issuedAt:at.toISOString()};
+ const snapshot={orderId:p.orderId,orderName:order.data.name,currency:order.data.currency,amountReceivedMinor:sum,orderTotalMinor:order.data.grandTotalMinor,amountPaidMinor:paid,amountCreditedMinor:order.data.amountCreditedMinor,roomChargedMinor:order.data.roomChargeMinor,balanceMinor:order.data.grandTotalMinor-paid-order.data.amountCreditedMinor-order.data.roomChargeMinor,payments:records.filter(row=>row.collection==='payments').map(row=>row.data),issuedAt:at.toISOString()};
  const hash=documentHash(snapshot);
  await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'PAYMENT_ACKNOWLEDGEMENT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,documentId,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
  records.push({collection:'businessDocuments',id:documentId,version:1,archived:false,data:{id:documentId,type:'PAYMENT_ACKNOWLEDGEMENT',documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}});
@@ -109,11 +109,13 @@ const record=split=>async({tx,command,actor,at})=>{
   const taxes=items.reduce((sum,line)=>({netMinor:sum.netMinor+line.netMinor,vatMinor:sum.vatMinor+line.vatMinor,levyMinor:sum.levyMinor+line.levyMinor}),{netMinor:0,vatMinor:0,levyMinor:0});
   if(Object.values(taxes).some(amount=>!Number.isSafeInteger(amount)||amount<0)||taxes.netMinor+taxes.vatMinor+taxes.levyMinor!==value.data.grandTotalMinor)throw new ApiProblem(409,'TAX_RECONCILIATION_FAILED','Order taxes do not reconcile to the sale total.');
   const tenders=(await paymentProjections(tx.client,actor.businessId,p.orderId)).map(row=>row.data);
-  if(tenders.reduce((sum,payment)=>sum+payment.amountMinor,0)!==value.data.grandTotalMinor)throw new ApiProblem(409,'PAYMENT_RECONCILIATION_FAILED','Payment ledger does not reconcile to the settled order.');
+  const roomChargeRows=await tx.client.query(`SELECT c.id,c.folio_id AS "folioId",c.amount_minor AS "amountMinor" FROM pos_order_room_charges c WHERE c.business_id=$1 AND c.order_id=$2 AND NOT EXISTS(SELECT 1 FROM pos_order_room_charge_reversals r WHERE r.business_id=c.business_id AND r.room_charge_id=c.id) ORDER BY c.occurred_at,c.id`,[actor.businessId,p.orderId]);
+  const settlementLines=[...tenders,...roomChargeRows.rows.map(row=>({id:row.id,tenderType:'ROOM_CHARGE',amountMinor:Number(row.amountMinor),reference:row.folioId})),...(value.data.amountCreditedMinor?[{id:`account-${p.orderId}`,tenderType:'CUSTOMER_ACCOUNT',amountMinor:value.data.amountCreditedMinor}]:[])];
+  if(settlementLines.reduce((sum,payment)=>sum+payment.amountMinor,0)!==value.data.grandTotalMinor||value.data.amountPaidMinor!==tenders.reduce((sum,payment)=>sum+payment.amountMinor,0))throw new ApiProblem(409,'PAYMENT_RECONCILIATION_FAILED','Payment, account-credit and room-charge ledgers do not reconcile to the settled order.');
   const cashier=await tx.client.query('SELECT display_name AS name FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2',[actor.businessId,actor.staffId]);
   const discountTotalMinor=items.reduce((sum,line)=>sum+line.discountMinor,0);
   if(!Number.isSafeInteger(discountTotalMinor))throw new ApiProblem(409,'PRICE_RECONCILIATION_FAILED','Discount totals exceed supported amounts.');
-  const receiptSnapshot={discountTotalMinor,cashier:{id:actor.staffId,name:cashier.rows[0]?.name??actor.staffId},business:value.data.businessSnapshot,orderId:p.orderId,orderName:value.data.name,receiptNumber,currency:value.data.currency,refundedAmountMinor:value.data.refundedAmountMinor,items,taxes,totalMinor:value.data.grandTotalMinor,payments:tenders,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),footer:value.data.businessSnapshot.footer};
+  const receiptSnapshot={discountTotalMinor,cashier:{id:actor.staffId,name:cashier.rows[0]?.name??actor.staffId},business:value.data.businessSnapshot,orderId:p.orderId,orderName:value.data.name,receiptNumber,currency:value.data.currency,refundedAmountMinor:value.data.refundedAmountMinor,items,taxes,totalMinor:value.data.grandTotalMinor,paidMinor:value.data.amountPaidMinor,creditedMinor:value.data.amountCreditedMinor,roomChargedMinor:value.data.roomChargeMinor,payments:settlementLines,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),footer:value.data.businessSnapshot.footer};
   const receiptHash=documentHash(receiptSnapshot);
   await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'SALES_RECEIPT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,receiptId,receiptNumber,JSON.stringify(receiptSnapshot),receiptHash,command.commandId,actor.staffId,at]);
   records.push({collection:'businessDocuments',id:receiptId,version:1,archived:false,data:{id:receiptId,type:'SALES_RECEIPT',documentNumber:receiptNumber,layoutVersion:1,hash:receiptHash,snapshot:receiptSnapshot,issuedAt:at.toISOString()}});

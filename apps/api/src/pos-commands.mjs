@@ -242,6 +242,47 @@ const fire=async({tx,command,actor,at})=>{
  return {value:{order:outcome.value,documentIds:documents},records:[...outcome.records,...records]};
 };
 
+const roomCharge=async({tx,command,actor,at})=>{
+ if(!actor.permissions.includes('*')&&!actor.permissions.includes('pos.sell'))throw new ApiProblem(403,'PERMISSION_DENIED','POS selling permission is required to charge a guest room.');
+ if(!actor.permissions.includes('*')&&!actor.permissions.includes('folio.room_charge'))throw new ApiProblem(403,'PERMISSION_DENIED','Guest room-charge permission is required.');
+ const p=command.payload;
+ if(!uuid(p.orderId)||!uuid(p.folioId)||!Number.isSafeInteger(p.folioVersion)||p.folioVersion<1)fail('Choose an order and reviewed open guest folio.');
+ const orderVersion=expected(command,'orders',p.orderId);
+ const locked=await tx.client.query(`SELECT state,version,grand_total_minor AS "grandTotalMinor",amount_paid_minor AS "amountPaidMinor",amount_credited_minor AS "amountCreditedMinor",room_charge_minor AS "roomChargeMinor" FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE`,[actor.businessId,p.orderId]);
+ if(!locked.rows.length)throw new ApiProblem(409,'RESOURCE_CONFLICT','The POS order is missing.');
+ if(Number(locked.rows[0].version)!==orderVersion)throw new ApiProblem(409,'VERSION_CONFLICT','The order changed. Refresh and review before charging a room.');
+ if(locked.rows[0].state!=='FIRED')throw new ApiProblem(409,'ORDER_NOT_READY_FOR_ROOM_CHARGE','Fire all order lines before charging a guest room.');
+ const order=await orderProjection(tx.client,actor.businessId,p.orderId),items=order.data.items.filter(line=>line.state!=='VOIDED');
+ if(!items.length||items.some(line=>line.state!=='FIRED')||order.data.items.some(line=>line.state==='DRAFT'))throw new ApiProblem(409,'UNFIRED_LINES','Fire or remove every held line before charging a guest room.');
+ if(!order.data.businessSnapshot||items.some(line=>!line.taxSnapshot||!Number.isSafeInteger(line.netMinor)||!Number.isSafeInteger(line.vatMinor)||!Number.isSafeInteger(line.levyMinor)))throw new ApiProblem(409,'RECEIPT_SNAPSHOT_REQUIRED','The order needs its original business and tax snapshots before room settlement.');
+ const lineTotal=items.reduce((sum,line)=>sum+line.lineTotalMinor,0),taxes=items.reduce((sum,line)=>({netMinor:sum.netMinor+line.netMinor,vatMinor:sum.vatMinor+line.vatMinor,levyMinor:sum.levyMinor+line.levyMinor}),{netMinor:0,vatMinor:0,levyMinor:0});
+ if(lineTotal!==order.data.grandTotalMinor||taxes.netMinor+taxes.vatMinor+taxes.levyMinor!==order.data.grandTotalMinor||Object.values(taxes).some(value=>!Number.isSafeInteger(value)||value<0))throw new ApiProblem(409,'TAX_RECONCILIATION_FAILED','Order lines and tax allocations do not reconcile to the sale total.');
+ const amountMinor=order.data.grandTotalMinor-order.data.amountPaidMinor-order.data.amountCreditedMinor-order.data.roomChargeMinor;
+ if(!Number.isSafeInteger(amountMinor)||amountMinor<=0)throw new ApiProblem(409,'ROOM_CHARGE_BALANCE_INVALID','This order has no outstanding room-charge balance.');
+ const basis=await remainingPaymentBasis(tx.client,actor.businessId,p.orderId,order.data),alreadyAllocated=order.data.amountCreditedMinor+order.data.roomChargeMinor;
+ const allocation=allocationDelta(basis.remaining,alreadyAllocated,amountMinor);
+ const posted=await postPosRoomCharge({tx,command,actor,at,order,folioId:p.folioId,amountMinor,allocation});
+ const roomCharged=order.data.roomChargeMinor+amountMinor,complete=order.data.amountPaidMinor+order.data.amountCreditedMinor+roomCharged===order.data.grandTotalMinor;
+ const version=await tx.bumpEntityVersion(actor.businessId,'orders',p.orderId,orderVersion);
+ await tx.client.query(`UPDATE pos_orders SET room_charge_minor=$3,state=$4,version=$5,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,roomCharged,complete?'COMPLETED':'FIRED',version,at]);
+ const paymentsResult=await tx.client.query(`SELECT id,method AS "tenderType",amount_minor AS "amountMinor",external_reference AS reference,cash_tendered_minor AS "cashTenderedMinor",change_minor AS "changeMinor" FROM order_payments WHERE business_id=$1 AND order_id=$2 ORDER BY recorded_at,id`,[actor.businessId,p.orderId]);
+ const payments=paymentsResult.rows.map(row=>({...row,amountMinor:Number(row.amountMinor),cashTenderedMinor:row.cashTenderedMinor===null?null:Number(row.cashTenderedMinor),changeMinor:row.changeMinor===null?null:Number(row.changeMinor)}));
+ if(order.data.amountCreditedMinor>0)payments.push({id:`account-${p.orderId}`,tenderType:'CUSTOMER_ACCOUNT',amountMinor:order.data.amountCreditedMinor,reference:order.data.customerName??null});
+ payments.push({id:posted.charge.id,tenderType:'ROOM_CHARGE',amountMinor,reference:p.folioId});
+ const discountTotalMinor=items.reduce((sum,line)=>sum+line.discountMinor,0),receiptId=randomUUID(),documentNumber=`SALE-${command.commandId}`;
+ if(!Number.isSafeInteger(discountTotalMinor))throw new ApiProblem(409,'PRICE_RECONCILIATION_FAILED','Order discount totals exceed supported amounts.');
+ const cashier=await tx.client.query('SELECT display_name AS name FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2',[actor.businessId,actor.staffId]);
+ const receiptSnapshot={discountTotalMinor,cashier:{id:actor.staffId,name:cashier.rows[0]?.name??actor.staffId},business:order.data.businessSnapshot,orderId:p.orderId,orderName:order.data.name,receiptNumber:documentNumber,currency:order.data.currency,items,taxes,totalMinor:order.data.grandTotalMinor,paidMinor:order.data.amountPaidMinor,creditedMinor:order.data.amountCreditedMinor,roomChargedMinor:roomCharged,balanceMinor:0,payments,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),footer:order.data.businessSnapshot.footer};
+ const receiptHash=documentHash(receiptSnapshot);
+ await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'SALES_RECEIPT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,receiptId,documentNumber,JSON.stringify(receiptSnapshot),receiptHash,command.commandId,actor.staffId,at]);
+ await tx.client.query('UPDATE pos_orders SET receipt_document_id=$3 WHERE business_id=$1 AND id=$2',[actor.businessId,p.orderId,receiptId]);
+ const document={collection:'businessDocuments',id:receiptId,version:1,archived:false,data:{id:receiptId,type:'SALES_RECEIPT',documentNumber,layoutVersion:1,hash:receiptHash,snapshot:receiptSnapshot,issuedAt:at.toISOString()}};
+ const printJob=await queueDocumentPrint(tx,{businessId:actor.businessId,documentId:receiptId,printerRole:'RECEIPT',staffId:actor.staffId,at});
+ await event(tx,command,actor,at,p.orderId,version,{folioId:p.folioId,folioEntryId:posted.entry.id,roomChargeId:posted.charge.id,amountMinor,allocation,completed:complete,receiptDocumentId:receiptId});
+ const updated=await orderProjection(tx.client,actor.businessId,p.orderId);
+ return {value:{order:updated,folio:posted.folio,folioEntry:posted.entry,roomCharge:posted.charge,documentId:receiptId},records:[updated,posted.folio,posted.entry,posted.journal,posted.charge,document,printJob]};
+};
+
 const voidOrder=async({tx,command,actor,at})=>{
  await tx.lockInventoryCatalog(actor.businessId);
  const p=command.payload;await editable(tx,command,actor,p.orderId,{allowPaid:true});
@@ -379,3 +420,4 @@ posCommandRegistry.set('order.kds',{permission:'kds.update',offlinePolicy:'ONLIN
 
 posCommandRegistry.set('order.repeatRound',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:repeatRound});
 posCommandRegistry.set('order.assignCustomer',{permission:'pos.open_tab',offlinePolicy:'ONLINE_ONLY',handler:assignCustomer});
+posCommandRegistry.set('pos.roomCharge',{permission:'folio.room_charge',offlinePolicy:'ONLINE_ONLY',handler:roomCharge});

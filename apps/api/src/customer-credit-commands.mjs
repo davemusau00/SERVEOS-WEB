@@ -71,7 +71,7 @@ const charge=async({tx,command,actor,at})=>{
  const order=await orderProjection(tx.client,actor.businessId,p.orderId);
  if(order.data.items.some(line=>line.state==='DRAFT'))throw new ApiProblem(409,'ORDER_HAS_HELD_LINES','Fire or remove held lines before charging the account.');
  if(!Number.isSafeInteger(p.amountMinor)||p.amountMinor<=0)fail('Enter the exact positive outstanding balance in minor units.');
- const outstanding=order.data.grandTotalMinor-order.data.amountPaidMinor-order.data.amountCreditedMinor;
+ const outstanding=order.data.grandTotalMinor-order.data.amountPaidMinor-order.data.amountCreditedMinor-order.data.roomChargeMinor;
  if(p.amountMinor!==outstanding)throw new ApiProblem(409,'CREDIT_AMOUNT_CHANGED','Credit charge must settle the exact reviewed order balance. Refresh the order and review the full balance.');
  const {rows:balanceRows}=await tx.client.query(`SELECT COALESCE(SUM(balance_delta_minor),0) AS balance FROM customer_credit_entries WHERE business_id=$1 AND customer_id=$2`,[actor.businessId,p.customerId]);
  const balance=Number(balanceRows[0].balance),limit=Number(account.limitMinor);
@@ -88,13 +88,13 @@ const charge=async({tx,command,actor,at})=>{
  await tx.client.query(`UPDATE customer_credit_accounts SET version=$3,updated_by=$4,updated_at=$5 WHERE business_id=$1 AND customer_id=$2`,[actor.businessId,p.customerId,accountVersion,actor.staffId,at]);
  const orderVersion=await tx.bumpEntityVersion(actor.businessId,'orders',p.orderId,reviewedOrder);
  const paidBasis=await remainingPaymentBasis(tx.client,actor.businessId,p.orderId,order.data);
- const allocation=allocationDelta(paidBasis.remaining,order.data.amountCreditedMinor,p.amountMinor);
+ const allocation=allocationDelta(paidBasis.remaining,order.data.amountCreditedMinor+order.data.roomChargeMinor,p.amountMinor);
  const dueAt=new Date(at.getTime()+Number(account.termsDays)*24*60*60_000);
  const entry={id:p.id,customerId:p.customerId,kind:'CHARGE',amountMinor:p.amountMinor,balanceDeltaMinor:p.amountMinor,orderId:p.orderId,dueAt:dueAt.toISOString(),paymentMethod:null,reference:String(order.data.name||p.orderId).slice(0,160),allocations:[],reversesEntryId:null,reason:String(p.reason||'').trim(),actorId:actor.staffId,deviceId:actor.deviceId,sourceCommandId:command.commandId,occurredAt:at.toISOString()};
  await tx.client.query(`INSERT INTO customer_credit_entries(business_id,id,customer_id,kind,balance_delta_minor,amount_minor,order_id,due_at,reference,allocations,reason,actor_id,device_id,source_command_id,occurred_at) VALUES($1,$2,$3,'CHARGE',$4,$5,$6,$7,$8,'[]'::jsonb,$9,$10,$11,$12,$13)`,[actor.businessId,entry.id,entry.customerId,entry.balanceDeltaMinor,entry.amountMinor,entry.orderId,dueAt,entry.reference,entry.reason,actor.staffId,actor.deviceId,command.commandId,at]);
  const lines=[{code:'ASSET_CUSTOMER_AR',debitMinor:p.amountMinor,creditMinor:0},...Object.entries({REVENUE_SALES:allocation.netMinor,LIABILITY_VAT:allocation.vatMinor,LIABILITY_LEVY:allocation.levyMinor}).filter(([,minor])=>minor>0).map(([code,minor])=>({code,debitMinor:0,creditMinor:minor}))];
  const journal=await postCustomerCreditJournal(tx,{actor,command,at,entry,sourceType:'CUSTOMER_CREDIT_CHARGE',lines,basisSnapshot:{policyVersion:1,rounding:'CUMULATIVE_REMAINING_TENDER_BASIS',orderId:p.orderId,orderVersion,customerId:p.customerId,paidBeforeMinor:order.data.amountPaidMinor,creditedBeforeMinor:order.data.amountCreditedMinor,amountMinor:p.amountMinor,allocation,accountVersion,creditLimitMinor:limit,balanceBeforeMinor:balance,balanceAfterMinor:balance+p.amountMinor,limitOverride:limitOverride?{...limitOverride,reason:p.limitOverrideReason.trim()}:null}});
- const credited=order.data.amountCreditedMinor+p.amountMinor,complete=order.data.amountPaidMinor+credited===order.data.grandTotalMinor;
+ const credited=order.data.amountCreditedMinor+p.amountMinor,complete=order.data.amountPaidMinor+credited+order.data.roomChargeMinor===order.data.grandTotalMinor;
  await tx.client.query(`UPDATE pos_orders SET amount_credited_minor=$3,state=$4,version=$5,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,p.orderId,credited,complete?'COMPLETED':'FIRED',orderVersion,at]);
  await tx.client.query(`INSERT INTO pos_order_events(business_id,id,order_id,order_version,event_type,event_data,command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,[actor.businessId,randomUUID(),p.orderId,orderVersion,command.name,JSON.stringify({customerId:p.customerId,creditEntryId:entry.id,amountMinor:p.amountMinor,completed:complete}),command.commandId,actor.staffId,actor.deviceId,at]);
  const accountRecord=(await customerCreditAccountProjections(tx.client,actor.businessId,[p.customerId]))[0];
@@ -278,7 +278,8 @@ const reverse=async({tx,command,actor,at})=>{
  if(order){
   const nextCredit=Number(order.data.amountCreditedMinor)-amount;if(nextCredit<0)throw new ApiProblem(409,'ORDER_CREDIT_CHANGED','The charged order credit total is below the entry amount.');
   const nextOrderVersion=await tx.bumpEntityVersion(actor.businessId,'orders',order.id,orderVersion);
-  await tx.client.query(`UPDATE pos_orders SET amount_credited_minor=$3,state='FIRED',version=$4,updated_at=$5 WHERE business_id=$1 AND id=$2`,[actor.businessId,order.id,nextCredit,nextOrderVersion,at]);
+  const complete=order.data.amountPaidMinor+nextCredit+order.data.roomChargeMinor===order.data.grandTotalMinor;
+  await tx.client.query(`UPDATE pos_orders SET amount_credited_minor=$3,state=$4,version=$5,updated_at=$6 WHERE business_id=$1 AND id=$2`,[actor.businessId,order.id,nextCredit,complete?'COMPLETED':'FIRED',nextOrderVersion,at]);
   await tx.client.query(`INSERT INTO pos_order_events(business_id,id,order_id,order_version,event_type,event_data,command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,[actor.businessId,randomUUID(),order.id,nextOrderVersion,command.name,JSON.stringify({creditEntryId:id,reversesEntryId:p.entryId,amountMinor:amount,reason:note}),command.commandId,actor.staffId,actor.deviceId,at]);
   records.push(await orderProjection(tx.client,actor.businessId,order.id));
  }
