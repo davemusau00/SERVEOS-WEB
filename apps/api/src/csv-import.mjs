@@ -2,16 +2,16 @@ import {createHash, randomUUID} from 'node:crypto';
 import {ApiProblem, commandHash, executeCommand} from './command-kernel.mjs';
 
 export const API_IMPORT_TEMPLATES = Object.freeze([
-  {key:'products',label:'Products',permission:'catalog.manage',headers:['external_id','name','code','price','category','barcode'],required:['external_id','name','code','price']},
+  {key:'products',label:'Products',permission:'catalog.manage',headers:['external_id','name','code','price','category','barcode','stock_item_external_id','outlet_external_ids'],required:['external_id','name','code','price']},
   {key:'stockItems',label:'Stock items',permission:'catalog.manage',headers:['external_id','name','code','base_unit','reorder_level','barcode'],required:['external_id','name','code','base_unit']},
-  {key:'stockLocations',label:'Stock locations',permission:'catalog.manage',headers:['external_id','name','code','type'],required:['external_id','name']},
+  {key:'stockLocations',label:'Stock locations',permission:'catalog.manage',permissions:['catalog.manage','inventory.adjust'],headers:['external_id','name','code','type'],required:['external_id','name']},
   {key:'outlets',label:'Outlets',permission:'business.configure',headers:['external_id','name','default_stock_location_external_id'],required:['external_id','name','default_stock_location_external_id']},
-  {key:'suppliers',label:'Suppliers',permission:'procurement.manage',headers:['external_id','name','code','contact_name','phone','email','address','tax_pin','payment_terms_days','notes'],required:['external_id','name','code']},
+  {key:'suppliers',label:'Suppliers',permission:'procurement.manage',permissions:['procurement.manage','suppliers.manage'],headers:['external_id','name','code','contact_name','phone','email','address','tax_pin','payment_terms_days','notes'],required:['external_id','name','code']},
   {key:'customers',label:'Guests and customers',permission:'customers.manage',headers:['external_id','name','phone','email','notes'],required:['external_id','name']},
   {key:'roomTypes',label:'Room types',permission:'roomTypes.manage',headers:['external_id','name','code','max_guests'],required:['external_id','name']},
   {key:'rooms',label:'Rooms',permission:'rooms.manage',headers:['external_id','room_number','room_type_external_id','capacity','turnaround_minutes','floor','amenities','notes'],required:['external_id','room_number','room_type_external_id','capacity']},
   {key:'ratePlans',label:'Nightly rate plans',permission:'rooms.manage',headers:['external_id','name','room_type_external_id','nightly_rate','currency','tax_basis_points','notes'],required:['external_id','name','room_type_external_id','nightly_rate']},
-  {key:'hotelServices',label:'Hotel services',permission:'business.configure',headers:['external_id','code','name','category','unit_price','taxable'],required:['external_id','code','name','category','unit_price']},
+  {key:'hotelServices',label:'Hotel services',permission:'business.configure',headers:['external_id','code','name','unit_price','tax_basis_points'],required:['external_id','code','name','unit_price']},
   {key:'assetCategories',label:'Asset categories',permission:'assets.manage',headers:['external_id','name','code','notes'],required:['external_id','name']},
   {key:'assets',label:'Assets',permission:'assets.manage',headers:['external_id','name','asset_tag','category_external_id','room_external_id','stock_location_external_id','serial_number','acquisition_date','acquisition_cost','notes'],required:['external_id','name','asset_tag','category_external_id','acquisition_cost']},
 ]);
@@ -26,6 +26,7 @@ const ownPermission=(actor,definition)=>actor.permissions?.includes('*')||(defin
 const iso=value=>value instanceof Date?value.toISOString():value;
 const problem=(status,code,message)=>{throw new ApiProblem(status,code,message)};
 const normalizedHeader=value=>String(value??'').trim().toLowerCase();
+const uniqueColumns={products:['code','barcode'],stockItems:['code','barcode'],stockLocations:['code'],outlets:[],suppliers:['code'],roomTypes:['code'],rooms:['room_number'],ratePlans:[],hotelServices:['code'],assetCategories:['code'],assets:['asset_tag'],customers:[]};
 
 export function parseCsv(csvText){
   if(typeof csvText!=='string')problem(400,'VALIDATION_FAILED','CSV content must be text.');
@@ -53,6 +54,7 @@ export function parseCsv(csvText){
   if(quoted)problem(400,'CSV_MALFORMED','A quoted CSV field is not closed.');
   if(field.length||row.length){row.push(field);if(row.some(value=>value.trim()!==''))rows.push(row)}
   if(!rows.length)problem(400,'CSV_EMPTY','The CSV file has no header row.');
+  if(rows.length<2)problem(400,'CSV_EMPTY','The CSV file has no data rows.');
   if(rows.length-1>MAX_ROWS)problem(413,'TOO_MANY_ROWS','CSV files may contain at most 20,000 data rows.');
   return rows;
 }
@@ -73,7 +75,7 @@ function whole(value,label,{fallback,min=0,max=100_000}={}){
   if(!/^\d+$/u.test(raw))throw new Error(`${label} must be a whole number.`);const result=Number(raw);
   if(!Number.isSafeInteger(result)||result<min||result>max)throw new Error(`${label} is outside the supported range.`);return result;
 }
-function date(value,label){const raw=text(value);if(!raw)return null;if(!/^\d{4}-\d{2}-\d{2}$/u.test(raw)||new Date(`${raw}T00:00:00.000Z`).toISOString().slice(0,10)!==raw)throw new Error(`${label} must use YYYY-MM-DD.`);return raw}
+function date(value,label){const raw=text(value);if(!raw)return null;if(!/^\d{4}-\d{2}-\d{2}$/u.test(raw))throw new Error(`${label} must use YYYY-MM-DD.`);const parsed=new Date(`${raw}T00:00:00.000Z`);if(!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==raw)throw new Error(`${label} must use YYYY-MM-DD.`);return raw}
 function email(value,label){const raw=text(value);if(raw&&(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(raw)||raw.length>254))throw new Error(`${label} must be a valid email address.`);return raw}
 function plain(value,label,max=500){const raw=text(value);if(raw.length>max||/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u.test(raw))throw new Error(`${label} is too long or contains unsupported control characters.`);return raw}
 
@@ -85,7 +87,7 @@ function parseRows(template,csvText){
   if(keys.some(key=>sensitive.test(key)&&!['tax_pin','kra_pin'].includes(key)))problem(400,'CSV_SENSITIVE_COLUMN','CSV files cannot contain staff credentials, PINs, passwords, secrets, or tokens.');
   const unknown=keys.filter(key=>!template.headers.includes(key));if(unknown.length)problem(400,'CSV_UNSUPPORTED_COLUMNS',`Unsupported columns: ${unknown.join(', ')}.`);
   const missing=template.required.filter(key=>!keys.includes(key));if(missing.length)problem(400,'CSV_REQUIRED_COLUMNS',`Required columns are missing: ${missing.join(', ')}.`);
-  const externalColumn=keys.indexOf('external_id'),externalIds=new Set();
+  const externalColumn=keys.indexOf('external_id'),externalIds=new Set(),uniqueValues=new Map((uniqueColumns[template.key]||[]).map(key=>[key,new Map()]));
   const rows=matrix.slice(1).map((values,index)=>{
     const errors=[];
     if(values.length!==headers.length)errors.push(`Expected ${headers.length} columns but found ${values.length}.`);
@@ -93,13 +95,15 @@ function parseRows(template,csvText){
     const externalId=text(values[externalColumn]);
     if(!externalId)errors.push('external_id is required.');else if(externalId.length>200)errors.push('external_id may not exceed 200 characters.');
     const key=externalId.toLocaleLowerCase('en-US');if(key&&externalIds.has(key))errors.push('external_id is duplicated within this file.');externalIds.add(key);
+    for(const [column,seen] of uniqueValues){const value=text(normalized[column]).toLocaleLowerCase('en-US');if(!value)continue;if(seen.has(value))errors.push(`${column} duplicates row ${seen.get(value)} within this file.`);else seen.set(value,index+2)}
     for(const name of template.required)if(!text(normalized[name]))errors.push(`${name} is required.`);
     if(normalized.barcode&&normalized.barcode!==normalized.barcode.trim())errors.push('Barcode whitespace is not allowed; leading zeroes are preserved.');
     if(normalized.email){try{email(normalized.email,'Email')}catch(error){errors.push(error.message)}}
     if(normalized.price!==undefined&&text(normalized.price)){try{minorUnits(normalized.price,'Price')}catch(error){errors.push(error.message)}}
     if(normalized.nightly_rate!==undefined&&text(normalized.nightly_rate)){try{minorUnits(normalized.nightly_rate,'Nightly rate')}catch(error){errors.push(error.message)}}
     if(normalized.unit_price!==undefined&&text(normalized.unit_price)){try{minorUnits(normalized.unit_price,'Unit price')}catch(error){errors.push(error.message)}}
-    for(const [key,label,max] of [['reorder_level','Reorder level',1_000_000_000],['max_guests','Maximum guests',1000],['capacity','Capacity',1000],['turnaround_minutes','Turnaround minutes',10080],['payment_terms_days','Payment terms',365],['tax_basis_points','Tax basis points',10000]])if(normalized[key]!==undefined&&text(normalized[key])){try{whole(normalized[key],label,{max})}catch(error){errors.push(error.message)}}
+    for(const [key,label,max] of [['max_guests','Maximum guests',1000],['capacity','Capacity',1000],['turnaround_minutes','Turnaround minutes',10080],['payment_terms_days','Payment terms',365],['tax_basis_points','Tax basis points',10000]])if(normalized[key]!==undefined&&text(normalized[key])){try{whole(normalized[key],label,{max})}catch(error){errors.push(error.message)}}
+    if(normalized.reorder_level!==undefined&&text(normalized.reorder_level)){try{decimal(normalized.reorder_level,'Reorder level')}catch(error){errors.push(error.message)}}
     if(normalized.type&& !['STORE','FRIDGE','BAR','KITCHEN','OTHER'].includes(text(normalized.type).toUpperCase()))errors.push('type must be STORE, FRIDGE, BAR, KITCHEN, or OTHER.');
     if(normalized.currency&&text(normalized.currency).toUpperCase()!=='KES')errors.push('Only KES is supported by this API importer.');
     if(normalized.acquisition_date){try{date(normalized.acquisition_date,'Acquisition date')}catch(error){errors.push(error.message)}}
@@ -111,12 +115,14 @@ function parseRows(template,csvText){
   return {headers,rows};
 }
 
+export function validateImportCsv(templateKey,csvText){const template=templateFor(templateKey);if(!template)problem(400,'IMPORT_TEMPLATE_UNSUPPORTED','Choose a template supported by the ServOS API.');return parseRows(template,csvText)}
+
 const summary=row=>({id:row.id,templateKey:row.template_key,fileName:row.file_name,status:row.status,createdBy:row.created_by,createdAt:iso(row.created_at),updatedAt:iso(row.updated_at),rowCount:Number(row.row_count),validCount:Number(row.valid_count),invalidCount:Number(row.invalid_count),sourceHash:row.source_hash,headers:row.headers,notes:row.notes});
 const batchRows=rows=>typeof rows==='string'?JSON.parse(rows):rows;
 function detail(row){const parsed=batchRows(row.rows);return {...summary(row),rows:parsed.slice(0,PREVIEW_LIMIT).map(item=>({rowNumber:item.rowNumber,status:item.status,externalId:item.externalId,normalized:item.values,errors:item.errors,warnings:[]})),rowsTruncated:parsed.length>PREVIEW_LIMIT}}
 function safePlan(row){const steps=typeof row.steps==='string'?JSON.parse(row.steps):row.steps;return {id:row.id,batchId:row.batch_id,status:row.status,createdBy:row.created_by,createdAt:iso(row.created_at),updatedAt:iso(row.updated_at),sourceHash:row.source_hash,summary:{total:steps.length,create:steps.filter(step=>step.action==='CREATE').length,noChange:0,blocked:steps.filter(step=>step.status==='BLOCKED').length,conflict:steps.filter(step=>step.status==='CONFLICT').length,applied:steps.filter(step=>step.status==='APPLIED').length,failed:steps.filter(step=>step.status==='FAILED').length},steps:steps.slice(0,PREVIEW_LIMIT).map(({rowNumber,action,status,operation,targetCollection,targetId,reason,error})=>({rowNumber,action,status,operation,targetCollection,targetId,reason,error})),stepsTruncated:steps.length>PREVIEW_LIMIT}}
 
-export async function importTemplates(actor){requirePermission(actor,'data.import.stage');return {templates:API_IMPORT_TEMPLATES.map(({key,label,headers,required,permission})=>({key,label,headers,required,permission,importable:Boolean(actor.permissions?.includes('*')||actor.permissions?.includes(permission))})),limits:{maxBytes:MAX_CSV_BYTES,maxRows:MAX_ROWS,previewRows:PREVIEW_LIMIT},excluded:[{key:'employees',reason:'Staff accounts require individual API credentials and permissions; CSV cannot create or assign credentials.'},{key:'inventory',reason:'Opening balances require a reviewed inventory command and reconciliation. They are not part of master-data import.'},{key:'business',reason:'Business identity is configured through the API settings workflow.'}]}}
+export async function importTemplates(actor){requirePermission(actor,'data.import.stage');return {templates:API_IMPORT_TEMPLATES.map(({key,label,headers,required,permission,permissions})=>({key,label,headers,required,permission,permissions:permissions||[permission],importable:Boolean(actor.permissions?.includes('*')||(permissions||[permission]).some(value=>actor.permissions?.includes(value)))})),limits:{maxBytes:MAX_CSV_BYTES,maxRows:MAX_ROWS,previewRows:PREVIEW_LIMIT},excluded:[{key:'employees',reason:'Staff accounts require individual API credentials and permissions; CSV cannot create or assign credentials.'},{key:'inventory',reason:'Opening balances require a reviewed inventory command and reconciliation. They are not part of master-data import.'},{key:'business',reason:'Business identity is configured through the API settings workflow.'}]}}
 
 export async function listImportBatches(pool,actor){if(!allowed(actor))throw new ApiProblem(403,'PERMISSION_DENIED','Import access is required.');const {rows}=await pool.query('SELECT * FROM api_import_batches WHERE business_id=$1 ORDER BY created_at DESC,id DESC LIMIT 100',[actor.businessId]);return {batches:rows.map(summary)}}
 
@@ -143,22 +149,23 @@ const relationVersion=async(tx,businessId,map,collection)=>expected(map.collecti
 
 async function commandForRow(tx,actor,template,row){
   const v=row.values,id=randomUUID(),externalId=row.externalId;let name,payload,expectedVersions=expected(template.key,id,0),targetCollection=template.key;
-  const requireMap=async(key,namespace,collection)=>{const found=await importedId(tx,actor.businessId,namespace,v[key]);if(collection&&found.collection!==collection)throw new ApiProblem(409,'IMPORT_REFERENCE_TYPE','The referenced external ID belongs to another record type.');Object.assign(expectedVersions,await relationVersion(tx,actor.businessId,found));return found.id};
+  const requireExternal=async(namespace,externalId,collection)=>{const found=await importedId(tx,actor.businessId,namespace,externalId);if(collection&&found.collection!==collection)throw new ApiProblem(409,'IMPORT_REFERENCE_TYPE','The referenced external ID belongs to another record type.');Object.assign(expectedVersions,await relationVersion(tx,actor.businessId,found));return found.id};
+  const requireMap=(key,namespace,collection)=>requireExternal(namespace,v[key],collection);
   switch(template.key){
     case 'products':{
       name='product.save';const stockItemId=text(v.stock_item_external_id)?await requireMap('stock_item_external_id','stockItems','stockItems'):null;
-      const outletIds=text(v.outlet_external_ids)?await Promise.all(text(v.outlet_external_ids).split(/[;|]/u).map(item=>{v.__outletExternalId=item;return requireMap('__outletExternalId','outlets','outlets')})):[];delete v.__outletExternalId;
+      const outletIds=text(v.outlet_external_ids)?await Promise.all(text(v.outlet_external_ids).split(/[;|]/u).map(item=>requireExternal('outlets',item,'outlets'))):[];
       payload={id,data:{name:plain(v.name,'Product name',160),code:plain(v.code,'Product code',80),priceMinor:minorUnits(v.price,'Price'),category:plain(v.category||'GENERAL','Category',80),routeTo:'BAR',stockItemId,barcode:plain(v.barcode||'','Barcode',120)||null,favorite:false,taxClassId:'',inventoryType:'STANDARD',recipeIngredients:[],recipeYield:null,portionVolume:null,sellingMode:null,portions:[],outletIds}};break;
     }
     case 'stockItems':name='stockItem.save';payload={id,data:{name:plain(v.name,'Stock item name',160),code:plain(v.code,'Stock item code',80),baseUnit:plain(v.base_unit,'Base unit',40),barcode:plain(v.barcode||'','Barcode',120)||null,barcodeAliases:[],scanUnitQuantity:1,reorderLevel:decimal(v.reorder_level,'Reorder level'),averageUnitCostMinor:0,sealedContainerSize:null,purchasePackages:[]}};break;
     case 'stockLocations':name='stockLocation.save';payload={id,data:{name:plain(v.name,'Location name',120),code:plain(v.code||id,'Location code',80),type:plain(v.type||'STORE','Location type',20).toUpperCase()}};break;
-    case 'outlets':{name='outlet.save';const defaultStockLocationId=await requireMap('default_stock_location_external_id','stockLocations','stockLocations');Object.assign(expectedVersions,expected('stockLocations',defaultStockLocationId,await version(tx,actor.businessId,'stockLocations',defaultStockLocationId)));payload={id,reason:'Created from reviewed controlled CSV import',data:{name:plain(v.name,'Outlet name',120),defaultStockLocationId,archived:false}};break;}
+    case 'outlets':{name='outlet.save';const defaultStockLocationId=await requireMap('default_stock_location_external_id','stockLocations','stockLocations');payload={id,reason:'Created from reviewed controlled CSV import',data:{name:plain(v.name,'Outlet name',120),defaultStockLocationId,archived:false}};break;}
     case 'suppliers':name='supplier.save';payload={id,reason:'Created from reviewed controlled CSV import',data:{code:plain(v.code,'Supplier code',80),name:plain(v.name,'Supplier name',160),contactName:plain(v.contact_name||'','Contact name',160),phone:plain(v.phone||'','Phone',80),email:email(v.email,'Email'),address:plain(v.address||'','Address',2000),taxPin:plain(v.tax_pin||'','Tax PIN',80),paymentTermsDays:whole(v.payment_terms_days,'Payment terms',{fallback:0,max:365}),notes:plain(v.notes||'','Notes',2000)}};break;
     case 'customers':name='customer.save';payload={id,reason:'Created from reviewed controlled CSV import',data:{name:plain(v.name,'Customer name',160),phone:plain(v.phone||'','Phone',40),email:email(v.email,'Email'),notes:plain(v.notes||'','Notes',1000)}};break;
     case 'roomTypes':name='roomType.save';payload={id,data:{name:plain(v.name,'Room type name',100),code:plain(v.code||v.name,'Room type code',40),maxGuests:whole(v.max_guests,'Maximum guests',{fallback:1,min:1,max:1000})}};break;
     case 'rooms':{name='room.save';const roomTypeId=await requireMap('room_type_external_id','roomTypes','roomTypes');payload={id,data:{number:plain(v.room_number,'Room number',40),roomTypeId,capacity:whole(v.capacity,'Capacity',{min:1,max:1000}),turnaroundMinutes:whole(v.turnaround_minutes,'Turnaround minutes',{fallback:30,max:10080}),floor:plain(v.floor||'','Floor',80),amenities:text(v.amenities)?text(v.amenities).split(';').map(item=>plain(item,'Amenity',80)).filter(Boolean):[],notes:plain(v.notes||'','Notes',1000)}};break;}
     case 'ratePlans':{name='ratePlan.save';const roomTypeId=await requireMap('room_type_external_id','roomTypes','roomTypes');payload={id,data:{name:plain(v.name,'Rate name',100),roomTypeId,mode:'NIGHTLY',priceMinor:minorUnits(v.nightly_rate,'Nightly rate'),currency:'KES',taxBasisPoints:whole(v.tax_basis_points,'Tax basis points',{fallback:0,max:10000}),durationMinutes:null,notes:plain(v.notes||'','Notes',1000)}};break;}
-    case 'hotelServices':name='hotelService.save';payload={id,data:{code:plain(v.code,'Service code',80),name:plain(v.name,'Service name',120),category:plain(v.category,'Service category',40).toUpperCase(),priceMinor:minorUnits(v.unit_price,'Unit price'),taxable:!['false','0','no'].includes(text(v.taxable).toLowerCase()),active:true}};break;
+    case 'hotelServices':name='hotelService.save';payload={id,data:{code:plain(v.code,'Service code',40),name:plain(v.name,'Service name',120),priceMinor:minorUnits(v.unit_price,'Unit price'),taxBasisPoints:whole(v.tax_basis_points,'Tax basis points',{fallback:0,max:10000})}};break;
     case 'assetCategories':name='assetCategory.save';payload={id,data:{name:plain(v.name,'Category name',120),code:plain(v.code||v.name,'Category code',40),notes:plain(v.notes||'','Notes',1000)}};break;
     case 'assets':{
       name='asset.save';const categoryId=await requireMap('category_external_id','assetCategories','assetCategories'),roomId=text(v.room_external_id)?await requireMap('room_external_id','rooms','rooms'):null,locationId=text(v.stock_location_external_id)?await requireMap('stock_location_external_id','stockLocations','stockLocations'):null;
@@ -222,9 +229,9 @@ export async function applyImport({store,registry,actor,planId}){
         else{
           const mapped=await store.pool.query(`INSERT INTO api_import_external_ids(business_id,template_key,external_id,external_id_key,record_collection,record_id,batch_id,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(business_id,template_key,external_id_key) DO NOTHING RETURNING record_id`,[actor.businessId,template.key,step.externalId,step.externalId.toLocaleLowerCase('en-US'),step.targetCollection,step.targetId,plan.batchId,new Date()]);
           if(!mapped.rows.length){const prior=await store.pool.query('SELECT record_id FROM api_import_external_ids WHERE business_id=$1 AND template_key=$2 AND external_id_key=$3',[actor.businessId,template.key,step.externalId.toLocaleLowerCase('en-US')]);if(prior.rows[0]?.record_id!==step.targetId)throw new ApiProblem(409,'IMPORT_EXTERNAL_ID_CONFLICT','This external ID is already mapped to a different record.');}
-          step.status='APPLIED';step.reason='Created through the API domain command.';step.error=null;
+          step.status='APPLIED';step.reason='Created through the API domain command.';step.error=null;delete step.command;
         }
-      }catch(error){if(!Number.isInteger(error.status)||error.status>=500)throw error;step.status='FAILED';step.reason=error.message||'This row could not be applied.';step.error=error.code||null;failed=true;}
+      }catch(error){if(!Number.isInteger(error.status)||error.status>=500)throw error;step.status='FAILED';step.reason=error.message||'This row could not be applied.';step.error=error.code||null;delete step.command;failed=true;}
       await store.pool.query('UPDATE api_import_plans SET steps=$3::jsonb,updated_at=$4 WHERE business_id=$1 AND id=$2',[actor.businessId,planId,JSON.stringify(steps),new Date()]);
     }
     const status=failed?'PARTIAL':'APPLIED',finishedAt=new Date();

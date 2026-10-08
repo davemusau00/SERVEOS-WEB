@@ -6,11 +6,11 @@ _Updated live-codebase closeout plan_
 | --- | --- |
 | Repository | `davemusau00/SERVEOS-WEB` |
 | Branch | `reset/vps-platform` |
-| Last hosted source SHA | `e1ba544d19bae9d536c32ce6f4e0a8621212f5bd` (Actions run in progress) |
-| Current locally verified source | `88a2a7ebc8ca2d6ee5ad021f45583caee8a16b4b` with expanded POS PostgreSQL acceptance |
-| Current branch state | `reset/vps-platform` is 1 local commit ahead of origin; hosted CI has not yet run on the current local SHA |
+| Last hosted source SHA | `2ade0f02330adb19e94b705b164bb510de9bd865` (Actions run #37802998981 in progress) |
+| Current locally verified source | Worktree based on `2ade0f02330adb19e94b705b164bb510de9bd865`, including the API-native CSV importer implementation below |
+| Current branch state | `reset/vps-platform` HEAD matches origin; importer source/tests/docs are worktree changes. `.env.example` also has a separate worktree edit and is preserved. |
 | Branch delta | 203 commits ahead of `main`, 0 behind |
-| Migration high-water | `068_pos_order_merge.sql` |
+| Migration high-water | `069_controlled_csv_import.sql` (applied in disposable integration schemas only) |
 | Primary goal | Finish the Web/API/PostgreSQL reset in one continuous engineering sweep |
 | Scope exclusion | Actual current Countryside terminal data migration/import |
 
@@ -28,8 +28,9 @@ _Updated live-codebase closeout plan_
 | UI operator review | **OPEN** | The UI gate found no browser prompt/confirm calls; 619 review findings remain unaccepted, so workflows are not marked reviewed. |
 | Local desktop compilation | **PASS** | `npm run check:desktop` passed on the source-equivalent tree; Cargo reported six warnings and no errors. |
 | Final green release SHA | **OPEN** | The hosted API/PostgreSQL failure still blocks a full green baseline. Targeted POS development and local acceptance have proceeded as directed; neither closes this release gate. |
+| Node API CSV importer | **PASS locally; production gate open** | Migration 069, authenticated API routes, the API-authority Import Center, 12 create-only master-data templates, rolled-back domain-handler dry run, durable command-backed apply/recovery, and local PostgreSQL tests are implemented. Production migration and data import were not performed. |
 
-The last completed hosted failure was in the API/PostgreSQL test step; its real browser-to-API acceptance passed. Public job-log and artifact endpoints returned HTTP 403, so the precise failure remains unknown. Newer runs are in progress; the current local commit has not yet received hosted CI.
+Hosted runs #37801630966 (`88a2a7e`) and #37801328821 (`e1ba544`) completed with failure. Run #37802998981 is in progress on the base commit `2ade0f0`; the importer worktree has not received hosted CI. The API job's browser acceptance previously passed, but the hosted API test failure log was unavailable and remains unexplained.
 
 ## 0. Executive instruction
 
@@ -1659,6 +1660,14 @@ The sweep is complete only when:
 **The only allowed EXCLUDED BY SCOPE item is:**
 
 - ACTUAL CURRENT COUNTRYSIDE DATA MIGRATION
+
+## Current continuation: Node API CSV importer
+
+- The API importer finding is addressed in the current worktree on top of `2ade0f02330adb19e94b705b164bb510de9bd865`. Migration 069 adds durable PostgreSQL batch/plan/external-ID/event storage; dedicated authenticated routes and the API-authority Administration UI provide stage, dry run, apply, resume, detail and cancel.
+- Twelve safe, create-only master-data templates route into typed domain handlers. Import references resolve through business-scoped external-ID mappings. CSV cannot set opening balances, create staff credentials, rewrite transactions, or replace arbitrary records. Each row applies with its own durable API command and can be reconciled/resumed by command ID; a completed partial batch requires review and a corrected new batch.
+- Local evidence on the current implementation: disposable PostgreSQL API suite **27/27**, root suite **218/218**, TypeScript lint **PASS**, `npm run docs:check` **PASS**, and production `npm run build` **PASS**. Vite reported a minified chunk above its 500 kB advisory threshold. `docs/API_CONTROLLED_CSV_IMPORT.md` records the template and operational contract. Migration 069 was applied only in test schemas.
+- The source-level architectural finding is closed. Hosted CI for this worktree, production migration 069, real business-data import, migration reconciliation and cutover remain **OPEN**.
+- Continue Phase 5 POS acceptance next, starting with the remaining order-level comp and transfer/merge rejection cases. Do not present this importer slice as a release or production-readiness gate.
 
 ## 28. Final report required
 

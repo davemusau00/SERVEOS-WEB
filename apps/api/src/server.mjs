@@ -68,11 +68,11 @@ async function verifyPassword(password,encoded){
   try{const expected=Buffer.from(hashRaw,'base64url');const actual=Buffer.from(await scrypt(password,Buffer.from(saltRaw,'base64url'),expected.length,{N:16384,r:8,p:1,maxmem:64*1024*1024}));return actual.length===expected.length&&timingSafeEqual(actual,expected)}catch{return false}
 }
 
-async function readJson(req) {
+async function readJson(req, maxBytes = 2 * 1024 * 1024) {
   let body = '';
   for await (const chunk of req) {
     body += chunk;
-    if (Buffer.byteLength(body) > 2 * 1024 * 1024) throw new ApiProblem(413, 'PAYLOAD_TOO_LARGE', 'Request body exceeds the allowed size.');
+    if (Buffer.byteLength(body) > maxBytes) throw new ApiProblem(413, 'PAYLOAD_TOO_LARGE', 'Request body exceeds the allowed size.');
   }
   try { return JSON.parse(body || '{}'); }
   catch { throw new ApiProblem(400, 'VALIDATION_FAILED', 'Request body must be valid JSON.'); }
@@ -295,7 +295,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const actor=await authenticate(req);return json(res,200,await listImportBatches(store.pool,actor));
       }
       if(url.pathname==='/v1/import/batches'&&req.method==='POST'){
-        const actor=await authenticate(req);return json(res,201,await stageImport(store.pool,actor,await readJson(req)));
+        const actor=await authenticate(req);return json(res,201,await stageImport(store.pool,actor,await readJson(req,8*1024*1024)));
       }
       const importBatchMatch=url.pathname.match(/^\/v1\/import\/batches\/([0-9a-f-]{36})(?:\/(plan|cancel))?$/i);
       if(importBatchMatch&&req.method==='GET'&&!importBatchMatch[2]){
