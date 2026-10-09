@@ -8,7 +8,7 @@
 **Target:** Nginx-hosted ServOS Web/PWA + private Docker PostgreSQL + ServOS Node API and worker  
 **Deployment mode:** Fresh isolated production business, with live activation gated on release and operational acceptance. No Countryside import.
 
-> **Status and source basis (8 October 2026):** The procedures below are staging-oriented examples, not production authorization. Current server and release evidence is recorded in [PRODUCTION-LAUNCH-READINESS.md](PRODUCTION-LAUNCH-READINESS.md). Candidate `25010b707a581d50b0c82823ae926d751775d43a` includes the final append-only ledger migration correction; run [37814669605](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37814669605) is still awaiting the desktop-shell job. TLS validates for both production names, and an additive exact-hostname Nginx site still routes to the previous `127.0.0.1:3001` backend. **Do not run staging copy/paste blocks against production.** Build and pin both artifacts from the accepted SHA, and promote only after its full matrix and the remaining recovery and operational gates pass.
+> **Status (9 October 2026):** Candidate `25010b707a581d50b0c82823ae926d751775d43a` passed the full required matrix in run [37814669605](https://github.com/davemusau00/SERVEOS-WEB/actions/runs/37814669605) and runs as an isolated production-origin pilot on `serveos.davemusau.co.ke` and `serveosapi.davemusau.co.ke`. Current production paths are `/opt/serveos-prod` and `/var/www/serveos-prod`; Compose project `serveos-prod`; API loopback port `3101`. Web V2, signed offline shell, and the bounded offline cash-sale workflow are enabled. The fresh tenant still needs its outlet/default stock location, cash account, eligible products, open device till, and synchronized stock projection configured before it can authorize an offline sale. A local POS setup-navigation improvement has built but is not deployed. Windows Print Bridge binaries are built and packaged, but target Windows 10 / Xprinter XP80 / scanner acceptance is not complete. The two hostname routes serve ServOS, while the other deployments remain running. The command examples below remain reference material and are not a current-state deployment script. Real trading remains gated on actual-device enrollment/session recovery, physical printer/scanner acceptance, external alert test after SMTP credential rotation, and owner cutover handoff. The user waived an off-VPS backup restore and deferred the supervised shift rehearsal; these are open risk items, not passed checks. See [PRODUCTION-LAUNCH-READINESS.md](PRODUCTION-LAUNCH-READINESS.md) for verified state and open gates.
 
 ---
 
@@ -17,7 +17,7 @@
 ```text
 Users / staff browsers (HTTPS)
      |
-     +--> serveos.davemusau.co.ke --> Host Nginx --> /var/www/serveos/current (PWA)
+     +--> serveos.davemusau.co.ke --> Host Nginx --> /var/www/serveos-prod/current (PWA)
      |
      +--> serveosapi.davemusau.co.ke --> Host Nginx --> 127.0.0.1:3101
                                                            |
