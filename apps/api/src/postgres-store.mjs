@@ -412,7 +412,7 @@ export class PostgresStore {
       const {rows}=await tx.client.query('SELECT count(*)::int AS count FROM api_staff_profiles');
       if(rows[0].count!==0)return false;
       await tx.client.query('INSERT INTO businesses(id,name) VALUES($1,$2)',[businessId,businessName]);
-      await tx.client.query('INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password,created_at,updated_at) VALUES($1,$2,$3,$4,\'Admin\',$5,true,$6,$6)',[businessId,staffId,loginName,displayName,credentialHash,at]);
+      await tx.client.query('INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password,created_at,updated_at) VALUES($1,$2,$3,$4,\'Admin\',$5,false,$6,$6)',[businessId,staffId,loginName,displayName,credentialHash,at]);
       for(const permission of permissions)await tx.client.query('INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,$3)',[businessId,staffId,permission]);
       await tx.client.query("INSERT INTO business_entity_versions(business_id,entity_type,entity_id,version) VALUES($1,'employees',$2,1)",[businessId,staffId]);
       return true;

@@ -66,9 +66,8 @@ test('PostgreSQL staff setup, device enrollment, sessions, refresh, and staff li
     assert.equal(process.env.INITIAL_ADMIN_SETUP_SECRET,undefined);
 
     const admin=await login(loginName,initialPassword);
-    assert.equal(admin.mustChangePassword,true);
+    assert.equal(admin.mustChangePassword,false,'the owner chooses the initial administrator password during setup');
     assert.equal(JSON.stringify(admin).includes(initialPassword),false);
-    assert.equal((await call('/v1/devices/enrollment-challenges',{method:'POST',token:admin.accessToken})).value.error.code,'PASSWORD_CHANGE_REQUIRED');
     const firstPassword='Admin-password-Changed-2026';
     assert.equal((await call('/v1/auth/password',{method:'POST',token:admin.accessToken,body:{currentPassword:'wrong password',newPassword:firstPassword}})).status,401);
     assert.equal((await call('/v1/auth/password',{method:'POST',token:admin.accessToken,body:{currentPassword:initialPassword,newPassword:firstPassword}})).status,200);

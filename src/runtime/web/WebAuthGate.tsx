@@ -8,6 +8,8 @@ import {
   type ApiAuthenticatedDeviceSession,
 } from './apiAuth';
 import { BusinessStore } from './BusinessStore';
+import {createServOSInitialSetupClient} from './apiClient';
+import {InitialAdminStep} from './setup/InitialAdminStep';
 
 const WebBusinessApp=lazy(()=>import('./WebBusinessApp').then(module=>({default:module.WebBusinessApp})));
 
@@ -29,6 +31,23 @@ export function WebAuthGate() {
   const [newPassword, setNewPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [setupAvailable,setSetupAvailable]=useState(false);
+  const [setupChecking,setSetupChecking]=useState(Boolean(apiOrigin));
+  const [setupOpen,setSetupOpen]=useState(false);
+  const [setupComplete,setSetupComplete]=useState(false);
+
+  useEffect(()=>{
+    if(!apiOrigin||resumePending||session){if(!apiOrigin)setSetupChecking(false);return}
+    let active=true;setSetupChecking(true);
+    void createServOSInitialSetupClient(apiOrigin).status().then(status=>{
+      if(active)setSetupAvailable(status.available);
+    }).catch(()=>{
+      if(active)setSetupAvailable(false);
+    }).finally(()=>{
+      if(active)setSetupChecking(false);
+    });
+    return()=>{active=false};
+  },[apiOrigin,resumePending,session]);
 
   useEffect(() => {
     if (!resumePending || !apiOrigin) return;
@@ -98,6 +117,10 @@ export function WebAuthGate() {
     );
   }
 
+  if(setupOpen&&setupAvailable)return <InitialAdminStep apiOrigin={apiOrigin} onCancel={()=>setSetupOpen(false)} onCreated={createdLogin=>{
+    setSetupAvailable(false);setSetupOpen(false);setSetupComplete(true);setLoginName(createdLogin);setError('');
+  }}/>;
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusy(true);
@@ -114,6 +137,7 @@ export function WebAuthGate() {
         const opened = await openApiBusinessStore(authenticated);
         setSession(authenticated);
         setStore(opened);
+        setSetupComplete(false);
         setPassword('');
         setNewPassword('');
       } catch (cause) {
@@ -136,6 +160,7 @@ export function WebAuthGate() {
           <h1 className="mt-2 text-3xl font-black">Sign in</h1>
           <p className="mt-2 text-sm text-slate-400">Sign in to your business workspace.</p>
         </header>
+        {setupComplete&&<p role="status" className="rounded-xl border border-emerald-700/50 bg-emerald-500/5 p-3 text-sm text-emerald-100">The initial administrator was created. Sign in with the login and password you chose to continue configuring the workspace.</p>}
         <label className="block text-sm">
           Staff login
           <input aria-label="Staff login" required autoComplete="username" className={field} value={loginName} onChange={event => setLoginName(event.target.value)} />
@@ -153,6 +178,7 @@ export function WebAuthGate() {
         <button disabled={busy || resumePending} className="w-full rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-amber-300 disabled:opacity-40">
           {resumePending ? 'Restoring session…' : busy ? 'Signing in…' : 'Sign in'}
         </button>
+        {setupAvailable&&!setupChecking&&<button type="button" disabled={busy||resumePending} className="w-full rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40" onClick={()=>setSetupOpen(true)}>Set up a new business</button>}
       </form>
     </main>
   );

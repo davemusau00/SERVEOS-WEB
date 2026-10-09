@@ -43,3 +43,25 @@ test('health routes are public and command routes require session authentication
   assert.equal(unauthorized.status, 401);
   assert.equal((await unauthorized.json()).error.code, 'AUTH_REQUIRED');
 });
+
+test('initial setup status reveals availability without exposing the setup key', async t => {
+  const previous=process.env.INITIAL_ADMIN_SETUP_SECRET;
+  process.env.INITIAL_ADMIN_SETUP_SECRET='one-time-secret-for-status-test';
+  let complete=false;
+  const store={initialSetupComplete:async()=>complete};
+  const server=createApiServer({store,origin:'https://serveos.example',authenticate:async()=>{throw new Error('Authentication is not required for setup status.')}});
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  t.after(async()=>{
+    await new Promise(resolve=>server.close(resolve));
+    if(previous===undefined)delete process.env.INITIAL_ADMIN_SETUP_SECRET;else process.env.INITIAL_ADMIN_SETUP_SECRET=previous;
+  });
+  const base=`http://127.0.0.1:${server.address().port}`;
+  const first=await fetch(`${base}/v1/setup/status`);
+  assert.deepEqual(await first.json(),{available:true});
+  complete=true;
+  const finished=await fetch(`${base}/v1/setup/status`);
+  assert.deepEqual(await finished.json(),{available:false});
+  delete process.env.INITIAL_ADMIN_SETUP_SECRET;
+  const closed=await fetch(`${base}/v1/setup/status`);
+  assert.deepEqual(await closed.json(),{available:false});
+});

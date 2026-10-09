@@ -123,6 +123,10 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         res.setHeader('set-cookie',refreshCookie(responseRefreshToken,rotated.refreshExpiresAt.getTime()-now.getTime(),secureRequest(req),refreshSessionId));
         return json(res,200,{accessToken,sessionId:rotated.sessionId,businessId:rotated.businessId,staffId:rotated.staffId,displayName:rotated.displayName,permissions:rotated.permissions,mustChangePassword:rotated.mustChangePassword,expiresAt:rotated.accessExpiresAt.toISOString()});
       }
+      if(req.method==='GET'&&url.pathname==='/v1/setup/status'){
+        const available=Boolean(process.env.INITIAL_ADMIN_SETUP_SECRET)&&!await store.initialSetupComplete();
+        return json(res,200,{available});
+      }
       if(req.method==='POST'&&url.pathname==='/v1/setup/initial-admin'){
         const setupSecret=req.headers['x-serveos-setup-secret'];
         if(typeof setupSecret!=='string'||!process.env.INITIAL_ADMIN_SETUP_SECRET)throw new ApiProblem(404,'NOT_FOUND','Setup is not available.');

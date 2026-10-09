@@ -23,6 +23,25 @@ export class ApiOutcomeUnknown extends Error {
  constructor(readonly commandId:string){super('The API response was lost. Check this same command ID before creating another command.');this.name='ApiOutcomeUnknown'}
 }
 
+export function createServOSInitialSetupClient(baseUrl:string,fetcher:typeof fetch=fetch){
+ const url=new URL(baseUrl);
+ if(url.protocol!=='https:'&&url.hostname!=='localhost'&&url.hostname!=='127.0.0.1')throw new Error('ServOS API requires HTTPS');
+ return {
+  async status():Promise<{available:boolean}>{
+   const response=await fetcher(new URL('/v1/setup/status',url),{credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(10000)});
+   const body=await response.json().catch(()=>({}));
+   if(!response.ok||typeof body?.available!=='boolean')throw new ApiHttpError(response.status||503,body?.error?.code||'SETUP_STATUS_UNAVAILABLE',body?.error?.message||'Initial setup availability could not be checked.');
+   return body as {available:boolean};
+  },
+  async createInitialAdmin(input:{businessId:string;staffId:string;businessName:string;displayName:string;loginName:string;password:string},setupSecret:string):Promise<{created:true}>{
+   const response=await fetcher(new URL('/v1/setup/initial-admin',url),{method:'POST',headers:{'content-type':'application/json','x-serveos-setup-secret':setupSecret},body:JSON.stringify(input),credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(20000)});
+   const body=await response.json().catch(()=>({}));
+   if(!response.ok)throw new ApiHttpError(response.status,body?.error?.code||'SETUP_FAILED',body?.error?.message||'Initial setup failed.');
+   return body as {created:true};
+  },
+ };
+}
+
 export interface ApiClientOptions {baseUrl:string;accessToken:()=>string|undefined;setAccessToken:(token:string)=>void;sessionId:()=>string|undefined;deviceId:()=>string|undefined;fetcher?:typeof fetch}
 export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessionId,deviceId,fetcher=fetch}:ApiClientOptions){
  const url=new URL(baseUrl);
