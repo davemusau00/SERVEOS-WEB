@@ -6,6 +6,7 @@ import {WebApiGoodsReceipts} from './WebApiGoodsReceipts';
 import {WebApiPurchaseOrders} from './WebApiPurchaseOrders';
 import {WebApiSuppliers} from './WebApiSuppliers';
 import {exportBridgeRecoveryEvidence} from './printBridgeTransport';
+import {captureCountRecovery} from './countRecovery';
 import {WebBridgeSettings} from './WebBridgeSettings';
 import {WebBridgeRecovery} from './WebBridgeRecovery';
 import {WebApiRefundsView} from './WebApiRefundsView';
@@ -20,7 +21,6 @@ import React,{useEffect,useRef,useState} from 'react';
 import {Activity,BedDouble,Boxes,CheckCircle2,ChevronRight,ClipboardCheck,CreditCard,HelpCircle,Home,LockKeyhole,LogIn,Martini,PackageSearch,RefreshCw,Settings,ShieldCheck,Truck,Users,WalletCards,Wifi,WifiOff} from 'lucide-react';
 import {BusinessStore,redactSensitiveData,type QueuedCommand,type WorkflowDraft,type WorkflowDraftField} from './BusinessStore';
 import {resolveOperationDependencies} from './dependencies';
-import {captureCountRecovery} from './countRecovery';
 import {WebStorageDiagnostics} from './WebStorageDiagnostics';
 import {startAutomaticSync,subscribeSyncUpdates,synchronizeStore} from './sync';
 import {allowed,apiAuthorizationPolicyVersion,loadApiCatalogSnapshot,type BusinessRecord,type WebGuidanceProgress,type WebSession} from './session';
@@ -147,9 +147,7 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
       const synchronized=currentQueue.filter(entry=>entry.state==='SYNCHRONIZED');
       const currentDrafts=await opened.drafts();
       for(const entry of synchronized)for(const draft of currentDrafts)if(draft.supersedes===entry.id)await opened.discardDraft(draft.id);
-      const countKey=`servos-web-count:${latest.businessId}:${latest.actorId}`;
       for(const entry of synchronized){
-        if(entry.command.operation==='inventory.countLocation'&&entry.command.payload.sessionId===countKey){localStorage.removeItem(countKey);localStorage.removeItem(`${countKey}:unknown`)}
         if(!committedCommands.current.has(entry.id)){committedCommands.current.add(entry.id);setCommittedOperation({id:entry.id,operation:entry.command.operation})}
       }
       await refresh();

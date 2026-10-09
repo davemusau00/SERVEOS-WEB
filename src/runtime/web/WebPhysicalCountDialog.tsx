@@ -19,10 +19,11 @@ export function WebPhysicalCountDialog({ records, scope, locationId, command, on
   const stocks = useMemo(() => active(records, 'stockItems'), [records]);
   const locations = useMemo(() => active(records, 'stockLocations'), [records]);
   const products = useMemo(() => active(records, 'products'), [records]);
-  const [targetLocation, setTargetLocation] = useState(locationId || locations[0]?.id || '');
+  const initialLocation = locationId || locations[0]?.id || '';
+  const [targetLocation, setTargetLocation] = useState(initialLocation);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [values, setValues] = useState<Record<string, CountValue>>(() => Object.fromEntries(stocks.map(stock => {
-    const current = Number(data(stock).currentStock?.[locationId] || 0);
+    const current = Number(data(stock).currentStock?.[initialLocation] || 0);
     const size = Number(data(stock).sealedContainerSize || 0);
     const sealed = size > 0 ? Math.floor(current / size) : 0;
     return [stock.id, { quantity: String(current), sealed: String(sealed), open: String(Number((current - sealed * size).toFixed(6))) }];
@@ -101,7 +102,7 @@ export function WebPhysicalCountDialog({ records, scope, locationId, command, on
         return;
       }
       const message = 'message' in outcome ? outcome.message : 'Review Activity before submitting again.';
-      if (outcome.kind === 'PENDING' || outcome.kind === 'OUTCOME_UNKNOWN') setSubmitted(true);
+      if (['PENDING', 'OUTCOME_UNKNOWN', 'CONFLICT'].includes(outcome.kind)) setSubmitted(true);
       setError(message);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -113,7 +114,7 @@ export function WebPhysicalCountDialog({ records, scope, locationId, command, on
   return <Dialog title={scope === 'FULL' ? 'Count stock at a location' : 'Quick count selected items'} onClose={onClose}>
     <form onSubmit={event => void submit(event)} className="max-h-[72vh] space-y-4 overflow-y-auto">
       <p className="text-sm text-slate-400">Compare the current API balance with the physical quantity. The server checks the reviewed balances before it records the count.</p>
-      <label className="block text-sm">Location<select required className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={targetLocation} onChange={event => setTargetLocation(event.target.value)}>{locations.map(location => <option key={location.id} value={location.id}>{String(data(location).name || location.id)}</option>)}</select></label>
+      <label className="block text-sm">Location<select required className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={targetLocation} onChange={event => { const nextLocation = event.target.value; setTargetLocation(nextLocation); setValues(Object.fromEntries(stocks.map(stock => { const current = Number(data(stock).currentStock?.[nextLocation] || 0); const size = Number(data(stock).sealedContainerSize || 0); const sealed = size > 0 ? Math.floor(current / size) : 0; return [stock.id, { quantity: String(current), sealed: String(sealed), open: String(Number((current - sealed * size).toFixed(6))) }]; }))); }}>{locations.map(location => <option key={location.id} value={location.id}>{String(data(location).name || location.id)}</option>)}</select></label>
       {scope === 'SELECTED' && <fieldset className="space-y-2"><legend className="mb-2 text-sm font-semibold">Items to count</legend>{stocks.map(stock => <label key={stock.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm"><input type="checkbox" checked={selectedIds.includes(stock.id)} onChange={event => setSelectedIds(current => event.target.checked ? [...current, stock.id] : current.filter(id => id !== stock.id))}/><span>{String(data(stock).name)} <span className="text-xs text-slate-500">{String(data(stock).code || '')}</span></span></label>)}</fieldset>}
       <div className="space-y-3">{targets.map(stock => {
         const stockData = data(stock), current = Number(stockData.currentStock?.[targetLocation] || 0), value = values[stock.id] || { quantity: '', sealed: '', open: '' };

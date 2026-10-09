@@ -267,7 +267,7 @@ const inventoryCount = async ({tx,command,actor,at})=>{
   const p=command.payload;const selected=command.name==='inventory.countSelected';const locationId=p.locationId;
   if(!uuid(locationId)||!await tx.requireStockLocation(actor.businessId,locationId))throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected stock location is missing or archived.');
   const rows=p.rows;if(!Array.isArray(rows)||rows.length<1||rows.length>5000)throw new ApiProblem(400,'VALIDATION_FAILED','A count must include between 1 and 5000 stock items.');
-  const unknown=Array.isArray(p.unknownScans)?p.unknownScans:Array.isArray(p.unknownBarcodes)?p.unknownBarcodes:[];if(unknown.length)throw new ApiProblem(400,'UNKNOWN_BARCODES','Resolve or dismiss unknown barcode scans before confirming the count.');
+  if(Array.isArray(p.unknownScans)&&p.unknownScans.length)throw new ApiProblem(400,'UNKNOWN_BARCODES','Resolve or dismiss unknown barcode scans before confirming the count.');
   const reason=text(p.reason||'Physical stock count','Count note',500);const activeIds=await tx.activeStockItemIds(actor.businessId);const active=new Set(activeIds);const rowIds=rows.map(row=>row?.stockItemId);
   if(rowIds.some(id=>!uuid(id))||new Set(rowIds).size!==rowIds.length||rowIds.some(id=>!active.has(id)))throw new ApiProblem(409,'RESOURCE_CONFLICT','The count includes duplicate, missing, or archived stock items. Refresh and review it.');
   let selectedIds;

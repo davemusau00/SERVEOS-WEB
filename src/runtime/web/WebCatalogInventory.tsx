@@ -146,7 +146,7 @@ const [commandNotice,setCommandNotice]=useState('');
   </div>
    <WebStockCountHistory records={records}/>
    {reversing&&<Modal title="Reverse inventory recording" onClose={()=>setReversing(null)}><WebMovementReversalDialog records={records} movement={reversing} command={command} onClose={()=>setReversing(null)}/></Modal>}
-   {physicalCount&&<WebPhysicalCountDialog records={records} session={session} scope={physicalCount.scope} locationId={physicalCount.locationId} command={command} onClose={()=>setPhysicalCount(null)}/>}
+   {physicalCount&&<WebPhysicalCountDialog records={records} scope={physicalCount.scope} locationId={physicalCount.locationId} command={command} onClose={()=>setPhysicalCount(null)}/>}
    {batchOpen&&<Modal title="Prepare a recipe batch" onClose={()=>setBatchOpen(false)}><WebBatchPreparationForm products={products} stocks={stocks} locations={locations} disabled={disabled} onClose={()=>setBatchOpen(false)} onSubmit={async payload=>{const target=String(payload.outputStockItemId||'');const outcome=await command('inventory.produceBatch','stockItems',target,{id:target,...payload});setCommandNotice(outcomeMessage(outcome,'Batch preparation'));if(isCommandConfirmed(outcome))setBatchOpen(false);return outcome}}/></Modal>}
    {modal&&<Modal title={modal==='ADJUST'?'Correct stock balance':modal==='TRANSFER'?'Transfer stock':'Record waste'} onClose={()=>setModal(null)}>
     <div className="space-y-3">

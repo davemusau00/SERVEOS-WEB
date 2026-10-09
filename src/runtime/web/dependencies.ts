@@ -22,7 +22,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
   }
   if (operation === 'catalog.createWithOpeningStock') {
     // The browser persists generated IDs in the payload so drafts and retries
-    // keep the same targets. Server fallbacks are deterministic for native
+    // keep the same targets. API fallbacks are deterministic across browsers
     // clients that omit those IDs.
     const product = payload.product && typeof payload.product === 'object' ? payload.product as Record<string, unknown> : undefined;
     const stock = payload.stockItem && typeof payload.stockItem === 'object' ? payload.stockItem as Record<string, unknown> : undefined;
