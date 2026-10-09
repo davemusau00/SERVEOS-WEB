@@ -33,6 +33,30 @@ test('PostgreSQL API CSV importer stages, dry-runs and applies domain commands w
  t.after(async()=>new Promise(resolve=>api.close(resolve)));
  const templates=await request('/v1/import/templates');assert.equal(templates.status,200);assert.equal(templates.body.templates.length,12);
 
+ const stockBatchId=randomUUID();
+ const stockRows=Array.from({length:84},(_,index)=>`stock-${index+1},Stock item ${index+1},SKU-${String(index+1).padStart(3,'0')},each,0,`);
+ const stockCsv=`external_id,name,code,base_unit,reorder_level,barcode\n${stockRows.join('\n')}\n`;
+ const stagedStock=await stageImport(pool,actor,{id:stockBatchId,templateKey:'stockItems',fileName:'stock-items.csv',csvText:stockCsv});
+ assert.equal(stagedStock.validCount,84);
+ const stockPlan=await planImport({store,registry,actor,batchId:stockBatchId});
+ assert.equal(stockPlan.plan.status,'READY');
+ assert.deepEqual(stockPlan.plan.summary,{total:84,create:84,noChange:0,blocked:0,conflict:0,applied:0,failed:0});
+ const stockSteps=(await pool.query('SELECT steps FROM api_import_plans WHERE business_id=$1 AND id=$2',[businessId,stockPlan.plan.id])).rows[0].steps;
+ assert.equal(stockSteps[0].command.name,'stockItem.save');
+ assert.equal(Object.hasOwn(stockSteps[0].command.payload.data,'sealedContainerSize'),false);
+ assert.deepEqual(Object.keys(stockSteps[0].command.payload.data).sort(),['averageUnitCostMinor','barcode','barcodeAliases','baseUnit','code','name','purchasePackages','reorderLevel','scanUnitQuantity']);
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM stock_items WHERE business_id=$1',[businessId])).rows[0].count,0,'stock-item dry-run rolls back domain writes');
+
+ const productBatchId=randomUUID();
+ const product=await stageImport(pool,actor,{id:productBatchId,templateKey:'products',fileName:'products.csv',csvText:'external_id,name,code,price\nproduct-standard,Orange Soda,OR-1,1.25\n'});
+ assert.equal(product.validCount,1);
+ const productPlan=await planImport({store,registry,actor,batchId:productBatchId});
+ assert.equal(productPlan.plan.status,'READY','standard product import omits absent portion volume instead of sending null');
+ assert.equal(productPlan.plan.summary.blocked,0);
+ const productSteps=(await pool.query('SELECT steps FROM api_import_plans WHERE business_id=$1 AND id=$2',[businessId,productPlan.plan.id])).rows[0].steps;
+ assert.equal(Object.hasOwn(productSteps[0].command.payload.data,'portionVolume'),false);
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM products WHERE business_id=$1',[businessId])).rows[0].count,0,'product dry-run rolls back domain writes');
+
  const locationBatchId=randomUUID();
  const location=await request('/v1/import/batches',{method:'POST',body:JSON.stringify({id:locationBatchId,templateKey:'stockLocations',fileName:'locations.csv',csvText:'external_id,name,code,type\nloc-main,Main Store,STORE-1,STORE\n'})});
  assert.equal(location.status,201);assert.equal(location.body.batch.status,'STAGED');assert.equal(location.body.batch.validCount,1);

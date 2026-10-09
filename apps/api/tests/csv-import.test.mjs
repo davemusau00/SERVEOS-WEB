@@ -23,3 +23,12 @@ test('supported API templates validate create-only master rows and keep unsafe i
  assert.equal(API_IMPORT_TEMPLATES.some(template=>template.key==='employees'),false);
  assert.equal(API_IMPORT_TEMPLATES.some(template=>template.key==='inventory'),false);
 });
+
+test('stock-item CSV keeps the supported columns and accepts rows without sealed-container data',()=>{
+ const template=API_IMPORT_TEMPLATES.find(item=>item.key==='stockItems');
+ assert.deepEqual(template.headers,['external_id','name','code','base_unit','reorder_level','barcode']);
+ assert.equal(template.headers.includes('sealed_container_size'),false);
+ const parsed=validateImportCsv('stockItems','external_id,name,code,base_unit,reorder_level,barcode\nstock-1,Orange juice,JU-1,liter,0,');
+ assert.equal(parsed.rows[0].status,'VALID');
+ assert.deepEqual(parsed.rows[0].errors,[]);
+});
