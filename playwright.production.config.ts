@@ -1,11 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Production acceptance must never inherit the demo/preview bundle. Preview-only
-// tests stay on playwright.config.ts because they intentionally exercise sample data.
+// Exercise only browser tests written for the API/PWA architecture. Historical
+// native and Supabase fixtures are not production browser acceptance.
 export default defineConfig({
   testDir: './tests/browser',
+  testMatch: /(?:api-bootstrap-recovery|api-catalog-sync|web-storage)\.spec\.ts/,
   outputDir: './test-results/production',
-  testIgnore: ['**/preview.spec.ts'],
   fullyParallel: false,
   workers: 1,
   timeout: 60_000,
