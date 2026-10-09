@@ -33,15 +33,15 @@ export const ds = {
   borderBorder: 'border-border',
   // Badge tones
   badgeNeutral: 'border-border bg-surface text-fg-muted',
-  badgeSuccess: 'border-success/50 bg-success/10 text-success-fg',
-  badgeWarning: 'border-warning/50 bg-warning/10 text-warning-fg',
+  badgeSuccess: 'border-success/60 bg-success/15 text-success',
+  badgeWarning: 'border-warning/60 bg-warning/15 text-warning',
   badgeDanger: 'border-danger/60 bg-danger/10 text-danger-fg',
-  badgeInfo: 'border-info/60 bg-info/10 text-info-fg',
+  badgeInfo: 'border-info/60 bg-info/15 text-info',
   // Notice tones
-  noticeSuccess: 'border-success bg-success/10 text-success-fg',
-  noticeWarning: 'border-warning bg-warning/10 text-warning-fg',
+  noticeSuccess: 'border-success bg-success/10 text-success',
+  noticeWarning: 'border-warning bg-warning/10 text-warning',
   noticeDanger: 'border-danger bg-danger/10 text-danger-fg',
-  noticeInfo: 'border-info bg-info/10 text-info-fg',
+  noticeInfo: 'border-info bg-info/10 text-info',
   // Dialog/Drawer
   dialogOverlay: 'fixed inset-0 z-[180] grid place-items-center bg-black/70 p-3 sm:p-4',
   dialogPanel: 'flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface text-fg shadow-2xl',
