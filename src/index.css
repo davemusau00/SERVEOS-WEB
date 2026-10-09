@@ -23,15 +23,16 @@
 }
 
 :root {
-  --color-canvas: #020617;
-  --color-surface: #0f172a;
-  --color-surface-muted: #0f172a99;
-  --color-border: #1e293b;
+  /* Shared midnight palette sampled from the stock workspace reference. */
+  --color-canvas: #070d1b;
+  --color-surface: #101a2c;
+  --color-surface-muted: #101a2c99;
+  --color-border: #223149;
   --color-fg: #f1f5f9;
   --color-fg-muted: #94a3b8;
   --color-fg-subtle: #cbd5e1;
-  --color-accent: #fbbf24;
-  --color-accent-fg: #020617;
+  --color-accent: #ffb900;
+  --color-accent-fg: #07111f;
   --color-success: #10b981;
   --color-success-fg: #020617;
   --color-warning: #f59e0b;
@@ -63,6 +64,11 @@
 }
 
 @layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { min-width: 320px; min-height: 100%; background: var(--color-canvas); }
+  body { min-width: 320px; min-height: 100dvh; margin: 0; }
+  button, input, select, textarea { font: inherit; }
+  button { touch-action: manipulation; }
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     background-color: var(--color-canvas);
@@ -143,10 +149,9 @@
   }
 }
 
-/* Shared Web V2 workspace polish. Keep this scoped so native and kiosk shells
-   retain their current visual contract while web screens share one surface and
-   control language. These rules intentionally improve the existing utility
-   classes without changing workflow state or action semantics. */
+/* Shared workspace polish for both installed terminal and remote workspaces.
+   Utility-based screen styles keep their intent while surfaces and controls
+   resolve to a single reference-aligned palette. */
 .web-business-app {
   --web-canvas: #070d1b;
   --web-surface: #101a2c;
@@ -159,6 +164,38 @@
   background-color: var(--web-canvas);
   color: var(--web-text);
   color-scheme: dark;
+}
+
+/* Shared browser workspace foundation. */
+:root:not(.light) {
+  color-scheme: dark;
+  --app-canvas: #070d1b;
+  --app-surface: #101a2c;
+  --app-raised: #17243a;
+  --app-border: #223149;
+  --app-accent: #ffb900;
+  --app-text: #f4f7fb;
+  --app-muted: #9cacc2;
+}
+
+body:has(.web-business-app) { background: var(--app-canvas); }
+
+@media (max-width: 767px) {
+  /* Let dense operational pages scroll vertically and keep page controls usable. */
+  body:has(.web-business-app) .web-business-app { height: 100dvh; min-height: 0; }
+  .web-business-app main > div { padding: 1rem; }
+  .web-business-app table { min-width: 38rem; }
+  .web-business-app [class*="grid-cols-"] { grid-template-columns: minmax(0, 1fr); }
+  .web-business-app [class*="overflow-x-auto"] { max-width: 100%; }
+  .web-business-app header { align-items: stretch; }
+  .web-business-app header > [class*="flex"] { max-width: 100%; }
+  .web-business-app button { min-height: 2.75rem; }
+}
+
+@media (max-width: 480px) {
+  .web-business-app main > div { padding: .75rem; }
+  .web-business-app input:not([type="checkbox"]):not([type="radio"]),
+  .web-business-app select, .web-business-app textarea { min-height: 2.75rem; }
 }
 
 .web-business-app [class~="bg-slate-950"] { background-color: var(--web-canvas); }

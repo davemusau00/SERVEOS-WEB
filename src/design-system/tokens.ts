@@ -11,16 +11,16 @@ export const servosTokens = {
   spacing: {
     page: 'p-4 sm:p-6',
     section: 'space-y-5',
-    control: 'px-3 py-2.5',
+    control: 'px-3 py-2',
   },
 } as const;
 
 export const ds = {
-  button: 'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-fg transition hover:border-fg-muted hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:border-border',
-  primaryButton: 'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-fg transition hover:bg-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40',
-  input: 'w-full rounded-xl border border-border bg-canvas px-3 py-2.5 text-sm text-fg outline-none transition placeholder:text-fg-muted focus:border-accent focus:ring-2 focus:ring-accent/20',
-  panel: 'rounded-2xl border border-border bg-surface/60',
-  mutedPanel: 'rounded-2xl border border-border bg-canvas/60',
+  button: 'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-semibold text-fg transition hover:border-fg-muted hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:border-border',
+  primaryButton: 'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-bold text-accent-fg transition hover:bg-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40',
+  input: 'w-full min-h-9 rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-fg outline-none transition placeholder:text-fg-muted focus:border-accent focus:ring-2 focus:ring-accent/20',
+  panel: 'rounded-xl border border-border bg-surface/60',
+  mutedPanel: 'rounded-xl border border-border bg-canvas/60',
   pageTitle: 'text-xl font-black tracking-tight text-fg sm:text-2xl',
   eyebrow: 'text-[10px] font-black uppercase tracking-[.18em] text-amber-300',
   // Semantic color utilities for components
@@ -44,7 +44,7 @@ export const ds = {
   noticeInfo: 'border-info bg-info/10 text-info',
   // Dialog/Drawer
   dialogOverlay: 'fixed inset-0 z-[180] grid place-items-center bg-black/70 p-3 sm:p-4',
-  dialogPanel: 'flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface text-fg shadow-2xl',
+  dialogPanel: 'flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-surface text-fg shadow-2xl',
   dialogHeader: 'flex shrink-0 items-center justify-between gap-3 border-b border-border p-4 sm:px-5',
   dialogFooter: 'sticky bottom-0 flex shrink-0 flex-wrap justify-end gap-2 border-t border-border bg-surface p-3 sm:px-5',
   drawerPanel: 'ml-auto flex h-[100dvh] w-full max-w-xl flex-col border-l border-border bg-canvas text-fg',
