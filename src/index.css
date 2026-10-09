@@ -148,13 +148,14 @@
    control language. These rules intentionally improve the existing utility
    classes without changing workflow state or action semantics. */
 .web-business-app {
-  --web-canvas: #0b1220;
-  --web-surface: #121d2d;
-  --web-surface-raised: #18263a;
-  --web-border: #304158;
+  --web-canvas: #070d1b;
+  --web-surface: #101a2c;
+  --web-surface-raised: #17243a;
+  --web-border: #223149;
+  --web-accent: #ffb900;
   --web-text: #f4f7fb;
-  --web-muted: #b4c1d1;
-  --web-subtle: #d5deea;
+  --web-muted: #9cacc2;
+  --web-subtle: #d9e2ef;
   background-color: var(--web-canvas);
   color: var(--web-text);
   color-scheme: dark;
@@ -163,6 +164,12 @@
 .web-business-app [class~="bg-slate-950"] { background-color: var(--web-canvas); }
 .web-business-app [class~="bg-slate-900"] { background-color: var(--web-surface); }
 .web-business-app [class~="bg-slate-800"] { background-color: var(--web-surface-raised); }
+.web-business-app [class~="bg-slate-950/50"],
+.web-business-app [class~="bg-slate-950/40"],
+.web-business-app [class~="bg-slate-950/30"] { background-color: rgb(7 13 27 / 55%); }
+.web-business-app [class~="bg-slate-900/80"],
+.web-business-app [class~="bg-slate-900/70"],
+.web-business-app [class~="bg-slate-900/60"] { background-color: rgb(16 26 44 / 88%); }
 .web-business-app [class~="border-slate-800"],
 .web-business-app [class~="border-slate-700"],
 .web-business-app [class~="border-slate-600"] { border-color: var(--web-border); }
@@ -176,6 +183,30 @@
   border-radius: 0.75rem;
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
+
+/* Keep the same quiet, outlined secondary action and clear amber primary action
+   across every Web V2 workspace, including screens with older utility classes. */
+.web-business-app button[class*="border-slate-"]:not([class*="bg-"]) {
+  border-color: var(--web-border);
+  background-color: transparent;
+  color: var(--web-text);
+}
+.web-business-app button[class*="border-slate-"]:not([class*="bg-"]):hover:not(:disabled) {
+  border-color: #536780;
+  background-color: rgb(23 36 58 / 75%);
+}
+.web-business-app button[class~="bg-amber-400"],
+.web-business-app button[class~="bg-amber-500"] {
+  border-color: var(--web-accent);
+  background-color: var(--web-accent);
+  color: #07111f;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+}
+.web-business-app button[class~="bg-amber-400"]:hover:not(:disabled),
+.web-business-app button[class~="bg-amber-500"]:hover:not(:disabled) {
+  background-color: #ffd04d;
+}
+.web-business-app button:disabled { filter: saturate(0.65); }
 
 .web-business-app button:focus-visible,
 .web-business-app a:focus-visible,
@@ -211,18 +242,34 @@
 .web-business-app input[type="radio"] { accent-color: #fbbf24; }
 .web-business-app option { background: #121d2d; color: var(--web-text); }
 
+.web-business-app label { line-height: 1.45; }
+.web-business-app article[class*="border-slate-"],
+.web-business-app section[class*="border-slate-"] {
+  border-color: var(--web-border);
+}
+.web-business-app [role="status"],
+.web-business-app [role="alert"] { line-height: 1.55; }
+
 .web-business-app article[class*="rounded"],
 .web-business-app section[class*="rounded"] {
   border-radius: 1rem;
 }
 
 .web-business-app table { border-collapse: separate; border-spacing: 0; }
-.web-business-app thead { background: #121d2d; }
+.web-business-app thead { background: var(--web-surface); }
 .web-business-app th {
-  color: #d5deea;
+  color: #91a3bb;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.035em;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+.web-business-app tbody tr {
+  background-color: rgb(16 26 44 / 48%);
+  transition: background-color 120ms ease;
+}
+.web-business-app tbody tr:hover {
+  background-color: rgb(23 36 58 / 70%);
 }
 .web-business-app td,
 .web-business-app th { border-bottom: 1px solid rgb(48 65 88 / 75%); }
