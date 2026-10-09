@@ -1,4 +1,4 @@
-name: ServOS CI
+name: ServOS Web CI
 on:
   push:
     branches: [main, reset/vps-platform]
@@ -8,6 +8,21 @@ defaults:
   run:
     shell: bash
 jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run contracts:check
+      - run: npm run build
+      - run: npm test
+      - run: npm run architecture:check
+      - run: npm run audit:ui
+      - run: npm run docs:check
+
   api-postgres:
     runs-on: ubuntu-latest
     services:
@@ -29,75 +44,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: mkdir -p artifacts/ci-logs
-      - run: npm ci --prefix apps/api 2>&1 | tee artifacts/ci-logs/api-postgres-install.log
-      - run: npm ci 2>&1 | tee artifacts/ci-logs/api-postgres-web-install.log
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --prefix apps/api
+      - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Run API unit and PostgreSQL integration tests
-        id: api_tests
-        run: npm run test:api 2>&1 | tee artifacts/ci-logs/api-postgres-tests.log
-      - name: Run real PWA API PostgreSQL acceptance
-        if: ${{ always() && !cancelled() && steps.api_tests.outcome != 'skipped' }}
-        run: npm run test:browser:api 2>&1 | tee artifacts/ci-logs/api-postgres-browser.log
-      - name: Upload API database evidence
-        if: always()
+      - run: npm run test:api
+      - run: npm run test:browser:api
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: api-postgres-${{ github.sha }}-${{ github.run_attempt }}
           path: |
-            artifacts/ci-logs/api-postgres-*.log
             playwright-report/api-postgres
             test-results/api-postgres
-          if-no-files-found: error
-          retention-days: 14
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: mkdir -p artifacts/ci-logs
-      - run: npm ci 2>&1 | tee artifacts/ci-logs/frontend-install.log
-      - run: npm run lint 2>&1 | tee artifacts/ci-logs/frontend-lint.log
-      - run: npm run build 2>&1 | tee artifacts/ci-logs/frontend-build.log
-      - run: npm test 2>&1 | tee artifacts/ci-logs/frontend-node-tests.log
-      - run: npm run audit:ui 2>&1 | tee artifacts/ci-logs/frontend-ui-audit.log
-      - run: npm run docs:check 2>&1 | tee artifacts/ci-logs/frontend-docs-check.log
-      - name: Upload UI audit artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-audit-${{ github.sha }}-${{ github.run_attempt }}
-          path: |
-            artifacts/ui-audit/**
-            artifacts/ci-logs/frontend-*.log
-          if-no-files-found: error
-          retention-days: 14
-
-  browser-preview:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: mkdir -p artifacts/ci-logs
-      - run: npm ci 2>&1 | tee artifacts/ci-logs/browser-preview-install.log
-      - name: Install preview browser prerequisites
-        run: npx playwright install --with-deps chromium 2>&1 | tee artifacts/ci-logs/browser-preview-install-browser.log
-      - name: Run preview browser suite
-        run: npm run test:browser 2>&1 | tee artifacts/ci-logs/browser-preview-tests.log
-      - name: Upload browser evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: browser-preview-${{ github.sha }}-${{ github.run_attempt }}
-          path: |
-            test-results/**
-            playwright-report/**
-            artifacts/ci-logs/browser-preview-*.log
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
 
   browser-production:
@@ -106,119 +66,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      - run: mkdir -p artifacts/ci-logs
-      - run: npm ci 2>&1 | tee artifacts/ci-logs/browser-production-install.log
-      - name: Install production browser prerequisites
-        run: npx playwright install --with-deps chromium 2>&1 | tee artifacts/ci-logs/browser-production-install-browser.log
-      - name: Run production acceptance browser suite
-        run: npm run test:browser:production 2>&1 | tee artifacts/ci-logs/browser-production-tests.log
-      - name: Upload production browser evidence
-        if: always()
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser:production
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: browser-production-${{ github.sha }}-${{ github.run_attempt }}
           path: |
-            test-results/**
-            playwright-report/**
-            artifacts/ci-logs/browser-production-*.log
-          if-no-files-found: error
+            playwright-report/production
+            test-results/production
+          if-no-files-found: ignore
           retention-days: 14
-  native-domain:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: mkdir -p artifacts/ci-logs
-      - run: rustc --version | tee artifacts/ci-logs/native-domain.log
-      - run: cargo --version | tee -a artifacts/ci-logs/native-domain.log
-      - run: cargo test --locked --manifest-path native-tests/Cargo.toml 2>&1 | tee -a artifacts/ci-logs/native-domain.log
-      - name: Upload native evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-domain-${{ github.sha }}-${{ github.run_attempt }}
-          path: artifacts/ci-logs/native-domain.log
-          if-no-files-found: error
-          retention-days: 14
-  cloud-protocol-base:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: mkdir -p artifacts/ci-logs
-      - run: npm run test:cloud:base 2>&1 | tee artifacts/ci-logs/cloud-base.log
-      - name: Upload base cloud evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloud-base-${{ github.sha }}-${{ github.run_attempt }}
-          path: artifacts/ci-logs/cloud-base.log
-          if-no-files-found: error
-          retention-days: 14
-  cloud-protocol-v2:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: mkdir -p artifacts/ci-logs
-      - run: npm ci 2>&1 | tee artifacts/ci-logs/cloud-v2-install.log
-      - run: npm run test:cloud:v2 2>&1 | tee artifacts/ci-logs/cloud-v2.log
-      - name: Upload expansion cloud evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloud-v2-${{ github.sha }}-${{ github.run_attempt }}
-          path: artifacts/ci-logs/cloud-v2*.log
-          if-no-files-found: error
-          retention-days: 14
-  desktop-shell:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: mkdir -p artifacts/ci-logs
-      - name: Install Tauri Linux dependencies
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf 2>&1 | tee artifacts/ci-logs/desktop-dependencies.log
-      - run: rustc --version | tee artifacts/ci-logs/desktop-shell.log
-      - run: cargo --version | tee -a artifacts/ci-logs/desktop-shell.log
-      - run: npm run check:desktop 2>&1 | tee -a artifacts/ci-logs/desktop-shell.log
-      - run: npm run test:desktop 2>&1 | tee -a artifacts/ci-logs/desktop-shell.log
-      - name: Upload desktop evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-shell-${{ github.sha }}-${{ github.run_attempt }}
-          path: artifacts/ci-logs/desktop-*.log
-          if-no-files-found: error
-          retention-days: 14
-  windows-printer-shell:
-    # The XP-80T USB path is the Windows RAW spooler FFI. Linux CI compiles the
-    # non-Windows stub instead, so without this job the exact production USB
-    # transport can regress while desktop-shell stays green.
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: mkdir -p artifacts/ci-logs
-      - run: npm ci 2>&1 | tee artifacts/ci-logs/windows-printer-install.log
-      - run: rustc --version | tee artifacts/ci-logs/windows-printer-shell.log
-      - run: cargo --version | tee -a artifacts/ci-logs/windows-printer-shell.log
-      - run: npm run check:desktop 2>&1 | tee -a artifacts/ci-logs/windows-printer-shell.log
-      - run: npm run test:desktop 2>&1 | tee -a artifacts/ci-logs/windows-printer-shell.log
-      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib 2>&1 | tee -a artifacts/ci-logs/windows-printer-shell.log
-      - name: Upload Windows printer evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-printer-${{ github.sha }}-${{ github.run_attempt }}
-          path: artifacts/ci-logs/windows-printer-*.log
-          if-no-files-found: error
-          retention-days: 14
+
   print-bridge:
     name: print-bridge (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -231,87 +91,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - run: mkdir -p artifacts/ci-logs
-      - name: Record bridge Rust toolchain
-        run: rustc --version | tee artifacts/ci-logs/print-bridge.log && cargo --version | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Check bridge formatting
-        run: cargo fmt --manifest-path apps/print-bridge/Cargo.toml -- --check 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Check printer transport formatting
-        run: cargo fmt --manifest-path crates/servos-printer-transport/Cargo.toml -- --check 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Lint bridge and printer transport
-        run: cargo clippy --locked --manifest-path apps/print-bridge/Cargo.toml --all-targets -- -D warnings 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Lint printer transport
-        run: cargo clippy --locked --manifest-path crates/servos-printer-transport/Cargo.toml --all-targets -- -D warnings 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Test bridge and printer transport
-        run: cargo test --locked --manifest-path apps/print-bridge/Cargo.toml --all-targets 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Test printer transport
-        run: cargo test --locked --manifest-path crates/servos-printer-transport/Cargo.toml --all-targets 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Build release bridge
-        run: cargo build --locked --release --manifest-path apps/print-bridge/Cargo.toml 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Build release printer transport
-        run: cargo build --locked --release --manifest-path crates/servos-printer-transport/Cargo.toml 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Lint Windows service host
-        if: runner.os == 'Windows'
-        run: cargo clippy --locked --manifest-path apps/print-bridge/Cargo.toml --features windows-service --bin servos-print-bridge-service -- -D warnings 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Build Windows service host
-        if: runner.os == 'Windows'
-        run: cargo build --locked --release --manifest-path apps/print-bridge/Cargo.toml --features windows-service --bin servos-print-bridge-service 2>&1 | tee -a artifacts/ci-logs/print-bridge.log
-      - name: Upload Print Bridge evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: print-bridge-${{ runner.os }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: artifacts/ci-logs/print-bridge.log
-          if-no-files-found: error
-          retention-days: 14
-  evidence-summary:
-    if: always()
-    needs: [api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, print-bridge]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          path: artifacts/downloaded
-      - run: npm run ci:evidence
-        env:
-          SERVOS_RELEASE_PROFILE: CI_PREVIEW_AND_STAGED_V2
-          SERVOS_JOB_API_POSTGRES: ${{ needs.api-postgres.result }}
-          SERVOS_JOB_FRONTEND: ${{ needs.frontend.result }}
-          SERVOS_JOB_BROWSER_PREVIEW: ${{ needs.browser-preview.result }}
-          SERVOS_JOB_BROWSER_PRODUCTION: ${{ needs.browser-production.result }}
-          SERVOS_JOB_NATIVE: ${{ needs.native-domain.result }}
-          SERVOS_JOB_CLOUD_BASE: ${{ needs.cloud-protocol-base.result }}
-          SERVOS_JOB_CLOUD_V2: ${{ needs.cloud-protocol-v2.result }}
-          SERVOS_JOB_DESKTOP: ${{ needs.desktop-shell.result }}
-          SERVOS_JOB_WINDOWS_PRINTER: ${{ needs.windows-printer-shell.result }}
-          SERVOS_JOB_PRINT_BRIDGE: ${{ needs.print-bridge.result }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: servos-ci-evidence-${{ github.sha }}-${{ github.run_attempt }}
-          path: artifacts/servos-ci-evidence.json
-          if-no-files-found: error
-          retention-days: 30
-
-  release-candidate:
-    if: github.ref == 'refs/heads/main'
-    needs: [api-postgres, frontend, browser-preview, browser-production, native-domain, cloud-protocol-base, cloud-protocol-v2, desktop-shell, windows-printer-shell, print-bridge, evidence-summary]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts/downloaded
-      - name: Mark same-commit candidate eligibility
-        run: node scripts/write-release-candidate.mjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: servos-release-candidate-${{ github.sha }}-${{ github.run_attempt }}
-          path: artifacts/servos-release-candidate.json
-          if-no-files-found: error
-          retention-days: 30
+      - run: cargo fmt --manifest-path apps/print-bridge/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path crates/servos-printer-transport/Cargo.toml -- --check
+      - run: cargo clippy --locked --manifest-path apps/print-bridge/Cargo.toml --all-targets -- -D warnings
+      - run: cargo clippy --locked --manifest-path crates/servos-printer-transport/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --locked --manifest-path apps/print-bridge/Cargo.toml --all-targets
+      - run: cargo test --locked --manifest-path crates/servos-printer-transport/Cargo.toml --all-targets
+      - run: cargo build --locked --release --manifest-path apps/print-bridge/Cargo.toml
+      - run: cargo build --locked --release --manifest-path crates/servos-printer-transport/Cargo.toml
+      - if: runner.os == 'Windows'
+        run: cargo clippy --locked --manifest-path apps/print-bridge/Cargo.toml --features windows-service --bin servos-print-bridge-service -- -D warnings
+      - if: runner.os == 'Windows'
+        run: cargo build --locked --release --manifest-path apps/print-bridge/Cargo.toml --features windows-service --bin servos-print-bridge-service

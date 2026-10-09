@@ -4,7 +4,7 @@ import {ApiHttpError,ApiOutcomeUnknown,createServOSApiClient,type ApiCommandOutc
 
 export interface ApiTransport {execute(command:BusinessCommandV2):Promise<TransactionResult>;pull(cursor:number):Promise<ChangePage>}
 
-export function createApiCloudTransport(client:ReturnType<typeof createServOSApiClient>):ApiTransport{
+export function createApiTransport(client:ReturnType<typeof createServOSApiClient>):ApiTransport{
  return {
   async execute(command){
    let outcome:ApiCommandOutcome|undefined;
@@ -35,8 +35,6 @@ export function createApiCloudTransport(client:ReturnType<typeof createServOSApi
  };
 }
 
-/** Backward-compatible name while API-authority callers migrate onto the shared CloudTransport contract. */
-export const createApiTransport=createApiCloudTransport;
 export type SyncUpdate={type:'SYNC_STARTED'|'SYNC_FINISHED'|'SYNC_FAILED';at:string};
 const syncChannel=(scope:string,deviceId:string,actorId:string)=>`servos-web-sync:${scope}:${deviceId}:${actorId}`;
 export function subscribeSyncUpdates(scope:string,deviceId:string,actorId:string,onUpdate:(update:SyncUpdate)=>void){

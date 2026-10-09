@@ -1,14 +1,137 @@
 {
   "contractVersion": 1,
   "roles": {
-    "Admin": { "mode": "all" },
-    "Manager": { "mode": "allExcept", "permissions": ["business.configure", "business.tax.configure", "staff.change_role", "data.import.execute", "backup.restore", "system.configure", "devices.manage"] },
-    "Cashier": { "mode": "explicit", "permissions": ["business.view", "staff.view", "pos.sell", "pos.open_tab", "pos.manage_table", "order.fire", "payment.record", "payment.split", "till.open", "till.close", "mpesa.record", "credit.view", "credit.charge", "catalog.view", "inventory.view", "procurement.view", "procurement.receive", "floorplan.view", "folio.room_charge", "kds.view", "kds.update", "help.view", "records.view"] },
-    "Server": { "mode": "explicit", "permissions": ["business.view", "staff.view", "pos.sell", "pos.open_tab", "pos.manage_table", "order.fire", "payment.record", "mpesa.record", "credit.view", "credit.charge", "catalog.view", "floorplan.view", "folio.room_charge", "kds.view", "kds.update", "help.view", "records.view"] },
-    "Chef": { "mode": "explicit", "permissions": ["business.view", "kds.view", "kds.update", "help.view", "records.view"] },
-    "Housekeeper": { "mode": "explicit", "permissions": ["business.view", "rooms.view", "rooms.operate", "help.view", "records.view"] },
-    "Accountant": { "mode": "explicit", "permissions": ["business.view", "accounting.view", "reports.view", "payments.view", "audit.view", "credit.view", "credit.settle", "credit.reconcile", "credit.write_off", "mpesa.reconcile", "finance.expense.view", "finance.expense.record", "help.view", "records.view"] },
-    "Custom": { "mode": "explicit", "permissions": ["business.view", "help.view", "records.view"] }
+    "Admin": {
+      "mode": "all"
+    },
+    "Manager": {
+      "mode": "allExcept",
+      "permissions": [
+        "business.configure",
+        "business.tax.configure",
+        "devices.manage",
+        "staff.create",
+        "staff.deactivate",
+        "staff.change_role",
+        "order.void",
+        "order.discount",
+        "order.comp",
+        "payment.reverse",
+        "till.override_variance",
+        "procurement.over_receive",
+        "credit.write_off",
+        "credit.override_limit",
+        "system.configure",
+        "data.import.execute",
+        "backup.restore"
+      ]
+    },
+    "Cashier": {
+      "mode": "explicit",
+      "permissions": [
+        "business.view",
+        "staff.view",
+        "pos.sell",
+        "pos.open_tab",
+        "pos.manage_table",
+        "floorplan.view",
+        "order.fire",
+        "payment.record",
+        "payment.split",
+        "till.open",
+        "till.close",
+        "till.cashMovement",
+        "credit.view",
+        "credit.charge",
+        "catalog.view",
+        "inventory.view",
+        "procurement.view",
+        "procurement.receive",
+        "kds.view",
+        "kds.update",
+        "help.view",
+        "records.view",
+        "devices.register"
+      ]
+    },
+    "Server": {
+      "mode": "explicit",
+      "permissions": [
+        "business.view",
+        "staff.view",
+        "pos.sell",
+        "pos.open_tab",
+        "pos.manage_table",
+        "floorplan.view",
+        "order.fire",
+        "payment.record",
+        "credit.view",
+        "credit.charge",
+        "catalog.view",
+        "kds.view",
+        "kds.update",
+        "help.view",
+        "records.view",
+        "devices.register"
+      ]
+    },
+    "Chef": {
+      "mode": "explicit",
+      "permissions": [
+        "business.view",
+        "kds.view",
+        "kds.update",
+        "help.view",
+        "records.view",
+        "devices.register"
+      ]
+    },
+    "Housekeeper": {
+      "mode": "explicit",
+      "permissions": [
+        "business.view",
+        "rooms.view",
+        "rooms.operate",
+        "help.view",
+        "records.view",
+        "devices.register"
+      ]
+    },
+    "Accountant": {
+      "mode": "explicit",
+      "permissions": [
+        "business.view",
+        "accounting.view",
+        "reports.view",
+        "payments.view",
+        "audit.view",
+        "credit.view",
+        "credit.settle",
+        "credit.reconcile",
+        "credit.write_off",
+        "procurement.view",
+        "procurement.pay",
+        "finance.expense.view",
+        "finance.expense.record",
+        "assets.view",
+        "maintenance.view",
+        "help.view",
+        "records.view",
+        "devices.register"
+      ]
+    },
+    "Custom": {
+      "mode": "explicit",
+      "permissions": [
+        "business.view",
+        "records.view",
+        "help.view",
+        "devices.register"
+      ]
+    }
   },
-  "implicitPermissions": ["devices.register", "records.view"]
+  "implicitPermissions": [
+    "devices.register",
+    "records.view"
+  ]
 }

@@ -24,13 +24,13 @@ export const CORE_GUIDE: GuideDefinition = {
   id: 'servos.core',
   version: 1,
   title: 'Getting around ServOS',
-  description: 'A short tour of your workspace and the tools that keep local operations moving.',
+  description: 'A short tour of your ServOS web workspace.',
   permissions: ['help.view'],
   steps: [
     { id: 'workspace', title: 'Your workspace', description: 'Your available workspaces are listed here. ServOS only shows areas your staff account can access.', target: 'navigation.home', webTab: 'Home' },
-    { id: 'status', title: 'Local status', description: 'This status shows connectivity and queued changes. Sales and other enabled local operations continue when offline.', target: 'shell.status', webTab: 'Home' },
+    { id: 'status', title: 'Connection and saved work', description: 'This status shows API connectivity and queued changes. Offline actions are available only when the current device has a valid grant. Recover an uncertain command before repeating it.', target: 'shell.status', webTab: 'Home' },
     { id: 'help', title: 'Help when you need it', description: 'Open searchable operating instructions and return to this tour from Help.', target: 'shell.help', articleId: '01-getting-started', webTab: 'Help' },
-    { id: 'staff', title: 'Staff session', description: 'Lock the terminal when handing it to another staff member. Online, each operator signs in with their own Auth account; local PIN unlock remains the existing offline/legacy path.', target: 'shell.lock', articleId: '05-rbac', webTab: 'Home' },
+    { id: 'staff', title: 'Staff session', description: 'Each operator signs in with their own ServOS staff login. Sign out before handing the browser to another person.', target: 'shell.lock', articleId: '05-rbac', webTab: 'Home' },
   ],
 };
 

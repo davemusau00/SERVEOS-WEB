@@ -2,19 +2,19 @@ import {randomUUID,scrypt as scryptCallback,randomBytes} from 'node:crypto';
 import {promisify} from 'node:util';
 import {ApiProblem} from './command-kernel.mjs';
 import {deviceProjections} from './device-commands.mjs';
+import permissionContract from '../../../contracts/permissions.json' with {type:'json'};
+import roleContract from '../../../contracts/roles.json' with {type:'json'};
 
 const scrypt=promisify(scryptCallback);
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-const all=['business.view','business.configure','business.tax.configure','catalog.view','catalog.manage','inventory.view','inventory.count','inventory.adjust','devices.register','devices.manage','records.view','staff.view','staff.create','staff.update','staff.deactivate','staff.reset_pin','staff.change_role','pos.sell','pos.open_tab','pos.manage_table','order.transfer','order.merge','floorplan.view','floorplan.manage','order.fire','order.void','order.discount','order.comp','payment.record','payment.split','payment.reverse','order.refund','payments.view','till.view','till.open','till.close','till.cashMovement','till.override_variance','procurement.view','procurement.manage','procurement.receive','procurement.pay','procurement.over_receive','customers.manage','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off','credit.override_limit','accounting.view','reports.view','audit.view','kds.view','kds.update','rooms.view','rooms.manage','rooms.operate','rooms.guests.view','folio.view','folio.manage','folio.reverse','folio.room_charge','finance.expense.view','finance.expense.record','finance.expense.approve','assets.view','assets.manage','assets.operate','maintenance.view','maintenance.manage','system.configure','data.import.view','data.import.stage','data.import.execute','backup.create','backup.restore','help.view'];
-const rolePermissions={
- Manager:all.filter(p=>!['business.configure','business.tax.configure','staff.change_role','staff.deactivate','staff.create','data.import.execute','backup.restore','system.configure','devices.manage','order.discount','order.comp','order.void','payment.reverse','till.override_variance','procurement.over_receive','credit.write_off','credit.override_limit'].includes(p)),
- Cashier:['business.view','staff.view','pos.sell','pos.open_tab','pos.manage_table','floorplan.view','order.fire','payment.record','payment.split','till.open','till.close','till.cashMovement','credit.view','credit.charge','catalog.view','inventory.view','procurement.view','procurement.receive','kds.view','kds.update','help.view','records.view','devices.register'],
- Server:['business.view','staff.view','pos.sell','pos.open_tab','pos.manage_table','floorplan.view','order.fire','payment.record','credit.view','credit.charge','catalog.view','kds.view','kds.update','help.view','records.view','devices.register'],
- Chef:['business.view','kds.view','kds.update','help.view','records.view','devices.register'],
- Housekeeper:['business.view','rooms.view','rooms.operate','help.view','records.view','devices.register'],
- Accountant:['business.view','accounting.view','reports.view','payments.view','audit.view','credit.view','credit.settle','credit.reconcile','credit.write_off','procurement.view','procurement.pay','finance.expense.view','finance.expense.record','assets.view','maintenance.view','help.view','records.view','devices.register'],
- Custom:['business.view','records.view','help.view','devices.register'],
-};
+const all=permissionContract.staffAssignable;
+const rolePermissions=Object.fromEntries(Object.entries(roleContract.roles).flatMap(([role,definition])=>{
+ if(role==='Admin')return [];
+ if(definition.mode==='explicit')return [[role,definition.permissions||[]]];
+ if(definition.mode==='allExcept')return [[role,all.filter(permission=>!(definition.permissions||[]).includes(permission))]];
+ if(definition.mode==='all')return [[role,all]];
+ throw new Error(`Unsupported staff role permission mode: ${role}`);
+}));
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
 const cleanText=(value,min,max,label)=>{if(typeof value!=='string'||value.trim().length<min||value.trim().length>max||/[\u0000-\u001f\u007f]/u.test(value))fail(`${label} must contain ${min} to ${max} plain-text characters.`);return value.trim()};
 const requirePermission=(actor,p)=>{if(!actor.permissions.includes('*')&&!actor.permissions.includes(p))throw new ApiProblem(403,'PERMISSION_DENIED',`Staff ${p.split('.').at(-1)} permission is required.`)};

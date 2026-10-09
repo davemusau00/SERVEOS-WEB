@@ -27,15 +27,21 @@
     "noEmit": true,
     "resolveJsonModule": true
   },
+  "include": [
+    "src/main.tsx",
+    "vite.config.ts",
+    "playwright.api.config.ts",
+    "playwright.production.config.ts",
+    "tests/browser/**/*.ts",
+    "tests/browser/**/*.tsx"
+  ],
   "exclude": [
     ".playwright-tmp",
     "build",
     "coverage",
     "dist",
-    "native-tests/target",
     "node_modules",
     "playwright-report",
-    "src-tauri/target",
     "test-results"
   ]
 }

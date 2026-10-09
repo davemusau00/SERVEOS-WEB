@@ -10,7 +10,7 @@ export default defineConfig({
  projects:[{name:'api-postgres',use:{...devices['Desktop Chrome']}}],
  webServer:{
   command:'npm run build -- --outDir dist-api-test && npm run preview -- --host 127.0.0.1 --port 3020 --strictPort --outDir dist-api-test',
-  env:{VITE_ENABLE_DEMO:'false',VITE_ENABLE_WEB_V2:'true',VITE_API_URL:'http://127.0.0.1:4317',VITE_SUPABASE_URL:'https://servos-cloud.test',VITE_SUPABASE_PUBLISHABLE_KEY:'test-public-key'},
+  env:{VITE_API_URL:'http://127.0.0.1:4317'},
   url:'http://127.0.0.1:3020',reuseExistingServer:false,timeout:240_000,
  },
 });
