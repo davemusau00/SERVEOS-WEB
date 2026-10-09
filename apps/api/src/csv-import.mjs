@@ -78,6 +78,8 @@ function whole(value,label,{fallback,min=0,max=100_000}={}){
 function date(value,label){const raw=text(value);if(!raw)return null;if(!/^\d{4}-\d{2}-\d{2}$/u.test(raw))throw new Error(`${label} must use YYYY-MM-DD.`);const parsed=new Date(`${raw}T00:00:00.000Z`);if(!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==raw)throw new Error(`${label} must use YYYY-MM-DD.`);return raw}
 function email(value,label){const raw=text(value);if(raw&&(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(raw)||raw.length>254))throw new Error(`${label} must be a valid email address.`);return raw}
 function plain(value,label,max=500){const raw=text(value);if(raw.length>max||/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u.test(raw))throw new Error(`${label} is too long or contains unsupported control characters.`);return raw}
+const optionalData=(value,key,build)=>text(value)?{[key]:build(value)}:{};
+const optionalPlain=(value,key,label,max)=>optionalData(value,key,item=>plain(item,label,max));
 
 function parseRows(template,csvText){
   const matrix=parseCsv(csvText),headers=matrix[0].map(value=>value.trim());
@@ -153,23 +155,89 @@ async function commandForRow(tx,actor,template,row){
   const requireMap=(key,namespace,collection)=>requireExternal(namespace,v[key],collection);
   switch(template.key){
     case 'products':{
-      name='product.save';const stockItemId=text(v.stock_item_external_id)?await requireMap('stock_item_external_id','stockItems','stockItems'):null;
-      const outletIds=text(v.outlet_external_ids)?await Promise.all(text(v.outlet_external_ids).split(/[;|]/u).map(item=>requireExternal('outlets',item,'outlets'))):[];
-      payload={id,data:{name:plain(v.name,'Product name',160),code:plain(v.code,'Product code',80),priceMinor:minorUnits(v.price,'Price'),category:plain(v.category||'GENERAL','Category',80),routeTo:'BAR',stockItemId,barcode:plain(v.barcode||'','Barcode',120)||null,favorite:false,taxClassId:'',inventoryType:'STANDARD',recipeIngredients:[],recipeYield:null,sellingMode:null,portions:[],outletIds}};break;
+      name='product.save';
+      const stockItemId=text(v.stock_item_external_id)?await requireMap('stock_item_external_id','stockItems','stockItems'):null;
+      const outletIds=text(v.outlet_external_ids)?await Promise.all(text(v.outlet_external_ids).split(/[;|]/u).map(item=>requireExternal('outlets',item,'outlets'))):null;
+      payload={id,data:{
+        name:plain(v.name,'Product name',160),
+        code:plain(v.code,'Product code',80),
+        priceMinor:minorUnits(v.price,'Price'),
+        ...(stockItemId?{stockItemId}:{}),
+        ...(outletIds?{outletIds}:{}),
+        ...optionalPlain(v.category,'category','Category',80),
+        ...optionalPlain(v.barcode,'barcode','Barcode',120),
+      }};
+      break;
     }
-    case 'stockItems':name='stockItem.save';payload={id,data:{name:plain(v.name,'Stock item name',160),code:plain(v.code,'Stock item code',80),baseUnit:plain(v.base_unit,'Base unit',40),barcode:plain(v.barcode||'','Barcode',120)||null,barcodeAliases:[],scanUnitQuantity:1,reorderLevel:decimal(v.reorder_level,'Reorder level'),averageUnitCostMinor:0,purchasePackages:[]}};break;
-    case 'stockLocations':name='stockLocation.save';payload={id,data:{name:plain(v.name,'Location name',120),code:plain(v.code||id,'Location code',80),type:plain(v.type||'STORE','Location type',20).toUpperCase()}};break;
+    case 'stockItems':name='stockItem.save';payload={id,data:{
+      name:plain(v.name,'Stock item name',160),
+      code:plain(v.code,'Stock item code',80),
+      baseUnit:plain(v.base_unit,'Base unit',40),
+      ...optionalPlain(v.barcode,'barcode','Barcode',120),
+      ...optionalData(v.reorder_level,'reorderLevel',value=>decimal(value,'Reorder level')),
+    }};break;
+    case 'stockLocations':name='stockLocation.save';payload={id,data:{
+      name:plain(v.name,'Location name',120),
+      ...optionalPlain(v.code,'code','Location code',80),
+      ...optionalData(v.type,'type',value=>plain(value,'Location type',20).toUpperCase()),
+    }};break;
     case 'outlets':{name='outlet.save';const defaultStockLocationId=await requireMap('default_stock_location_external_id','stockLocations','stockLocations');payload={id,reason:'Created from reviewed controlled CSV import',data:{name:plain(v.name,'Outlet name',120),defaultStockLocationId,archived:false}};break;}
-    case 'suppliers':name='supplier.save';payload={id,reason:'Created from reviewed controlled CSV import',data:{code:plain(v.code,'Supplier code',80),name:plain(v.name,'Supplier name',160),contactName:plain(v.contact_name||'','Contact name',160),phone:plain(v.phone||'','Phone',80),email:email(v.email,'Email'),address:plain(v.address||'','Address',2000),taxPin:plain(v.tax_pin||'','Tax PIN',80),paymentTermsDays:whole(v.payment_terms_days,'Payment terms',{fallback:0,max:365}),notes:plain(v.notes||'','Notes',2000)}};break;
-    case 'customers':name='customer.save';payload={id,reason:'Created from reviewed controlled CSV import',data:{name:plain(v.name,'Customer name',160),phone:plain(v.phone||'','Phone',40),email:email(v.email,'Email'),notes:plain(v.notes||'','Notes',1000)}};break;
-    case 'roomTypes':name='roomType.save';payload={id,data:{name:plain(v.name,'Room type name',100),code:plain(v.code||v.name,'Room type code',40),maxGuests:whole(v.max_guests,'Maximum guests',{fallback:1,min:1,max:1000})}};break;
-    case 'rooms':{name='room.save';const roomTypeId=await requireMap('room_type_external_id','roomTypes','roomTypes');payload={id,data:{number:plain(v.room_number,'Room number',40),roomTypeId,capacity:whole(v.capacity,'Capacity',{min:1,max:1000}),turnaroundMinutes:whole(v.turnaround_minutes,'Turnaround minutes',{fallback:30,max:10080}),floor:plain(v.floor||'','Floor',80),amenities:text(v.amenities)?text(v.amenities).split(';').map(item=>plain(item,'Amenity',80)).filter(Boolean):[],notes:plain(v.notes||'','Notes',1000)}};break;}
-    case 'ratePlans':{name='ratePlan.save';const roomTypeId=await requireMap('room_type_external_id','roomTypes','roomTypes');payload={id,data:{name:plain(v.name,'Rate name',100),roomTypeId,mode:'NIGHTLY',priceMinor:minorUnits(v.nightly_rate,'Nightly rate'),currency:'KES',taxBasisPoints:whole(v.tax_basis_points,'Tax basis points',{fallback:0,max:10000}),durationMinutes:null,notes:plain(v.notes||'','Notes',1000)}};break;}
-    case 'hotelServices':name='hotelService.save';payload={id,data:{code:plain(v.code,'Service code',40),name:plain(v.name,'Service name',120),priceMinor:minorUnits(v.unit_price,'Unit price'),taxBasisPoints:whole(v.tax_basis_points,'Tax basis points',{fallback:0,max:10000})}};break;
-    case 'assetCategories':name='assetCategory.save';payload={id,data:{name:plain(v.name,'Category name',120),code:plain(v.code||v.name,'Category code',40),notes:plain(v.notes||'','Notes',1000)}};break;
+    case 'suppliers':name='supplier.save';payload={id,reason:'Created from reviewed controlled CSV import',data:{
+      code:plain(v.code,'Supplier code',80),name:plain(v.name,'Supplier name',160),
+      ...optionalPlain(v.contact_name,'contactName','Contact name',160),
+      ...optionalPlain(v.phone,'phone','Phone',80),
+      ...optionalData(v.email,'email',value=>email(value,'Email')),
+      ...optionalPlain(v.address,'address','Address',2000),
+      ...optionalPlain(v.tax_pin,'taxPin','Tax PIN',80),
+      ...optionalData(v.payment_terms_days,'paymentTermsDays',value=>whole(value,'Payment terms',{max:365})),
+      ...optionalPlain(v.notes,'notes','Notes',2000),
+    }};break;
+    case 'customers':name='customer.save';payload={id,reason:'Created from reviewed controlled CSV import',data:{
+      name:plain(v.name,'Customer name',160),
+      ...optionalPlain(v.phone,'phone','Phone',40),
+      ...optionalData(v.email,'email',value=>email(value,'Email')),
+      ...optionalPlain(v.notes,'notes','Notes',1000),
+    }};break;
+    case 'roomTypes':name='roomType.save';payload={id,data:{
+      name:plain(v.name,'Room type name',100),
+      ...optionalPlain(v.code,'code','Room type code',40),
+      ...optionalData(v.max_guests,'maxGuests',value=>whole(value,'Maximum guests',{min:1,max:1000})),
+    }};break;
+    case 'rooms':{const roomTypeId=await requireMap('room_type_external_id','roomTypes','roomTypes');name='room.save';payload={id,data:{
+      number:plain(v.room_number,'Room number',40),roomTypeId,capacity:whole(v.capacity,'Capacity',{min:1,max:1000}),
+      ...optionalData(v.turnaround_minutes,'turnaroundMinutes',value=>whole(value,'Turnaround minutes',{max:10080})),
+      ...optionalPlain(v.floor,'floor','Floor',80),
+      ...optionalData(v.amenities,'amenities',value=>text(value).split(';').map(item=>plain(item,'Amenity',80)).filter(Boolean)),
+      ...optionalPlain(v.notes,'notes','Notes',1000),
+    }};break;}
+    case 'ratePlans':{const roomTypeId=await requireMap('room_type_external_id','roomTypes','roomTypes');name='ratePlan.save';payload={id,data:{
+      name:plain(v.name,'Rate name',100),roomTypeId,priceMinor:minorUnits(v.nightly_rate,'Nightly rate'),
+      ...optionalData(v.tax_basis_points,'taxBasisPoints',value=>whole(value,'Tax basis points',{max:10000})),
+      ...optionalPlain(v.notes,'notes','Notes',1000),
+    }};break;}
+    case 'hotelServices':name='hotelService.save';payload={id,data:{
+      code:plain(v.code,'Service code',40),name:plain(v.name,'Service name',120),priceMinor:minorUnits(v.unit_price,'Unit price'),
+      ...optionalData(v.tax_basis_points,'taxBasisPoints',value=>whole(value,'Tax basis points',{max:10000})),
+    }};break;
+    case 'assetCategories':name='assetCategory.save';payload={id,data:{
+      name:plain(v.name,'Category name',120),
+      ...optionalPlain(v.code,'code','Category code',40),
+      ...optionalPlain(v.notes,'notes','Notes',1000),
+    }};break;
     case 'assets':{
-      name='asset.save';const categoryId=await requireMap('category_external_id','assetCategories','assetCategories'),roomId=text(v.room_external_id)?await requireMap('room_external_id','rooms','rooms'):null,locationId=text(v.stock_location_external_id)?await requireMap('stock_location_external_id','stockLocations','stockLocations'):null;
-      payload={id,data:{assetTag:plain(v.asset_tag,'Asset tag',80),name:plain(v.name,'Asset name',160),categoryId,roomId,locationId,area:'',condition:'GOOD',custodianStaffId:null,serialNumber:plain(v.serial_number||'','Serial number',120),acquiredAt:date(v.acquisition_date,'Acquisition date'),acquisitionCostMinor:minorUnits(v.acquisition_cost,'Acquisition cost'),notes:plain(v.notes||'','Notes',2000),reason:'Created from reviewed controlled CSV import'}};break;
+      name='asset.save';
+      const categoryId=await requireMap('category_external_id','assetCategories','assetCategories');
+      const roomId=text(v.room_external_id)?await requireMap('room_external_id','rooms','rooms'):null;
+      const locationId=text(v.stock_location_external_id)?await requireMap('stock_location_external_id','stockLocations','stockLocations'):null;
+      payload={id,data:{
+        assetTag:plain(v.asset_tag,'Asset tag',80),name:plain(v.name,'Asset name',160),categoryId,
+        acquisitionCostMinor:minorUnits(v.acquisition_cost,'Acquisition cost'),
+        ...(roomId?{roomId}:{}),...(locationId?{locationId}:{}),
+        ...optionalPlain(v.serial_number,'serialNumber','Serial number',120),
+        ...optionalData(v.acquisition_date,'acquiredAt',value=>date(value,'Acquisition date')),
+        ...optionalPlain(v.notes,'notes','Notes',2000),
+        reason:'Created from reviewed controlled CSV import',
+      }};break;
     }
     default:throw new ApiProblem(400,'IMPORT_TEMPLATE_UNSUPPORTED','This template is not supported by the ServOS API importer.');
   }

@@ -28,7 +28,16 @@ test('stock-item CSV keeps the supported columns and accepts rows without sealed
  const template=API_IMPORT_TEMPLATES.find(item=>item.key==='stockItems');
  assert.deepEqual(template.headers,['external_id','name','code','base_unit','reorder_level','barcode']);
  assert.equal(template.headers.includes('sealed_container_size'),false);
+ assert.throws(()=>validateImportCsv('stockItems','external_id,name,code,base_unit,sealed_container_size\nstock-1,Orange juice,JU-1,liter,750'),{code:'CSV_UNSUPPORTED_COLUMNS'});
  const parsed=validateImportCsv('stockItems','external_id,name,code,base_unit,reorder_level,barcode\nstock-1,Orange juice,JU-1,liter,0,');
  assert.equal(parsed.rows[0].status,'VALID');
  assert.deepEqual(parsed.rows[0].errors,[]);
+});
+
+test('rate-plan CSV rejects currencies the API would otherwise silently store as KES',()=>{
+ const unsupported=validateImportCsv('ratePlans','external_id,name,room_type_external_id,nightly_rate,currency\nrate-usd,USD rate,room-standard,12.50,USD');
+ assert.equal(unsupported.rows[0].status,'INVALID');
+ assert.match(unsupported.rows[0].errors.join(' '),/Only KES is supported/u);
+ const supported=validateImportCsv('ratePlans','external_id,name,room_type_external_id,nightly_rate,currency\nrate-kes,KES rate,room-standard,12.50,KES');
+ assert.equal(supported.rows[0].status,'VALID');
 });

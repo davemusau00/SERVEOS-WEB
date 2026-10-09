@@ -44,7 +44,7 @@ test('PostgreSQL API CSV importer stages, dry-runs and applies domain commands w
  const stockSteps=(await pool.query('SELECT steps FROM api_import_plans WHERE business_id=$1 AND id=$2',[businessId,stockPlan.plan.id])).rows[0].steps;
  assert.equal(stockSteps[0].command.name,'stockItem.save');
  assert.equal(Object.hasOwn(stockSteps[0].command.payload.data,'sealedContainerSize'),false);
- assert.deepEqual(Object.keys(stockSteps[0].command.payload.data).sort(),['averageUnitCostMinor','barcode','barcodeAliases','baseUnit','code','name','purchasePackages','reorderLevel','scanUnitQuantity']);
+ assert.deepEqual(Object.keys(stockSteps[0].command.payload.data).sort(),['baseUnit','code','name','reorderLevel']);
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM stock_items WHERE business_id=$1',[businessId])).rows[0].count,0,'stock-item dry-run rolls back domain writes');
 
  const productBatchId=randomUUID();
@@ -54,8 +54,18 @@ test('PostgreSQL API CSV importer stages, dry-runs and applies domain commands w
  assert.equal(productPlan.plan.status,'READY','standard product import omits absent portion volume instead of sending null');
  assert.equal(productPlan.plan.summary.blocked,0);
  const productSteps=(await pool.query('SELECT steps FROM api_import_plans WHERE business_id=$1 AND id=$2',[businessId,productPlan.plan.id])).rows[0].steps;
+ assert.deepEqual(Object.keys(productSteps[0].command.payload.data).sort(),['code','name','priceMinor']);
  assert.equal(Object.hasOwn(productSteps[0].command.payload.data,'portionVolume'),false);
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM products WHERE business_id=$1',[businessId])).rows[0].count,0,'product dry-run rolls back domain writes');
+
+ const roomTypeBatchId=randomUUID();
+ const roomType=await stageImport(pool,actor,{id:roomTypeBatchId,templateKey:'roomTypes',fileName:'room-types.csv',csvText:'external_id,name,code,max_guests\nroom-standard,Standard,,\n'});
+ assert.equal(roomType.batch.validCount,1);
+ const roomTypePlan=await planImport({store,registry,actor,batchId:roomTypeBatchId});
+ assert.equal(roomTypePlan.plan.status,'READY','room-type import delegates optional defaults to the domain command');
+ const roomTypeSteps=(await pool.query('SELECT steps FROM api_import_plans WHERE business_id=$1 AND id=$2',[businessId,roomTypePlan.plan.id])).rows[0].steps;
+ assert.deepEqual(Object.keys(roomTypeSteps[0].command.payload.data),['name']);
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM business_room_types WHERE business_id=$1',[businessId])).rows[0].count,0,'room-type dry-run rolls back domain writes');
 
  const locationBatchId=randomUUID();
  const location=await request('/v1/import/batches',{method:'POST',body:JSON.stringify({id:locationBatchId,templateKey:'stockLocations',fileName:'locations.csv',csvText:'external_id,name,code,type\nloc-main,Main Store,STORE-1,STORE\n'})});

@@ -1,4 +1,0 @@
-# DEPRECATED FOR THE CURRENT SERVOS TARGET SERVER.
-# The audited VPS already runs host Nginx on ports 80/443.
-# Do not start a second public reverse proxy on those ports.
-# See infra/nginx/serveos.conf.example and docs/29-SAME-VPS-PRODUCTION-TOPOLOGY.md.

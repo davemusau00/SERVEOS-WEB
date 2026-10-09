@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, lazy, Suspense, useEffect, useState } from 'react';
 import { ApiHttpError } from './apiClient';
 import {
   hasSavedApiSession,
@@ -8,7 +8,8 @@ import {
   type ApiAuthenticatedDeviceSession,
 } from './apiAuth';
 import { BusinessStore } from './BusinessStore';
-import { WebBusinessApp } from './WebBusinessApp';
+
+const WebBusinessApp=lazy(()=>import('./WebBusinessApp').then(module=>({default:module.WebBusinessApp})));
 
 const field = 'mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400';
 
@@ -79,19 +80,21 @@ export function WebAuthGate() {
 
   if (session && store) {
     return (
-      <WebBusinessApp
-        initialSession={{
-          businessId: session.profile.businessId,
-          actorId: session.profile.staffId,
-          enabled: true,
-          permissions: session.profile.permissions,
-          policyVersion: 'api-catalog-v3',
-          lifecycleStage: 'LIVE',
-        }}
-        apiAuth={session}
-        apiStore={store}
-        onSignOut={() => void signOut()}
-      />
+      <Suspense fallback={<main className="grid min-h-screen place-items-center bg-slate-950 p-4 text-white"><p role="status" className="rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 text-sm text-slate-300">Opening your workspace…</p></main>}>
+        <WebBusinessApp
+          initialSession={{
+            businessId: session.profile.businessId,
+            actorId: session.profile.staffId,
+            enabled: true,
+            permissions: session.profile.permissions,
+            policyVersion: 'api-catalog-v3',
+            lifecycleStage: 'LIVE',
+          }}
+          apiAuth={session}
+          apiStore={store}
+          onSignOut={() => void signOut()}
+        />
+      </Suspense>
     );
   }
 

@@ -50,7 +50,23 @@ test('API login, catalog command, reload projection, and reconnect change feed',
   await page.getByRole('button',{name:'Catalog',exact:true}).click();
  };
  await page.goto('/');await signIn();
+ const workspaceNav=page.locator('nav[aria-label="Business workspace"]:visible');
+ await expect(workspaceNav).toHaveCount(1);
+ const workspaceLabels=(await workspaceNav.getByRole('button').allTextContents()).map(label=>label.trim());
+ expect(workspaceLabels.length).toBeGreaterThan(1);
+ for(const label of workspaceLabels){
+  const workspaceButton=workspaceNav.getByRole('button',{name:label,exact:true});
+  await workspaceButton.click();
+  await expect(workspaceButton).toHaveAttribute('aria-current','page');
+  await expect(page.locator('main h1')).toHaveText(label);
+  const layout=await page.evaluate(()=>({viewport:window.innerWidth,documentWidth:document.documentElement.scrollWidth}));
+  expect(layout.documentWidth,`${label} causes horizontal document overflow at ${layout.viewport}px`).toBeLessThanOrEqual(layout.viewport);
+ }
+ await workspaceNav.getByRole('button',{name:'Catalog',exact:true}).click();
  await expect(page.getByText('Coffee beans',{exact:true})).toBeVisible();
+ const responsiveLayout=await page.evaluate(()=>({viewport:window.innerWidth,documentWidth:document.documentElement.scrollWidth}));
+ expect(responsiveLayout.documentWidth).toBeLessThanOrEqual(responsiveLayout.viewport);
+ await expect(page.locator('nav[aria-label="Business workspace"]:visible')).toHaveCount(1);
  await page.getByRole('button',{name:'Edit',exact:true}).first().click();
  const nameInput=page.getByLabel('Name');
  await nameInput.fill('Coffee beans updated');

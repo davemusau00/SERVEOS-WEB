@@ -42,7 +42,7 @@ const entityEvent=async(tx,{actor,command,at,entityType,entityId,version,eventTy
 
 const saveRoomType=async({tx,command,actor,at})=>{
  requirePermission(actor,'roomTypes.manage');const p=command.payload,d=p.data||{};if(!uuid(p.id))fail('Choose a room type.');
- const name=text(d.name,'Room type name',{max:100}),code=text(d.code||name.toUpperCase().replace(/[^A-Z0-9]+/g,'-'),'Room type code',{max:40}).toUpperCase(),maxGuests=positiveInteger(d.maxGuests,'Room capacity',{max:1000});
+ const name=text(d.name,'Room type name',{max:100}),code=text(d.code||name.toUpperCase().replace(/[^A-Z0-9]+/g,'-'),'Room type code',{max:40}).toUpperCase(),maxGuests=positiveInteger(d.maxGuests??1,'Room capacity',{max:1000});
  const baseline=expected(command,'roomTypes',p.id),current=await tx.client.query(`SELECT version,archived_at AS "archivedAt" FROM business_room_types WHERE business_id=$1 AND id=$2 FOR UPDATE`,[actor.businessId,p.id]);
  if(current.rows[0]?.archivedAt)throw new ApiProblem(409,'RESOURCE_CONFLICT','Restore this room type before editing it.');
  if((current.rows[0]?Number(current.rows[0].version):0)!==baseline)throw new ApiProblem(409,'VERSION_CONFLICT','This room type changed. Refresh it before saving.');

@@ -1,27 +1,27 @@
-﻿import {WebApiSupplierCredits} from './WebApiSupplierCredits';
-import {WebApiSupplierReturns} from './WebApiSupplierReturns';
-import {WebApiSupplierPayments} from './WebApiSupplierPayments';
-import {WebApiPayables} from './WebApiPayables';
-import {WebApiGoodsReceipts} from './WebApiGoodsReceipts';
-import {WebApiPurchaseOrders} from './WebApiPurchaseOrders';
-import {WebApiSuppliers} from './WebApiSuppliers';
+
+
+
+
+
+
+
 import {exportBridgeRecoveryEvidence} from './printBridgeTransport';
 import {captureCountRecovery} from './countRecovery';
-import {WebBridgeSettings} from './WebBridgeSettings';
-import {WebBridgeRecovery} from './WebBridgeRecovery';
-import {WebApiRefundsView} from './WebApiRefundsView';
-import {WebApiPosView} from './WebApiPosView';
-import {WebApiRoomsView} from './WebApiRoomsView';
-import {WebApiSettings} from './WebApiSettings';
-import {WebDocumentQueue} from './WebDocumentQueue';
-import {WebApiJournalLedger} from './WebApiJournalLedger';
-import {WebApiCloseDayReports} from './WebApiCloseDayReports';
-import {WebApiImportCenter} from './WebApiImportCenter';
+
+
+
+
+
+
+
+
+
+
 import React,{useEffect,useRef,useState} from 'react';
 import {Activity,BedDouble,Boxes,CheckCircle2,ChevronRight,ClipboardCheck,CreditCard,HelpCircle,Home,LockKeyhole,LogIn,Martini,PackageSearch,RefreshCw,Settings,ShieldCheck,Truck,Users,WalletCards,Wifi,WifiOff} from 'lucide-react';
 import {BusinessStore,redactSensitiveData,type QueuedCommand,type WorkflowDraft,type WorkflowDraftField} from './BusinessStore';
 import {resolveOperationDependencies} from './dependencies';
-import {WebStorageDiagnostics} from './WebStorageDiagnostics';
+
 import {startAutomaticSync,subscribeSyncUpdates,synchronizeStore} from './sync';
 import {allowed,apiAuthorizationPolicyVersion,loadApiCatalogSnapshot,type BusinessRecord,type WebGuidanceProgress,type WebSession} from './session';
 import {createApiTransport} from './sync';
@@ -33,6 +33,26 @@ const WebCatalogView=React.lazy(()=>import('./WebCatalogInventory').then(module=
 const WebInventoryView=React.lazy(()=>import('./WebCatalogInventory').then(module=>({default:module.WebInventoryView})));
 const WebStaffAdminView=React.lazy(()=>import('./WebStaffAdminView').then(module=>({default:module.WebStaffAdminView})));
 const WebApiSessions=React.lazy(()=>import('./WebApiSessions').then(module=>({default:module.WebApiSessions})));
+const WebApiPosView=React.lazy(()=>import('./WebApiPosView').then(module=>({default:module.WebApiPosView})));
+const WebApiRoomsView=React.lazy(()=>import('./WebApiRoomsView').then(module=>({default:module.WebApiRoomsView})));
+const WebApiSettings=React.lazy(()=>import('./WebApiSettings').then(module=>({default:module.WebApiSettings})));
+const WebApiRefundsView=React.lazy(()=>import('./WebApiRefundsView').then(module=>({default:module.WebApiRefundsView})));
+const WebApiImportCenter=React.lazy(()=>import('./WebApiImportCenter').then(module=>({default:module.WebApiImportCenter})));
+const WebApiCloseDayReports=React.lazy(()=>import('./WebApiCloseDayReports').then(module=>({default:module.WebApiCloseDayReports})));
+const WebApiJournalLedger=React.lazy(()=>import('./WebApiJournalLedger').then(module=>({default:module.WebApiJournalLedger})));
+const WebApiPurchaseOrders=React.lazy(()=>import('./WebApiPurchaseOrders').then(module=>({default:module.WebApiPurchaseOrders})));
+const WebApiGoodsReceipts=React.lazy(()=>import('./WebApiGoodsReceipts').then(module=>({default:module.WebApiGoodsReceipts})));
+const WebApiPayables=React.lazy(()=>import('./WebApiPayables').then(module=>({default:module.WebApiPayables})));
+const WebApiSupplierCredits=React.lazy(()=>import('./WebApiSupplierCredits').then(module=>({default:module.WebApiSupplierCredits})));
+const WebApiSupplierReturns=React.lazy(()=>import('./WebApiSupplierReturns').then(module=>({default:module.WebApiSupplierReturns})));
+const WebApiSupplierPayments=React.lazy(()=>import('./WebApiSupplierPayments').then(module=>({default:module.WebApiSupplierPayments})));
+const WebApiSuppliers=React.lazy(()=>import('./WebApiSuppliers').then(module=>({default:module.WebApiSuppliers})));
+const WebBridgeSettings=React.lazy(()=>import('./WebBridgeSettings').then(module=>({default:module.WebBridgeSettings})));
+const WebBridgeRecovery=React.lazy(()=>import('./WebBridgeRecovery').then(module=>({default:module.WebBridgeRecovery})));
+const WebDocumentQueue=React.lazy(()=>import('./WebDocumentQueue').then(module=>({default:module.WebDocumentQueue})));
+const WebStorageDiagnostics=React.lazy(()=>import('./WebStorageDiagnostics').then(module=>({default:module.WebStorageDiagnostics})));
+const ActivitySyncCenter=React.lazy(()=>import('./ActivitySyncCenter').then(module=>({default:module.ActivitySyncCenter})));
+const ContextHelpDrawer=React.lazy(()=>import('./ContextHelpDrawer').then(module=>({default:module.ContextHelpDrawer})));
 const WebApiFinanceAssets=React.lazy(()=>import('./WebApiFinanceAssets').then(module=>({default:module.WebApiFinanceAssets})));
 const WebKDSView=React.lazy(()=>import('./WebKDSView').then(module=>({default:module.WebKDSView})));
 const WebApiCustomers=React.lazy(()=>import('./WebApiCustomers').then(module=>({default:module.WebApiCustomers})));
@@ -46,8 +66,8 @@ const WebGuestAccountsView=React.lazy(()=>import('./WebHospitalityViews').then(m
 const WebHousekeepingView=React.lazy(()=>import('./WebHospitalityViews').then(module=>({default:module.WebHousekeepingView})));
 const WebMaintenanceView=React.lazy(()=>import('./WebMaintenanceView').then(module=>({default:module.WebMaintenanceView})));
 const WebFloorplanView=React.lazy(()=>import('./WebFloorplanView').then(module=>({default:module.WebFloorplanView})));
-import {ActivitySyncCenter} from './ActivitySyncCenter';
-import {ContextHelpDrawer} from './ContextHelpDrawer';
+
+
 import {ConnectivityBadge,Notice,PageHeader,StatusBadge} from '../../design-system/components';
 import {ds} from '../../design-system/tokens';
 import {businessDateTimeAfterBusinessDays,businessDateTimeInput,businessDateTimeToUtc} from '../../utils/businessTime';
