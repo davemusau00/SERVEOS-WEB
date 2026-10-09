@@ -233,27 +233,27 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   await expect(page.getByText('Real remote change',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Inventory',exact:true}).click();
   await page.getByRole('button',{name:'Count stock',exact:true}).click();
-  const count=page.getByRole('dialog',{name:'Full stocktake',exact:true});
-  await count.getByRole('button',{name:'Real store',exact:true}).click();
-  await count.getByRole('button',{name:'Continuous scanner session',exact:true}).click();
-  await count.getByLabel('Scan a barcode',{exact:true}).focus();
-  await page.keyboard.type('616000012',{delay:10});
-  await page.keyboard.press('Enter');
-  await expect(count.getByLabel('Counted quantity for Real remote change',{exact:true})).toHaveValue('12');
-  await count.getByRole('button',{name:'Review count',exact:true}).click();
-  await count.getByRole('button',{name:'Confirm Count',exact:true}).click();
+  const count=page.getByRole('dialog',{name:'Count stock at a location',exact:true});
+  await count.getByRole('combobox',{name:'Location',exact:true}).selectOption(locationId);
+  await count.getByLabel('Physical quantity (kg)',{exact:true}).fill('12');
+  await count.getByLabel('Count note',{exact:true}).fill('Browser acceptance physical count');
+  await count.getByRole('button',{name:'Review and record count',exact:true}).click();
   await expect(count).toHaveCount(0);
   expect((await pool.query('SELECT quantity::text,version::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0]).toMatchObject({quantity:'12.000000',version:'1'});
+  expect((await pool.query(`SELECT c.scope,c.item_count,c.reason,a.status
+    FROM inventory_stock_counts c
+    JOIN api_commands a ON a.business_id=c.business_id AND a.command_id=c.source_command_id
+    WHERE c.business_id=$1 AND c.location_id=$2
+    ORDER BY c.created_at DESC,c.id DESC LIMIT 1`,[businessId,locationId])).rows[0]).toMatchObject({scope:'FULL',item_count:1,reason:'Browser acceptance physical count',status:'CONFIRMED'});
   await page.getByRole('button',{name:'Quick count',exact:true}).click();
-  const quickCount=page.getByRole('dialog',{name:'Quick count',exact:true});
-  await quickCount.getByRole('button',{name:'Real store',exact:true}).click();
-  await quickCount.getByRole('checkbox',{name:'Real remote change',exact:true}).check();
-  await quickCount.getByRole('button',{name:'Start selected count',exact:true}).click();
-  await quickCount.getByLabel('Counted quantity for Real remote change',{exact:true}).fill('12');
-  await quickCount.getByRole('button',{name:'Review count',exact:true}).click();
-  await quickCount.getByRole('button',{name:'Confirm Count',exact:true}).click();
+  const quickCount=page.getByRole('dialog',{name:'Quick count selected items',exact:true});
+  await quickCount.getByRole('combobox',{name:'Location',exact:true}).selectOption(locationId);
+  await quickCount.getByRole('checkbox',{name:/Real remote change/}).check();
+  await quickCount.getByLabel('Physical quantity (kg)',{exact:true}).fill('12');
+  await quickCount.getByLabel('Count note',{exact:true}).fill('Browser acceptance selected count');
+  await quickCount.getByRole('button',{name:'Review and record count',exact:true}).click();
   await expect(quickCount).toHaveCount(0);
-  expect((await pool.query("SELECT scope,item_count FROM inventory_stock_counts WHERE business_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1",[businessId])).rows[0]).toMatchObject({scope:'SELECTED',item_count:1});
+  expect((await pool.query("SELECT scope,item_count,reason FROM inventory_stock_counts WHERE business_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1",[businessId])).rows[0]).toMatchObject({scope:'SELECTED',item_count:1,reason:'Browser acceptance selected count'});
   const persisted=await page.evaluate(async()=>{
    const entry=(await indexedDB.databases()).find(db=>db.name?.startsWith('servos-web-v1:'))!;
    return new Promise<any>((resolve,reject)=>{const opening=indexedDB.open(entry.name!);opening.onerror=()=>reject(opening.error);opening.onsuccess=()=>{const db=opening.result,tx=db.transaction(['records','queue'],'readonly');const records=tx.objectStore('records').getAll(),queue=tx.objectStore('queue').getAll();tx.oncomplete=()=>{resolve({records:records.result,queue:queue.result});db.close()};tx.onabort=()=>reject(tx.error)}});
