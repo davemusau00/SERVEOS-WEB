@@ -212,6 +212,11 @@ elseif ($Mode -eq 'Pwa') {
   if (-not $ReleaseId) { $ReleaseId = (& git rev-parse --short=12 HEAD).Trim() }
   if ($ReleaseId -notmatch '^[a-f0-9]{7,40}$') { throw 'ReleaseId must be a Git SHA from 7 to 40 hexadecimal characters.' }
   if (-not $ArchivePath) { $ArchivePath = Join-Path (Get-Location) "release\web\$ReleaseId.zip" }
+  if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) {
+    $releaseDirectory = Join-Path (Get-Location) "release\web\$ReleaseId"
+    if (-not (Test-Path -LiteralPath (Join-Path $releaseDirectory 'release-manifest.json') -PathType Leaf)) { throw "Packaged PWA release was not found: $releaseDirectory" }
+    Compress-Archive -Path (Join-Path $releaseDirectory '*') -DestinationPath $ArchivePath -CompressionLevel Optimal
+  }
   $ArchivePath = (Resolve-Path -LiteralPath $ArchivePath).Path
   $remoteArchive = "/tmp/serveos-pwa-$ReleaseId-$([guid]::NewGuid().ToString('N')).zip"
   $scp = Join-Path (Split-Path -Parent $ssh) 'scp.exe'
@@ -236,7 +241,7 @@ entries={}
 manifest_bytes=b''
 with zipfile.ZipFile(archive) as bundle:
  infos=bundle.infolist()
- names=[info.filename.replace('\\','/') for info in infos]
+ names=[info.filename for info in infos]
  if len(names)!=len(set(names)): raise SystemExit('PWA archive contains duplicate paths')
  manifest=json.loads(bundle.read(manifest_name))
  if manifest.get('releaseId')!=release: raise SystemExit('PWA release SHA mismatch')

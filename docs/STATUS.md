@@ -27,6 +27,6 @@ ServOS is a web-based hospitality ERP/POS delivered as a PWA against a Node API 
 
 - PostgreSQL integration and browser/API E2E tests must run against a disposable PostgreSQL database.
 - The cleanup branch has not been redeployed. Staging smoke, schema high-water review, PostgreSQL backup/restore rehearsal, live multi-device acceptance, and physical printer acceptance remain open.
-- A read-only host check shows the production `current` symlink still points at pre-cleanup commit `2dba83ab`. The public-origin browser smoke timed out before `domcontentloaded`; the checked-in PWA deploy mode is pinned to an older release/archive, so it cannot publish this build safely.
+- The production `current` symlink still points at pre-cleanup commit `2dba83ab`. The external public-origin browser smoke previously timed out before `domcontentloaded`, while direct web and API TLS route checks from the VPS returned HTTP 200. The PWA deploy mode now accepts a release ID and verified archive, checks both routes, activates atomically, and restores the prior symlink if immediate post-activation checks fail. Staging and public-origin smoke remain open.
 - The worker process currently registers zero job handlers.
 - A standalone Countryside SQLite-to-current-PostgreSQL migration executor is not present. The older cutover source in the pre-cleanup tag targets an older protocol and is not safe to run against the current API schema. A dedicated, rehearsed migration utility remains a separate gate; it must not run as part of deployment or operator CSV import.
