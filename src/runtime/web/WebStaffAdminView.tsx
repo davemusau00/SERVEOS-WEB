@@ -48,7 +48,7 @@ export function WebStaffAdminView({ records, session, disabled, command, current
   const [outcome, setOutcome] = useState<CommandOutcome | null>(null);
   const [busy, setBusy] = useState(false);
   const [staffAction, setStaffAction] = useState<StaffAction | null>(null);
-  const [staffId, setStaffId] = useState(() => crypto.randomUUID());
+  const [staffId, setStaffId] = useState<string>(() => crypto.randomUUID());
   const [name, setName] = useState('');
   const [role, setRole] = useState('Server');
   const [loginName, setLoginName] = useState('');

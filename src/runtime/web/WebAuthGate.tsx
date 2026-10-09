@@ -88,9 +88,6 @@ export function WebAuthGate() {
           policyVersion: 'api-catalog-v3',
           lifecycleStage: 'LIVE',
         }}
-        rpc={async () => {
-          throw new Error('The API workspace cannot call legacy cloud procedures.');
-        }}
         apiAuth={session}
         apiStore={store}
         onSignOut={() => void signOut()}
