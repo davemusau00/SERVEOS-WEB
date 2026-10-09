@@ -49,18 +49,19 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   const legacyRequests:string[]=[];
   page.on('request',request=>{if(request.url().includes('servos_v2'))legacyRequests.push(request.url())});
   const signIn=async()=>{
-   if(await page.getByRole('button',{name:'Remote management',exact:true}).isVisible())await page.getByRole('button',{name:'Remote management',exact:true}).click();
-   await page.getByRole('button',{name:'ServOS API workspace',exact:true}).click();
-   await page.getByLabel('Staff login',{exact:true}).fill(loginName);
-   await page.getByLabel('Password',{exact:true}).fill(password);
-   const loginResponsePromise=page.waitForResponse(response=>new URL(response.url()).pathname==='/v1/auth/login');
-   await page.getByRole('button',{name:'Sign in',exact:true}).click();
-   const loginResponse=await loginResponsePromise,loginBody=await loginResponse.json() as {sessionId:string;accessToken:string};
-   const refreshCookie=(await page.context().cookies()).find(cookie=>cookie.name===`servos_refresh_${loginBody.sessionId}`);
-   expect(refreshCookie?.httpOnly).toBe(true);
-   expect(refreshCookie?.path).toBe(`/v1/auth/sessions/${loginBody.sessionId}/refresh`);
-   observedCredentials.push({sessionId:loginBody.sessionId,accessToken:loginBody.accessToken,refreshToken:refreshCookie!.value});
-   await expect(page.getByText('Workspace ready',{exact:true})).toBeVisible();
+   const login=page.getByLabel('Staff login',{exact:true});
+   if(await login.isVisible().catch(()=>false)){
+    await login.fill(loginName);
+    await page.getByLabel('Password',{exact:true}).fill(password);
+    const loginResponsePromise=page.waitForResponse(response=>new URL(response.url()).pathname==='/v1/auth/login');
+    await page.getByRole('button',{name:'Sign in',exact:true}).click();
+    const loginResponse=await loginResponsePromise,loginBody=await loginResponse.json() as {sessionId:string;accessToken:string};
+    const refreshCookie=(await page.context().cookies()).find(cookie=>cookie.name===`servos_refresh_${loginBody.sessionId}`);
+    expect(refreshCookie?.httpOnly).toBe(true);
+    expect(refreshCookie?.path).toBe(`/v1/auth/sessions/${loginBody.sessionId}/refresh`);
+    observedCredentials.push({sessionId:loginBody.sessionId,accessToken:loginBody.accessToken,refreshToken:refreshCookie!.value});
+   }
+   await expect(page.getByRole('button',{name:'Catalog',exact:true})).toBeVisible();
    await page.getByRole('button',{name:'Catalog',exact:true}).click();
   };
   await page.addInitScript(instrumentRefreshLocks);

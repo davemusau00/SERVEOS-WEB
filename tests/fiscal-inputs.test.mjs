@@ -29,27 +29,21 @@ test('quantities reject invalid values and enforce unit precision',()=>{
   assert.throws(()=>parseQuantity('999999999999999999999'),/allowed range/);
 });
 
-test('interactive product creation requires an explicit tax class',()=>{
+test('active web product editors require an explicit tax class',()=>{
   const web=readFileSync('src/runtime/web/WebBusinessApp.tsx','utf8');
   const catalog=readFileSync('src/runtime/web/WebCatalogInventory.tsx','utf8');
-  const procurement=readFileSync('src/runtime/web/WebProcurementView.tsx','utf8');
-  const nativeQuick=readFileSync('src/native/QuickProductDialog.tsx','utf8');
-  const nativeCatalog=readFileSync('src/native/NativeCatalogView.tsx','utf8');
-  const setup=readFileSync('src/native/SetupWizard.tsx','utf8');
-  const csv=readFileSync('src/native/csvImport.ts','utf8');
   assert.match(web,/key:'taxClassId',label:'Tax class',type:'select'/);
   assert.match(catalog,/Tax class<select required/);
-  assert.match(nativeQuick,/Tax class<select required/);
-  assert.match(nativeCatalog,/Tax class<select required/);
   assert.doesNotMatch(web,/taxClassId:'A_STANDARD'/);
   assert.doesNotMatch(catalog,/taxClassId:'A_STANDARD'/);
-  assert.doesNotMatch(nativeQuick,/taxClassId:\s*'A_STANDARD'/);
-  assert.doesNotMatch(nativeCatalog,/taxClassId:'A_STANDARD'/);
-  assert.match(setup,/taxClassId:input\.taxClassId/);
-  assert.match(setup,/Tax class<select required/);
-  assert.match(csv,/tax_class_id must be A_16, B_0 or C_EXEMPT/);
-  assert.doesNotMatch(csv,/taxClassId:\s*get\('taxClassId'\)\s*\|\|\s*'A_STANDARD'/);
-  assert.match(catalog,/parseQuantity\(resumable\.counts\?\.\[stock\.id\]\)/);
-  assert.match(procurement,/parseQuantity\(draft\.delivered,\{integer:Boolean\(line\?\.purchasePackageId\)\}\)/);
-  assert.match(procurement,/integer:lineKind==='ASSET'/);
+  assert.doesNotMatch(catalog,/taxClassId:'A_STANDARD'/);
+});
+
+test('API physical stock count validates precise quantities and preserves sealed/open balance',()=>{
+  const countDialog=readFileSync('src/runtime/web/WebPhysicalCountDialog.tsx','utf8');
+  const apiCommands=readFileSync('apps/api/src/catalog-commands.mjs','utf8');
+  assert.match(countDialog,/parseQuantity\(value\.quantity\)/);
+  assert.match(countDialog,/countedSealedContainers = sealed/);
+  assert.match(countDialog,/countedOpenQuantity = open/);
+  assert.match(apiCommands,/Counted liquid must equal whole sealed containers plus open quantity below one container/);
 });

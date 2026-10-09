@@ -136,7 +136,7 @@ test('IndexedDB activation abort keeps the prior projection, and a large snapsho
     await abortStore.replaceSnapshot([{collection:'products',id:'retained',version:8,data:{name:'Atomic predecessor'},archived:false}],12,'prior-policy');
     const row={collection:'products',id:'staged',version:1,data:{name:'Will fail target keyPath'},archived:false},hash=await digest({afterOrdinal:0,nextOrdinal:1,records:[row]}),core={protocolVersion:2,snapshotId:id,expiresAt,schemaVersion:2,highWaterCursor:13,recordCount:1,collectionCounts:{products:1},pageSize:2,pageCount:1,pageHashes:[hash]},manifest={...core,sha256:await digest(core)};
     await abortStore.beginBootstrap(id,expiresAt,'new-policy',manifest);await abortStore.stageBootstrapPage(id,0,[row]);
-    const database=indexedDB.open(`servos-api-v1:${scope}:device:actor`);
+    const database=indexedDB.open(`servos-web-v1:${scope}:device:actor`);
     const db=await new Promise<IDBDatabase>((resolve,reject)=>{database.onsuccess=()=>resolve(database.result);database.onerror=()=>reject(database.error)});
     const tx=db.transaction('bootstrapStage','readwrite'),entry=await new Promise<any>((resolve,reject)=>{const request=tx.objectStore('bootstrapStage').get([id,0]);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
     entry.record.id=undefined;tx.objectStore('bootstrapStage').put(entry);

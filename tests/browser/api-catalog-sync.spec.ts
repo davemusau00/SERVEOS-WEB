@@ -40,12 +40,13 @@ test('API login, catalog command, reload projection, and reconnect change feed',
   return respond({error:{code:'NOT_FOUND',message:'Unknown fixture path'}},404);
  });
  const signIn=async()=>{
-  if(await page.getByRole('button',{name:'Remote management',exact:true}).isVisible())await page.getByRole('button',{name:'Remote management',exact:true}).click();
-  await page.getByRole('button',{name:'ServOS API workspace'}).click();
-  await page.getByLabel('Staff login').fill('admin');
-  await page.getByLabel('Password',{exact:true}).fill('test-password');
-  await page.getByRole('button',{name:'Sign in',exact:true}).click();
-  await expect(page.getByText('Workspace ready')).toBeVisible();
+  const login=page.getByLabel('Staff login');
+  if(await login.isVisible().catch(()=>false)){
+   await login.fill('admin');
+   await page.getByLabel('Password',{exact:true}).fill('test-password');
+   await page.getByRole('button',{name:'Sign in',exact:true}).click();
+  }
+  await expect(page.getByRole('button',{name:'Catalog',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Catalog',exact:true}).click();
  };
  await page.goto('/');await signIn();

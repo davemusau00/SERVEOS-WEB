@@ -12,9 +12,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { outputFolder: 'playwright-report/production', open: 'never' }]],
   use: { baseURL: 'http://127.0.0.1:3010', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
-    { name: 'pos-terminal', use: { ...devices['Desktop Chrome'], viewport: { width: 1024, height: 600 } } },
-    { name: 'aio-terminal', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } } },
-    { name: 'laptop', use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 768 } } },
+    { name: 'desktop-web', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } } },
     { name: 'mobile-layout', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
   ],
   webServer: {

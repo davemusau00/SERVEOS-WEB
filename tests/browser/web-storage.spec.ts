@@ -34,9 +34,8 @@ test('offline shell reloads without caching business API responses',async({page,
   const cached=await page.evaluate(async()=>{const keys=await caches.keys();return(await Promise.all(keys.map(async key=>(await(await caches.open(key)).keys()).map(r=>r.url)))).flat()});
   expect(cached.some(url=>url.includes('private-business-response'))).toBe(false);
   await context.setOffline(true);await page.reload();
-  const previewEntry=page.getByRole('button',{name:'Open UI preview'});
-  if(await previewEntry.count()) await expect(previewEntry).toBeVisible();
-  else await expect(page.getByRole('heading',{name:'Business control'})).toBeVisible();
+  await expect(page.getByLabel('Staff login')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Sign in'})).toBeVisible();
   await context.setOffline(false);
 });
 
