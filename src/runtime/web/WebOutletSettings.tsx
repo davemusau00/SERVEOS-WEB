@@ -22,12 +22,12 @@ export function WebOutletSettings({records,disabled,command}:{records:BusinessRe
  };
  const field='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2';
  const button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
- return <section className="space-y-3 rounded-xl border border-slate-700 p-4">
+  return <section className="space-y-4 rounded-xl border border-slate-700 bg-slate-950/40 p-4 sm:p-5">
   <h3 className="font-bold">Outlets and stock locations</h3>
   <p className="text-sm text-slate-400">Each outlet needs a receiving/consumption storage place. Resolve its open orders and tills before changing the storage place or archiving the outlet.</p>
   <button className={button} disabled={disabled||busy||pending} onClick={()=>open()}>Add outlet</button>
   <div className="flex flex-wrap gap-2">{records.filter(row=>row.collection==='outlets').map(row=><button key={row.id} className={button} disabled={disabled||busy||pending} onClick={()=>open(row)}>{String(row.data.name)}{row.archived?' · Archived':''}</button>)}</div>
-  {editor&&<form role="dialog" aria-label="Edit outlet settings" onSubmit={event=>void save(event)} className="space-y-3">
+  {editor&&<form aria-label="Edit outlet settings" onSubmit={event=>void save(event)} className="space-y-4 rounded-xl border border-slate-700 bg-slate-900/80 p-4 sm:p-5">
    <label className="block text-sm">Outlet name<input required maxLength={120} disabled={busy||pending} className={field} value={name} onChange={event=>setName(event.target.value)}/></label>
    <label className="block text-sm">Default stock location<select required disabled={busy||pending} className={field} value={location} onChange={event=>setLocation(event.target.value)}><option value="">Choose storage place…</option>{locations.map(row=><option key={row.id} value={row.id}>{String(row.data.name)}</option>)}</select></label>
    <label className="block text-sm"><input type="checkbox" disabled={busy||pending} checked={archived} onChange={event=>setArchived(event.target.checked)}/> Archive this outlet</label>
