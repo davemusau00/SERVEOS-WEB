@@ -1,26 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync,existsSync} from 'node:fs';
+import { existsSync } from 'node:fs';
+import { API_IMPORT_TEMPLATES, validateImportCsv } from '../apps/api/src/csv-import.mjs';
 
-const expected=[
-  'business.csv','outlets.csv','stock_locations.csv','suppliers.csv','customers.csv','employees.csv',
-  'products.csv','inventory.csv','room_types.csv','rooms.csv','rate_plans.csv','hotel_services.csv',
-  'asset_categories.csv','assets.csv'
-];
-test('canonical import templates exist and contain no credential columns',()=>{
-  for(const file of expected){
-    const path=`import-templates/${file}`;
-    assert.equal(existsSync(path),true,`${path} missing`);
-    const first=readFileSync(path,'utf8').replace(/^\uFEFF/,'').split(/\r?\n/,1)[0].split(',').map(x=>x.trim().toLowerCase());
-    assert.equal(new Set(first).size,first.length,`${file} has duplicate headers`);
-    assert.ok(first.includes('external_id'),`${file} requires external_id`);
-    for(const forbidden of ['pin','password','password_confirm','device_token','device_secret','access_token','publishable_key','cloud_key']){
-      assert.equal(first.includes(forbidden),false,`${file} must not contain ${forbidden}`);
+test('operator CSV templates come from the API manifest and have unique headers', () => {
+  assert.equal(API_IMPORT_TEMPLATES.length, 12);
+  for (const template of API_IMPORT_TEMPLATES) {
+    assert.ok(template.headers.includes('external_id'), `${template.key} requires external_id`);
+    assert.equal(new Set(template.headers).size, template.headers.length, `${template.key} has duplicate headers`);
+    for (const forbidden of ['password', 'password_confirm', 'device_token', 'device_secret', 'access_token', 'publishable_key', 'cloud_key']) {
+      assert.equal(template.headers.includes(forbidden), false, `${template.key} must not contain ${forbidden}`);
     }
   }
+  assert.equal(existsSync('import-templates'), false, 'static duplicate import templates must not be restored');
 });
-test('employee template keeps credentials out of migration data',()=>{
-  const header=readFileSync('import-templates/employees.csv','utf8').split(/\r?\n/,1)[0];
-  assert.match(header,/external_id,full_name,job_title,role/);
-  assert.doesNotMatch(header,/(^|,)(pin|password)(,|$)/i);
+
+test('stock item CSV uses the current API columns and omits sealed-container data when absent', () => {
+  const template = API_IMPORT_TEMPLATES.find(item => item.key === 'stockItems');
+  assert.deepEqual(template.headers, ['external_id', 'name', 'code', 'base_unit', 'reorder_level', 'barcode']);
+  assert.equal(template.headers.includes('sealed_container_size'), false);
+  const result = validateImportCsv('stockItems', 'external_id,name,code,base_unit,reorder_level,barcode\nstock-1,Orange juice,JU-1,liter,0,');
+  assert.equal(result.rows[0].status, 'VALID');
+  assert.deepEqual(result.rows[0].errors, []);
 });
