@@ -1,11 +1,55 @@
-import fs from 'node:fs';import path from 'node:path';
-const fail=[];const required=['docs/README.md','docs/CURRENT_RELEASE_STATE.md','docs/FEATURE_COVERAGE_MATRIX.md','docs/GAP_ANALYSIS_AND_ROADMAP.md','docs/IMPLEMENTATION_PLAN.md','docs/DATA_DICTIONARY.md','docs/MODULE_WORKFLOWS.md','docs/SYSTEM_ARCHITECTURE.md','docs/DEPLOYMENT_RUNBOOK.md','docs/RBAC_AND_PERMISSIONS.md','docs/ONBOARDING_AND_SETUP.md','docs/COMPLETION_LEDGER.md','docs/CHANGELOG.md','docs/TEST_EVIDENCE.md','docs/BAR_PRODUCTION_ACCEPTANCE.md'];
-for(const f of required)if(!fs.existsSync(f))fail.push(`Missing ${f}`);
-const store=fs.readFileSync('src-tauri/src/store.rs','utf8');const permissionMatch=store.match(/pub const ALL_PERMISSIONS:[\s\S]*?\];/);const permissionSource=permissionMatch?.[0]||'';
-const guides=fs.readdirSync('docs/user-guide').filter(f=>f.endsWith('.md'));for(const file of guides){const text=fs.readFileSync(path.join('docs/user-guide',file),'utf8');for(const key of ['Section:','Roles:','Permission:','Screen:','## Overview','## Procedure'])if(!text.includes(key))fail.push(`${file} missing ${key}`);const raw=text.split('\n').find(x=>x.startsWith('Permission: '))?.slice(12).trim()||'';const perms=raw.split(',').map(x=>x.trim()).filter(Boolean);for(const perm of perms)if(perm!=='none'&&!permissionSource.includes(`"${perm}"`))fail.push(`${file} unknown permission ${perm}`)}
-const docs=fs.readdirSync('docs').filter(f=>f.endsWith('.md')).map(f=>'docs/'+f);for(const f of docs){const text=fs.readFileSync(f,'utf8');for(const m of text.matchAll(/\[[^\]]+\]\(([^)]+\.md)(?:#[^)]+)?\)/g)){const target=path.normalize(path.join(path.dirname(f),m[1]));if(!fs.existsSync(target))fail.push(`${f} broken link ${m[1]}`)}}
-for(const forbidden of ['JAM-','loc-bar-store','loc-warehouse']){const nativeFiles=[];const walk=d=>fs.readdirSync(d,{withFileTypes:true}).forEach(e=>e.isDirectory()?walk(path.join(d,e.name)):nativeFiles.push(path.join(d,e.name)));walk('src/native');for(const f of nativeFiles)if(fs.readFileSync(f,'utf8').includes(forbidden))fail.push(`${f} contains demo token ${forbidden}`)}
-for(const expected of ['table.ready','floorplan.save','setup.goLive','payment.refund','closeDay.generate'])if(!store.includes(`"${expected}"`))fail.push(`Native command missing ${expected}`);
-const index=JSON.parse(fs.readFileSync('src/generated/help-index.json','utf8'));if(index.count!==guides.length)fail.push(`Help index count ${index.count} != guide files ${guides.length}`);
-const parityPath='docs/generated/OPERATION_PARITY_LEDGER.json';if(!fs.existsSync(parityPath))fail.push(`Missing ${parityPath}`);else{const parity=JSON.parse(fs.readFileSync(parityPath,'utf8'));const expected=(fs.readFileSync('src/runtime/operationManifest.ts','utf8').match(/\{ operation:/g)||[]).length;if(parity.operations?.length!==expected)fail.push(`Parity ledger has ${parity.operations?.length||0} operations; manifest declares ${expected}`);for(const item of parity.operations||[])for(const key of ['operation','domain','permission','native','backend','web','offlineEligibility','approval','versioning','auditEffect','stockEffect','financialEffect','acceptanceTest','operatorUxStatus'])if(!item[key])fail.push(`Parity ledger ${item.operation||'unknown'} missing ${key}`)}
-if(fail.length){console.error(fail.join('\n'));process.exit(1)}console.log(`Documentation checks passed: ${guides.length} guides, ${required.length} core docs.`);
+import fs from 'node:fs';
+import path from 'node:path';
+
+const fail = [];
+const required = [
+  'README.md', 'docs/README.md', 'docs/STATUS.md', 'docs/architecture.md',
+  'docs/repository.md', 'docs/database.md', 'docs/api.md', 'docs/auth.md',
+  'docs/offline.md', 'docs/pos.md', 'docs/inventory.md', 'docs/procurement.md',
+  'docs/customer-credit.md', 'docs/pms.md', 'docs/finance-assets.md',
+  'docs/import.md', 'docs/print-bridge.md', 'docs/deployment.md',
+  'docs/backup-restore.md', 'docs/operations.md', 'docs/testing.md',
+  'tools/migration/README.md',
+];
+for (const file of required) if (!fs.existsSync(file)) fail.push(`Missing ${file}`);
+
+const permissions = JSON.parse(fs.readFileSync('contracts/permissions.json', 'utf8'));
+const knownPermissions = new Set(permissions.permissions);
+const walk = directory => fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+  const file = path.join(directory, entry.name);
+  return entry.isDirectory() ? walk(file) : [file];
+});
+const markdown = ['README.md', ...walk('docs').filter(file => file.endsWith('.md')), ...walk('tools/migration').filter(file => file.endsWith('.md'))];
+for (const file of markdown) {
+  const source = fs.readFileSync(file, 'utf8');
+  for (const [, target] of source.matchAll(/\[[^\]]+\]\(([^)]+\.md)(?:#[^)]+)?\)/g)) {
+    if (/^https?:/i.test(target)) continue;
+    const resolved = path.normalize(path.join(path.dirname(file), target));
+    if (!fs.existsSync(resolved)) fail.push(`${file} has broken link ${target}`);
+  }
+}
+
+const guideDirectory = 'docs/user-guide';
+const guides = fs.readdirSync(guideDirectory).filter(file => file.endsWith('.md')).sort();
+if (!guides.length) fail.push('No current user guides are present.');
+for (const file of guides) {
+  const source = fs.readFileSync(path.join(guideDirectory, file), 'utf8');
+  for (const requiredText of ['Section:', 'Roles:', 'Permission:', 'Screen:', '## Overview', '## Procedure', '## What ServOS handles', '## Common mistakes and correction']) {
+    if (!source.includes(requiredText)) fail.push(`${file} is missing ${requiredText}`);
+  }
+  const permissionLine = source.split(/\r?\n/).find(line => line.startsWith('Permission: '))?.slice('Permission: '.length) || '';
+  for (const permission of permissionLine.split(',').map(value => value.trim()).filter(value => value && value !== 'none')) {
+    if (!knownPermissions.has(permission)) fail.push(`${file} references unknown permission ${permission}`);
+  }
+}
+
+const helpIndex = JSON.parse(fs.readFileSync('src/generated/help-index.json', 'utf8'));
+if (helpIndex.count !== guides.length) fail.push(`Help index count ${helpIndex.count} does not match ${guides.length} guides; run npm run help:build.`);
+const guideIds = new Set(guides.map(file => file.replace(/\.md$/i, '')));
+for (const article of helpIndex.articles || []) if (!guideIds.has(article.id)) fail.push(`Help index contains removed guide ${article.id}`);
+
+if (fail.length) {
+  console.error(fail.join('\n'));
+  process.exit(1);
+}
+console.log(`Documentation checks passed: ${required.length} current docs, ${guides.length} help guides, ${knownPermissions.size} canonical permissions.`);
