@@ -37,7 +37,7 @@ test('PostgreSQL API CSV importer stages, dry-runs and applies domain commands w
  const stockRows=Array.from({length:84},(_,index)=>`stock-${index+1},Stock item ${index+1},SKU-${String(index+1).padStart(3,'0')},each,0,`);
  const stockCsv=`external_id,name,code,base_unit,reorder_level,barcode\n${stockRows.join('\n')}\n`;
  const stagedStock=await stageImport(pool,actor,{id:stockBatchId,templateKey:'stockItems',fileName:'stock-items.csv',csvText:stockCsv});
- assert.equal(stagedStock.validCount,84);
+ assert.equal(stagedStock.batch.validCount,84);
  const stockPlan=await planImport({store,registry,actor,batchId:stockBatchId});
  assert.equal(stockPlan.plan.status,'READY');
  assert.deepEqual(stockPlan.plan.summary,{total:84,create:84,noChange:0,blocked:0,conflict:0,applied:0,failed:0});
@@ -49,7 +49,7 @@ test('PostgreSQL API CSV importer stages, dry-runs and applies domain commands w
 
  const productBatchId=randomUUID();
  const product=await stageImport(pool,actor,{id:productBatchId,templateKey:'products',fileName:'products.csv',csvText:'external_id,name,code,price\nproduct-standard,Orange Soda,OR-1,1.25\n'});
- assert.equal(product.validCount,1);
+ assert.equal(product.batch.validCount,1);
  const productPlan=await planImport({store,registry,actor,batchId:productBatchId});
  assert.equal(productPlan.plan.status,'READY','standard product import omits absent portion volume instead of sending null');
  assert.equal(productPlan.plan.summary.blocked,0);
