@@ -241,7 +241,8 @@ entries={}
 manifest_bytes=b''
 with zipfile.ZipFile(archive) as bundle:
  infos=bundle.infolist()
- names=[info.filename for info in infos]
+ names=[info.filename.replace('\\','/') for info in infos]
+ archive_names={normalized:info.filename for info,normalized in zip(infos,names)}
  if len(names)!=len(set(names)): raise SystemExit('PWA archive contains duplicate paths')
  manifest=json.loads(bundle.read(manifest_name))
  if manifest.get('releaseId')!=release: raise SystemExit('PWA release SHA mismatch')
@@ -252,7 +253,7 @@ with zipfile.ZipFile(archive) as bundle:
  actual_files=set()
  for info,name in zip(infos,names):
   rel=pathlib.PurePosixPath(name.rstrip('/'))
-  if rel.is_absolute() or '..' in rel.parts or '\\' in name or ':' in name: raise SystemExit('Unsafe PWA archive path')
+  if rel.is_absolute() or '..' in rel.parts or ':' in name: raise SystemExit('Unsafe PWA archive path')
   if stat.S_ISLNK(info.external_attr >> 16): raise SystemExit('PWA archive contains a symlink')
   if info.is_dir(): continue
   actual_files.add(name)
@@ -261,8 +262,8 @@ with zipfile.ZipFile(archive) as bundle:
  for name,entry in entries.items():
   rel=pathlib.PurePosixPath(name)
   if rel.is_absolute() or '..' in rel.parts or '\\' in name or ':' in name: raise SystemExit('Unsafe PWA manifest path')
-  info=bundle.getinfo(name)
-  data=bundle.read(name)
+  info=bundle.getinfo(archive_names[name])
+  data=bundle.read(archive_names[name])
   if len(data)!=entry.get('bytes') or hashlib.sha256(data).hexdigest()!=entry.get('sha256'): raise SystemExit('PWA asset hash mismatch: '+name)
  manifest_bytes=bundle.read(manifest_name)
 old=os.readlink(current) if current.is_symlink() else None
@@ -285,7 +286,7 @@ try:
   for name in entries:
    target=staging.joinpath(*pathlib.PurePosixPath(name).parts)
    target.parent.mkdir(mode=0o755,parents=True,exist_ok=True)
-   target.write_bytes(bundle.read(name))
+   target.write_bytes(bundle.read(archive_names[name]))
    os.chmod(target,0o644)
  (staging/manifest_name).write_bytes(manifest_bytes)
  os.chmod(staging/manifest_name,0o644)
