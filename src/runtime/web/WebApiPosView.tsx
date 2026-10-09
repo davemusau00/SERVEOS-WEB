@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
 import {WebDocumentQueue} from './WebDocumentQueue';
 import {WebApiPreparationPanel} from './WebApiPreparationPanel';
@@ -173,7 +174,7 @@ export function WebApiPosView({records,session,disabled,command,queue,deviceId,r
    const outcome=await command(operation,'orders',id,payload);
    if(isCommandConfirmed(outcome)){if(editor.kind==='CREATE')setOrderId(id);setEditor(null);setMessage('Order action confirmed.');}
    else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN'){setPending(true);setPendingCommandId(outcome.commandId);}setMessage('message' in outcome?outcome.message:'The original order action is saved. Recover its outcome in Activity before submitting again.');}
- }catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{inFlight.current=false;setBusy(false)}
+ }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
  const submitRoomCharge=async()=>{
   if(!order||!selectedRoomTarget||!roomChargeReady||!roomChargeConfirmed||disabled||busy||pending||inFlight.current||!canRoomCharge)return;
@@ -190,7 +191,7 @@ export function WebApiPosView({records,session,disabled,command,queue,deviceId,r
   if(disabled||busy||pending||!allowed(session,'pos.manage_table')||tableState(table)!=='CLEANING')return;
   setBusy(true);setMessage('');
   try{const outcome=await command('table.ready','tables',table.id,{tableId:table.id,expectedVersions:[baseline(table)]});setMessage(isCommandConfirmed(outcome)?`${String(table.data.label)} is ready for service.`:'message' in outcome?outcome.message:'Table status is waiting for outcome recovery. Review Activity before retrying.')}
-  catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{setBusy(false)}
+  catch(error){setMessage(operatorError(error))}finally{setBusy(false)}
  };
  const reviewedPortion=list(editor?.product?.data.portions).find(row=>row.id===portion);
  const reviewedBase=Number(reviewedPortion?.priceMinor??editor?.product?.data.priceMinor??0);

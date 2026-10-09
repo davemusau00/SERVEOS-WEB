@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React,{useEffect,useRef,useState} from 'react';
 import type {QueuedCommand} from './BusinessStore';
 import {allowed,type BusinessRecord,type WebSession} from './session';
@@ -32,7 +33,7 @@ export function WebApiTillPanel({records,session,deviceId,outletId,disabled,comm
    const outcome=await command(operation,'tillSessions',editor.id,payload);
    if(isCommandConfirmed(outcome)){setEditor(null);setMessage('Till action confirmed.');}
    else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'The original till action is saved. Recover its outcome in Activity before another action.');}
-  }catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{inFlight.current=false;setBusy(false)}
+  }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
  const button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40',field='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2';
  return <section className="space-y-3 rounded-xl border border-slate-700 p-3">

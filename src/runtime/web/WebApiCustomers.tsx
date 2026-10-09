@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React,{useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import type {QueuedCommand} from './BusinessStore';
@@ -19,7 +20,7 @@ export function WebApiCustomers({records,queue,session,disabled,command}:{record
    const outcome=await command('customer.save','customers',editor.id,{id:editor.id,data:editor.values,reason:reason.trim(),expectedVersions:[{collection:'customers',id:editor.id,version:editor.version}]});
    if(outcome.kind==='CONFIRMED'){setEditor(null);setMessage('Customer saved and confirmed.');}
    else setMessage('message' in outcome?outcome.message:'Recover the original customer command in Activity before trying again.');
-  }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false);}
+  }catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false);}
  };
  const customers=records.filter(row=>row.collection==='customers'&&`${row.data.name} ${row.data.phone||''} ${row.data.email||''}`.toLowerCase().includes(search.toLowerCase()));
  const blocked=disabled||busy||unresolved;

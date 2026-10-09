@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React,{useRef,useState} from 'react';
 import type {BusinessRecord} from './session';
 import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
@@ -18,7 +19,7 @@ export function WebOutletSettings({records,disabled,command}:{records:BusinessRe
    const outcome=await command('outlet.save','outlets',editor.id,{id:editor.id,data:{name:name.trim(),defaultStockLocationId:location,archived},reason:reason.trim(),expectedVersions:[{collection:'outlets',id:editor.id,version:editor.version},{collection:'stockLocations',id:location,version:storage.version}]});
    if(isCommandConfirmed(outcome)){setEditor(null);setMessage('Outlet saved and confirmed.');}
    else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPending(true);setMessage('message' in outcome?outcome.message:'The original outlet action is saved. Recover its outcome in Activity before submitting another change.');}
-  }catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{inFlight.current=false;setBusy(false)}
+  }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
  const field='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2';
  const button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';

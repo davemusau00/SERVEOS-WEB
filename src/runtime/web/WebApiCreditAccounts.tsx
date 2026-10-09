@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React,{useEffect,useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import type {QueuedCommand} from './BusinessStore';
@@ -35,7 +36,7 @@ export function WebApiCreditAccounts({records,queue,session,disabled,command,cli
   const outcome=await command('customerCredit.configure','customerCreditAccounts',form.customerId,{id:form.customerId,customerId:form.customerId,limitMinor,termsDays,status:form.status,notes:form.notes,reason:reason.trim(),expectedVersions:[{collection:'customerCreditAccounts',id:form.customerId,version:form.version}]});
   if(outcome.kind==='CONFIRMED'){setForm(null);setMessage('Credit account terms saved and confirmed.');}
   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'Recover the original account change in Activity before retrying.');}
- }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false)}};
+ }catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false)}};
  const writeOff=async(event:React.FormEvent)=>{event.preventDefault();if(!writeOffCustomer||blocked||inFlight.current||!allowed(session,'credit.write_off')&&!writeOffApprovalToken.trim())return;inFlight.current=true;setBusy(true);setMessage('');try{
   const account=accounts.find(row=>row.id===writeOffCustomer);if(!account)throw new Error('Refresh the customer account before writing off receivables.');
   const amountMinor=parseMoneyToMinor(writeOffAmount);if(amountMinor<=0||amountMinor>Number(account.data.balanceMinor))throw new Error('Enter a positive amount no greater than the current outstanding balance.');
@@ -44,7 +45,7 @@ export function WebApiCreditAccounts({records,queue,session,disabled,command,cli
   const outcome=await command('credit.writeOff','customerCreditEntries',payload.id,payload);
   if(outcome.kind==='CONFIRMED'){setWriteOffCustomer('');if(statementCustomer===writeOffCustomer)void loadStatement(writeOffCustomer);setMessage('Receivable write-off and notice recorded. No cash was paid.');}
   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'Recover the original write-off command in Activity before retrying.');}
- }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false)}};
+ }catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false)}};
  const reverse=async(event:React.FormEvent)=>{event.preventDefault();if(!reverseEntryId||blocked||inFlight.current||!allowed(session,'credit.write_off')&&!reverseApprovalToken.trim())return;inFlight.current=true;setBusy(true);setMessage('');try{
   const source=records.find(row=>row.collection==='customerCreditEntries'&&row.id===reverseEntryId),account=source&&accounts.find(row=>row.id===source.data.customerId);if(!source||!account)throw new Error('Refresh the customer statement and account before reversing this entry.');
   if(reverseReason.trim().length<3)throw new Error('Enter a reversal reason of at least 3 characters.');
@@ -65,7 +66,7 @@ export function WebApiCreditAccounts({records,queue,session,disabled,command,cli
   const outcome=await command('credit.reverse','customerCreditEntries',String(payload.id),payload);
   if(outcome.kind==='CONFIRMED'){setReverseEntryId('');if(statementCustomer===String(source.data.customerId))void loadStatement(statementCustomer);setMessage('Credit entry reversal and immutable notice recorded. Verify any external refund delivery independently.');}
   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'Recover the original reversal command in Activity before retrying.');}
- }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false)}};
+ }catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false)}};
  const settle=async(event:React.FormEvent)=>{event.preventDefault();if(!settlementCustomer||blocked||inFlight.current||!allowed(session,'credit.settle'))return;inFlight.current=true;setBusy(true);setMessage('');try{
   const account=accounts.find(row=>row.id===settlementCustomer),tender=paymentAccounts.find(row=>row.id===settlementAccount);if(!account||!tender)throw new Error('Refresh and choose the current customer account and payment account.');
   const amountMinor=parseMoneyToMinor(settlementAmount);if(amountMinor<=0||amountMinor>Number(account.data.balanceMinor))throw new Error('Enter a positive amount no greater than the current customer balance.');
@@ -86,7 +87,7 @@ export function WebApiCreditAccounts({records,queue,session,disabled,command,cli
   const outcome=await command('credit.settle','customerCreditEntries',String(payload.id),payload);
   if(outcome.kind==='CONFIRMED'){setSettlementCustomer('');if(statementCustomer===settlementCustomer)void loadStatement(settlementCustomer);setMessage('Customer settlement recorded. Payment acknowledgement is available in the document queue. The transfer itself was not initiated by ServOS.');}
   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'Recover the original settlement command in Activity before retrying.');}
- }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false)}};
+ }catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false)}};
  const reconcileStatement=async(event:React.FormEvent)=>{event.preventDefault();if(!reconcileCustomer||!reconcileId||blocked||inFlight.current||!allowed(session,'credit.reconcile'))return;inFlight.current=true;setBusy(true);setMessage('');try{
   const account=accounts.find(row=>row.id===reconcileCustomer);if(!account)throw new Error('Refresh the customer account before reconciling its statement.');
   const amountMinor=parseMoneyToMinor(statementBalance);if(amountMinor<0)throw new Error('Statement balance cannot be negative.');if(!statementReference.trim())throw new Error('Enter the statement or review reference.');if(reconcileNotes.trim().length<3)throw new Error('Enter reconciliation notes of at least 3 characters.');
@@ -94,13 +95,13 @@ export function WebApiCreditAccounts({records,queue,session,disabled,command,cli
   const outcome=await command('credit.reconcile','customerCreditReconciliations',reconcileId,{id:reconcileId,customerId:account.id,statementBalanceMinor:amountMinor,statementReference:statementReference.trim(),notes:reconcileNotes.trim(),expectedVersions});
   if(outcome.kind==='CONFIRMED'){setReconcileCustomer('');setMessage('Statement comparison recorded. Any variance is an exception; the customer ledger was not changed.');}
   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'Recover the original reconciliation command in Activity before submitting another.');}
- }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false)}};
+ }catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false)}};
  const resolveCreditDiscrepancy=async(event:React.FormEvent)=>{event.preventDefault();if(!resolveDiscrepancy||blocked||inFlight.current||!allowed(session,'credit.reconcile'))return;inFlight.current=true;setBusy(true);setMessage('');try{
   const discrepancy=discrepancies.find(row=>row.id===resolveDiscrepancy);if(!discrepancy||discrepancy.data.status!=='OPEN')throw new Error('Refresh the open discrepancy before resolving it.');if(resolutionNote.trim().length<3)throw new Error('Enter a resolution note of at least 3 characters.');
   const outcome=await command('credit.discrepancy.resolve','customerCreditDiscrepancies',discrepancy.id,{id:discrepancy.id,discrepancyId:discrepancy.id,outcome:resolutionOutcome,resolution:resolutionNote.trim(),expectedVersions:[{collection:'customerCreditDiscrepancies',id:discrepancy.id,version:discrepancy.version}]});
   if(outcome.kind==='CONFIRMED'){setResolveDiscrepancy('');setResolutionNote('');setMessage('Discrepancy resolution evidence recorded. No ledger amount was changed.');}
   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'Recover the original discrepancy-resolution command in Activity before retrying.');}
- }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{inFlight.current=false;setBusy(false)}};
+ }catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false)}};
  return <section className="space-y-4" aria-label="API customer credit accounts">
   <h2 className="text-xl font-bold">Customer credit accounts</h2>
   <p className="text-sm text-slate-400">Configure named-account limits, review statements and record manually confirmed customer settlements. ServOS does not initiate bank, card or M-Pesa transfers.</p>

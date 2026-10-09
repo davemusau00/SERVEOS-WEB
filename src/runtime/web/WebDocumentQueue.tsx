@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
 import {readBridgePreference} from './printBridgePreferences';
 import {submitDocumentToBridge} from './printBridgeSubmission';
@@ -63,7 +64,7 @@ export function WebDocumentQueue({records,actorId,deviceId,disabled,command,read
    }else if(action==='confirm')await send(job,'confirm',{operatorConfirmedPrinted:confirmed});
    else if(action==='retry')await send(job,'retry',{possibleDuplicateAcknowledged:duplicate});
    else await send(job,'cancel');
-  }catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{inFlight.current=false;setBusy(false)}
+  }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
  const state=String(job?.data.state||'');
  const uncertain=['SENDING','SENT_TO_SPOOLER','DELIVERY_UNCERTAIN'].includes(state);

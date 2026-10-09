@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React,{useEffect,useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import type {QueuedCommand} from './BusinessStore';
@@ -37,7 +38,7 @@ export function WebApiRefundsView({records,session,deviceId,disabled,command,que
    const outcome=await command(operation,'payments',review.payment.id,{paymentId:review.payment.id,tillSessionId:review.till.id,...(reverse?{}:{amountMinor}),reason:reason.trim(),operatorConfirmedReturned:true,...(!cash?{externalReference:reference.trim(),manuallyConfirmed:true}:{}),expectedVersions:[version(review.payment),version(review.order),version(review.till)]});
    if(isCommandConfirmed(outcome)){setReview(null);setMessage('Return confirmed. Its issued document and printing are in Activity.');}
    else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'The original return is saved. Recover its outcome in Activity before recording another return.');}
-  }catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{inFlight.current=false;setBusy(false)}
+  }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
  const field='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2',button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
  return <section className="space-y-4">

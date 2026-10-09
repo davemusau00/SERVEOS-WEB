@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React,{useState} from 'react';
 import type {BusinessRecord} from './session';
 import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
@@ -37,7 +38,7 @@ export function WebInventoryReceiptDialog({records,businessId,policyEditor=false
    }
    if(isCommandConfirmed(outcome))onClose();
    else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPending(true);setError('message' in outcome?outcome.message:'Check Activity for the saved command outcome before submitting another receipt.');}
-  }catch(cause){setError(cause instanceof Error?cause.message:String(cause))}finally{setBusy(false)}
+  }catch(cause){setError(operatorError(cause))}finally{setBusy(false)}
  };
  return <form onSubmit={event=>void submit(event)} className="space-y-3">
   {policyEditor?<>

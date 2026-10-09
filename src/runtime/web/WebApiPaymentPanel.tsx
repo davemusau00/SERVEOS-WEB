@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React,{useEffect,useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import type {QueuedCommand} from './BusinessStore';
@@ -53,7 +54,7 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
    const outcome=await command(operation,'orders',review.order.id,{orderId:review.order.id,tillSessionId:review.till.id,...(payments.length===1?payments[0]:{payments}),expectedVersions:[version(review.order),version(review.till),...Array.from(used.values(),version)]});
    if(isCommandConfirmed(outcome)){setReview(null);setTenders([]);setMessage('Payment confirmed. Issued documents and printing are in Activity.');}
    else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'The original payment is saved. Recover its outcome in Activity before recording another payment.');}
-  }catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{inFlight.current=false;setBusy(false)}
+  }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
  if(!order||!allowed(session,'payment.record')&&!allowed(session,'payment.split'))return null;
  const field='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2',button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';

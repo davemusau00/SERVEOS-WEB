@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React, { useMemo, useState } from 'react';
 import { Dialog } from '../../design-system/controls';
 import { parseQuantity } from '../../utils/fiscal';
@@ -105,7 +106,7 @@ export function WebPhysicalCountDialog({ records, scope, locationId, command, on
       if (['PENDING', 'OUTCOME_UNKNOWN', 'CONFLICT'].includes(outcome.kind)) setSubmitted(true);
       setError(message);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(operatorError(cause));
     } finally {
       setBusy(false);
     }

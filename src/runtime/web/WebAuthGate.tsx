@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import { FormEvent, lazy, Suspense, useEffect, useState } from 'react';
 import { ApiHttpError } from './apiClient';
 import {
@@ -48,7 +49,7 @@ export function WebAuthGate() {
         setStore(opened);
         setError('');
       } catch (cause) {
-        if (active) setError(`Your saved ServOS session could not be restored. Sign in again. ${String(cause)}`);
+        if (active) setError(`Your saved ServOS session could not be restored. Sign in again. ${operatorError(cause)}`);
       } finally {
         if (active) {
           setResumePending(false);
@@ -121,7 +122,7 @@ export function WebAuthGate() {
         throw cause;
       }
     } catch (cause) {
-      setError(cause instanceof ApiHttpError ? cause.message : String(cause));
+      setError(operatorError(cause));
     } finally {
       setBusy(false);
       setResumePending(false);

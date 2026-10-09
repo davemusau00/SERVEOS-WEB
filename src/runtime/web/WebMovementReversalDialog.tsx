@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React,{useState} from 'react';
 import type {BusinessRecord} from './session';
 import type {CommandOutcome} from '../../types/transactions';
@@ -25,7 +26,7 @@ export function WebMovementReversalDialog({records,movement,command,onClose}:{
    const outcome=await command('inventory.reverseMovement','movementCorrections',movement.id,{movementId:movement.id,reason:reason.trim(),...inventoryRevisions(reviewed,stocks,locations)});
    if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPending(true);
    if(isCommandConfirmed(outcome))onClose();else setError('message' in outcome?outcome.message:'The reversal is saved for outcome checking. Synchronize the original command before starting another correction.');
-  }catch(cause){setError(cause instanceof Error?cause.message:String(cause))}finally{setBusy(false)}
+  }catch(cause){setError(operatorError(cause))}finally{setBusy(false)}
  };
  return <form onSubmit={event=>void submit(event)} className="space-y-4">
   <p className="text-sm text-slate-300">Reverse a recording mistake only when the physical movement did not happen. Both sides of a transfer restore together. The original history is retained.</p>

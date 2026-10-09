@@ -1,3 +1,4 @@
+import {operatorError} from './operatorError';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
 import type {BusinessStore,QueuedCommand} from './BusinessStore';
@@ -107,7 +108,7 @@ export function WebApiOfflinePosPanel({records,session,deviceId,disabled,command
    }else if(outcome.kind==='DRAFT_SAVED'){
     setGrantReady(false);setMessage('The device could not authorize this offline command. The form was saved as a draft; do not hand over cash or goods until connected.');
    }else if('message' in outcome)setMessage(outcome.message);
-  }catch(error){setMessage(error instanceof Error?error.message:String(error))}finally{setBusy(false)}
+  }catch(error){setMessage(operatorError(error))}finally{setBusy(false)}
  };
  const canUse=hasSalePermission(session);
  if(!canUse)return null;
