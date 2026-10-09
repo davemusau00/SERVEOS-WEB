@@ -1,2 +1,0 @@
-external_id,code,name,category,barcode,selling_price,taxable,route_to,outlet_external_ids,stock_item_external_id,active
-product-001,COKE300,Coca-Cola 300ml,Soft Drinks,616110000001,120.00,true,BAR,outlet-main,stock-coke300,true
