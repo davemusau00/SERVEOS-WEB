@@ -95,7 +95,6 @@ export function WebCatalogView({records,session,disabled,command,closeWhenQueued
 }
 
 export function WebInventoryView({records,session,disabled,command}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:CommandFn}){
-local count session helpers
  const stocks=active(records,'stockItems');const products=active(records,'products');const locations=active(records,'stockLocations');const movements=active(records,'stockMovements').slice().sort((a,b)=>String(data(b)?.occurredAt||'').localeCompare(String(data(a)?.occurredAt||'')));
   const [search,setSearch]=useState('');const [state,setState]=useState('ALL');const [location,setLocation]=useState('ALL');const [selectedId,setSelectedId]=useState(stocks[0]?.id||'');
   const [receiptDialog,setReceiptDialog]=useState<'RECEIVE'|'POLICY'|null>(null);
