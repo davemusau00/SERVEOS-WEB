@@ -1,25 +1,11 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 
 const readJson=file=>JSON.parse(readFileSync(file,'utf8'));
-const quoted=value=>JSON.stringify(value);
-const sqlQuoted=value=>`'${value.replaceAll("'","''")}'`;
 const renderTs=(permissions,roles)=>`/** GENERATED FROM contracts/permissions.json and contracts/roles.json. DO NOT EDIT. */
 export const PERMISSION_CONTRACT_VERSION = ${permissions.contractVersion} as const;
 export const CANONICAL_PERMISSIONS = Object.freeze(${JSON.stringify(permissions.permissions, null, 2)}) as readonly string[];
 export const ROLE_PERMISSION_MODES = Object.freeze(${JSON.stringify(Object.fromEntries(Object.entries(roles.roles).map(([name,definition])=>[name,{mode:definition.mode,permissions:definition.permissions||[]} ])), null, 2)});
 export const IMPLICIT_PERMISSIONS = Object.freeze(${JSON.stringify(roles.implicitPermissions, null, 2)}) as readonly string[];
-`;
-const renderRust=(permissions,roles)=>`// GENERATED FROM contracts/permissions.json and contracts/roles.json. DO NOT EDIT.
-pub const PERMISSION_CONTRACT_VERSION: u32 = ${permissions.contractVersion};
-pub const CANONICAL_PERMISSIONS: &[&str] = &[${permissions.permissions.map(quoted).join(',')}];
-pub const CONTRACT_ROLES: &[&str] = &[${Object.keys(roles.roles).map(quoted).join(',')}];
-pub const IMPLICIT_PERMISSIONS: &[&str] = &[${roles.implicitPermissions.map(quoted).join(',')}];
-`;
-const renderSql=permissions=>`-- GENERATED FROM contracts/permissions.json. DO NOT EDIT.
-create or replace function servos_v2.generated_contract_permissions()
-returns jsonb language sql immutable set search_path='' as $$
- select jsonb_build_object('contractVersion',${permissions.contractVersion},'permissionCount',${permissions.permissions.length});
-$$;
 `;
 const permissions=readJson('contracts/permissions.json');
 const roles=readJson('contracts/roles.json');
@@ -40,9 +26,7 @@ const missing=manifestOperations.filter(operation=>!contractSet.has(operation));
 const extra=operations.operations.filter(operation=>!manifestSet.has(operation));
 if(missing.length||extra.length)throw new Error(`Operation contract drift: missing=${missing.join(',')} extra=${extra.join(',')}`);
 const generated=[
-  ['src/generated/permission-contract.ts',renderTs(permissions,roles)],
-  ['src-tauri/src/generated_permissions.rs',renderRust(permissions,roles)],
-  ['supabase/generated/permission_contract.sql',renderSql(permissions)]
+  ['src/generated/permission-contract.ts',renderTs(permissions,roles)]
 ];
 for(const [file,expected] of generated){
   if(process.argv.includes('--write')){writeFileSync(file,expected);continue}

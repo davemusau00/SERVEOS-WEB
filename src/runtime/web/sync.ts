@@ -2,9 +2,9 @@ import type {BusinessCommandV2,ChangePage,TransactionResult} from '../../types/t
 import {BusinessStore} from './BusinessStore';
 import {ApiHttpError,ApiOutcomeUnknown,createServOSApiClient,type ApiCommandOutcome} from './apiClient';
 
-export interface CloudTransport {execute(command:BusinessCommandV2):Promise<TransactionResult>;pull(cursor:number):Promise<ChangePage>}
+export interface ApiTransport {execute(command:BusinessCommandV2):Promise<TransactionResult>;pull(cursor:number):Promise<ChangePage>}
 
-export function createApiCloudTransport(client:ReturnType<typeof createServOSApiClient>):CloudTransport{
+export function createApiCloudTransport(client:ReturnType<typeof createServOSApiClient>):ApiTransport{
  return {
   async execute(command){
    let outcome:ApiCommandOutcome|undefined;
@@ -38,18 +38,18 @@ export function createApiCloudTransport(client:ReturnType<typeof createServOSApi
 /** Backward-compatible name while API-authority callers migrate onto the shared CloudTransport contract. */
 export const createApiTransport=createApiCloudTransport;
 export type SyncUpdate={type:'SYNC_STARTED'|'SYNC_FINISHED'|'SYNC_FAILED';at:string};
-const syncChannel=(scope:string,deviceId:string,actorId:string)=>`servos-v2-sync:${scope}:${deviceId}:${actorId}:updates`;
-export function subscribeSyncUpdates(scope:string,deviceId:string,actorId:string,onUpdate:(update:SyncUpdate)=>void,authority:BusinessStore['commandAuthority']='SUPABASE'){
+const syncChannel=(scope:string,deviceId:string,actorId:string)=>`servos-web-sync:${scope}:${deviceId}:${actorId}`;
+export function subscribeSyncUpdates(scope:string,deviceId:string,actorId:string,onUpdate:(update:SyncUpdate)=>void){
  if(typeof BroadcastChannel==='undefined')return()=>{};
- const channel=new BroadcastChannel(`${syncChannel(scope,deviceId,actorId)}:${authority}`);channel.onmessage=event=>{if(event.data&&['SYNC_STARTED','SYNC_FINISHED','SYNC_FAILED'].includes(event.data.type))onUpdate(event.data as SyncUpdate)};
+ const channel=new BroadcastChannel(`${syncChannel(scope,deviceId,actorId)}:updates`);channel.onmessage=event=>{if(event.data&&['SYNC_STARTED','SYNC_FINISHED','SYNC_FAILED'].includes(event.data.type))onUpdate(event.data as SyncUpdate)};
  return()=>channel.close();
 }
-export async function synchronizeStore(store:BusinessStore,transport:CloudTransport):Promise<void>{
+export async function synchronizeStore(store:BusinessStore,transport:ApiTransport):Promise<void>{
   if(!navigator.locks)throw new Error('This browser cannot safely coordinate device synchronization');
-  const channel=typeof BroadcastChannel==='undefined'?undefined:new BroadcastChannel(`${syncChannel(store.scope,store.deviceId,store.actorId)}:${store.commandAuthority}`);
+  const channel=typeof BroadcastChannel==='undefined'?undefined:new BroadcastChannel(`${syncChannel(store.scope,store.deviceId,store.actorId)}:updates`);
   const publish=(type:SyncUpdate['type'])=>channel?.postMessage({type,at:new Date().toISOString()});
   try{
-   await navigator.locks.request(`servos-v2-sync:${store.scope}:${store.deviceId}:${store.actorId}:${store.commandAuthority}`,async()=>{
+   await navigator.locks.request(`${syncChannel(store.scope,store.deviceId,store.actorId)}:lock`,async()=>{
     publish('SYNC_STARTED');
     const pending=(await store.queue()).filter(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN');
     for(const row of pending){
@@ -66,17 +66,6 @@ export async function synchronizeStore(store:BusinessStore,transport:CloudTransp
     throw new Error('Change feed exceeded the per-cycle page limit');
    });
   }catch(error){publish('SYNC_FAILED');throw error}finally{channel?.close()}
-}
-
-export function createCloudTransport(url:string,publishableKey:string,accessToken:()=>Promise<string>):CloudTransport{
-  const endpoint=new URL(url);if(endpoint.protocol!=='https:'&&endpoint.hostname!=='localhost'&&endpoint.hostname!=='127.0.0.1')throw new Error('Cloud endpoint requires HTTPS');
-  const rpc=async<T>(name:string,payload:Record<string,unknown>):Promise<T>=>{
-    const token=await accessToken();if(!token)throw new Error('Online sign-in required');
-    const response=await fetch(`${url.replace(/\/$/,'')}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:publishableKey,Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
-    if(!response.ok)throw new Error(`Cloud request failed (${response.status}); queued command retained`);
-    return response.json() as Promise<T>;
-  };
-  return {execute:command=>rpc('servos_v2_execute',{command}),pull:cursor=>rpc('servos_v2_pull',{after_sequence:cursor,page_size:100})};
 }
 
 export function startAutomaticSync(run:()=>Promise<void>,onError:(error:unknown)=>void){

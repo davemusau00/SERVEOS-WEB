@@ -78,7 +78,7 @@ export async function resumeApiDeviceSession(input:{apiOrigin:string;fetcher?:ty
 
 /** Open isolated API-authority IndexedDB and install its verified catalog projection. */
 export async function openApiBusinessStore(session:ApiAuthenticatedDeviceSession){
-  const store=await BusinessStore.open(session.profile.businessId,session.identity.deviceId,session.profile.staffId,0,'API');
+  const store=await BusinessStore.open(session.profile.businessId,session.identity.deviceId,session.profile.staffId,0);
   try{
     const policyVersion=await apiAuthorizationPolicyVersion(session.profile.permissions);
     // Recover durable commands before installing a replacement projection.

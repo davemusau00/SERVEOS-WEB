@@ -1,7 +1,6 @@
 import { BusinessStore } from './BusinessStore';
 import type {BootstrapManifest} from './BusinessStore';
 import type { RecordVersion } from '../../types/transactions';
-import {getOrCreateWebDeviceIdentity} from './deviceIdentity';
 import {ApiHttpError,createServOSApiClient} from './apiClient';
 
 export type WebLifecycleStage='INTAKE'|'SETUP'|'READY_FOR_GO_LIVE'|'LIVE';
@@ -14,42 +13,12 @@ export interface WebSession {
 }
 export interface WebGuidanceProgress {guideId:string;guideVersion:number;state:'IN_PROGRESS'|'COMPLETED'|'DISMISSED';currentStepId:string|null;completedStepIds:string[];updatedAt?:string}
 export type BusinessRecord=RecordVersion & {data:Record<string,unknown>;archived:boolean};
-export type Rpc=(path:string,body?:unknown)=>Promise<any>;
 const stableSnapshotJson=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(stableSnapshotJson).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${stableSnapshotJson((value as Record<string,unknown>)[key])}`).join(',')}}`;
 export async function apiAuthorizationPolicyVersion(permissions:string[]):Promise<string>{
  const normalized=[...new Set(permissions)].sort(),bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(stableSnapshotJson(normalized)));
  const hash=Array.from(new Uint8Array(bytes),byte=>byte.toString(16).padStart(2,'0')).join('');return `api-catalog-v3:${hash}`;
 }
-interface SnapshotPage {cursor:number;policyVersion:string;records:BusinessRecord[];hasMore:boolean;afterCollection:string;afterId:string}
 export const allowed=(session:WebSession,permission:string)=>session.permissions.includes('*')||session.permissions.includes(permission);
-
-export async function openWebDevice(session:WebSession,rpc:Rpc){
-  const storageKey=`servos-device:${session.businessId}:${session.actorId}`;
-  const identity=await getOrCreateWebDeviceIdentity(session.businessId,localStorage.getItem(storageKey)||undefined);
-  const id=identity.deviceId;
-  localStorage.removeItem(storageKey);
-  const device=await rpc('rpc/servos_v2_register_device',{device_id:id,label:'Browser workstation',kind:'WEB'}) as {id:string;lastSequence:number};
-  if(device.id!==id)throw new Error('The server returned a different device identity');
-  const store=await BusinessStore.open(session.businessId,id,session.actorId,device.lastSequence);
-  void navigator.storage?.persist?.().catch(()=>false);
-  return store;
-}
-
-export async function loadAuthorizedSnapshot(store:BusinessStore,rpc:Rpc,session:WebSession){
-  for(let attempt=0;attempt<3;attempt++){
-    try{
-      let cursor:number|undefined;let afterCollection='';let afterId='';const records:BusinessRecord[]=[];
-      do{
-        const page:SnapshotPage=await rpc('rpc/servos_v2_snapshot',{after_collection:afterCollection,after_id:afterId,expected_cursor:cursor??null,expected_policy:session.policyVersion,page_size:500});
-        if(page.policyVersion!==session.policyVersion||(cursor!==undefined&&cursor!==page.cursor))throw new Error('SNAPSHOT_CHANGED');
-        records.push(...page.records);cursor=page.cursor;
-        if(!page.hasMore){await store.replaceSnapshot(records,cursor,session.policyVersion);return}
-        if(page.afterCollection===afterCollection&&page.afterId===afterId)throw new Error('Snapshot pagination made no progress');
-        afterCollection=page.afterCollection;afterId=page.afterId;
-      }while(true);
-    }catch(error){if(!String(error).includes('SNAPSHOT_CHANGED')||attempt===2)throw error}
-  }
-}
 
 /** Stage and atomically install a verified, paged API projection into the PWA IndexedDB store. */
 export async function loadApiCatalogSnapshot(store:BusinessStore,client:ReturnType<typeof createServOSApiClient>,policyVersion='api-catalog-v3'){

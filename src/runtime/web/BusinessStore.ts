@@ -13,8 +13,52 @@ export interface LocalPrintJob {id:string;documentId:string;printerRole:string;c
 export interface OfflineGrantEnvelope {grantId:string;businessId:string;deviceId:string;staffId:string;issuedAt:string;expiresAt:string;policyVersion:number;allowedCommands:string[];maxCommands:number;usedCommands?:number;keyVersion:string;signature:string;scope?:Record<string,unknown>}
 export interface BootstrapManifest {protocolVersion:2;snapshotId:string;expiresAt:string;schemaVersion:2;highWaterCursor:number;recordCount:number;collectionCounts:Record<string,number>;pageSize:number;pageCount:number;pageHashes:string[];sha256:string}
 export interface BootstrapStageState {snapshotId:string;expiresAt:string;policyVersion:string;manifest:BootstrapManifest;nextOrdinal:number;collectionCounts:Record<string,number>}
-export type CommandAuthority='SUPABASE'|'API';
 const request=<T>(value:IDBRequest<T>)=>new Promise<T>((resolve,reject)=>{value.onsuccess=()=>resolve(value.result);value.onerror=()=>reject(value.error||new Error('Storage request failed'))});
+const readDatabaseIfPresent=(name:string)=>new Promise<IDBDatabase|undefined>((resolve,reject)=>{
+  const opening=indexedDB.open(name);let absent=false;
+  opening.onupgradeneeded=event=>{if((event as IDBVersionChangeEvent).oldVersion===0){absent=true;opening.transaction?.abort()}};
+  opening.onsuccess=()=>{if(absent){opening.result.close();resolve(undefined)}else resolve(opening.result)};
+  opening.onerror=()=>absent?resolve(undefined):reject(opening.error||new Error('Legacy browser storage could not be opened'));
+  opening.onblocked=()=>reject(new Error('A ServOS tab is blocking browser storage migration. Finish its work, close other ServOS tabs, and reopen this workspace. Do not clear browser data.'));
+});
+const addWithoutReplacing=(store:IDBObjectStore,value:unknown)=>new Promise<void>((resolve,reject)=>{
+  const adding=store.add(value);
+  adding.onsuccess=()=>resolve();
+  adding.onerror=event=>{
+    if(adding.error?.name==='ConstraintError'){event.preventDefault();resolve();return}
+    reject(adding.error||new Error('Browser storage migration failed'));
+  };
+});
+const migrateLegacyDatabase=async(target:IDBDatabase,name:string,archiveOnly:boolean)=>{
+  const source=await readDatabaseIfPresent(name);if(!source)return;
+  try{
+    const rows:Array<{store:string;key:IDBValidKey;value:unknown}>=[];
+    for(const storeName of Array.from(source.objectStoreNames)){
+      const tx=source.transaction(storeName,'readonly'),objectStore=tx.objectStore(storeName);
+      const [keys,values]=await Promise.all([request(objectStore.getAllKeys()),request(objectStore.getAll())]);
+      for(let index=0;index<values.length;index++)rows.push({store:storeName,key:keys[index],value:values[index]});
+    }
+    const destinations=archiveOnly?['legacyRecovery']:rows.map(row=>row.store).filter(storeName=>target.objectStoreNames.contains(storeName));
+    if(destinations.length){
+      const tx=target.transaction([...new Set(destinations)],'readwrite');
+      const complete=new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||new Error('Browser storage migration was interrupted'));tx.onerror=()=>{/* onabort owns transaction rejection */}});
+      void complete.catch(()=>undefined);
+      for(const row of rows){
+        if(archiveOnly){
+          await addWithoutReplacing(tx.objectStore('legacyRecovery'),{id:`${name}:${row.store}:${JSON.stringify(row.key)}`,source:name,store:row.store,key:row.key,value:row.value,archivedAt:new Date().toISOString()});
+        }else if(target.objectStoreNames.contains(row.store))await addWithoutReplacing(tx.objectStore(row.store),row.value);
+      }
+      await complete;
+    }
+  }catch(error){source.close();throw error}
+  source.close();
+  await new Promise<void>((resolve,reject)=>{
+    const deleting=indexedDB.deleteDatabase(name);
+    deleting.onsuccess=()=>resolve();
+    deleting.onerror=()=>reject(deleting.error||new Error('Legacy browser storage could not be retired'));
+    deleting.onblocked=()=>reject(new Error('Another ServOS tab is still using legacy browser storage. Close it, then reopen this workspace. No local business data was discarded.'));
+  });
+};
 const stableJson=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(stableJson).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${stableJson((value as Record<string,unknown>)[key])}`).join(',')}}`;
 const sensitiveKey=/password|secret|token|credential|pin/i;
 const safeDraftText=(value:string)=>value.replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi,'Bearer [redacted]').replace(/\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,'[redacted token]');
@@ -23,11 +67,11 @@ export const redactSensitiveData=(value:unknown):unknown=>Array.isArray(value)?v
 /** Staged v2 store. Enqueuing master edits does not claim an offline sale commit. */
 export class BusinessStore {
   private closed=false;
-  private constructor(private db:IDBDatabase,readonly scope:string,readonly deviceId:string,readonly actorId:string,readonly commandAuthority:CommandAuthority){}
-  static async open(scope:string,deviceId:string,actorId:string,serverSequence=0,commandAuthority:CommandAuthority='SUPABASE'):Promise<BusinessStore>{
+  private constructor(private db:IDBDatabase,readonly scope:string,readonly deviceId:string,readonly actorId:string){}
+  static async open(scope:string,deviceId:string,actorId:string,serverSequence=0):Promise<BusinessStore>{
     if(!scope||!deviceId||!actorId||!Number.isSafeInteger(serverSequence)||serverSequence<0)throw new Error('Valid business, device, actor and sequence are required');
-    const databaseName=commandAuthority==='API'?`servos-api-v1:${scope}:${deviceId}:${actorId}`:`servos-v2:${scope}:${deviceId}:${actorId}`;
-    const opening=indexedDB.open(databaseName,5);
+    const databaseName=`servos-web-v1:${scope}:${deviceId}:${actorId}`;
+    const opening=indexedDB.open(databaseName,6);
     opening.onupgradeneeded=()=>{
       const db=opening.result;
       if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta');
@@ -39,6 +83,7 @@ export class BusinessStore {
       if(!db.objectStoreNames.contains('printJobs')){const jobs=db.createObjectStore('printJobs',{keyPath:'id'});jobs.createIndex('state','state',{unique:false});jobs.createIndex('createdAt','createdAt',{unique:false});}
       if(!db.objectStoreNames.contains('printEvents')){const events=db.createObjectStore('printEvents',{keyPath:'id'});events.createIndex('jobId','jobId',{unique:false});}
       if(!db.objectStoreNames.contains('bootstrapStage')){const stage=db.createObjectStore('bootstrapStage',{keyPath:['snapshotId','ordinal']});stage.createIndex('snapshotIdentity',['snapshotId','record.collection','record.id'],{unique:true});}
+      if(!db.objectStoreNames.contains('legacyRecovery'))db.createObjectStore('legacyRecovery',{keyPath:'id'});
     };
     const db=await new Promise<IDBDatabase>((resolve,reject)=>{
       let abandoned=false;
@@ -46,8 +91,11 @@ export class BusinessStore {
       opening.onerror=()=>reject(opening.error||new Error('Browser storage could not be opened'));
       opening.onsuccess=()=>{if(abandoned){opening.result.close();return}resolve(opening.result)};
     });
-    if(!['SUPABASE','API'].includes(commandAuthority)){db.close();throw new Error('Unsupported command authority')}
-    const store=new BusinessStore(db,scope,deviceId,actorId,commandAuthority);
+    try{
+      await migrateLegacyDatabase(db,`servos-api-v1:${scope}:${deviceId}:${actorId}`,false);
+      await migrateLegacyDatabase(db,`servos-v2:${scope}:${deviceId}:${actorId}`,true);
+    }catch(error){db.close();throw error}
+    const store=new BusinessStore(db,scope,deviceId,actorId);
     db.onversionchange=()=>{store.close();if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('servos:storage-closed',{detail:{reason:'UPGRADE'}}))};
     db.onclose=()=>{store.closed=true;if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('servos:storage-closed',{detail:{reason:'INTERRUPTED'}}))};
     try{await store.transaction(['meta','queue'],'readwrite',async tx=>{
@@ -75,7 +123,6 @@ export class BusinessStore {
   async resumeDraft(id:string):Promise<WorkflowDraft|undefined>{return this.transaction(['drafts'],'readonly',tx=>request(tx.objectStore('drafts').get(id)))}
   async discardDraft(id:string):Promise<void>{await this.transaction(['drafts'],'readwrite',async tx=>{await request(tx.objectStore('drafts').delete(id))})}
   async promoteDraftToCommand(id:string):Promise<BusinessCommandV2>{
-    if(typeof navigator!=='undefined'&&!navigator.onLine&&this.commandAuthority!=='API')throw new Error('Offline command execution is available only in an API-authorized workspace. Save the workflow as a draft and reconnect.');
     return this.transaction(['drafts','queue','meta','offlineGrants'],'readwrite',async tx=>{
       const drafts=tx.objectStore('drafts');const draft=await request(drafts.get(id)) as WorkflowDraft|undefined;
       if(!draft)throw new Error('Draft is no longer available; refresh saved work before submitting.');
@@ -88,7 +135,6 @@ export class BusinessStore {
     });
   }
   async enqueue(operation:string,payload:Record<string,unknown>,expectedVersions:RecordVersion[],supersedes?:string,reviewCommandId?:string):Promise<BusinessCommandV2>{
-    if(typeof navigator!=='undefined'&&!navigator.onLine&&this.commandAuthority!=='API')throw new Error('Offline command execution is available only in an API-authorized workspace. Save the workflow as a draft and reconnect.');
     return this.transaction(['queue','meta','offlineGrants'],'readwrite',async tx=>{
       if(reviewCommandId){const existing=await request(tx.objectStore('queue').get(reviewCommandId)) as QueuedCommand|undefined;if(existing){if(existing.command.operation!==operation||JSON.stringify(existing.command.payload)!==JSON.stringify(payload)||JSON.stringify(existing.command.expectedVersions)!==JSON.stringify(expectedVersions))throw new Error('Reviewed command changed; recover its original outcome');return existing.command;}}
       const meta=tx.objectStore('meta');const previous=await request(meta.get('sequence')) as number;
@@ -121,7 +167,7 @@ export class BusinessStore {
   async policyVersion():Promise<string|undefined>{return this.transaction(['meta'],'readonly',tx=>request(tx.objectStore('meta').get('policyVersion')))}
   async pendingBootstrap():Promise<BootstrapStageState|undefined>{return this.transaction(['meta'],'readonly',tx=>request(tx.objectStore('meta').get('bootstrapStage')))}
   async beginBootstrap(snapshotId:string,expiresAt:string,policyVersion:string,manifest:BootstrapManifest):Promise<number>{
-    if(this.commandAuthority!=='API'||snapshotId!==manifest.snapshotId||expiresAt!==manifest.expiresAt||!policyVersion)throw new Error('Invalid API bootstrap staging request');
+    if(snapshotId!==manifest.snapshotId||expiresAt!==manifest.expiresAt||!policyVersion)throw new Error('Invalid API bootstrap staging request');
     return this.transaction(['meta','queue','bootstrapStage'],'readwrite',async tx=>{
       const queued=await request(tx.objectStore('queue').getAll()) as QueuedCommand[];
       if(queued.some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN'))throw new Error('Recover saved API command outcomes before rebuilding this projection.');
@@ -188,10 +234,8 @@ export class BusinessStore {
     await this.transaction(['records','meta','queue'],'readwrite',async tx=>{
       const currentCursor=(await request(tx.objectStore('meta').get('cursor')) as number|undefined)||0;
       if(cursor<currentCursor)throw new Error('Snapshot is older than this browser projection. Refresh from the current API authority.');
-      if(this.commandAuthority==='API'){
-        const queued=await request(tx.objectStore('queue').getAll()) as QueuedCommand[];
-        if(queued.some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN'))throw new Error('Recover saved API command outcomes before rebuilding this projection.');
-      }
+      const queued=await request(tx.objectStore('queue').getAll()) as QueuedCommand[];
+      if(queued.some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN'))throw new Error('Recover saved API command outcomes before rebuilding this projection.');
       const target=tx.objectStore('records');await request(target.clear());
       for(const record of records){
         if(!record.collection||!record.id||!Number.isSafeInteger(record.version)||record.version<1||!record.data||typeof record.data!=='object'||Array.isArray(record.data)||typeof record.archived!=='boolean')throw new Error('Invalid snapshot record');
@@ -230,16 +274,16 @@ export class BusinessStore {
   async records():Promise<Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>>{return this.transaction(['records'],'readonly',tx=>request(tx.objectStore('records').getAll()))}
   async hasPending():Promise<boolean>{return (await this.queue()).some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN')}
   async recoveryEvidence(){
-    return this.transaction(['records','queue','drafts','meta','documents','printJobs','printEvents'],'readonly',async tx=>{
+    return this.transaction(['records','queue','drafts','meta','documents','printJobs','printEvents','legacyRecovery'],'readonly',async tx=>{
       const read=(name:string)=>request(tx.objectStore(name).getAll());
-      const [records,commands,drafts,documents,printJobs,printEvents,cursor,sequence]=await Promise.all([
-        read('records'),read('queue'),read('drafts'),read('documents'),read('printJobs'),read('printEvents'),
+      const [records,commands,drafts,documents,printJobs,printEvents,archivedLegacyData,cursor,sequence]=await Promise.all([
+        read('records'),read('queue'),read('drafts'),read('documents'),read('printJobs'),read('printEvents'),read('legacyRecovery'),
         request(tx.objectStore('meta').get('cursor')),request(tx.objectStore('meta').get('sequence')),
       ]);
       return redactSensitiveData({format:'servos-recovery-evidence',version:1,exportedAt:new Date().toISOString(),
-        businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId,authority:this.commandAuthority,
+        businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId,authority:'API',
         purpose:'Reconciliation evidence only. Redacted payloads must not be replayed or imported as commands.',
-        cursor:cursor||0,sequence:sequence||0,records,commands,drafts,documents,printJobs,printEvents});
+        cursor:cursor||0,sequence:sequence||0,records,commands,drafts,documents,printJobs,printEvents,archivedLegacyData});
     });
   }
   async guidanceProgress():Promise<import('./session').WebGuidanceProgress[]>{
@@ -271,11 +315,10 @@ export class BusinessStore {
     });
   }
   async hasOfflineAuthorization(operation:string):Promise<boolean>{
-    if(this.commandAuthority!=='API')return false;
     const grants=await this.offlineGrants();const now=Date.now();return grants.some(grant=>this.offlineGrantEligible(grant,operation,now));
   }
   private offlineGrantEligible(grant:OfflineGrantEnvelope,operation:string,now:number):boolean{
-    if(this.commandAuthority!=='API'||!['product.save','stockItem.save','stockLocation.save','order.offlineCashSale'].includes(operation))return false;
+    if(!['product.save','stockItem.save','stockLocation.save','order.offlineCashSale'].includes(operation))return false;
     if(!grant||grant.policyVersion!==1||typeof grant.grantId!=='string'||!grant.grantId||typeof grant.signature!=='string'||!grant.signature||typeof grant.keyVersion!=='string'||!grant.keyVersion)return false;
     const issued=Date.parse(grant.issuedAt),expires=Date.parse(grant.expiresAt),used=grant.usedCommands??0;
     return grant.businessId===this.scope&&grant.deviceId===this.deviceId&&grant.staffId===this.actorId
