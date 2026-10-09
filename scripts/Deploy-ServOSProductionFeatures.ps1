@@ -1,6 +1,8 @@
 param(
   [ValidateSet('ApiKeys', 'VerifyKeys', 'TenantId', 'ReleaseRecord', 'Alerts', 'TestAlert', 'Monitor', 'Pwa', 'RouteRollback')]
-  [string]$Mode = 'ApiKeys'
+  [string]$Mode = 'ApiKeys',
+  [string]$ReleaseId = '',
+  [string]$ArchivePath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -207,46 +209,106 @@ os.chmod(dropin,0o644)
   ssh -i $identity -o BatchMode=yes $destination 'sudo systemctl daemon-reload && sudo systemctl restart serveos-prod-healthcheck.timer && sudo systemctl start serveos-prod-healthcheck.service && sudo systemctl is-active serveos-prod-healthcheck.timer'
 }
 elseif ($Mode -eq 'Pwa') {
-  $python = @'
-import hashlib,json,os,pathlib,stat,zipfile
-release="25010b707a581d50b0c82823ae926d751775d43a"
-archive=pathlib.Path("/tmp/serveos-pwa-25010b707a581d50b0c82823ae926d751775d43a.zip")
-root=pathlib.Path("/var/www/serveos-prod")
-releases=root/"releases"
-destination=releases/(release+"-webv2-offline-20261009")
-with zipfile.ZipFile(archive) as z:
- manifest=json.loads(z.read("release-manifest.json"))
- archive_names={info.filename.replace("\\","/"):info.filename for info in z.infolist()}
- if manifest.get("releaseId")!=release: raise SystemExit("PWA release SHA mismatch")
- entries={x["path"]:x for x in manifest["files"]}
- if len(entries)!=len(manifest["files"]): raise SystemExit("PWA manifest has duplicate paths")
- if destination.exists():
-  if not destination.is_dir() or any(destination.iterdir()): raise SystemExit("PWA release directory already contains data; refusing overwrite")
-  destination.rmdir()
- destination.mkdir(mode=0o755,parents=False)
+  if (-not $ReleaseId) { $ReleaseId = (& git rev-parse --short=12 HEAD).Trim() }
+  if ($ReleaseId -notmatch '^[a-f0-9]{7,40}$') { throw 'ReleaseId must be a Git SHA from 7 to 40 hexadecimal characters.' }
+  if (-not $ArchivePath) { $ArchivePath = Join-Path (Get-Location) "release\web\$ReleaseId.zip" }
+  $ArchivePath = (Resolve-Path -LiteralPath $ArchivePath).Path
+  $remoteArchive = "/tmp/serveos-pwa-$ReleaseId-$([guid]::NewGuid().ToString('N')).zip"
+  $scp = Join-Path (Split-Path -Parent $ssh) 'scp.exe'
+  & $scp -i $identity -o BatchMode=yes $ArchivePath "$($destination):$remoteArchive"
+  if ($LASTEXITCODE -ne 0) { throw "PWA archive upload failed with exit code $LASTEXITCODE." }
+  $config = @{ releaseId = $ReleaseId; archivePath = $remoteArchive } | ConvertTo-Json -Compress
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($config))
+  $python = @"
+import base64,hashlib,json,os,pathlib,re,shutil,stat,subprocess,tempfile,uuid,zipfile
+config=json.loads(base64.b64decode('$encoded'))
+release=config['releaseId']
+archive=pathlib.Path(config['archivePath'])
+if not re.fullmatch(r'[a-f0-9]{7,40}',release): raise SystemExit('Invalid PWA release ID')
+if archive.parent!=pathlib.Path('/tmp') or not archive.is_file(): raise SystemExit('Uploaded PWA archive is missing or outside the temporary release directory')
+root=pathlib.Path('/var/www/serveos-prod')
+releases=root/'releases'
+destination=releases/release
+current=root/'current'
+if destination.exists(): raise SystemExit('Release already exists; refusing to overwrite it')
+manifest_name='release-manifest.json'
+entries={}
+manifest_bytes=b''
+with zipfile.ZipFile(archive) as bundle:
+ infos=bundle.infolist()
+ names=[info.filename.replace('\\','/') for info in infos]
+ if len(names)!=len(set(names)): raise SystemExit('PWA archive contains duplicate paths')
+ manifest=json.loads(bundle.read(manifest_name))
+ if manifest.get('releaseId')!=release: raise SystemExit('PWA release SHA mismatch')
+ file_entries=manifest.get('files')
+ if not isinstance(file_entries,list) or not file_entries: raise SystemExit('PWA release manifest is empty')
+ entries={entry.get('path'):entry for entry in file_entries if isinstance(entry,dict)}
+ if len(entries)!=len(file_entries) or None in entries: raise SystemExit('PWA manifest has missing or duplicate file paths')
+ actual_files=set()
+ for info,name in zip(infos,names):
+  rel=pathlib.PurePosixPath(name.rstrip('/'))
+  if rel.is_absolute() or '..' in rel.parts or '\\' in name or ':' in name: raise SystemExit('Unsafe PWA archive path')
+  if stat.S_ISLNK(info.external_attr >> 16): raise SystemExit('PWA archive contains a symlink')
+  if info.is_dir(): continue
+  actual_files.add(name)
+ expected_files=set(entries)|{manifest_name}
+ if actual_files!=expected_files: raise SystemExit('PWA archive contents do not match its release manifest')
  for name,entry in entries.items():
   rel=pathlib.PurePosixPath(name)
-  if rel.is_absolute() or ".." in rel.parts: raise SystemExit("Unsafe PWA archive path")
-  info=z.getinfo(archive_names[name])
-  if stat.S_ISLNK(info.external_attr >> 16): raise SystemExit("PWA archive contains a symlink")
-  data=z.read(archive_names[name])
-  if len(data)!=entry["bytes"] or hashlib.sha256(data).hexdigest()!=entry["sha256"]: raise SystemExit("PWA asset hash mismatch: "+name)
-  target=destination.joinpath(*rel.parts)
-  target.parent.mkdir(mode=0o755,parents=True,exist_ok=True)
-  target.write_bytes(data)
-  os.chmod(target,0o644)
- manifest_bytes=z.read("release-manifest.json")
- (destination/"release-manifest.json").write_bytes(manifest_bytes)
- os.chmod(destination/"release-manifest.json",0o644)
- for path in [destination,*[p for p in destination.rglob("*") if p.is_dir()]]: os.chmod(path,0o755)
-old=(root/"current").readlink()
-tmp=root/"current.next"
-try: tmp.unlink()
-except FileNotFoundError: pass
-tmp.symlink_to(destination)
-os.replace(tmp,root/"current")
-print("previous="+str(old)+"\\ncurrent="+str(destination)+"\\nrelease-files="+str(len(entries)))
-'@
+  if rel.is_absolute() or '..' in rel.parts or '\\' in name or ':' in name: raise SystemExit('Unsafe PWA manifest path')
+  info=bundle.getinfo(name)
+  data=bundle.read(name)
+  if len(data)!=entry.get('bytes') or hashlib.sha256(data).hexdigest()!=entry.get('sha256'): raise SystemExit('PWA asset hash mismatch: '+name)
+ manifest_bytes=bundle.read(manifest_name)
+old=os.readlink(current) if current.is_symlink() else None
+def check_route(host,path):
+ result=subprocess.run(['curl','--noproxy','*','--silent','--show-error','--output','-','--write-out','\n%{http_code}','--max-time','15','--resolve',host+':443:127.0.0.1','https://'+host+path],capture_output=True,text=True)
+ if result.returncode: raise RuntimeError(host+' route check failed: '+result.stderr.strip())
+ body,status=result.stdout.rsplit('\n',1)
+ if status!='200': raise RuntimeError(host+path+' returned HTTP '+status)
+ return body
+try:
+ check_route('serveos.davemusau.co.ke','/')
+ check_route('serveosapi.davemusau.co.ke','/health/ready')
+except Exception:
+ archive.unlink(missing_ok=True)
+ raise
+releases.mkdir(mode=0o755,parents=True,exist_ok=True)
+staging=pathlib.Path(tempfile.mkdtemp(prefix='.'+release+'.tmp-',dir=releases))
+try:
+ with zipfile.ZipFile(archive) as bundle:
+  for name in entries:
+   target=staging.joinpath(*pathlib.PurePosixPath(name).parts)
+   target.parent.mkdir(mode=0o755,parents=True,exist_ok=True)
+   target.write_bytes(bundle.read(name))
+   os.chmod(target,0o644)
+ (staging/manifest_name).write_bytes(manifest_bytes)
+ os.chmod(staging/manifest_name,0o644)
+ for path in [staging,*[p for p in staging.rglob('*') if p.is_dir()]]: os.chmod(path,0o755)
+ os.replace(staging,destination)
+except Exception:
+ shutil.rmtree(staging,ignore_errors=True)
+ archive.unlink(missing_ok=True)
+ raise
+next_link=root/('.current.next-'+uuid.uuid4().hex)
+next_link.symlink_to(destination)
+os.replace(next_link,current)
+try:
+ html=check_route('serveos.davemusau.co.ke','/')
+ referenced=set(re.findall(r'/(?:assets|icons)/[^"\s<>]+',html))
+ missing=[asset for asset in referenced if asset.lstrip('/') not in entries]
+ if missing: raise RuntimeError('Activated page refers to assets absent from the release: '+', '.join(sorted(missing)))
+ check_route('serveosapi.davemusau.co.ke','/health/ready')
+except Exception:
+ if old:
+  rollback=root/('.current.rollback-'+uuid.uuid4().hex)
+  rollback.symlink_to(old)
+  os.replace(rollback,current)
+ archive.unlink(missing_ok=True)
+ raise
+archive.unlink(missing_ok=True)
+print('previous='+str(old)+'\\ncurrent='+str(destination)+'\\nrelease-files='+str(len(entries)))
+"@
   Invoke-SecureSshInput 'sudo python3 -' $python
 }
 elseif ($Mode -eq 'RouteRollback') {
