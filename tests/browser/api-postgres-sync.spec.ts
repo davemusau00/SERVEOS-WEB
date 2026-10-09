@@ -170,7 +170,7 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   // business projection is deliberately deleted. A fresh page must rebuild
   // the projection from the API bootstrap before showing catalog data.
   const apiDatabaseName=(await page.evaluate(async()=>
-   (await indexedDB.databases()).find(entry=>entry.name?.startsWith('servos-api-v1:'))?.name||null
+   (await indexedDB.databases()).find(entry=>entry.name?.startsWith('servos-web-v1:'))?.name||null
   ));
   expect(apiDatabaseName).toBeTruthy();
   await page.route('**/storage-maintenance.html',route=>route.fulfill({
@@ -255,7 +255,7 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   await expect(quickCount).toHaveCount(0);
   expect((await pool.query("SELECT scope,item_count FROM inventory_stock_counts WHERE business_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1",[businessId])).rows[0]).toMatchObject({scope:'SELECTED',item_count:1});
   const persisted=await page.evaluate(async()=>{
-   const entry=(await indexedDB.databases()).find(db=>db.name?.startsWith('servos-api-v1:'))!;
+   const entry=(await indexedDB.databases()).find(db=>db.name?.startsWith('servos-web-v1:'))!;
    return new Promise<any>((resolve,reject)=>{const opening=indexedDB.open(entry.name!);opening.onerror=()=>reject(opening.error);opening.onsuccess=()=>{const db=opening.result,tx=db.transaction(['records','queue'],'readonly');const records=tx.objectStore('records').getAll(),queue=tx.objectStore('queue').getAll();tx.oncomplete=()=>{resolve({records:records.result,queue:queue.result});db.close()};tx.onabort=()=>reject(tx.error)}});
   });
   expect(persisted.records.find((record:{id:string})=>record.id===stockId)).toMatchObject({version:4,data:{name:'Real remote change',balanceVersions:{[locationId]:1}}});
