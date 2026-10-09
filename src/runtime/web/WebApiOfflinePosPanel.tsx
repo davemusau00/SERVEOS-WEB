@@ -45,6 +45,14 @@ export function WebApiOfflinePosPanel({records,session,deviceId,disabled,command
  const [cashAccountId,setCashAccountId]=useState('');
  const cashAccount=accounts.find(row=>row.id===cashAccountId)||accounts[0];
  const pendingEntry=saleCommands.find(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN');
+ const setupSteps=[
+  {label:'Business settings',ready:Boolean(settings),tab:'Settings' as const,permission:'business.configure',action:'Open settings'},
+  {label:'Stock location linked to the outlet',ready:Boolean(selectedOutlet&&location),tab:locations.length?'Settings' as const:'Catalog' as const,permission:locations.length?'business.configure':'inventory.adjust',action:locations.length?'Configure outlet':'Add stock location'},
+  {label:'Cash payment account',ready:Boolean(cashAccount),tab:'Settings' as const,permission:'business.configure',action:'Configure payments'},
+  {label:'Eligible counter product',ready:products.length>0,tab:'Catalog' as const,permission:'catalog.manage',action:'Configure catalog'},
+  {label:'Your device till is open at this outlet',ready:Boolean(till),tab:'POS' as const,permission:'till.open',action:'Open POS / till'},
+ ];
+ const navigateTo=(tab:string)=>window.dispatchEvent(new CustomEvent('servos:web-navigate',{detail:{tab}}));
 
  useEffect(()=>{const onlineNow=()=>setOnline(true),offlineNow=()=>setOnline(false);window.addEventListener('online',onlineNow);window.addEventListener('offline',offlineNow);return()=>{window.removeEventListener('online',onlineNow);window.removeEventListener('offline',offlineNow)}},[]);
  useEffect(()=>{let current=true;void store.hasOfflineAuthorization('order.offlineCashSale').then(value=>{if(current)setGrantReady(value)}).catch(()=>{if(current)setGrantReady(false)});return()=>{current=false}},[store,online,queue.length]);
@@ -106,9 +114,15 @@ export function WebApiOfflinePosPanel({records,session,deviceId,disabled,command
  return <section className="space-y-3 rounded-xl border border-amber-700/60 bg-amber-950/10 p-4">
   <div><h3 className="font-bold">Bounded offline cash sale</h3><p className="mt-1 text-sm text-slate-300">This queues one cash-only sale of counter items while disconnected. Preparation-routed kitchen and bar items need the connected workflow. The API validates and commits the sale after reconnection; no receipt or authoritative sale is created on this device.</p></div>
   {!online&&<p className="rounded border border-amber-600/50 p-2 text-sm text-amber-200">Offline mode · pending sales must synchronize before another sale can be submitted.</p>}
-  {online&&!grantReady&&<button type="button" className={button} disabled={busy||disabled||Boolean(pendingEntry)||!till||!cashAccount||!selectedOutlet||!location||!settings} onClick={()=>void grantOffline()}>{busy?'Authorizing…':'Authorize one offline cash sale (30 minutes)'}</button>}
+  {online&&!grantReady&&<button type="button" className={button} disabled={busy||disabled||Boolean(pendingEntry)||!till||!cashAccount||!selectedOutlet||!location||!settings||products.length===0} onClick={()=>void grantOffline()}>{busy?'Authorizing…':'Authorize one offline cash sale (30 minutes)'}</button>}
   {grantReady&&<p className="text-sm text-emerald-200">A signed one-sale grant is saved on this device. It is consumed atomically with the local command.</p>}
-  {(!till||!cashAccount||!selectedOutlet||!location||!settings)&&<p className="text-sm text-amber-200">Offline sale setup is incomplete. While online, select an active outlet, open your device till, configure a cash account, and synchronize the current stock projection.</p>}
+  {(!till||!cashAccount||!selectedOutlet||!location||!settings||products.length===0)&&<div className="space-y-2 rounded-lg border border-amber-700/50 p-3" role="status">
+   <div><h4 className="font-semibold text-amber-100">Finish setup while online</h4><p className="text-sm text-slate-300">Complete each item, then synchronize this workspace. Offline sales use the saved outlet, till, cash account, product, and stock versions; the API checks them again when the device reconnects.</p></div>
+   <ol className="space-y-2">{setupSteps.map(step=><li key={step.label} className="flex flex-wrap items-center justify-between gap-2 rounded bg-slate-950/70 p-2 text-sm"><span className={step.ready?'text-emerald-200':'text-amber-100'}>{step.ready?'✓':'○'} {step.label}</span>{!step.ready&&(allowed(session,step.permission)?<button type="button" className={button} onClick={()=>navigateTo(step.tab)}>{step.action}</button>:<span className="text-xs text-slate-400">Requires {step.permission}; ask a business administrator.</span>)}</li>)}</ol>
+   {!selectedOutlet&&<p className="text-sm text-amber-100">Create an active outlet in Settings, then choose it here.</p>}
+   {selectedOutlet&&!location&&<p className="text-sm text-amber-100">Add a stock location in Catalog, then set it as this outlet’s default in Settings.</p>}
+   {online&&<p className="text-xs text-slate-400">After setup, use Synchronize in the workspace header. A grant is available only after setup is complete.</p>}
+  </div>}
   <form className="space-y-3" onSubmit={event=>void submit(event)}>
    <div className="grid gap-3 sm:grid-cols-2">
     <label className="text-sm">Outlet<select className={field} value={selectedOutlet?.id||''} disabled={!online||busy||Boolean(pendingEntry)} onChange={event=>setOutletId(event.target.value)}><option value="">Select outlet</option>{outlets.map(row=><option key={row.id} value={row.id}>{String(row.data.name)}</option>)}</select></label>

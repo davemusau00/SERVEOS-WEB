@@ -159,7 +159,7 @@ test('PostgreSQL staff setup, device enrollment, sessions, refresh, and staff li
     const originalExpiry=await pool.query('SELECT issued_at,expires_at FROM api_access_tokens WHERE token_hash=$1',[createHash('sha256').update(admin.accessToken).digest('hex')]);
     assert.equal(originalExpiry.rows.length,1);
     assert.ok(Math.abs(originalExpiry.rows[0].expires_at-originalExpiry.rows[0].issued_at-15*60_000)<1000,'access tokens are issued for 15 minutes');
-    await pool.query('UPDATE api_access_tokens SET expires_at=now()-interval \'1 second\' WHERE token_hash=$1',[createHash('sha256').update(admin.accessToken).digest('hex')]);
+    await pool.query('UPDATE api_access_tokens SET issued_at=now()-interval \'2 seconds\',expires_at=now()-interval \'1 second\' WHERE token_hash=$1',[createHash('sha256').update(admin.accessToken).digest('hex')]);
     assert.equal((await call('/v1/auth/session',{token:admin.accessToken})).status,401,'expired access tokens are refused');
     const refresh=async(cookie)=>call(`/v1/auth/sessions/${admin.sessionId}/refresh`,{method:'POST',cookie,sendOrigin:true});
     const refreshedPair=await refresh(admin.cookie);
