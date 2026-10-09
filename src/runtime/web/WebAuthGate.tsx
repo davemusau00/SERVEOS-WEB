@@ -1,6 +1,5 @@
 import {operatorError} from './operatorError';
 import { FormEvent, lazy, Suspense, useEffect, useState } from 'react';
-import { ApiHttpError } from './apiClient';
 import {
   hasSavedApiSession,
   openApiBusinessStore,

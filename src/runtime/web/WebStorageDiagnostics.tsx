@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import type {BusinessStore} from './BusinessStore';
+import {operatorError} from './operatorError';
 import {ds} from '../../design-system/tokens';
 
 type Diagnostics=Awaited<ReturnType<BusinessStore['storageDiagnostics']>>;
@@ -8,13 +9,13 @@ const size=(bytes:number|null)=>bytes===null?'Unavailable':`${(bytes/1024/1024).
 export function WebStorageDiagnostics({store,refreshKey=''}:{store:BusinessStore;refreshKey?:string}){
  const generation=useRef(0);
  const [value,setValue]=useState<Diagnostics|null>(null);const [error,setError]=useState('');const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');
- useEffect(()=>{let active=true;const id=++generation.current;void store.storageDiagnostics().then(result=>{if(active&&id===generation.current){setValue(result);setError('')}}).catch(cause=>{if(active&&id===generation.current)setError(String(cause))});return()=>{active=false}},[store,refreshKey]);
+ useEffect(()=>{let active=true;const id=++generation.current;void store.storageDiagnostics().then(result=>{if(active&&id===generation.current){setValue(result);setError('')}}).catch(cause=>{if(active&&id===generation.current)setError(operatorError(cause))});return()=>{active=false}},[store,refreshKey]);
  const refresh=async(requestPersistence=false)=>{
   const id=++generation.current;setBusy(true);setError('');setMessage('');
   try{
    if(requestPersistence){const granted=await navigator.storage?.persist?.();setMessage(granted?'Browser persistence granted.':'Browser persistence was not granted. Keep pending work synchronized and export recovery evidence.');}
    const result=await store.storageDiagnostics();if(id===generation.current)setValue(result);
-  }catch(cause){setError(String(cause))}finally{setBusy(false)}
+  }catch(cause){setError(operatorError(cause))}finally{setBusy(false)}
  };
  return <section className={`${ds.panel} p-4`} aria-label="Browser storage">
   <h3 className="font-bold">Browser storage</h3>
