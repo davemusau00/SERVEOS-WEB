@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { documentCopyStatus, documentPaperProfile, documentPreviewAttempt, DOCUMENT_DEVELOPER_FOOTER } from '../src/runtime/web/documentPaperProfiles.ts';
+import { documentCopyStatus, documentPaperProfile, documentPreviewAttempt, formatDocumentMoney, DOCUMENT_DEVELOPER_FOOTER } from '../src/runtime/web/documentPaperProfiles.ts';
 
 test('customer receipts, refunds and kitchen tickets use the narrow thermal profile', () => {
   for (const type of ['SALES_RECEIPT', 'PAYMENT_ACKNOWLEDGEMENT', 'REFUND_RECEIPT', 'KOT', 'BOT', 'KOT_CANCEL', 'BOT_CANCEL', 'ORDER_VOID_NOTICE']) {
@@ -32,4 +32,12 @@ test('preview copy status follows the upcoming retry without relabeling an uncer
 
 test('document footer uses the required operator-visible developer contact', () => {
   assert.equal(DOCUMENT_DEVELOPER_FOOTER, 'Developed By Kingsforge, 0746157440');
+});
+
+test('document money formatting applies KES exactly once and rejects non-minor-unit values', () => {
+  assert.equal(formatDocumentMoney(10000), 'KES 100.00');
+  assert.equal(formatDocumentMoney(10050), 'KES 100.50');
+  assert.equal(formatDocumentMoney(-125), 'KES -1.25');
+  assert.equal(formatDocumentMoney(null), '—');
+  assert.equal(formatDocumentMoney(1.5), '—');
 });

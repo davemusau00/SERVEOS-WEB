@@ -187,6 +187,7 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
   await expect(receiptPreview).toContainText('ISSUED');
   await expect(receiptPreview).toContainText('Copy status: ORIGINAL');
   await expect(receiptPreview).toContainText('Developed By Kingsforge, 0746157440');
+  await expect(receiptPreview).toContainText('Payment status: Settled when issued; tender recorded KES 100.00.');
   await expect(receiptPreview).toContainText('First sale tea');
   await expect(receiptPreview).toContainText('100.00');
   await expect(receiptPreview).toContainText('CASH');

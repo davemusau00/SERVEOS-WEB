@@ -34,7 +34,7 @@ export function documentPreviewAttempt(attempt: number, state: string): number {
 
 /** Money snapshots are persisted in integer minor units and displayed as KES. */
 export function formatDocumentMoney(minorUnits: number | null): string {
-  if (minorUnits === null || !Number.isFinite(minorUnits)) return '—';
+  if (minorUnits === null || !Number.isSafeInteger(minorUnits)) return '—';
   return `KES ${(minorUnits / 100).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 

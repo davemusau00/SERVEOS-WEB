@@ -189,7 +189,10 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM inventory_movements WHERE business_id=$1 AND source_command_id=$2',[businessId,fireCommand.commandId])).rows[0].count,2);
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_stock_consumptions WHERE business_id=$1 AND command_id=$2',[businessId,fireCommand.commandId])).rows[0].count,2);
   assert.equal((await pool.query('SELECT quantity::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,modifierStockId,locationId])).rows[0].quantity,'4.950000','selected modifiers consume their configured ingredient once');
- assert.equal((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='KOT'",[businessId,fireCommand.commandId])).rows[0].count,1);
+ const kitchenDocument=(await pool.query("SELECT snapshot FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='KOT'",[businessId,fireCommand.commandId])).rows[0];
+ assert.ok(kitchenDocument,'one kitchen ticket is issued for the fire command');
+ assert.equal(kitchenDocument.snapshot.business.businessName,'Disposable POS Acceptance','ticket keeps issue-time business identity');
+ assert.equal(kitchenDocument.snapshot.orderId,orderId);
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_events WHERE business_id=$1 AND command_id=$2',[businessId,fireCommand.commandId])).rows[0].count,1);
 
  let lifecycleOrder=fireResponse.result.order;
