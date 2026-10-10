@@ -242,6 +242,44 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  assert.equal((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='SALES_RECEIPT'",[businessId,paymentCommand.commandId])).rows[0].count,1);
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_events WHERE business_id=$1 AND command_id=$2',[businessId,paymentCommand.commandId])).rows[0].count,1);
 
+ // DEV-FIX-001D: the issued receipt must record the authoritative settlement fact.
+ const settledReceipt=(await pool.query("SELECT snapshot FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='SALES_RECEIPT'",[businessId,paymentCommand.commandId])).rows[0].snapshot;
+ assert.equal(settledReceipt.balanceMinor,0,'a completed split settlement is receipted as fully settled');
+ assert.equal(settledReceipt.paidMinor,paymentResponse.result.order.data.grandTotalMinor);
+ assert.equal(settledReceipt.creditedMinor,0);assert.equal(settledReceipt.roomChargedMinor,0);
+ assert.equal(settledReceipt.payments.length,2,'the receipt settlement lines include every recorded tender');
+
+ // Partial payment: no sales receipt, and the acknowledgement shows the true outstanding balance.
+ const partialOrderId=randomUUID(),partialOrder=await confirmed('order.create',{id:partialOrderId,name:'Partial payment acceptance',outletId,serviceDestination:'COUNTER'},{[`orders:${partialOrderId}`]:0,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1});
+ const partialLineId=randomUUID(),partialDraft=await confirmed('order.addItem',{orderId:partialOrderId,itemId:partialLineId,productId,quantity:1,portionId:'regular'},{[`orders:${partialOrderId}`]:partialOrder.result.version,[`products:${productId}`]:1,[`businessSettings:${businessId}`]:1});
+ const partialBalanceVersion=Number((await pool.query('SELECT version::int AS version FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].version);
+ const partialFire=await executeCommand({db:store,actor,registry,command:{commandId:randomUUID(),name:'order.fire',payload:{orderId:partialOrderId,itemIds:[partialLineId],expectedBalanceVersions:{[`${stockId}:${locationId}`]:partialBalanceVersion}},expectedVersions:{[`orders:${partialOrderId}`]:partialDraft.result.version,[`stockItems:${stockId}`]:Number((await pool.query("SELECT version FROM business_entity_versions WHERE business_id=$1 AND entity_type='stockItems' AND entity_id=$2",[businessId,stockId])).rows[0].version),[`stockLocations:${locationId}`]:1}}});
+ assert.equal(partialFire.kind,'CONFIRMED',`partial fire: ${JSON.stringify(partialFire)}`);
+ const partialGrand=partialFire.result.order.data.grandTotalMinor;
+ assert.ok(partialGrand>500,'the partial-payment fixture needs a total above the first tender');
+ const partialPay=await confirmed('payment.record',{orderId:partialOrderId,tillSessionId:tillId,accountId,amountMinor:500,cashTenderedMinor:500},{[`orders:${partialOrderId}`]:partialFire.result.order.version,[`tillSessions:${tillId}`]:await entityVersion('tillSessions',tillId),[`paymentAccounts:${accountId}`]:await entityVersion('paymentAccounts',accountId)});
+ assert.equal(partialPay.result.order.data.state,'FIRED','a partially paid order stays open for the remainder');
+ assert.equal(partialPay.result.order.data.amountPaidMinor,500);
+ assert.equal((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='SALES_RECEIPT'",[businessId,partialPay.commandId])).rows[0].count,0,'a partially paid order does not issue a sales receipt');
+ const partialAck=(await pool.query("SELECT snapshot FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='PAYMENT_ACKNOWLEDGEMENT'",[businessId,partialPay.commandId])).rows[0].snapshot;
+ assert.equal(partialAck.balanceMinor,partialGrand-500,'the acknowledgement records the true outstanding balance');
+ const partialSettle=await confirmed('payment.record',{orderId:partialOrderId,tillSessionId:tillId,accountId,amountMinor:partialGrand-500,cashTenderedMinor:partialGrand-500},{[`orders:${partialOrderId}`]:partialPay.result.order.version,[`tillSessions:${tillId}`]:await entityVersion('tillSessions',tillId),[`paymentAccounts:${accountId}`]:await entityVersion('paymentAccounts',accountId)});
+ assert.equal(partialSettle.result.order.data.state,'COMPLETED');
+ const partialReceipt=(await pool.query("SELECT snapshot FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='SALES_RECEIPT'",[businessId,partialSettle.commandId])).rows[0].snapshot;
+ assert.equal(partialReceipt.balanceMinor,0);assert.equal(partialReceipt.paidMinor,partialGrand);
+ assert.equal(partialReceipt.refundedAmountMinor,0);
+
+ // Zero-value sale: a fully comped fired order needs no payment and is receipted accordingly.
+ const zeroBalanceVersion=Number((await pool.query('SELECT version::int AS version FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].version);
+ const zeroFire=await executeCommand({db:store,actor,registry,command:{commandId:randomUUID(),name:'order.fire',payload:{orderId:compOrderId,itemIds:compLineIds,expectedBalanceVersions:{[`${stockId}:${locationId}`]:zeroBalanceVersion}},expectedVersions:{[`orders:${compOrderId}`]:orderComp.result.version,[`stockItems:${stockId}`]:Number((await pool.query("SELECT version FROM business_entity_versions WHERE business_id=$1 AND entity_type='stockItems' AND entity_id=$2",[businessId,stockId])).rows[0].version),[`stockLocations:${locationId}`]:1}}});
+ assert.equal(zeroFire.kind,'CONFIRMED',`zero-value fire: ${JSON.stringify(zeroFire)}`);
+ assert.equal(zeroFire.result.order.data.state,'COMPLETED');
+ const zeroReceiptDoc=(await pool.query("SELECT snapshot FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='SALES_RECEIPT'",[businessId,zeroFire.commandId])).rows[0];
+ assert.ok(zeroReceiptDoc,'a zero-value fired order issues a no-payment receipt');
+ assert.equal(zeroReceiptDoc.snapshot.noPaymentRequired,true);
+ assert.equal(zeroReceiptDoc.snapshot.balanceMinor,0);assert.equal(zeroReceiptDoc.snapshot.totalMinor,0);
+ assert.equal(zeroReceiptDoc.snapshot.payments.length,0);
+
  const voidOrderId=randomUUID();
  const voidOrder=await confirmed('order.create',{id:voidOrderId,name:'Consumed void acceptance',outletId,serviceDestination:'COUNTER'},{[`orders:${voidOrderId}`]:0,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1});
  const voidLineId=randomUUID();

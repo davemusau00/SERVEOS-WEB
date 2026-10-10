@@ -67,6 +67,33 @@ test('IndexedDB queue preserves identity across reload and rolls back incomplete
   expect(result.states).toEqual(['SYNCHRONIZED','SYNCHRONIZED']);expect(result.gap).toBe(true);expect(result.afterGap).toEqual([]);expect(result.cursorAfterGap).toBe(0);expect(result.records[0].archived).toBe(true);
 });
 
+test('change feed re-delivery of an identical record is an idempotent no-op',async({page})=>{
+  await page.goto('/');await page.addScriptTag({content:harness});
+  const result=await page.evaluate(async()=>{
+    const {BusinessStore}=(window as any).ServOSQueue;
+    const store=await BusinessStore.open('feed-replay','device','actor');
+    const change=(sequence:number,records:any[])=>({sequence,commandId:`change-${sequence}`,actorId:'actor',deviceId:'device',occurredAt:'2026-10-07T10:00:00Z',records});
+    const customer=(version:number,name:string)=>({collection:'customers',id:'c1',version,data:{name},archived:false});
+    await store.applyPage({cursor:1,highWater:1,hasMore:false,changes:[change(1,[customer(1,'One')])]});
+    let replayThrew=false;try{await store.applyPage({cursor:2,highWater:2,hasMore:false,changes:[change(2,[customer(1,'One')])]});}catch{replayThrew=true}
+    const cursorAfterReplay=await store.cursor();
+    let mutationError='';try{await store.applyPage({cursor:3,highWater:3,hasMore:false,changes:[change(3,[customer(1,'Mutated')])]});}catch(error){mutationError=String((error as Error).message)}
+    const cursorAfterMutation=await store.cursor();
+    await store.applyPage({cursor:3,highWater:3,hasMore:false,changes:[change(3,[customer(2,'Two')])]});
+    let regressionError='';try{await store.applyPage({cursor:4,highWater:4,hasMore:false,changes:[change(4,[customer(1,'One')])]});}catch(error){regressionError=String((error as Error).message)}
+    const cursorAfterRegression=await store.cursor();
+    const records=await store.records();store.close();
+    return {replayThrew,cursorAfterReplay,mutationError,cursorAfterMutation,regressionError,cursorAfterRegression,record:records.find((row:any)=>row.id==='c1')};
+  });
+  expect(result.replayThrew).toBe(false);
+  expect(result.cursorAfterReplay).toBe(2);
+  expect(result.mutationError).toBe('Conflicting record content at the same version');
+  expect(result.cursorAfterMutation).toBe(2);
+  expect(result.regressionError).toBe('Non-increasing record version');
+  expect(result.cursorAfterRegression).toBe(3);
+  expect(result.record.version).toBe(2);expect(result.record.data.name).toBe('Two');
+});
+
 test('typed drafts survive storage upgrade and promote exactly once without retaining secrets',async({page})=>{
   await page.goto('/');await page.addScriptTag({content:harness});
   const result=await page.evaluate(async()=>{
