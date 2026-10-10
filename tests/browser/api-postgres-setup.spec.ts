@@ -262,3 +262,149 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
   if(priorSetupSecret===undefined)delete process.env.INITIAL_ADMIN_SETUP_SECRET;else process.env.INITIAL_ADMIN_SETUP_SECRET=priorSetupSecret;
  }
 });
+
+test('hotel first use creates a room, checks in a guest and settles the first stay',async({page},testInfo)=>{
+ test.setTimeout(90_000);
+ test.skip(!process.env.TEST_DATABASE_URL||!['api-postgres','api-postgres-mobile'].includes(testInfo.project.name),'Requires a real API browser project and a disposable TEST_DATABASE_URL.');
+ const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
+ const {Pool}=requireApi('pg');
+ const adminPool=new Pool({connectionString:process.env.TEST_DATABASE_URL,max:2});
+ const schema=`browser_hotel_${randomUUID().replaceAll('-','')}`;
+ await adminPool.query(`CREATE SCHEMA "${schema}"`);
+ const pool=new Pool({connectionString:process.env.TEST_DATABASE_URL,max:10,options:`-c search_path=${schema},public`});
+ const priorSetupSecret=process.env.INITIAL_ADMIN_SETUP_SECRET;
+ const loginName=`hotel-${randomUUID()}@example.invalid`;
+ const password='Disposable-Hotel-Owner-2026';
+ const setupSecret=`disposable-${randomUUID()}-${randomUUID()}`;
+ let businessId='';
+ let server:ReturnType<typeof createApiServer>|undefined;
+ try{
+  await migrate(pool);
+  const store=new PostgresStore(pool);
+  process.env.INITIAL_ADMIN_SETUP_SECRET=setupSecret;
+  server=createApiServer({store,registry:createApiCommandRegistry(),authenticate:(request:IncomingMessage)=>authenticateSession(request,store),origin:'http://127.0.0.1:3020'});
+  await new Promise<void>((resolve,reject)=>{server!.once('error',reject);server!.listen(4317,'127.0.0.1',resolve)});
+  await page.goto('/');
+  await page.getByRole('button',{name:'Set up a new business',exact:true}).click();
+  await page.getByLabel('Business name',{exact:true}).fill('Disposable Hotel Setup');
+  await page.getByLabel('Administrator name',{exact:true}).fill('Hotel Setup Owner');
+  await page.getByLabel('Login name',{exact:true}).fill(loginName);
+  await page.getByLabel('One-time setup key',{exact:true}).fill(setupSecret);
+  await page.getByLabel('Administrator password',{exact:true}).fill(password);
+  await page.getByLabel('Confirm administrator password',{exact:true}).fill(password);
+  await page.getByRole('button',{name:'Create administrator',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('The initial administrator was created.');
+  businessId=(await pool.query('SELECT id FROM businesses WHERE name=$1',['Disposable Hotel Setup'])).rows[0].id;
+
+  await page.getByLabel('Staff login',{exact:true}).fill(loginName);
+  await page.getByLabel('Password',{exact:true}).fill(password);
+  await page.getByRole('button',{name:'Sign in',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Business identity',exact:true})).toBeVisible();
+  await page.getByLabel('Registered business name').fill('Kijani Lodge');
+  await page.getByLabel('Business category').selectOption('ACCOMMODATION');
+  await page.getByLabel('Receipt display name').fill('Kijani Lodge');
+  await page.getByRole('radio').first().check();
+  await page.getByRole('button',{name:'Save and continue',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Business type',exact:true})).toBeVisible();
+  await page.getByRole('radio',{name:/Hotel \/ Resort/}).check();
+  await page.getByLabel('Storage location').fill('Property Store');
+  await page.getByLabel('Outlet name').nth(0).fill('Main Property');
+  await page.getByLabel('Outlet name').nth(1).fill('Front Desk');
+  await page.getByRole('button',{name:'Save and continue',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Outlets and payments',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Save and review',exact:true}).click();
+  await page.getByRole('button',{name:'Save business defaults',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Finish and open workspace',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'Finish and open workspace',exact:true}).click();
+  await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();
+
+  const typeForm=page.getByRole('heading',{name:'Room types',exact:true}).locator('xpath=..');
+  await typeForm.getByLabel('Name',{exact:true}).fill('Standard Room');
+  await typeForm.getByLabel('Code',{exact:true}).fill('STANDARD');
+  await typeForm.getByLabel('Maximum guests',{exact:true}).fill('2');
+  await typeForm.getByRole('button',{name:'Add room type',exact:true}).click();
+  await expect(typeForm.getByText('Standard Room · up to 2',{exact:true})).toBeVisible();
+
+  const roomForm=page.getByRole('heading',{name:'Add room',exact:true}).locator('xpath=..');
+  await roomForm.getByLabel('Room number',{exact:true}).fill('101');
+  const roomTypeSelect=roomForm.locator('select');
+  const roomTypeOption=roomTypeSelect.locator('option').filter({hasText:'Standard Room'});
+  await expect(roomTypeOption).toHaveCount(1);
+  await roomTypeSelect.selectOption(await roomTypeOption.getAttribute('value')||'');
+  await roomForm.getByLabel('Guest capacity',{exact:true}).fill('2');
+  await roomForm.getByLabel('Turnaround minutes',{exact:true}).fill('30');
+  await roomForm.getByRole('button',{name:'Add room',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
+
+  const rateForm=page.getByRole('heading',{name:'Add rate plan',exact:true}).locator('xpath=..');
+  await rateForm.getByLabel('Name',{exact:true}).fill('Standard nightly');
+  const rateTypeSelect=rateForm.locator('select').first();
+  const rateTypeOption=rateTypeSelect.locator('option').filter({hasText:'Standard Room'});
+  await expect(rateTypeOption).toHaveCount(1);
+  await rateTypeSelect.selectOption(await rateTypeOption.getAttribute('value')||'');
+  await rateForm.locator('select').nth(1).selectOption('NIGHTLY');
+  await rateForm.getByLabel('Rate (KES)',{exact:true}).fill('2500.00');
+  await rateForm.getByLabel('Tax rate (%)',{exact:true}).fill('0');
+  await rateForm.getByRole('button',{name:'Add rate plan',exact:true}).click();
+  await expect(rateForm.getByText(/Standard nightly.*2,500\.00 \(nightly\)/)).toBeVisible();
+
+  await page.getByRole('button',{name:'Master data',exact:true}).click();
+  await page.getByRole('button',{name:'Add customer',exact:true}).click();
+  const customerForm=page.getByRole('dialog',{name:'Edit API customer',exact:true});
+  await customerForm.getByLabel('Name',{exact:true}).fill('Amina Hotel Guest');
+  await customerForm.getByLabel('Change reason',{exact:true}).fill('Disposable hotel onboarding acceptance');
+  await customerForm.getByRole('button',{name:'Save customer',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('Customer saved and confirmed.');
+
+  await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();
+  const reservationForm=page.locator('[data-guide-anchor="rooms.reservation"]');
+  await expect(reservationForm.getByRole('status')).toContainText('1 room(s) available');
+  await reservationForm.getByLabel('Room',{exact:true}).selectOption({label:'Room 101'});
+  await reservationForm.getByLabel('Rate plan',{exact:true}).selectOption({label:/Standard nightly/});
+  await reservationForm.getByLabel('Guest',{exact:true}).selectOption({label:'Amina Hotel Guest'});
+  await reservationForm.getByRole('button',{name:'Walk in and check in',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('Walk-in checked in.');
+  const stay=(await pool.query(`SELECT r.id,r.status AS reservation_status,s.status AS stay_status,r.quoted_amount_minor
+    FROM business_room_reservations r JOIN business_stays s ON s.business_id=r.business_id AND s.id=r.id
+    WHERE r.business_id=$1`,[businessId])).rows[0];
+  expect(stay).toMatchObject({reservation_status:'CHECKED_IN',stay_status:'CHECKED_IN',quoted_amount_minor:'250000'});
+
+  await page.getByRole('button',{name:'Guest Accounts',exact:true}).click();
+  const guestAccounts=page.locator('[data-guide-anchor="web.guest-accounts"]');
+  await guestAccounts.getByLabel('Select a guest account',{exact:true}).selectOption(stay.id);
+  await guestAccounts.getByRole('button',{name:'Post booked accommodation',exact:true}).click();
+  await expect(guestAccounts.getByRole('status')).toContainText('Guest account action confirmed and synchronized.');
+  const cash=(await pool.query("SELECT id FROM payment_accounts WHERE business_id=$1 AND method='CASH' AND archived_at IS NULL",[businessId])).rows[0];
+  await guestAccounts.getByLabel('Payment account',{exact:true}).selectOption(cash.id);
+  await guestAccounts.getByLabel('Amount (KES)',{exact:true}).fill('2500.00');
+  await guestAccounts.getByLabel('Cash tendered (KES)',{exact:true}).fill('2500.00');
+  await guestAccounts.getByRole('button',{name:'Settle balance',exact:true}).click();
+  await expect(guestAccounts.getByRole('status')).toContainText('Guest account action confirmed and synchronized.');
+  await guestAccounts.getByRole('button',{name:'Check out guest',exact:true}).click();
+  await expect(guestAccounts.getByRole('status')).toContainText('Guest account action confirmed and synchronized.');
+
+  const result=(await pool.query(`SELECT s.configuration->>'businessType' AS business_type,
+    (SELECT count(*)::int FROM business_room_types WHERE business_id=$1) AS room_types,
+    (SELECT count(*)::int FROM business_rooms WHERE business_id=$1 AND number='101') AS rooms,
+    (SELECT count(*)::int FROM business_room_rate_plans WHERE business_id=$1 AND price_minor=250000) AS rates,
+    r.status AS reservation_status,st.status AS stay_status,f.status AS folio_status,
+    f.balance_minor,he.accommodation_count,he.accommodation_minor,hp.payment_count,hp.payment_minor,hp.cash_tendered_minor
+    FROM business_setup s
+    JOIN business_room_reservations r ON r.business_id=s.business_id
+    JOIN business_stays st ON st.business_id=r.business_id AND st.id=r.id
+    JOIN business_folios f ON f.business_id=r.business_id AND f.id=r.id
+    CROSS JOIN LATERAL (SELECT count(*)::int AS accommodation_count,COALESCE(sum(amount_minor),0)::text AS accommodation_minor
+      FROM business_folio_entries WHERE business_id=s.business_id AND folio_id=r.id AND source_type='ACCOMMODATION') he
+    CROSS JOIN LATERAL (SELECT count(*)::int AS payment_count,COALESCE(sum(amount_minor),0)::text AS payment_minor,COALESCE(sum(cash_tendered_minor),0)::text AS cash_tendered_minor
+      FROM business_hospitality_payments WHERE business_id=s.business_id AND folio_id=r.id AND purpose='SETTLEMENT') hp
+    WHERE s.business_id=$1`,[businessId])).rows[0];
+  expect(result).toMatchObject({business_type:'HOTEL_RESORT',room_types:1,rooms:1,rates:1,reservation_status:'CHECKED_OUT',stay_status:'CHECKED_OUT',folio_status:'CLOSED',balance_minor:'0',accommodation_count:1,accommodation_minor:'250000',payment_count:1,payment_minor:'250000',cash_tendered_minor:'250000'});
+ }finally{
+  if(!page.isClosed())await page.goto('about:blank').catch(()=>undefined);
+  if(server){const closingServer=server;closingServer.closeAllConnections();await new Promise<void>(resolve=>closingServer.close(()=>resolve()))}
+  await pool.end();
+  await adminPool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+  await adminPool.end();
+  if(priorSetupSecret===undefined)delete process.env.INITIAL_ADMIN_SETUP_SECRET;else process.env.INITIAL_ADMIN_SETUP_SECRET=priorSetupSecret;
+ }
+});
