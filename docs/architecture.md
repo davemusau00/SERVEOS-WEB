@@ -5,7 +5,7 @@ ServOS is a web based hospitality ERP/POS delivered as a PWA. The Node API is th
 ```text
 Browser / PWA ── HTTPS ── Node API ── PostgreSQL
       │
-      └── localhost ── Print Bridge ── receipt or kitchen printer
+      └── browser print dialog ── OS printer queue ── receipt or kitchen printer
 ```
 
 The API command kernel validates identity, permissions, expected record versions, idempotency and offline grants. Domain command handlers and database transactions produce audit records and the ordered change feed. The browser sync layer sends queued commands and applies authorized changes to its projection.

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T08:03:10.396Z",
+  "generatedAt": "2026-10-10T14:13:24.195Z",
   "source": "docs/user-guide",
   "count": 22,
   "articles": [
@@ -478,7 +478,7 @@
       "example": "",
       "steps": [
         "Confirm the browser is online.",
-        "A manager can open Settings and refresh System health to check API and database readiness, the application version, saved-work counts, browser printing, and whether a local Print Bridge is selected."
+        "A manager can open Settings and refresh System health to check API and database readiness, the application version, saved-work counts and whether the browser print dialog is available."
       ],
       "systemHandles": [
         "The API preserves command outcomes and provides change history for recovery."
@@ -491,7 +491,7 @@
       ],
       "guideId": "",
       "estimatedMinutes": 1,
-      "body": "Section: Operations\nRoles: Admin, Manager, Staff\nPermission: help.view\nScreen: help\nKeywords: sign in, network, conflict, printer, troubleshooting\n\n## Overview\n\nUse the displayed error and Activity record to identify whether a request was rejected, queued or has an unknown outcome.\n\n## Procedure\n\n1. Confirm the browser is online. A manager can open Settings and refresh System health to check API and database readiness, the application version, saved-work counts, browser printing, and whether a local Print Bridge is selected.\n2. Read the full operator message and note its command reference.\n3. For a conflict, refresh the record and review the current balance before correcting it.\n4. For an unknown result, recover the original command before repeating the action.\n5. For printer uncertainty, check the paper and printer queue before retrying.\n\n## What ServOS handles\n\nThe API preserves command outcomes and provides change history for recovery.\n\n## Common mistakes and correction\n\nDo not refresh by clearing site data or create a replacement transaction while the first outcome is unknown.\n\nSystem health currently has no backup heartbeat to display. A “Not reported” backup status is unknown, not proof that a backup exists or can be restored. Browser print availability also does not confirm an installed printer or paper delivery.",
+      "body": "Section: Operations\nRoles: Admin, Manager, Staff\nPermission: help.view\nScreen: help\nKeywords: sign in, network, conflict, printer, troubleshooting\n\n## Overview\n\nUse the displayed error and Activity record to identify whether a request was rejected, queued or has an unknown outcome.\n\n## Procedure\n\n1. Confirm the browser is online. A manager can open Settings and refresh System health to check API and database readiness, the application version, saved-work counts and whether the browser print dialog is available.\n2. Read the full operator message and note its command reference.\n3. For a conflict, refresh the record and review the current balance before correcting it.\n4. For an unknown result, recover the original command before repeating the action.\n5. For printer uncertainty, check the paper and printer queue before retrying.\n\n## What ServOS handles\n\nThe API preserves command outcomes and provides change history for recovery.\n\n## Common mistakes and correction\n\nDo not refresh by clearing site data or create a replacement transaction while the first outcome is unknown.\n\nSystem health currently has no backup heartbeat to display. A “Not reported” backup status is unknown, not proof that a backup exists or can be restored. Browser print availability also does not confirm an installed printer or paper delivery.",
       "keywords": [
         "sign in",
         "network",
@@ -513,13 +513,13 @@
         "payment.record"
       ],
       "screen": "activity",
-      "summary": "After a confirmed sale, open its issued receipt from Activity and print it with the browser. The operating-system print dialog lets you choose an installed printer. A dialog opening does not prove that paper printed.",
+      "summary": "After a confirmed sale, open its immutable receipt from Activity, preview it, then print from the browser/PWA. The operating-system print dialog lets you choose an installed printer and paper options. A dialog opening does not prove that paper printed. ServOS does not require or offer a Print Bridge or printer service.",
       "example": "",
       "steps": [
         "Confirm that the payment outcome is saved."
       ],
       "systemHandles": [
-        "ServOS keeps the issued receipt immutable and tracks the shared print job. The operator confirms physical delivery after checking the printer output."
+        "ServOS keeps the issued receipt immutable and tracks print attempts. The operator confirms physical delivery only after checking the printer output."
       ],
       "commonMistakes": [
         "Do not treat a browser dialog or a queued job as proof of delivery. If delivery is uncertain, check the printer before retrying because a retry may create a duplicate."
@@ -530,7 +530,7 @@
       ],
       "guideId": "receipt.print",
       "estimatedMinutes": 1,
-      "body": "Section: Point of Sale\nRoles: Cashier, Manager\nPermission: pos.sell, payment.record\nScreen: activity\nGuide: receipt.print\nKeywords: receipt, print, browser, printer, duplicate\n\n## Overview\n\nAfter a confirmed sale, open its issued receipt from Activity and print it with the browser. The operating-system print dialog lets you choose an installed printer. A dialog opening does not prove that paper printed.\n\n## Procedure\n\n1. Confirm that the payment outcome is saved.\n2. Open Activity and find Documents and printing.\n3. Select the sales receipt and preview it.\n4. Choose **Print with browser** and select the installed printer and paper options.\n5. Check the physical output. Confirm delivery only after the receipt has printed.\n\nThe optional Print Bridge can send supported documents to an approved local printer. It is not required for browser printing.\n\n## What ServOS handles\n\nServOS keeps the issued receipt immutable and tracks the shared print job. The operator confirms physical delivery after checking the printer output.\n\n## Common mistakes and correction\n\nDo not treat a browser dialog or a queued job as proof of delivery. If delivery is uncertain, check the printer before retrying because a retry may create a duplicate.",
+      "body": "Section: Point of Sale\nRoles: Cashier, Manager\nPermission: pos.sell, payment.record\nScreen: activity\nGuide: receipt.print\nKeywords: receipt, print, browser, printer, duplicate\n\n## Overview\n\nAfter a confirmed sale, open its immutable receipt from Activity, preview it, then print from the browser/PWA. The operating-system print dialog lets you choose an installed printer and paper options. A dialog opening does not prove that paper printed. ServOS does not require or offer a Print Bridge or printer service.\n\n## Procedure\n\n1. Confirm that the payment outcome is saved.\n2. Open Activity and find Documents and printing.\n3. Select the sales receipt and preview it.\n4. Choose **Print with browser** and select the installed operating-system printer and paper options.\n5. Check the physical output. Confirm delivery only after the receipt has printed.\n\n## What ServOS handles\n\nServOS keeps the issued receipt immutable and tracks print attempts. The operator confirms physical delivery only after checking the printer output.\n\n## Common mistakes and correction\n\nDo not treat a browser dialog or a queued job as proof of delivery. If delivery is uncertain, check the printer before retrying because a retry may create a duplicate.",
       "keywords": [
         "receipt",
         "print",
@@ -541,7 +541,7 @@
     },
     {
       "id": "31-xprinter-xp-80t",
-      "title": "Printer setup",
+      "title": "Configure an operating-system printer",
       "section": "Printing",
       "roles": [
         "Admin",
@@ -551,24 +551,25 @@
         "system.configure"
       ],
       "screen": "settings",
-      "summary": "The browser sends authorized documents to the optional local Print Bridge. Configure the printer through the bridge settings and operating system.",
+      "summary": "ServOS uses the browser/PWA print dialog and an operating-system printer. ServOS does not install a Print Bridge, local service or printer driver. The printer model and print profile must be checked on the actual workstation before being treated as supported.",
       "example": "",
       "steps": [
-        "Install and start the approved Print Bridge service on the workstation."
+        "Install the printer using its manufacturer instructions and the workstation's operating-system settings."
       ],
       "systemHandles": [
-        "The API authorizes the document and the bridge records transport status."
+        "The API authorizes each print attempt and records its status. The browser dialog does not confirm that paper emerged from the printer."
       ],
       "commonMistakes": [
-        "Transport acceptance does not prove that paper printed. Inspect the printer before retrying an uncertain receipt."
+        "Operating-system queue readiness and a test page do not prove that a ServOS receipt is correctly scaled. Inspect the actual receipt before retrying; a retry may create a duplicate."
       ],
       "relatedTasks": [],
       "guideId": "",
       "estimatedMinutes": 1,
-      "body": "Section: Printing\nRoles: Admin, Manager\nPermission: system.configure\nScreen: settings\nKeywords: printer, Print Bridge, USB, network, receipt\n\n## Overview\n\nThe browser sends authorized documents to the optional local Print Bridge. Configure the printer through the bridge settings and operating system.\n\n## Procedure\n\n1. Install and start the approved Print Bridge service on the workstation.\n2. Confirm the bridge reports a healthy local connection.\n3. Select the configured USB queue or printer network address.\n4. Send a test document and confirm that paper output is correct.\n5. Check print job history before retrying any uncertain job.\n\n## What ServOS handles\n\nThe API authorizes the document and the bridge records transport status.\n\n## Common mistakes and correction\n\nTransport acceptance does not prove that paper printed. Inspect the printer before retrying an uncertain receipt.",
+      "body": "Section: Printing\nRoles: Admin, Manager\nPermission: system.configure\nScreen: settings\nKeywords: printer, Windows, driver, USB, network, receipt\n\n## Overview\n\nServOS uses the browser/PWA print dialog and an operating-system printer. ServOS does not install a Print Bridge, local service or printer driver. The printer model and print profile must be checked on the actual workstation before being treated as supported.\n\n## Procedure\n\n1. Install the printer using its manufacturer instructions and the workstation's operating-system settings.\n2. Print an operating-system test page and confirm the queue is ready.\n3. In ServOS, open Activity, choose an issued document and preview it.\n4. Choose **Print with browser**, select the operating-system printer and verify the paper-size and scaling options.\n5. Inspect the paper output before confirming delivery or retrying an uncertain document.\n\n## What ServOS handles\n\nThe API authorizes each print attempt and records its status. The browser dialog does not confirm that paper emerged from the printer.\n\n## Common mistakes and correction\n\nOperating-system queue readiness and a test page do not prove that a ServOS receipt is correctly scaled. Inspect the actual receipt before retrying; a retry may create a duplicate.",
       "keywords": [
         "printer",
-        "Print Bridge",
+        "Windows",
+        "driver",
         "USB",
         "network",
         "receipt"

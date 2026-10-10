@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-ServOS is a web-based hospitality ERP/POS delivered as a PWA against a Node API and PostgreSQL, with an optional local Print Bridge for receipts and kitchen printing. Operator CSV imports go through the API controlled importer.
+ServOS is a web-based hospitality ERP/POS delivered as a PWA against a Node API and PostgreSQL. Documents print from the browser/PWA to an operating-system printer. Operator CSV imports go through the API controlled importer.
 
 ## Current task scope
 
@@ -24,7 +24,7 @@ ServOS is a web-based hospitality ERP/POS delivered as a PWA against a Node API 
 - Browser business writes use the API command kernel; IndexedDB is the PWA projection and offline queue.
 - API command permissions and staff role templates share the checked contracts.
 - Tauri business runtime, browser direct database access, Supabase runtime, legacy native UI, duplicate import flow, and obsolete architecture release gates have been removed from the working tree. The prior source history is retained at `pre-web-only-cleanup-2026-10`.
-- CI now covers the PWA, API/PostgreSQL, production browser checks, and Print Bridge on Linux and Windows.
+- CI covers the PWA, API/PostgreSQL, production browser checks, and legacy Print Bridge source maintenance on Linux and Windows. The bridge is not part of the V2 operator workflow.
 - Current documentation and the static UI interaction inventory are generated and checked from the web-first source tree.
 
 ## Local verification
@@ -36,9 +36,9 @@ ServOS is a web-based hospitality ERP/POS delivered as a PWA against a Node API 
 - With `TEST_PG_CONTAINER` set to the task-owned disposable PostgreSQL container, the same fresh-schema browser run also passed `apps/backup/rehearse-local.sh`: it created a private custom-format dump, restored into a new empty database, and matched sales, payments, refunds, journal lines, stock balances/consumptions/movements, inventory counts, drawer entries, closed till totals, and close-day reports. The random restore database and temporary dump were removed after comparison. Remote encryption/delivery and hosted recovery remain unverified.
 - The browser receipt proof does not send paper to an operating-system printer. Physical receipt readability, a real owner-supplied M-Pesa QR scan, thermal layout and physical reprint remain unverified; do not treat the test interception or queued-job recovery as printer acceptance.
 - Read-only workstation inspection found `Xprinter XP-80` and `Xprinter XP-80 (Copy 1)` sharing `USB001`; one queue had a pre-existing pending job, and no ServOS Print Bridge Windows service was registered. No output was sent to either queue and the pending job was left untouched.
-- Print Bridge and transport formatting, Clippy, tests, release builds, and the Windows service feature checks passed. The Print Bridge app currently has no unit tests; the transport crate has 12 passing tests.
+- Legacy Print Bridge and transport formatting, Clippy, tests, release builds, and Windows service feature checks passed. These are source maintenance checks, not printer acceptance; the transport crate has 12 passing tests.
 - `npm run audit:ui:gate` passed: 1,647 interactions inventoried and no browser prompt/confirm findings. It recorded 255 review signals; they are unreviewed source-level prompts, not confirmed defects or accepted workflow evidence.
-- Settings includes a System health panel for API/database readiness, app version, saved-work counts, browser printing, local Print Bridge selection, and backup status. Runtime backup status remains “Not reported”; the disposable local restore rehearsal is separate from that runtime status.
+- Settings includes a System health panel for API/database readiness, app version, saved-work counts, browser printing, browser print availability, and backup status. Runtime backup status remains “Not reported”; the disposable local restore rehearsal is separate from that runtime status.
 - Workspace screens and recovery panels are lazy-loaded. The latest build's main JavaScript chunk is 243 kB, down from 597 kB, with no chunk-size warning. The receipt and application logo assets remain large at 786 kB and 1.86 MB.
 - Thrown web-screen errors pass through the shared operator-safe error mapper, including authentication, catalog, inventory, finance, printing, settings, and activity flows. The updated sprint's cafe routine now passes on desktop and mobile; review of every other operator workflow, keyboard path, responsive screen, permissions state, and recovery path remains open.
 

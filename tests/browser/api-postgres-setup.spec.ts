@@ -264,7 +264,7 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
 });
 
 test('hotel first use creates a room, checks in a guest and settles the first stay',async({page},testInfo)=>{
- test.setTimeout(240_000);
+ test.setTimeout(180_000);
  test.skip(!process.env.TEST_DATABASE_URL||!['api-postgres','api-postgres-mobile'].includes(testInfo.project.name),'Requires a real API browser project and a disposable TEST_DATABASE_URL.');
  const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
  const {Pool}=requireApi('pg');
@@ -361,9 +361,10 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();
   const reservationForm=page.locator('[data-guide-anchor="rooms.reservation"]');
   await expect(reservationForm.getByRole('status')).toContainText('1 room(s) available');
-  await reservationForm.getByLabel('Room',{exact:true}).selectOption({label:'Room 101'});
-  await reservationForm.getByLabel('Rate plan',{exact:true}).selectOption({label:/Standard nightly/});
-  await reservationForm.getByLabel('Guest',{exact:true}).selectOption({label:'Amina Hotel Guest'});
+  const reservationSelects=reservationForm.locator('select');
+  await reservationSelects.nth(0).selectOption({label:'Room 101'});
+  await reservationSelects.nth(1).selectOption({label:/Standard nightly/});
+  await reservationSelects.nth(2).selectOption({label:'Amina Hotel Guest'});
   await reservationForm.getByRole('button',{name:'Walk in and check in',exact:true}).click();
   await expect(reservationForm.getByText('Walk-in checked in.',{exact:true})).toBeVisible();
   const stay=(await pool.query(`SELECT r.id,r.status AS reservation_status,s.status AS stay_status,r.quoted_amount_minor
