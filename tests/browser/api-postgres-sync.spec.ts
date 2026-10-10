@@ -18,7 +18,7 @@ const instrumentRefreshLocks=()=>{
 };
 
 test('real API catalog confirmation, IndexedDB reload and missed change recovery',async({page},testInfo)=>{
- test.skip(!process.env.TEST_DATABASE_URL||testInfo.project.name!=='api-postgres','Requires dedicated API config and disposable TEST_DATABASE_URL.');
+ test.skip(!process.env.TEST_DATABASE_URL||!['api-postgres','api-postgres-mobile'].includes(testInfo.project.name),'Requires a real API browser project and disposable TEST_DATABASE_URL.');
  const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
  const {Pool}=requireApi('pg');
  const pool=new Pool({connectionString:process.env.TEST_DATABASE_URL,max:4});

@@ -10,7 +10,7 @@ import {migrate} from '../../apps/api/src/migrate.mjs';
 import {createApiCommandRegistry} from '../../apps/api/src/command-registry.mjs';
 
 test('fresh-browser onboarding covers stocked sale, printer recovery, refund and close-day reconciliation',async({page},testInfo)=>{
- test.skip(!process.env.TEST_DATABASE_URL||testInfo.project.name!=='api-postgres','Requires the dedicated API browser project and a disposable TEST_DATABASE_URL.');
+ test.skip(!process.env.TEST_DATABASE_URL||!['api-postgres','api-postgres-mobile'].includes(testInfo.project.name),'Requires a real API browser project and a disposable TEST_DATABASE_URL.');
  const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
  const {Pool}=requireApi('pg');
  const adminPool=new Pool({connectionString:process.env.TEST_DATABASE_URL,max:2});

@@ -7,7 +7,10 @@ export default defineConfig({
  timeout:60_000,outputDir:'test-results/api-postgres',
  reporter:[['list'],['html',{outputFolder:'playwright-report/api-postgres',open:'never'}]],
  use:{baseURL:'http://127.0.0.1:3020',trace:'retain-on-failure'},
- projects:[{name:'api-postgres',use:{...devices['Desktop Chrome']}}],
+ projects:[
+  {name:'api-postgres',use:{...devices['Desktop Chrome']}},
+  {name:'api-postgres-mobile',use:{...devices['Pixel 7']}},
+ ],
  webServer:{
   command:'npm run build -- --outDir dist-api-test && npm run preview -- --host 127.0.0.1 --port 3020 --strictPort --outDir dist-api-test',
   env:{VITE_API_URL:'http://127.0.0.1:4317'},
