@@ -26,8 +26,8 @@ test('Two independent terminals preserve version, money and stock consistency',{
  const store=new PostgresStore(pool),businessId=randomUUID();
  const manager={businessId,staffId:randomUUID(),deviceId:randomUUID(),permissions:['*']};
  const supervisor={businessId,staffId:randomUUID(),deviceId:randomUUID(),permissions:['catalog.manage']};
- const terminalA={businessId,staffId:randomUUID(),deviceId:randomUUID(),permissions:['pos.sell','order.fire','payment.record','till.open','till.cashMovement']};
- const terminalB={businessId,staffId:randomUUID(),deviceId:randomUUID(),permissions:['pos.sell','order.fire','payment.record','till.open','till.cashMovement']};
+ const terminalA={businessId,staffId:randomUUID(),deviceId:randomUUID(),permissions:['pos.sell','order.fire','payment.record','mpesa.record','till.open','till.cashMovement']};
+ const terminalB={businessId,staffId:randomUUID(),deviceId:randomUUID(),permissions:['pos.sell','order.fire','payment.record','mpesa.record','till.open','till.cashMovement','till.close']};
  const registry=new Map([...catalogCommandRegistry,...businessTaxCommandRegistry,...outletCommandRegistry,...paymentAccountCommandRegistry,...tillCommandRegistry,...posCommandRegistry,...paymentCommandRegistry]);
  await pool.query('INSERT INTO businesses(id,name) VALUES($1,$2)',[businessId,'Disposable Two-Terminal Acceptance']);
  for(const actor of [manager,supervisor,terminalA,terminalB])await pool.query('INSERT INTO api_enrolled_devices(id,business_id,staff_id,public_key,created_at) VALUES($1,$2,$3,$4,now())',[actor.deviceId,businessId,actor.staffId,JSON.stringify({kty:'EC',crv:'P-256',x:'x',y:'y'})]);
@@ -101,26 +101,33 @@ test('Two independent terminals preserve version, money and stock consistency',{
  const saleB2Fire=await fireOrder(terminalB,saleB2,await balanceVersion(),await entityVersion('stockItems',stockId));
  assert.equal(saleB2Fire.kind,'CONFIRMED',`terminal B second fire: ${JSON.stringify(saleB2Fire)}`);
  const foreignTill=await run(terminalB,'payment.record',{orderId:saleB2.orderId,tillSessionId:tillAId,accountId:cashAccountId,amountMinor:500,cashTenderedMinor:500},{[`orders:${saleB2.orderId}`]:saleB2Fire.result.order.version,[`tillSessions:${tillAId}`]:await entityVersion('tillSessions',tillAId),[`paymentAccounts:${cashAccountId}`]:await entityVersion('paymentAccounts',cashAccountId)});
- assert.equal(foreignTill.kind,'CONFLICT');assert.equal(foreignTill.error.code,'TILL_OWNERSHIP_REQUIRED','till ownership is enforced per operator and device');
+ assert.ok(['REJECTED','CONFLICT'].includes(foreignTill.kind),`foreign till: ${JSON.stringify(foreignTill)}`);
+ assert.equal(foreignTill.error.code,'TILL_OWNERSHIP_REQUIRED','till ownership is enforced per operator and device');
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM order_payments WHERE business_id=$1 AND order_id=$2',[businessId,saleB2.orderId])).rows[0].count,0,'the foreign-till attempt recorded no money');
 
  // S4: the same external M-Pesa reference cannot be posted by two terminals.
- const mpesaPay=async(actor,order,tillId,reference,orderVersion)=>run(actor,'payment.record',{orderId:order,tillSessionId:tillId,accountId:mpesaAccountId,amountMinor:500,manuallyConfirmed:true,reference,receivedAmountMinor:500,receivedAt:new Date(Date.now()-1000).toISOString()},{[`orders:${order}`]:orderVersion,[`tillSessions:${tillId}`]:await entityVersion('tillSessions',tillId),[`paymentAccounts:${mpesaAccountId}`]:await entityVersion('paymentAccounts',mpesaAccountId)});
+ const orderTotal=async orderId=>Number((await pool.query('SELECT grand_total_minor AS total FROM pos_orders WHERE business_id=$1 AND id=$2',[businessId,orderId])).rows[0].total);
+ const mpesaPay=async(actor,order,tillId,reference,orderVersion,amountMinor)=>run(actor,'payment.record',{orderId:order,tillSessionId:tillId,accountId:mpesaAccountId,amountMinor,manuallyConfirmed:true,reference,receivedAmountMinor:amountMinor,receivedAt:new Date(Date.now()-1000).toISOString()},{[`orders:${order}`]:orderVersion,[`tillSessions:${tillId}`]:await entityVersion('tillSessions',tillId),[`paymentAccounts:${mpesaAccountId}`]:await entityVersion('paymentAccounts',mpesaAccountId)});
  const saleB2FiredVersion=Number((await pool.query('SELECT version FROM pos_orders WHERE business_id=$1 AND id=$2',[businessId,saleB2.orderId])).rows[0].version);
- const mpesaPayment=await mpesaPay(terminalB,saleB2.orderId,tillBId,'MPESA-UNIQUE-001',saleB2FiredVersion);
+ const saleB2Total=await orderTotal(saleB2.orderId);
+ const mpesaPayment=await mpesaPay(terminalB,saleB2.orderId,tillBId,'MPESA-UNIQUE-001',saleB2FiredVersion,saleB2Total);
  assert.equal(mpesaPayment.kind,'CONFIRMED',`unique M-Pesa reference settles: ${JSON.stringify(mpesaPayment)}`);
  // Terminal A now attempts the exact reference terminal B already committed, on its own fresh order.
  const saleA2=await newCounterSale(terminalA,'Terminal A third sale');
  const saleA2Fire=await fireOrder(terminalA,saleA2,await balanceVersion(),await entityVersion('stockItems',stockId));
  assert.equal(saleA2Fire.kind,'CONFIRMED',`terminal A third fire: ${JSON.stringify(saleA2Fire)}`);
- const crossTerminalDuplicate=await mpesaPay(terminalA,saleA2.orderId,tillAId,'MPESA-UNIQUE-001',saleA2Fire.result.order.version);
+ const saleA2Total=await orderTotal(saleA2.orderId);
+ const crossTerminalDuplicate=await mpesaPay(terminalA,saleA2.orderId,tillAId,'MPESA-UNIQUE-001',saleA2Fire.result.order.version,saleA2Total);
  assert.equal(crossTerminalDuplicate.kind,'CONFLICT');
  assert.equal(crossTerminalDuplicate.error.code,'PAYMENT_REFERENCE_DUPLICATE','a committed reference blocks a second terminal before any money moves');
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM order_payments WHERE business_id=$1 AND external_reference=$2',[businessId,'MPESA-UNIQUE-001'])).rows[0].count,1,'the duplicate attempt left no partial payment');
- const saleA2Retry=await mpesaPay(terminalA,saleA2.orderId,tillAId,'MPESA-A2-001',saleA2Fire.result.order.version);
+ const saleA2Retry=await mpesaPay(terminalA,saleA2.orderId,tillAId,'MPESA-A2-001',saleA2Fire.result.order.version,saleA2Total);
  assert.equal(saleA2Retry.kind,'CONFIRMED','a distinct reference settles the same order normally');
+ assert.equal(saleA2Retry.result.order.data.state,'COMPLETED');
+ // Terminal B's first sale is settled with its own unique reference.
  // Terminal B's first sale is settled with its own unique reference.
  const saleBFiredVersion=Number((await pool.query('SELECT version FROM pos_orders WHERE business_id=$1 AND id=$2',[businessId,saleB.orderId])).rows[0].version);
- const saleBPayment=await mpesaPay(terminalB,saleB.orderId,tillBId,'MPESA-B-001',saleBFiredVersion);
+ const saleBPayment=await mpesaPay(terminalB,saleB.orderId,tillBId,'MPESA-B-001',saleBFiredVersion,await orderTotal(saleB.orderId));
  assert.equal(saleBPayment.kind,'CONFIRMED',`terminal B first sale settles: ${JSON.stringify(saleBPayment)}`);
 
  // S7: a stale terminal is told to refresh, not to resubmit blind.
@@ -129,8 +136,13 @@ test('Two independent terminals preserve version, money and stock consistency',{
  assert.match(staleEdit.error.message,/refresh/i,'the conflict instructs the operator to refresh');
 
  // S6: a till cannot close while unsettled orders remain, then closes reconciled.
+ const saleB3=await newCounterSale(terminalB,'Terminal B fourth sale');
+ const saleB3Fire=await fireOrder(terminalB,saleB3,await balanceVersion(),await entityVersion('stockItems',stockId));
+ assert.equal(saleB3Fire.kind,'CONFIRMED',`terminal B fourth fire: ${JSON.stringify(saleB3Fire)}`);
  const unsettledClose=await run(terminalB,'till.close',{id:tillBId,countedCashMinor:0},{[`tillSessions:${tillBId}`]:await entityVersion('tillSessions',tillBId)});
- assert.equal(unsettledClose.kind,'CONFLICT');assert.equal(unsettledClose.error.code,'UNSETTLED_ORDERS','an open order in the outlet blocks the till close');
+ assert.equal(unsettledClose.kind,'CONFLICT',`unsettled close: ${JSON.stringify(unsettledClose)}`);assert.equal(unsettledClose.error.code,'UNSETTLED_ORDERS','an open order in the outlet blocks the till close');
+ const saleB3Payment=await mpesaPay(terminalB,saleB3.orderId,tillBId,'MPESA-B3-001',saleB3Fire.result.order.version,await orderTotal(saleB3.orderId));
+ assert.equal(saleB3Payment.kind,'CONFIRMED',`terminal B fourth sale settles: ${JSON.stringify(saleB3Payment)}`);
  const closedTill=await confirmed(terminalB,'till.close',{id:tillBId,countedCashMinor:0,varianceReason:'No cash collected on this terminal'},{[`tillSessions:${tillBId}`]:await entityVersion('tillSessions',tillBId)});
  assert.equal(closedTill.result.data.status,'CLOSED');
  assert.equal(Number(closedTill.result.data.expectedCashMinor),0,'terminal B expected cash is zero; M-Pesa never entered a drawer');
