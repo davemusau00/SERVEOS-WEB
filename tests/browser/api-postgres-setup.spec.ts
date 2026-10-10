@@ -7,7 +7,7 @@ import {PostgresStore} from '../../apps/api/src/postgres-store.mjs';
 import {migrate} from '../../apps/api/src/migrate.mjs';
 import {createApiCommandRegistry} from '../../apps/api/src/command-registry.mjs';
 
-test('fresh PostgreSQL setup completes in the browser and resumes after refresh',async({page},testInfo)=>{
+test('fresh PostgreSQL setup resumes in the browser and supports a complete first cash sale',async({page},testInfo)=>{
  test.skip(!process.env.TEST_DATABASE_URL||testInfo.project.name!=='api-postgres','Requires the dedicated API browser project and a disposable TEST_DATABASE_URL.');
  const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
  const {Pool}=requireApi('pg');
@@ -67,6 +67,53 @@ test('fresh PostgreSQL setup completes in the browser and resumes after refresh'
   await expect(page.getByRole('button',{name:'Catalog',exact:true})).toBeVisible();
   const completed=(await pool.query('SELECT status,current_step FROM business_setup WHERE business_id=$1',[businessId])).rows[0];
   expect(completed).toMatchObject({status:'COMPLETED',current_step:3});
+
+  await page.getByRole('button',{name:'Catalog',exact:true}).click();
+  await page.getByRole('button',{name:'New product',exact:true}).click();
+  const productForm=page.getByRole('dialog',{name:'New product',exact:true});
+  await productForm.getByLabel('Name',{exact:true}).fill('First sale tea');
+  await productForm.getByLabel('Code / SKU',{exact:true}).fill('FIRST-SALE-TEA');
+  await productForm.getByLabel('Price (KES)',{exact:true}).fill('100.00');
+  await page.getByRole('combobox',{name:'Tax class',exact:true}).selectOption('B_0');
+  await productForm.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(page.getByText('First sale tea',{exact:true})).toBeVisible();
+  const product=(await pool.query('SELECT id,price_minor FROM products WHERE business_id=$1 AND code=$2',[businessId,'FIRST-SALE-TEA'])).rows[0];
+  expect(product).toMatchObject({price_minor:'10000'});
+
+  await page.getByRole('button',{name:'POS',exact:true}).click();
+  await page.getByRole('button',{name:'Start shift',exact:true}).click();
+  const shiftReview=page.getByRole('dialog',{name:'Review till action',exact:true});
+  await shiftReview.getByLabel('Opening float (KES)',{exact:true}).fill('500.00');
+  await shiftReview.getByRole('button',{name:'Start shift',exact:true}).click();
+  await expect(shiftReview).toBeHidden();
+  const till=(await pool.query("SELECT id,status,opening_float_minor FROM till_sessions WHERE business_id=$1 AND operator_id=$2 AND status='OPEN'",[businessId,staffId])).rows[0];
+  expect(till).toMatchObject({status:'OPEN',opening_float_minor:'50000'});
+
+  await page.getByRole('button',{name:/First sale tea/}).first().click();
+  const saleReview=page.getByRole('dialog',{name:'Review order action',exact:true});
+  await expect(saleReview.getByRole('heading',{name:'Start counter sale',exact:true})).toBeVisible();
+  await saleReview.getByRole('button',{name:'Confirm',exact:true}).click();
+  await expect(page.getByRole('button',{name:/Counter sale/}).first()).toBeVisible();
+  const order=(await pool.query('SELECT id,state,grand_total_minor FROM pos_orders WHERE business_id=$1 AND name=$2 ORDER BY created_at DESC LIMIT 1',[businessId,'Counter sale'])).rows[0];
+  expect(order).toMatchObject({state:'OPEN',grand_total_minor:'10000'});
+
+  await page.getByRole('button',{name:'Review and fire order',exact:true}).click();
+  const fireReview=page.getByRole('dialog',{name:'Review order action',exact:true});
+  await expect(fireReview.getByRole('heading',{name:'Fire reviewed order',exact:true})).toBeVisible();
+  await fireReview.getByRole('button',{name:'Confirm',exact:true}).click();
+  await page.getByRole('button',{name:/Record payment for Counter sale/}).click();
+  const paymentReview=page.getByRole('dialog',{name:'Review order payment',exact:true});
+  await paymentReview.getByLabel('Allocated amount (KES)',{exact:true}).fill('100.00');
+  await paymentReview.getByLabel('Cash physically tendered (KES)',{exact:true}).fill('100.00');
+  await paymentReview.getByRole('button',{name:'Confirm received payment',exact:true}).click();
+  await expect(page.locator('[data-guide-anchor="pos.payment"]').getByRole('status')).toContainText('Payment confirmed.');
+
+  const settled=(await pool.query('SELECT state,grand_total_minor,amount_paid_minor FROM pos_orders WHERE business_id=$1 AND id=$2',[businessId,order.id])).rows[0];
+  expect(settled).toMatchObject({state:'COMPLETED',grand_total_minor:'10000',amount_paid_minor:'10000'});
+  const payment=(await pool.query('SELECT method,amount_minor,cash_tendered_minor,till_session_id FROM order_payments WHERE business_id=$1 AND order_id=$2',[businessId,order.id])).rows[0];
+  expect(payment).toMatchObject({method:'CASH',amount_minor:'10000',cash_tendered_minor:'10000',till_session_id:till.id});
+  const drawerSale=(await pool.query("SELECT count(*)::int AS count FROM till_cash_entries WHERE business_id=$1 AND till_session_id=$2 AND kind='SALE' AND amount_delta_minor=10000",[businessId,till.id])).rows[0];
+  expect(drawerSale.count).toBe(1);
  }finally{
   if(!page.isClosed())await page.goto('about:blank').catch(()=>undefined);
   if(server){const closingServer=server;closingServer.closeAllConnections();await new Promise<void>(resolve=>closingServer.close(()=>resolve()))}
