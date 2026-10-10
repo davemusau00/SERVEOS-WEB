@@ -260,7 +260,7 @@ const fire=async({tx,command,actor,at})=>{
  for(const route of ['KITCHEN','BAR']){
   const routed=lines.filter(line=>line.routeTo===route);if(!routed.length)continue;
   const id=randomUUID(),type=route==='KITCHEN'?'KOT':'BOT',documentNumber=`${type}-${command.commandId}`;
-  const snapshot={orderId:p.orderId,orderName:order.data.name,outletId:order.data.outletId,serviceDestination:order.data.serviceDestination,serviceReference:order.data.serviceReference,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),items:routed.map(line=>({...line,state:'FIRED',preparationStatus:'FIRED',stockFired:true,firedAt:at.toISOString()})),courseName:selectedCourse};
+   const snapshot={business:order.data.businessSnapshot,orderId:p.orderId,orderName:order.data.name,outletId:order.data.outletId,serviceDestination:order.data.serviceDestination,serviceReference:order.data.serviceReference,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),items:routed.map(line=>({...line,state:'FIRED',preparationStatus:'FIRED',stockFired:true,firedAt:at.toISOString()})),courseName:selectedCourse};
   const hash=documentHash(snapshot);
   await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,$3,$4,1,$5::jsonb,$6,$7,$8,$9)`,[actor.businessId,id,type,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
   const printJob=await queueDocumentPrint(tx,{businessId:actor.businessId,documentId:id,printerRole:route,staffId:actor.staffId,at});

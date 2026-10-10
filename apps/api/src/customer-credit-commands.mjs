@@ -7,6 +7,7 @@ import {orderProjection} from './pos-commands.mjs';
 import {requireOpenTill,tillSessionProjection} from './till-commands.mjs';
 import {requireManagerApproval} from './manager-approvals.mjs';
 import {assertUniqueExternalPaymentReference} from './external-payment-references.mjs';
+import {receiptSettings} from './business-tax.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const fail=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
@@ -183,7 +184,7 @@ const settle=async({tx,command,actor,at})=>{
   records.push({collection:'cashMovements',id:cashId,version:1,archived:false,data:{id:cashId,tillSessionId:till.id,kind:'CREDIT_COLLECTION',amountDeltaMinor:p.amountMinor,reason:why,sourceCommandId:command.commandId,staffId:actor.staffId,deviceId:actor.deviceId,occurredAt:at.toISOString()}},await tillSessionProjection(tx.client,actor.businessId,till.id));
  }
  const documentId=randomUUID(),documentNumber=`CRP-${command.commandId}`;
- const snapshot={customer:{id:p.customerId,name:records[0].data.customerName},entryId:p.id,amountMinor:p.amountMinor,paymentMethod:tender.method,paymentAccount:entry.paymentAccountSnapshot,reference:reference??'',receivedAt:entry.receivedAt,recordedAt:at.toISOString(),balanceBeforeMinor:balance,balanceAfterMinor:balance-p.amountMinor,allocations,confirmedBy:actor.staffId,receiptOrigin:tender.method==='CASH'?'CASHIER_CASH':'CASHIER_CONFIRMED_EXTERNAL',statement:'This acknowledgement records funds the cashier manually confirmed as received.'};
+  const business=await receiptSettings(tx.client,actor.businessId),snapshot={business,customer:{id:p.customerId,name:records[0].data.customerName},entryId:p.id,amountMinor:p.amountMinor,paymentMethod:tender.method,paymentAccount:entry.paymentAccountSnapshot,reference:reference??'',receivedAt:entry.receivedAt,recordedAt:at.toISOString(),balanceBeforeMinor:balance,balanceAfterMinor:balance-p.amountMinor,allocations,confirmedBy:actor.staffId,receiptOrigin:tender.method==='CASH'?'CASHIER_CASH':'CASHIER_CONFIRMED_EXTERNAL',statement:'This acknowledgement records funds the cashier manually confirmed as received.'};
  const hash=documentHash(snapshot);await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'CUSTOMER_CREDIT_PAYMENT_ACKNOWLEDGEMENT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,documentId,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
  const document={collection:'businessDocuments',id:documentId,version:1,archived:false,data:{id:documentId,type:'CUSTOMER_CREDIT_PAYMENT_ACKNOWLEDGEMENT',documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}};
  const printJob=await queueDocumentPrint(tx,{businessId:actor.businessId,documentId,printerRole:'OFFICE',staffId:actor.staffId,at});records.push(document,printJob);
