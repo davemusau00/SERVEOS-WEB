@@ -4,7 +4,7 @@ import {allowed} from './session';
 import type {QueuedCommand,LocalBusinessDocument} from './BusinessStore';
 import {Dialog} from '../../design-system/controls';
 import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
-import {BusinessDocumentRenderer,businessDocumentStyles} from './BusinessDocumentRenderer';
+import {BusinessDocumentRenderer,businessDocumentPreviewStyles} from './BusinessDocumentRenderer';
 
 type Command=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
 export function WebApiCloseDayReports({records,session,queue,disabled,command}:{records:BusinessRecord[];session:WebSession;queue:QueuedCommand[];disabled:boolean;command:Command}){
@@ -35,7 +35,7 @@ export function WebApiCloseDayReports({records,session,queue,disabled,command}:{
   {allowed(session,'reports.view')&&<div className="space-y-2">{!tills.length&&<p className="text-sm text-slate-400">No loaded closed till needs a report. Close and review a till before issuing one.</p>}{tills.map(till=><button key={till.id} disabled={disabled||busy||!!pendingId} className="block w-full rounded-lg border border-slate-600 p-3 text-left disabled:opacity-40" onClick={()=>{if(window.document.querySelector('[role="dialog"]')){setMessage('Finish the open review first.');return;}setReview({till,id:crypto.randomUUID()});setMessage('')}}>Review report for till {till.id}<span className="block text-xs text-slate-400">Closed {String(till.data.closedAt)} · Outlet {String(till.data.outletId)}</span></button>)}</div>}
   {message&&<p role="status" className="rounded bg-slate-950 p-3 text-sm">{message}</p>}
   <label className="block text-sm">Issued report<select className="mt-1 w-full rounded border border-slate-600 bg-slate-950 p-2" value={selected} onChange={event=>setSelected(event.target.value)}><option value="">Select a report</option>{reports.map(row=><option key={row.id} value={row.id}>{String(row.data.generatedAt)} · {String(row.data.tillSessionId)}</option>)}</select></label>
-  {document&&<div className="overflow-auto rounded bg-white p-3 text-black" style={{fontFamily:'Arial,sans-serif',fontSize:12}}><style>{businessDocumentStyles.replace(/^html,body\{[^}]*\}/,'').split('@media print')[0]}</style><BusinessDocumentRenderer document={document}/></div>}
+  {document&&<div className="servos-document-preview overflow-auto rounded bg-white p-3 text-black"><style>{businessDocumentPreviewStyles}</style><BusinessDocumentRenderer document={document}/></div>}
   {review&&<Dialog title="Issue immutable close-day report" onClose={()=>{if(!busy&&!pendingId)setReview(null)}}><div className="space-y-3"><p>Till {review.till.id}</p><p className="text-sm text-slate-400">This freezes the server report for this closed till. Its figures cannot be edited or regenerated. Current business-wide open-order and unresolved-command diagnostics are identified separately from the till close period.</p><p className="text-sm text-slate-400">Historical money missing accounting journals must be reconciled before issue. Credit charges and reversals appear as separate accrued account sales; collections remain separate tender. PMS figures are not inferred.</p><button disabled={disabled||busy||!!pendingId} className="rounded bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40" onClick={()=>void issue()}>Issue report</button></div></Dialog>}
  </section>;
 }

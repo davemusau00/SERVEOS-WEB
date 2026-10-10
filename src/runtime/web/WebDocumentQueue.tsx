@@ -3,7 +3,7 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import type {BusinessRecord} from './session';
 import type {QueuedCommand,LocalBusinessDocument} from './BusinessStore';
 import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
-import {BusinessDocumentRenderer,businessDocumentStyles,printBusinessDocument} from './BusinessDocumentRenderer';
+import {BusinessDocumentRenderer,businessDocumentPreviewStyles,printBusinessDocument} from './BusinessDocumentRenderer';
 
 type Command=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
 const issuedDocument=(record:BusinessRecord|undefined):LocalBusinessDocument|null=>{
@@ -39,7 +39,7 @@ export function WebDocumentQueue({records,actorId,deviceId,disabled,command,read
     if(!await send(job,'claim'))return;
     const fresh=(await readRecords()).find(row=>row.collection==='printJobs'&&row.id===job.id);
     if(!fresh||fresh.version!==job.version+1||fresh.data.state!=='SENDING'||fresh.data.claimedBy!==actorId||fresh.data.claimedDeviceId!==deviceId){setMessage('The claim confirmed but its shared view is not current. Synchronize before reviewing this attempt. Nothing was sent to the printer.');return;}
-    try{await printBusinessDocument(document)}catch(error){
+     try{await printBusinessDocument(document,{attempt:Number(fresh.data.attempt)})}catch(error){
      const detail=`Document could not be prepared for browser printing. ${operatorError(error)}`;
      await send(fresh,'report',{outcome:'FAILED',transportStarted:false,reason:detail.slice(0,500)});setMessage(detail);return;
     }
@@ -59,7 +59,7 @@ export function WebDocumentQueue({records,actorId,deviceId,disabled,command,read
   <label className="block text-sm">Print job<select className="mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2" value={selected} disabled={busy} onChange={event=>{setSelected(event.target.value);setReason('');setDuplicate(false);setConfirmed(false);setMessage('')}}><option value="">Select a document…</option>{jobs.map(row=>{const doc=issuedDocument(records.find(item=>item.collection==='businessDocuments'&&item.id===row.data.documentId));return <option key={row.id} value={row.id}>{doc?.documentNumber||'Document unavailable'} · {String(row.data.printerRole)} · {String(row.data.state)}</option>})}</select></label>
   {job&&unresolvedJob(job.id)&&<p role="status">Checking the original saved print action. Synchronize before starting another attempt for this document.</p>}
   {job&&<><p className="text-sm">Attempt {Number(job.data.attempt||0)} · {state}</p>{!document&&<p role="alert">The immutable document is not available. Synchronize before printing.</p>}
-   {document&&<details><summary className="cursor-pointer">Preview issued document</summary><div className="mt-2 overflow-auto rounded bg-white p-3 text-black" style={{fontFamily:'Arial,sans-serif',fontSize:12}}><style>{businessDocumentStyles.replace(/^html,body\{[^}]*\}/,'').split('@media print')[0]}</style><BusinessDocumentRenderer document={document}/></div></details>}
+    {document&&<details><summary className="cursor-pointer">Preview issued document</summary><div className="servos-document-preview mt-2 overflow-auto rounded bg-white p-3 text-black"><style>{businessDocumentPreviewStyles}</style><BusinessDocumentRenderer document={document} attempt={Number(job.data.attempt||1)}/></div></details>}
    {state==='QUEUED'&&<button type="button" disabled={blocked||!document} onClick={()=>void act('print')} className="rounded bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40">Print with browser</button>}
    {(uncertain||state==='FAILED'||state==='QUEUED')&&<label className="block text-sm">Delivery review reason<textarea maxLength={500} value={reason} disabled={busy} onChange={event=>setReason(event.target.value)} className="mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2"/></label>}
    {uncertain&&<><label className="block text-sm"><input type="checkbox" checked={confirmed} onChange={event=>setConfirmed(event.target.checked)}/> I checked that this document physically printed</label><button type="button" disabled={blocked||!confirmed||reason.trim().length<3} onClick={()=>void act('confirm')} className="rounded border border-slate-600 px-3 py-2 disabled:opacity-40">Confirm delivery</button><label className="block text-sm"><input type="checkbox" checked={duplicate} onChange={event=>setDuplicate(event.target.checked)}/> I checked the printer and accept that retrying may print a duplicate</label></>}

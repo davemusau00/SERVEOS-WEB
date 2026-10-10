@@ -1,5 +1,6 @@
 import React from 'react';
 import type {LocalBusinessDocument} from './BusinessStore';
+import {documentCopyStatus,documentPaperProfile,DOCUMENT_DEVELOPER_FOOTER} from './documentPaperProfiles';
 
 const object=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
 const rows=(value:unknown):Record<string,unknown>[]=>Array.isArray(value)?value.map(object):[];
@@ -10,6 +11,35 @@ const localTime=(value:unknown,timeZone='Africa/Nairobi')=>{const raw=text(value
 const titles:Record<string,string>={SUPPLIER_RETURN_NOTE:'Supplier return note',SUPPLIER_PAYMENT_VOUCHER:'Supplier payment voucher',GOODS_RECEIPT:'Goods received note',PURCHASE_ORDER:'Purchase order',SALES_RECEIPT:'Sales receipt',CUSTOMER_CREDIT_INVOICE:'Customer credit invoice',CUSTOMER_CREDIT_PAYMENT_ACKNOWLEDGEMENT:'Customer credit payment acknowledgement',CUSTOMER_CREDIT_WRITE_OFF_NOTICE:'Customer credit write-off notice',CUSTOMER_CREDIT_REVERSAL_NOTICE:'Customer credit reversal notice',PAYMENT_ACKNOWLEDGEMENT:'Payment acknowledgement',GUEST_FOLIO:'Guest folio',GUEST_CHECKOUT:'Guest checkout statement',RESERVATION_CONFIRMATION:'Reservation confirmation',KOT:'Kitchen order ticket',BOT:'Bar order ticket',REFUND_RECEIPT:'Refund receipt',CLOSE_DAY_REPORT:'Close-day report',ORDER_VOID_NOTICE:'Order void notice',KOT_CANCEL:'Cancel kitchen order',BOT_CANCEL:'Cancel bar order'};
 const canonical=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(canonical).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${canonical((value as Record<string,unknown>)[key])}`).join(',')}}`;
 
+const documentState=(type:string,attempt:number)=>attempt>1?'REPRINT':type==='REFUND_RECEIPT'?'REFUND':['ORDER_VOID_NOTICE','KOT_CANCEL','BOT_CANCEL'].includes(type)?'VOIDED':'ISSUED';
+const paymentStatus=(snapshot:Record<string,unknown>)=>snapshot.noPaymentRequired===true?'No payment required':Array.isArray(snapshot.payments)&&snapshot.payments.length>0?'Payment recorded in issued document snapshot':'Payment status not recorded in this document';
+
+function DocumentIdentity({document,attempt,business,timeZone}:{document:LocalBusinessDocument;attempt:number;business:Record<string,unknown>;timeZone:string}){
+ const issued=new Date(document.issuedAt),preparedBy=text(business.preparedBy)||text(business.issuedBy)||text(document.snapshot.generatedBy)||text(document.snapshot.issuedBy)||text(object(document.snapshot.cashier).name)||text(document.snapshot.staffId)||text(document.snapshot.receivedBy)||text(document.snapshot.dispatchedBy);
+ const outlet=text(document.snapshot.outletName)||text(document.snapshot.outletId)||text(document.snapshot.propertyName)||text(document.snapshot.propertyId);
+ return <header className="servos-document-header">
+  <div className="servos-document-identity"><SnapshotImage value={business.logoPngDataUrl} label="Business logo"/><div>
+   {text(business.businessName)&&<h1>{text(business.businessName)}</h1>}
+   {text(business.address)&&<p>{text(business.address)}</p>}
+   {text(business.contact)&&<p>{text(business.contact)}</p>}
+   {text(business.taxPin)&&<p>Tax PIN: {text(business.taxPin)}</p>}
+   {outlet&&<p>Outlet / property: {outlet}</p>}
+  </div></div>
+  <div className="servos-document-title"><div><h2>{titles[document.type]||document.type}</h2><p className="servos-document-number">Document no. {document.documentNumber}</p></div><strong className={`servos-document-state servos-document-state-${documentState(document.type,attempt).toLowerCase()}`}>{documentState(document.type,attempt)}</strong></div>
+  <dl className="servos-document-control"><div><dt>Issued</dt><dd>{Number.isFinite(issued.getTime())?issued.toLocaleString('en-KE',{timeZone}):document.issuedAt} EAT</dd></div><div><dt>Source reference</dt><dd>{document.id}</dd></div>{preparedBy&&<div><dt>Prepared / recorded by</dt><dd>{preparedBy}</dd></div>}</dl>
+  {document.type==='SALES_RECEIPT'&&<p className="servos-document-payment-status">Payment status: {paymentStatus(document.snapshot)}</p>}
+ </header>;
+}
+
+function DocumentFooter({document,attempt}:{document:LocalBusinessDocument;attempt:number}){
+ const snapshotFooter=text(document.snapshot.footer)||text(object(document.snapshot.business).footer);
+ return <footer className="servos-business-document-footer">
+  {snapshotFooter&&<p>{snapshotFooter}</p>}
+  <p>Reference: {document.documentNumber} · Copy status: {documentCopyStatus(attempt)}</p>
+  <p className="servos-developer-footer">{DOCUMENT_DEVELOPER_FOOTER}</p>
+ </footer>;
+}
+
 const isSnapshotPng=(value:unknown):value is string=>typeof value==='string'&&value.length<=240_000&&/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value);
 
 /** Logo and QR use the same bounded embedded PNG pipeline; no mutable remote URLs. */
@@ -18,23 +48,14 @@ function SnapshotImage({value,label}:{value:unknown;label:string}){
  return <img className={label==='Payment QR'?'servos-document-qr':'servos-document-logo'} src={value} alt={label}/>;
 }
 
-export function BusinessDocumentRenderer({document}:{document:LocalBusinessDocument}){
+export function BusinessDocumentRenderer({document,attempt=1}:{document:LocalBusinessDocument;attempt?:number}){
  const s=document.snapshot,b=object(s.business),tax=object(s.taxes),cashier=object(s.cashier),timeZone=text(b.timeZone)||'Africa/Nairobi';
  const ticket=['KOT','BOT','KOT_CANCEL','BOT_CANCEL'].includes(document.type);
  const voidNotice=['ORDER_VOID_NOTICE','KOT_CANCEL','BOT_CANCEL'].includes(document.type);
  const qr=document.type==='SALES_RECEIPT'&&b.paymentQrEnabled===true?text(b.paymentQrPngDataUrl):'';
- const issued=new Date(document.issuedAt);
- return <article className="servos-business-document" aria-label={titles[document.type]||document.type}>
-  <header>
-   <SnapshotImage value={b.logoPngDataUrl} label="Business logo"/>
-   {text(b.businessName)&&<h1>{text(b.businessName)}</h1>}
-   {text(b.address)&&<p>{text(b.address)}</p>}
-   {text(b.contact)&&<p>{text(b.contact)}</p>}
-   {text(b.taxPin)&&<p>Tax PIN: {text(b.taxPin)}</p>}
-   <h2>{titles[document.type]||document.type}</h2>
-   <p className="servos-document-number">{document.documentNumber}</p>
-   <p>{Number.isFinite(issued.getTime())?issued.toLocaleString('en-KE',{timeZone}):document.issuedAt}</p>
-  </header>
+ const profile=documentPaperProfile(document.type);
+ return <article className="servos-business-document" data-paper-profile={profile} data-document-type={document.type} aria-label={titles[document.type]||document.type}>
+  <DocumentIdentity document={document} attempt={attempt} business={b} timeZone={timeZone}/>
   <section className="servos-document-meta">
    {text(s.orderName)&&<p>Order: {text(s.orderName)}</p>}
    {(text(cashier.name)||text(s.staffId))&&<p>Cashier: {text(cashier.name)||text(s.staffId)}</p>}
@@ -75,31 +96,47 @@ export function BusinessDocumentRenderer({document}:{document:LocalBusinessDocum
    </>}
    {rows(s.payments).length>0&&<section className="servos-document-payments"><h3>Payment</h3>{rows(s.payments).map((payment,index)=><div key={text(payment.id)||index}><p><b>{text(payment.method)}</b> {money(payment.amountMinor)}</p>{text(payment.reference)&&<p>Reference: {text(payment.reference)}</p>}{payment.method==='CASH'&&<p>Tendered {money(payment.cashTenderedMinor)} · Change {money(payment.changeMinor)}</p>}{payment.origin==='CASHIER_CONFIRMED_EXTERNAL'&&<p>Manually confirmed by cashier</p>}</div>)}</section>}
   </>}
-  {isSnapshotPng(qr)&&<section className="servos-document-payment-qr"><SnapshotImage value={qr} label="Payment QR"/><p>Scan to Pay via One app</p></section>}
-  {text(s.footer||b.footer)&&<footer>{text(s.footer||b.footer)}</footer>}
+  {isSnapshotPng(qr)&&<section className="servos-document-payment-qr"><SnapshotImage value={qr} label="Payment QR"/><p><strong>Optional M-Pesa pay-to QR</strong></p><p>This QR is not proof of payment. Do not pay again if this receipt is settled.</p></section>}
+  <DocumentFooter document={document} attempt={attempt}/>
  </article>;
 }
 
-export const businessDocumentStyles=`
-html,body{margin:0;background:white;color:#000;font-family:Arial,sans-serif;font-size:12px}
-.servos-business-document{box-sizing:border-box;width:74mm;max-width:100%;margin:0 auto;padding:2mm;overflow-wrap:anywhere}
-.servos-business-document header{text-align:center}.servos-business-document h1{font-size:18px;margin:4px 0}.servos-business-document h2{font-size:14px;margin:7px 0}.servos-business-document h3{font-size:12px;margin:6px 0}.servos-business-document p{margin:3px 0;white-space:pre-wrap}
-.servos-document-logo{display:block;max-width:46mm;max-height:24mm;object-fit:contain;margin:0 auto 3mm}.servos-document-qr{display:block;width:36mm;height:36mm;object-fit:contain;margin:3mm auto 1mm}.servos-document-payment-qr{text-align:center;break-inside:avoid}
-.servos-document-meta{border-top:1px dashed #000;padding:2mm 0}.servos-business-document table{border-collapse:collapse;width:100%;table-layout:fixed}.servos-business-document th,.servos-business-document td{padding:2mm 1mm;vertical-align:top;text-align:right}.servos-business-document th:first-child,.servos-business-document td:first-child{text-align:left;width:43%}.servos-business-document thead{border-bottom:1px dashed #000}.servos-business-document small{display:block;font-size:10px;margin-top:2px}.servos-business-document tr{break-inside:avoid}
-.servos-document-totals{border-top:1px dashed #000;padding-top:2mm}.servos-document-totals div{display:flex;justify-content:space-between;gap:2mm;margin:1mm 0}.servos-document-totals dd{margin:0}.servos-document-grand-total{font-weight:bold;font-size:14px}.servos-document-payments{border-top:1px dashed #000;padding:1mm 0}.servos-business-document footer{text-align:center;border-top:1px dashed #000;margin-top:3mm;padding-top:2mm;white-space:pre-wrap}
-@media print{@page{margin:3mm}body{width:74mm}.servos-business-document{margin:0;padding:0}header,footer{break-inside:avoid}}
+export const businessDocumentPreviewStyles=`
+.servos-business-document{box-sizing:border-box;width:100%;max-width:100%;margin:0 auto;padding:8mm 9mm;background:#fff;color:#111;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.servos-business-document h1,.servos-business-document h2,.servos-business-document h3{color:#111;line-height:1.2}.servos-business-document h1{font-size:17pt;margin:0 0 2mm}.servos-business-document h2{font-size:15pt;margin:0}.servos-business-document h3{font-size:11pt;margin:5mm 0 2mm;break-after:avoid-page}.servos-business-document p{margin:1.2mm 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.servos-document-header{border-bottom:1px solid #475569;padding-bottom:4mm;margin-bottom:4mm}.servos-document-identity{display:flex;align-items:center;gap:5mm}.servos-document-identity>div{min-width:0}.servos-document-identity p{color:#334155}.servos-document-logo{display:block;max-width:34mm;max-height:22mm;object-fit:contain}.servos-document-title{display:flex;justify-content:space-between;align-items:flex-start;gap:4mm;margin-top:4mm}.servos-document-number{font-weight:700;overflow-wrap:anywhere}.servos-document-state{display:inline-block;border:1px solid #334155;border-radius:2mm;padding:1mm 2mm;font-size:9pt;letter-spacing:.06em;white-space:nowrap}.servos-document-state-voided{border-width:2px}.servos-document-control{display:flex;flex-wrap:wrap;gap:2mm 8mm;margin:3mm 0 0;font-size:9pt}.servos-document-control>div{min-width:25mm}.servos-document-control dt{color:#475569;font-weight:600}.servos-document-control dd{margin:0;overflow-wrap:anywhere}.servos-document-payment-status{font-weight:600;margin-top:3mm!important}
+.servos-document-meta{border-block:1px solid #cbd5e1;padding:2mm 0;margin:3mm 0}.servos-business-document section{margin:3mm 0;break-inside:auto}.servos-business-document section>h3{break-after:avoid}.servos-business-document table{border-collapse:collapse;width:100%;table-layout:auto;margin:2mm 0 4mm}.servos-business-document th,.servos-business-document td{padding:2mm 1.5mm;border-bottom:1px solid #cbd5e1;vertical-align:top;text-align:right;overflow-wrap:anywhere}.servos-business-document th{background:#f1f5f9;color:#111;font-weight:700}.servos-business-document th:first-child,.servos-business-document td:first-child{text-align:left}.servos-business-document thead{display:table-header-group}.servos-business-document tbody tr{break-inside:avoid;page-break-inside:avoid}.servos-business-document small{display:block;font-size:9pt;margin-top:1mm}.servos-document-totals{border-top:1px solid #64748b;padding-top:2mm;margin:3mm 0}.servos-document-totals div{display:flex;justify-content:space-between;gap:4mm;margin:1.5mm 0}.servos-document-totals dt{text-align:left}.servos-document-totals dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}.servos-document-grand-total{font-weight:700;font-size:12pt;border-top:1px solid #111;padding-top:2mm}.servos-document-payments{border-top:1px solid #64748b;padding:2mm 0}.servos-document-payment-qr{text-align:center;border-top:1px solid #cbd5e1;padding-top:3mm;margin-top:4mm;break-inside:avoid}.servos-document-qr{display:block;width:34mm;height:34mm;object-fit:contain;margin:2mm auto}.servos-business-document-footer{text-align:center;border-top:1px solid #64748b;margin-top:5mm;padding-top:2mm;white-space:pre-wrap;font-size:9pt;break-inside:avoid}.servos-business-document-footer p{margin:1mm 0}.servos-developer-footer{font-weight:700}
+`;
+
+export const businessDocumentStyles=`${businessDocumentPreviewStyles}
+html,body{box-sizing:border-box;width:auto;margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:10pt;line-height:1.38}
+@page thermal{margin:3mm}
+@page report-portrait{size:A4 portrait;margin:14mm 13mm 16mm}
+@page report-landscape{size:A4 landscape;margin:12mm}
+@media print{
+ html,body{width:auto!important;min-width:0!important;height:auto!important;margin:0!important;padding:0!important;background:#fff!important;color:#111!important;font-size:10pt!important;-webkit-print-color-adjust:economy;print-color-adjust:economy}
+ .servos-business-document{max-width:none;margin:0;padding:0;background:#fff;color:#111;page:report-portrait}
+ .servos-business-document[data-paper-profile="thermal-80mm"]{width:74mm;max-width:74mm;padding:0 1mm;page:thermal;font-size:9pt}
+ .servos-business-document[data-paper-profile="a4-landscape"]{page:report-landscape}
+ .servos-business-document[data-paper-profile="a4-landscape"] table{font-size:9pt}
+ .servos-business-document tr,.servos-business-document img,.servos-document-header,.servos-business-document-footer{break-inside:avoid}
+ .servos-business-document h3{break-after:avoid-page}
+ .servos-business-document th{background:#fff!important;color:#111!important;border-bottom:1px solid #111}
+ .servos-document-state{border-radius:0}
+}
 `;
 
 /** Browser dialogs cannot prove that paper was delivered, including on cancel. */
-export async function printBusinessDocument(document:LocalBusinessDocument):Promise<{delivery:'UNKNOWN'}>{
+export async function printBusinessDocument(document:LocalBusinessDocument,options:{attempt?:number}={}):Promise<{delivery:'UNKNOWN'}>{
  if(document.layoutVersion!==1||!titles[document.type])throw new Error('This document layout is not supported by this browser renderer.');
  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonical(document.snapshot)));
  const hash=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
  if(hash!==document.hash)throw new Error('The document snapshot hash does not match. Synchronize the issued document before printing.');
  const {renderToStaticMarkup}=await import('react-dom/server');
- const markup=renderToStaticMarkup(<BusinessDocumentRenderer document={document}/>);
- const frame=window.document.createElement('iframe');
- frame.title='ServOS document print';frame.style.cssText='position:fixed;left:-10000px;top:0;width:80mm;height:100mm;border:0';
+ const attempt=Number.isSafeInteger(options.attempt)&&Number(options.attempt)>0?Number(options.attempt):1;
+ const markup=renderToStaticMarkup(<BusinessDocumentRenderer document={document} attempt={attempt}/>);
+ const profile=documentPaperProfile(document.type),frame=window.document.createElement('iframe');
+ frame.title='ServOS document print';frame.style.cssText=`position:fixed;left:-10000px;top:0;width:${profile==='thermal-80mm'?'80mm':'297mm'};height:100mm;border:0`;
  let loadTimer:number|undefined;
  const loaded=new Promise<void>((resolve,reject)=>{loadTimer=window.setTimeout(()=>reject(new Error('Print document preparation timed out.')),15000);frame.onload=()=>{window.clearTimeout(loadTimer);resolve()};frame.onerror=()=>{window.clearTimeout(loadTimer);reject(new Error('Unable to prepare the print document.'))};});
  frame.srcdoc=`<!doctype html><html><head><meta charset="utf-8"><title>ServOS document</title><style>${businessDocumentStyles}</style></head><body>${markup}</body></html>`;
@@ -109,6 +146,7 @@ export async function printBusinessDocument(document:LocalBusinessDocument):Prom
   await loaded;
   const target=frame.contentWindow;if(!target)throw new Error('The print frame is unavailable.');
   await Promise.all(Array.from(frame.contentDocument?.images||[],img=>img.decode()));
+  await frame.contentDocument?.fonts?.ready;
   target.focus();transportStarted=true;target.print();
   return {delivery:'UNKNOWN'};
  }catch(error){if(transportStarted)return {delivery:'UNKNOWN'};throw error}
