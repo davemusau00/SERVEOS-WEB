@@ -32,4 +32,10 @@ export function documentPreviewAttempt(attempt: number, state: string): number {
   return Math.max(1, current);
 }
 
+/** Money snapshots are persisted in integer minor units and displayed as KES. */
+export function formatDocumentMoney(minorUnits: number | null): string {
+  if (minorUnits === null || !Number.isFinite(minorUnits)) return '—';
+  return `KES ${(minorUnits / 100).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export const DOCUMENT_DEVELOPER_FOOTER = 'Developed By Kingsforge, 0746157440';
