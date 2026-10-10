@@ -8,8 +8,8 @@ export interface CloseDayReportCsvDocument {
 }
 
 const canonical=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(canonical).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${canonical((value as Record<string,unknown>)[key])}`).join(',')}}`;
-const cell=(value:string):string=>{
-  const safe=/^[\t\r\n ]*[=+\-@]/u.test(value)?`'${value}`:value;
+const cell=(value:string,protectFormula=true):string=>{
+  const safe=protectFormula&&/^[\s\uFEFF]*[=+\-@]/u.test(value)?`'${value}`:value;
   return `"${safe.replace(/"/gu,'""')}"`;
 };
 const pathPart=(value:string|number)=>String(value).replace(/~/gu,'~0').replace(/\//gu,'~1');
@@ -34,7 +34,7 @@ export async function buildVerifiedCloseDayReportCsv(document:CloseDayReportCsvD
     else if(typeof value==='boolean'){serialized=String(value);type='boolean';}
     else if(typeof value==='object'&&value!==null&&(Array.isArray(value)||Object.keys(value).length===0)){serialized=JSON.stringify(value);type=Array.isArray(value)?'array':'object';}
     else throw new Error('The close-day snapshot contains a value that cannot be represented safely in CSV.');
-    lines.push([document.documentNumber,document.id,document.issuedAt,path,serialized,type].map(cell).join(','));
+    lines.push([document.documentNumber,document.id,document.issuedAt,path,serialized,type].map((value,index)=>cell(value,index!==4||type==='string')).join(','));
   };
   const visit=(value:unknown,path:string):void=>{
     if(Array.isArray(value)){
