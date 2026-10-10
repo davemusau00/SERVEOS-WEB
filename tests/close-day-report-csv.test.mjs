@@ -38,4 +38,6 @@ test('close-day CSV refuses a mismatched snapshot hash or a non-close-day docume
 test('close-day CSV rejects non-JSON numeric values rather than silently changing them',async()=>{
   const snapshot={schemaVersion:1,cash:{expectedMinor:Number.POSITIVE_INFINITY}};
   await assert.rejects(()=>buildVerifiedCloseDayReportCsv(makeDocument(snapshot)),/cannot be represented safely/u);
+  const unsafeInteger={schemaVersion:1,cash:{expectedMinor:Number.MAX_SAFE_INTEGER+1}};
+  await assert.rejects(()=>buildVerifiedCloseDayReportCsv(makeDocument(unsafeInteger)),/cannot be represented safely/u);
 });

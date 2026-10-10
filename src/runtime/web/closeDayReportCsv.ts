@@ -30,7 +30,7 @@ export async function buildVerifiedCloseDayReportCsv(document:CloseDayReportCsvD
     let serialized:string,type:string;
     if(value===null){serialized='';type='null';}
     else if(typeof value==='string'){serialized=value;type='string';}
-    else if(typeof value==='number'&&Number.isFinite(value)){serialized=String(value);type='number';}
+    else if(typeof value==='number'&&Number.isFinite(value)&&!(Number.isInteger(value)&&!Number.isSafeInteger(value))){serialized=String(value);type='number';}
     else if(typeof value==='boolean'){serialized=String(value);type='boolean';}
     else if(typeof value==='object'&&value!==null&&(Array.isArray(value)||Object.keys(value).length===0)){serialized=JSON.stringify(value);type=Array.isArray(value)?'array':'object';}
     else throw new Error('The close-day snapshot contains a value that cannot be represented safely in CSV.');

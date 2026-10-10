@@ -20,6 +20,7 @@
 - [Backup and restore](backup-restore.md)
 - [Operations](operations.md)
 - [Testing and evidence boundaries](testing.md)
+- [Report and business-document catalogue](report-catalogue.md)
 - [One-time Countryside migration boundary](../tools/migration/README.md)
 
 ## Operator help
