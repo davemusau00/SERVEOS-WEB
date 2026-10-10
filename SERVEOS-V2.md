@@ -1636,14 +1636,14 @@ The sprint is complete only when every statement below is true.
 
 - [ ] A fresh isolated installation requires no manual database creation.
 - [ ] The local deployment package starts successfully.
-- [ ] Initial administrator creation works through the browser.
-- [ ] Business setup resumes after interruption.
-- [ ] Required operational defaults are created automatically.
+- [x] Initial administrator creation works through the browser.
+- [x] Business setup resumes after interruption.
+- [x] Required operational defaults are created automatically.
 - [ ] Cashier can start a shift through a simple workflow.
 - [ ] Cashier can create and complete a sale.
 - [ ] Manual M-Pesa payments are correctly recorded.
 - [ ] Payment retry cannot create duplicate financial records.
-- [ ] Product creation is understandable and functional.
+- [x] Product creation is understandable and functional.
 - [ ] Inventory imports provide accurate validation.
 - [ ] Stock counts update inventory correctly.
 - [ ] Bottle and shot tracking retains quantity accuracy.
