@@ -60,11 +60,46 @@ All 6 web-storage browser tests pass (desktop).
 
 ---
 
+---
+
+## 5. PR-09 (DEV-SYNC-001/002): two-terminal consistency — UNIT/API VERIFIED
+
+New `apps/api/tests/multi-terminal.integration.test.mjs` runs four independent
+identities (manager, supervisor, and two cashier terminals, each with its own
+enrolled device) against one disposable PostgreSQL business:
+
+- **R035 two-terminal sale:** both terminals fire the same stock concurrently
+  from one reviewed baseline — exactly one wins, the other receives
+  `VERSION_CONFLICT`, refreshes its review and completes; exactly two 0.25 kg
+  servings are deducted once each (no double deduction, no lost sale).
+- **R036 simultaneous price change:** two users submit `product.save` at the
+  same reviewed version — one wins, one gets `VERSION_CONFLICT`; the persisted
+  price equals the winner's, and an already-issued receipt keeps its
+  issue-time total (historical price integrity).
+- **R018/R037 payment replay:** re-executing the identical payment command
+  returns its stored outcome (`deepEqual`) with exactly one `order_payments`
+  row and one receipt — a lost response never duplicates money.
+- **Till ownership:** a terminal cannot pay into another terminal's till
+  (`TILL_OWNERSHIP_REQUIRED`); no money is recorded by the blocked attempt.
+- **Duplicate external reference:** a reference committed by terminal B blocks
+  terminal A's payment with `PAYMENT_REFERENCE_DUPLICATE` before any money
+  moves; a distinct reference settles normally.
+- **Stale terminal:** an edit submitted from a stale review returns
+  `VERSION_CONFLICT` with a refresh instruction (no blind retry).
+- **Till close guard:** a till cannot close while an outlet order is unsettled
+  (`UNSETTLED_ORDERS`); after settlement it closes reconciled with the exact
+  expected cash; per-terminal cash ledgers hold exactly their own takings and
+  stock remains conserved (8.75 kg from 10 kg after five 0.25 kg servings).
+
+Note: 403-level business blocks (till ownership) surface to operators as
+`REJECTED` outcomes, 409 version/ledger blocks as `CONFLICT` — both leave the
+authoritative state untouched.
+
 ## Tests executed this round
 
 | Suite | Result |
 |---|---|
-| `npm run test:api` (37 tests, real PostgreSQL) | 37 pass / 0 fail |
+| `npm run test:api` (38 tests, real PostgreSQL — incl. two-terminal suite) | 38 pass / 0 fail |
 | `npm test` (35 unit tests incl. 4 new) | 35 pass / 0 fail |
 | `npm run verify:fast` (lint, contracts, architecture, build) | all green |
 | web-storage browser spec (desktop, 6 tests) | 6 pass / 0 fail |
@@ -77,3 +112,4 @@ All 6 web-storage browser tests pass (desktop).
 | Change-feed idempotency | BROWSER VERIFIED |
 | Command registry inventory | DOCUMENTATION VERIFIED (per-command input contracts remain future work) |
 | sellableItems example template | UNIT/TEMPLATE VERIFIED (a live 100-row import remains PR-02's gate) |
+| Two-terminal consistency (DEV-SYNC-001/002) | UNIT/API VERIFIED (browser two-device acceptance remains with PR-09's full gate) |

@@ -150,5 +150,5 @@ test('Two independent terminals preserve version, money and stock consistency',{
  assert.equal(tillALedger.rows[0].total,500,'terminal A ledger holds exactly its cash sale');
  const tillBLedger=await pool.query('SELECT COALESCE(sum(amount_delta_minor),0)::int AS total FROM till_cash_entries WHERE business_id=$1 AND till_session_id=$2',[businessId,tillBId]);
  assert.equal(tillBLedger.rows[0].total,0,'terminal B collected no cash');
- assert.equal(await stockQuantity(),'9.500000','stock remains conserved after every terminal activity');
+ assert.equal(await stockQuantity(),'8.750000','five 0.25 kg servings were deducted once each across both terminals');
 });
