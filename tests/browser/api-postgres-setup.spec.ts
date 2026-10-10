@@ -394,7 +394,7 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await guestAccounts.getByLabel('Cash tendered (KES)',{exact:true}).fill('2500.00');
   await guestAccounts.getByRole('button',{name:'Settle balance',exact:true}).click();
   await expect(guestAccounts.getByRole('status')).toContainText('Guest account action confirmed and synchronized.');
-  page.on('response',async response=>{if(response.url().endsWith('/v1/commands')&&response.status()>=400){const request=response.request();console.log('HOTEL_COMMAND_FAILURE',response.status(),JSON.stringify({command:request.postDataJSON(),error:await response.json()}));}});
+  page.on('response',async response=>{const u=new URL(response.url());if(u.pathname==='/v1/commands'&&response.request().method()==='POST')console.log('HOTEL_COMMAND_RESPONSE',response.status(),u.pathname,JSON.stringify(response.request().postDataJSON()).slice(0,300));});
   const feedDump=await pool.query(`SELECT cursor,command_id,change_type,projection->'records' AS records FROM business_changes WHERE business_id=$1 ORDER BY cursor`,[businessId]);
   for(const row of feedDump.rows){const recs=(row.records||[]).filter((r:any)=>['folios','stays','roomReservations','rooms','folioEntries'].includes(r.collection));if(recs.length)console.log('FEED_DUMP',row.cursor,row.change_type,JSON.stringify(recs.map((r:any)=>({c:r.collection,id:String(r.id).slice(0,8),v:r.version}))));}
   await guestAccounts.getByRole('button',{name:'Check out guest',exact:true}).click();
