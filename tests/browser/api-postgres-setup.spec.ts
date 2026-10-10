@@ -182,7 +182,11 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
   await printing.locator('select').selectOption(receiptJobOptionId!);
   await printing.getByText('Preview issued document',{exact:true}).click();
   const receiptPreview=printing.locator('article[aria-label="Sales receipt"]');
+  await expect(receiptPreview).toHaveAttribute('data-paper-profile','thermal-80mm');
   await expect(receiptPreview).toContainText('Kijani Cafe');
+  await expect(receiptPreview).toContainText('ISSUED');
+  await expect(receiptPreview).toContainText('Copy status: ORIGINAL');
+  await expect(receiptPreview).toContainText('Developed By Kingsforge, 0746157440');
   await expect(receiptPreview).toContainText('First sale tea');
   await expect(receiptPreview).toContainText('100.00');
   await expect(receiptPreview).toContainText('CASH');
@@ -241,6 +245,10 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
    sales:{receivedMinor:10000,returnedMinor:10000,netReceivedMinor:0},
    cash:{openingFloatMinor:50000,salesMinor:10000,refundsMinor:10000,expectedMinor:50000,countedMinor:50000,varianceMinor:0},
   });
+  const closeDayPreview=closeDay.locator('article[aria-label="Close-day report"]');
+  await expect(closeDayPreview).toHaveAttribute('data-paper-profile','a4-landscape');
+  await expect(closeDayPreview).toContainText('Shift / report period');
+  await expect(closeDayPreview).toContainText('Developed By Kingsforge, 0746157440');
   if(process.env.TEST_PG_CONTAINER){
    restoreDatabase=`serveos_restore_${randomUUID().replaceAll('-','')}`;
    await adminPool.query(`CREATE DATABASE "${restoreDatabase}"`);

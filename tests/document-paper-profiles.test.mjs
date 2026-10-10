@@ -24,5 +24,5 @@ test('reprints are labeled from the attempt count without changing the issued do
 });
 
 test('document footer uses the required operator-visible developer contact', () => {
-  assert.equal(DOCUMENT_DEVELOPER_FOOTER, 'Developed By Kingsforge · 0746157440');
+  assert.equal(DOCUMENT_DEVELOPER_FOOTER, 'Developed By Kingsforge, 0746157440');
 });

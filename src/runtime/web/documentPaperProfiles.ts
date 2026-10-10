@@ -25,4 +25,4 @@ export function documentCopyStatus(attempt: number): DocumentCopyStatus {
   return Number.isSafeInteger(attempt) && attempt > 1 ? 'REPRINT' : 'ORIGINAL';
 }
 
-export const DOCUMENT_DEVELOPER_FOOTER = 'Developed By Kingsforge · 0746157440';
+export const DOCUMENT_DEVELOPER_FOOTER = 'Developed By Kingsforge, 0746157440';
