@@ -31,7 +31,7 @@ test('PostgreSQL API CSV importer stages, dry-runs and applies domain commands w
  const apiOrigin=`http://127.0.0.1:${api.address().port}`;
  const request=async(path,init={})=>{const response=await fetch(`${apiOrigin}${path}`,{...init,headers:{'content-type':'application/json',...(init.headers||{})}});return {status:response.status,body:await response.json()}};
  t.after(async()=>new Promise(resolve=>api.close(resolve)));
- const templates=await request('/v1/import/templates');assert.equal(templates.status,200);assert.equal(templates.body.templates.length,13);
+ const templates=await request('/v1/import/templates');assert.equal(templates.status,200);assert.equal(templates.body.templates.length,14);
 
  const stockBatchId=randomUUID();
  const stockRows=Array.from({length:84},(_,index)=>`stock-${index+1},Stock item ${index+1},SKU-${String(index+1).padStart(3,'0')},each,0,`);

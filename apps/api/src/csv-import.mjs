@@ -13,6 +13,7 @@ export const API_IMPORT_TEMPLATES = Object.freeze([
    ['Table waiter service','SVC-WAITER','SERVICE','200.00','Services','','B_0','BAR','Main Bar','','','','','','','','','','',''],
    ['Room delivery service','SVC-ROOM-DELIVERY','SERVICE','300.00','Services','','B_0','ROOMS','Front Desk','','','','','','','','','','',''],
   ]},
+  {key:'priceUpdates',label:'Price update for existing products (reviewed)',permission:'catalog.manage',permissions:['catalog.manage','data.import.stage'],headers:['product_code','new_price','reason'],required:['product_code','new_price','reason']},
   {key:'stockItems',label:'Stock items',permission:'catalog.manage',headers:['external_id','name','code','base_unit','reorder_level','barcode'],required:['external_id','name','code','base_unit']},
   {key:'stockLocations',label:'Stock locations',permission:'catalog.manage',permissions:['catalog.manage','inventory.adjust'],headers:['external_id','name','code','type'],required:['external_id','name']},
   {key:'outlets',label:'Outlets',permission:'business.configure',headers:['external_id','name','default_stock_location_external_id'],required:['external_id','name','default_stock_location_external_id']},
@@ -104,8 +105,8 @@ function parseRows(template,csvText){
     const errors=[];
     if(values.length!==headers.length)errors.push(`Expected ${headers.length} columns but found ${values.length}.`);
     const normalized=Object.fromEntries(headers.map((header,column)=>[keys[column],values[column]??'']));
-    const externalId=template.key==='sellableItems'?text(normalized.code):text(values[externalColumn]);
-    if(!externalId)errors.push(template.key==='sellableItems'?'code is required and also identifies the imported item.':'external_id is required.');else if(externalId.length>200)errors.push('The import reference may not exceed 200 characters.');
+    const externalId=template.key==='sellableItems'?text(normalized.code):template.key==='priceUpdates'?text(normalized.product_code):text(values[externalColumn]);
+    if(!externalId)errors.push(template.key==='sellableItems'?'code is required and also identifies the imported item.':template.key==='priceUpdates'?'product_code is required and must name an existing product.':`external_id is required.`);else if(externalId.length>200)errors.push('The import reference may not exceed 200 characters.');
     const key=externalId.toLocaleLowerCase('en-US');if(key&&externalIds.has(key))errors.push('external_id is duplicated within this file.');externalIds.add(key);
     for(const [column,seen] of uniqueValues){const value=text(normalized[column]).toLocaleLowerCase('en-US');if(!value)continue;if(seen.has(value))errors.push(`${column} duplicates row ${seen.get(value)} within this file.`);else seen.set(value,index+2)}
     for(const name of template.required)if(!text(normalized[name]))errors.push(`${name} is required.`);
@@ -157,6 +158,10 @@ function parseRows(template,csvText){
       }else if(['container_size','portion_size','selling_mode','whole_container_price'].some(key=>text(normalized[key])))errors.push('Container and portion fields are only valid for SPIRIT or WINE items.');
       if(!tracks&&['stock_location_name','base_unit','units_per_package','quantity_per_unit','purchase_price','opening_packages','reorder_level'].some(key=>text(normalized[key])))errors.push('Clear stock fields when stock_mode is SERVICE.');
     }
+    if(template.key==='priceUpdates'){
+      try{minorUnits(normalized.new_price,'New price')}catch(error){errors.push(error.message)}
+      if(text(normalized.reason).length<3)errors.push('reason must explain the price change with at least 3 characters.');
+    }
     if(template.key==='assets'&&Boolean(text(normalized.room_external_id))===Boolean(text(normalized.stock_location_external_id)))errors.push('Provide exactly one of room_external_id or stock_location_external_id.');
     for(const [key,max] of Object.entries({name:160,code:80,category:80,phone:80,email:254,address:2000,notes:2000,contact_name:160,asset_tag:80,room_number:40,base_unit:40,external_id:200,stock_location_name:120,outlet_names:1000,tax_class_id:20,service_area:40,stock_mode:40,selling_mode:40}))if(normalized[key]!==undefined&&text(normalized[key]).length>max)errors.push(`${key} exceeds ${max} characters.`);
     return {rowNumber:index+2,externalId:externalId||null,values:normalized,errors:[...new Set(errors)],status:errors.length?'INVALID':'VALID'};
@@ -182,7 +187,7 @@ export async function stageImport(pool,actor,input){requirePermission(actor,'dat
   if(typeof input.csvText!=='string'||Buffer.byteLength(input.csvText,'utf8')>MAX_CSV_BYTES)problem(413,'PAYLOAD_TOO_LARGE','CSV files may not exceed 2 MB.');
   const sourceHash=hashText(input.csvText);const existing=await pool.query('SELECT * FROM api_import_batches WHERE business_id=$1 AND id=$2',[actor.businessId,input.id]);if(existing.rows[0]){const saved=existing.rows[0];if(saved.created_by!==actor.staffId||saved.source_hash!==sourceHash||saved.template_key!==template.key)problem(409,'IMPORT_BATCH_ID_REUSED','This batch ID already identifies a different import.');return {batch:detail(saved)}}
   const parsed=parseRows(template,input.csvText),validCount=parsed.rows.filter(row=>row.status==='VALID').length,invalidCount=parsed.rows.length-validCount,at=new Date();
-  const {rows}=await pool.query(`INSERT INTO api_import_batches(business_id,id,template_key,file_name,status,created_by,created_at,updated_at,source_hash,source_text,headers,rows,row_count,valid_count,invalid_count,notes) VALUES($1,$2,$3,$4,'STAGED',$5,$6,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$13,'Create-only import. Review every row before application.') RETURNING *`,[actor.businessId,input.id,template.key,fileName,actor.staffId,at,sourceHash,input.csvText,JSON.stringify(parsed.headers),JSON.stringify(parsed.rows),parsed.rows.length,validCount,invalidCount]);
+  const {rows}=await pool.query(`INSERT INTO api_import_batches(business_id,id,template_key,file_name,status,created_by,created_at,updated_at,source_hash,source_text,headers,rows,row_count,valid_count,invalid_count,notes) VALUES($1,$2,$3,$4,'STAGED',$5,$6,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$13,$14) RETURNING *`,[actor.businessId,input.id,template.key,fileName,actor.staffId,at,sourceHash,input.csvText,JSON.stringify(parsed.headers),JSON.stringify(parsed.rows),parsed.rows.length,validCount,invalidCount,template.key==='priceUpdates'?'Reviewed price update. Existing products change only after the server dry run and explicit application.':'Create-only import. Review every row before application.']);
   await pool.query('INSERT INTO api_import_events(business_id,id,batch_id,event_type,staff_id,device_id,event_data,occurred_at) VALUES($1,$2,$3,\'STAGED\',$4,$5,$6::jsonb,$7)',[actor.businessId,randomUUID(),input.id,actor.staffId,actor.deviceId,JSON.stringify({templateKey:template.key,rowCount:parsed.rows.length,sourceHash}),at]);
   return {batch:detail(rows[0])};
 }
@@ -197,7 +202,7 @@ const expected=(collection,id,value)=>({[`${collection}:${id}`]:value});
 const relationVersion=async(tx,businessId,map,collection)=>expected(map.collection,map.id,await version(tx,businessId,map.collection,map.id));
 
 async function commandForRow(tx,actor,template,row){
-  const v=row.values,id=randomUUID(),externalId=row.externalId;let name,payload,expectedVersions=expected(template.key,id,0),targetCollection=template.key,requiredPermissions=[];
+  const v=row.values,id=randomUUID(),externalId=row.externalId;let name,payload,expectedVersions=expected(template.key,id,0),targetCollection=template.key,requiredPermissions=[],action='CREATE',summary=null,rowTargetId=null;
   const requireExternal=async(namespace,externalId,collection)=>{const found=await importedId(tx,actor.businessId,namespace,externalId);if(collection&&found.collection!==collection)throw new ApiProblem(409,'IMPORT_REFERENCE_TYPE','The referenced external ID belongs to another record type.');Object.assign(expectedVersions,await relationVersion(tx,actor.businessId,found));return found.id};
   const requireMap=(key,namespace,collection)=>requireExternal(namespace,v[key],collection);
   switch(template.key){
@@ -329,12 +334,42 @@ async function commandForRow(tx,actor,template,row){
         reason:'Created from reviewed controlled CSV import',
       }};break;
     }
+    case 'priceUpdates':{
+      const code=plain(v.product_code,'Product code',80);
+      const found=await tx.client.query(`SELECT id,version,price_minor AS \"priceMinor\",name,code,category,route_to AS \"routeTo\",stock_item_id AS \"stockItemId\",barcode,favorite,tax_class_id AS \"taxClassId\",inventory_type AS \"inventoryType\",recipe_yield AS \"recipeYield\",portion_volume AS \"portionVolume\",selling_mode AS \"sellingMode\",portions FROM products WHERE business_id=$1 AND lower(code)=lower($2) AND archived_at IS NULL ORDER BY id`,[actor.businessId,code]);
+      if(!found.rows.length)throw new ApiProblem(409,'IMPORT_REFERENCE_MISSING',`No active product has code \"${code}\". Use the current product code shown in Catalog.`);
+      if(found.rows.length>1)throw new ApiProblem(409,'IMPORT_REFERENCE_AMBIGUOUS',`The code \"${code}\" matches more than one active product. Use the catalog editor instead.`);
+      const product=found.rows[0],currentPrice=Number(product.priceMinor),newPrice=minorUnits(v.new_price,'New price'),updateReason=plain(v.reason,'Price change reason',500);
+      if(updateReason.length<3)throw new ApiProblem(400,'VALIDATION_FAILED','Explain the price change with at least 3 characters.');
+      const portions=Array.isArray(product.portions)?product.portions:[];
+      if(portions.length>1||portions.some(portion=>portion.wholeContainerSale===true))throw new ApiProblem(409,'PRICE_UPDATE_AMBIGUOUS',`\"${product.name}\" uses multiple portions or whole-container pricing. Reprice it in the catalog editor, not through a sheet.`);
+      const outlets=await tx.client.query('SELECT outlet_id FROM product_outlets WHERE business_id=$1 AND product_id=$2',[actor.businessId,product.id]);
+      const ingredients=await tx.client.query('SELECT stock_item_id AS \"stockItemId\",quantity,unit FROM product_recipe_ingredients WHERE business_id=$1 AND product_id=$2',[actor.businessId,product.id]);
+      const nextPortions=portions.map(portion=>portions.length===1&&portion.priceMinor===currentPrice?{...portion,priceMinor:newPrice}:{...portion});
+      name='product.save';action='UPDATE';rowTargetId=product.id;targetCollection='products';
+      payload={id:product.id,reason:updateReason,data:{
+        name:product.name,code:product.code,priceMinor:newPrice,category:product.category,routeTo:product.routeTo,
+        ...(product.stockItemId?{stockItemId:product.stockItemId}:{}),
+        ...(product.barcode?{barcode:product.barcode}:{}),
+        favorite:product.favorite===true,
+        ...(product.taxClassId?{taxClassId:product.taxClassId}:{}),
+        ...(product.inventoryType?{inventoryType:product.inventoryType}:{}),
+        ...(product.recipeYield===null||product.recipeYield===undefined?{}:{recipeYield:Number(product.recipeYield)}),
+        ...(product.portionVolume===null||product.portionVolume===undefined?{}:{portionVolume:Number(product.portionVolume)}),
+        ...(product.sellingMode?{sellingMode:product.sellingMode}:{}),
+        portions:nextPortions,
+        recipeIngredients:ingredients.rows.map(row=>({stockItemId:row.stockItemId,quantity:Number(row.quantity),unit:row.unit})),
+        outletIds:outlets.rows.map(row=>row.outlet_id),
+      }};
+      Object.assign(expectedVersions,expected('products',product.id,Number(product.version)));
+      summary=`Reprice validated: \"${product.name}\" from ${(currentPrice/100).toLocaleString('en-KE',{style:'currency',currency:'KES'})} to ${(newPrice/100).toLocaleString('en-KE',{style:'currency',currency:'KES'})}.`;
+      break;
+    }
     default:throw new ApiProblem(400,'IMPORT_TEMPLATE_UNSUPPORTED','This template is not supported by the ServOS API importer.');
   }
   if(!name)throw new ApiProblem(400,'IMPORT_TEMPLATE_UNSUPPORTED','This template is not supported by the ServOS API importer.');
-  for(const key of Object.keys(expectedVersions))if(key!==`${template.key}:${id}`){}
-  const targetId=name==='catalog.createWithOpeningStock'&&targetCollection==='stockItems'?payload.id:id;
-  return {command:{commandId:randomUUID(),name,payload,expectedVersions},externalId,rowNumber:row.rowNumber,targetCollection,targetId,requiredPermissions};
+  const targetId=(name==='catalog.createWithOpeningStock'&&targetCollection==='stockItems')?payload.id:(rowTargetId??id);
+  return {command:{commandId:randomUUID(),name,payload,expectedVersions},externalId,rowNumber:row.rowNumber,targetCollection,targetId,requiredPermissions,action,summary};
 }
 
 export async function planImport({store,registry,actor,batchId}){
@@ -348,12 +383,14 @@ export async function planImport({store,registry,actor,batchId}){
       const step={rowNumber:row.rowNumber,externalId:row.externalId,action:'CREATE',status:'BLOCKED',operation:null,targetCollection:template.key,targetId:null,reason:'',error:null,command:null};
       if(row.status!=='VALID'){step.reason='Fix the CSV row validation errors before import.';step.error=row.errors.join(' ');steps.push(step);continue}
       try{
+        await tx.client.query('SAVEPOINT api_import_dry_run');
         const built=await commandForRow(tx,actor,template,row);const definition=registry.get(built.command.name);if(!definition)throw new ApiProblem(409,'IMPORT_COMMAND_UNAVAILABLE',`API command ${built.command.name} is unavailable.`);
-        step.operation=built.command.name;step.targetCollection=built.targetCollection;step.targetId=built.targetId;step.command=built.command;
+        step.operation=built.command.name;step.targetCollection=built.targetCollection;step.targetId=built.targetId;step.command=built.command;step.action=built.action??'CREATE';
         if(!ownPermission(actor,definition))throw new ApiProblem(403,'IMPORT_DOMAIN_PERMISSION',`The ${definition.permissionAny?.join(' or ')||definition.permission} permission is required for this row.`);
         for(const permission of built.requiredPermissions||[])requirePermission(actor,permission);
-        await tx.client.query('SAVEPOINT api_import_dry_run');await tx.assertExpectedVersions(actor.businessId,built.command.expectedVersions);await definition.handler({tx,command:built.command,actor,at:new Date()});await tx.client.query('ROLLBACK TO SAVEPOINT api_import_dry_run');await tx.client.query('RELEASE SAVEPOINT api_import_dry_run');
-        step.status='PLANNED';step.reason='Create validated by the current API domain rules.';
+        await tx.assertExpectedVersions(actor.businessId,built.command.expectedVersions);await definition.handler({tx,command:built.command,actor,at:new Date()});
+        await tx.client.query('ROLLBACK TO SAVEPOINT api_import_dry_run');await tx.client.query('RELEASE SAVEPOINT api_import_dry_run');
+        step.status='PLANNED';step.reason=built.summary??'Create validated by the current API domain rules.';
       }catch(error){
         await tx.client.query('ROLLBACK TO SAVEPOINT api_import_dry_run').catch(()=>undefined);await tx.client.query('RELEASE SAVEPOINT api_import_dry_run').catch(()=>undefined);
         if(!Number.isInteger(error.status)||error.status>=500)throw error;step.status=error.status===409?'CONFLICT':'BLOCKED';step.reason=error.message||'This row could not be validated.';step.error=error.code||null;
@@ -389,7 +426,7 @@ export async function applyImport({store,registry,actor,planId}){
         else{
           const mapped=await store.pool.query(`INSERT INTO api_import_external_ids(business_id,template_key,external_id,external_id_key,record_collection,record_id,batch_id,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(business_id,template_key,external_id_key) DO NOTHING RETURNING record_id`,[actor.businessId,template.key,step.externalId,step.externalId.toLocaleLowerCase('en-US'),step.targetCollection,step.targetId,plan.batchId,new Date()]);
           if(!mapped.rows.length){const prior=await store.pool.query('SELECT record_id FROM api_import_external_ids WHERE business_id=$1 AND template_key=$2 AND external_id_key=$3',[actor.businessId,template.key,step.externalId.toLocaleLowerCase('en-US')]);if(prior.rows[0]?.record_id!==step.targetId)throw new ApiProblem(409,'IMPORT_EXTERNAL_ID_CONFLICT','This external ID is already mapped to a different record.');}
-          step.status='APPLIED';step.reason='Created through the API domain command.';step.error=null;delete step.command;
+          step.status='APPLIED';step.reason='Applied through the API domain command.';step.error=null;delete step.command;
         }
       }catch(error){if(!Number.isInteger(error.status)||error.status>=500)throw error;step.status='FAILED';step.reason=error.message||'This row could not be applied.';step.error=error.code||null;delete step.command;failed=true;}
       await store.pool.query('UPDATE api_import_plans SET steps=$3::jsonb,updated_at=$4 WHERE business_id=$1 AND id=$2',[actor.businessId,planId,JSON.stringify(steps),new Date()]);

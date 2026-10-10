@@ -9,6 +9,7 @@ import {promisify} from 'node:util';
 import {readConfig} from './config.mjs';
 import {createApiCommandRegistry} from './command-registry.mjs';
 import {applyImport,cancelImport,getImportBatch,getImportPlan,importTemplates,listImportBatches,planImport,stageImport} from './csv-import.mjs';
+import {occupancy,salesRegister,salesSummary,stockOnHand} from './reports.mjs';
 
 const json = (res, status, value) => {
   res.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
@@ -303,6 +304,30 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const actor=await authenticate(req);if(!['*','accounting.view','reports.view','finance.expense.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view Finance reports.');
         const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';if(!calendarDate(from)||!calendarDate(to)||from>to||(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000>366)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid Finance report range of at most 367 calendar days.');
         return json(res,200,await store.financeSummary(actor.businessId,from,to));
+      }
+      const reportPermissionCheck=actor=>{if(!['*','reports.view','accounting.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view business reports.');};
+      const reportRangeCheck=(from,to)=>{if(!calendarDate(from)||!calendarDate(to)||from>to||(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000>366)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid report range of at most 367 calendar days.');};
+      const reportOutletCheck=value=>{if(value!==null&&value!==undefined&&value!==''&&!uuidPattern.test(value))throw new ApiProblem(400,'VALIDATION_FAILED','The outlet filter is invalid.');return value||null};
+      if(req.method==='GET'&&url.pathname==='/v1/reports/sales-summary'){
+        const actor=await authenticate(req);reportPermissionCheck(actor);
+        const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';reportRangeCheck(from,to);
+        return json(res,200,await salesSummary(store.pool,actor,{start:from,end:to,outletId:reportOutletCheck(url.searchParams.get('outletId')),timeZone:url.searchParams.get('timeZone')??undefined}));
+      }
+      if(req.method==='GET'&&url.pathname==='/v1/reports/sales-register'){
+        const actor=await authenticate(req);reportPermissionCheck(actor);
+        const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';reportRangeCheck(from,to);
+        const limitRaw=url.searchParams.get('limit')??'100',offsetRaw=url.searchParams.get('offset')??'0';
+        if(!/^\d+$/.test(limitRaw)||!/^\d+$/.test(offsetRaw))throw new ApiProblem(400,'VALIDATION_FAILED','Register paging values must be whole numbers.');
+        return json(res,200,await salesRegister(store.pool,actor,{start:from,end:to,outletId:reportOutletCheck(url.searchParams.get('outletId')),timeZone:url.searchParams.get('timeZone')??undefined,limit:Number(limitRaw),offset:Number(offsetRaw)}));
+      }
+      if(req.method==='GET'&&url.pathname==='/v1/reports/stock-on-hand'){
+        const actor=await authenticate(req);reportPermissionCheck(actor);
+        return json(res,200,await stockOnHand(store.pool,actor,{locationId:reportOutletCheck(url.searchParams.get('locationId'))}));
+      }
+      if(req.method==='GET'&&url.pathname==='/v1/reports/occupancy'){
+        const actor=await authenticate(req);reportPermissionCheck(actor);
+        const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';reportRangeCheck(from,to);
+        return json(res,200,await occupancy(store.pool,actor,{start:from,end:to,timeZone:url.searchParams.get('timeZone')??undefined}));
       }
       if(req.method==='GET'&&url.pathname==='/v1/hospitality/availability'){
         const actor=await authenticate(req);if(!['*','rooms.view','rooms.manage','rooms.operate'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to search room availability.');
