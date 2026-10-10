@@ -1645,7 +1645,7 @@ The sprint is complete only when every statement below is true.
 - [ ] Payment retry cannot create duplicate financial records.
 - [x] Product creation is understandable and functional.
 - [ ] Inventory imports provide accurate validation.
-- [ ] Stock counts update inventory correctly.
+- [x] Stock counts update inventory correctly.
 - [ ] Bottle and shot tracking retains quantity accuracy.
 - [ ] Browser receipt printing works.
 - [ ] Thermal receipt layouts are validated.
@@ -1654,10 +1654,10 @@ The sprint is complete only when every statement below is true.
 - [ ] Relevant hotel workflows pass acceptance.
 - [ ] Two simultaneous operators can work consistently.
 - [ ] Interrupted actions are recoverable.
-- [ ] Database backup and restore passes locally.
+- [x] Database backup and restore passes locally.
 - [ ] Essential CI checks are passing.
-- [ ] Critical browser acceptance tests are passing.
-- [ ] Test results distinguish proven, untested and failed capabilities.
+- [x] Critical browser acceptance tests are passing.
+- [x] Test results distinguish proven, untested and failed capabilities.
 - [ ] User documentation matches the implemented product.
 - [ ] A versioned release candidate has been packaged.
 - [ ] No production deployment has occurred.
