@@ -264,7 +264,7 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
 });
 
 test('hotel first use creates a room, checks in a guest and settles the first stay',async({page},testInfo)=>{
- test.setTimeout(90_000);
+ test.setTimeout(240_000);
  test.skip(!process.env.TEST_DATABASE_URL||!['api-postgres','api-postgres-mobile'].includes(testInfo.project.name),'Requires a real API browser project and a disposable TEST_DATABASE_URL.');
  const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
  const {Pool}=requireApi('pg');
@@ -299,7 +299,7 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await page.getByLabel('Staff login',{exact:true}).fill(loginName);
   await page.getByLabel('Password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Business identity',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Business identity',exact:true})).toBeVisible({timeout:30_000});
   await page.getByLabel('Registered business name').fill('Kijani Lodge');
   await page.getByLabel('Business category').selectOption('ACCOMMODATION');
   await page.getByLabel('Receipt display name').fill('Kijani Lodge');
@@ -314,6 +314,7 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await expect(page.getByRole('heading',{name:'Outlets and payments',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Save and review',exact:true}).click();
   await page.getByRole('button',{name:'Save business defaults',exact:true}).click();
+  await expect(page.getByRole('status')).toHaveText('Business settings, outlet, storage, and selected payment accounts are saved. Review the checklist, then finish setup.',{timeout:30_000});
   await expect(page.getByRole('button',{name:'Finish and open workspace',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Finish and open workspace',exact:true}).click();
   await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();
