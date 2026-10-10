@@ -106,7 +106,7 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  const staleDestination=await run('order.transfer',{orderId:transferOrderId,targetTableId:transferDestinationId},{[`orders:${transferOrderId}`]:transferOrder.result.version,[`tables:${transferSourceId}`]:await tableVersion(transferSourceId),[`tables:${transferDestinationId}`]:(await tableVersion(transferDestinationId))+1});
  assert.equal(staleDestination.kind,'CONFLICT');assert.equal(staleDestination.error.code,'VERSION_CONFLICT','stale destination table revisions are refused');
  const transfer=await confirmed('order.transfer',{orderId:transferOrderId,targetTableId:transferDestinationId},{[`orders:${transferOrderId}`]:transferOrder.result.version,[`tables:${transferSourceId}`]:await tableVersion(transferSourceId),[`tables:${transferDestinationId}`]:await tableVersion(transferDestinationId)});
- assert.equal(transfer.result.data.tableId,transferDestinationId);
+ assert.equal(transfer.result.order.data.tableId,transferDestinationId);
  const transferState=await pool.query('SELECT id,state,version FROM business_floor_tables WHERE business_id=$1 AND id=ANY($2::uuid[])',[businessId,[transferSourceId,transferDestinationId]]);
  assert.equal(transferState.rows.find(row=>row.id===transferSourceId).state,'CLEANING');
  assert.equal(Number(transferState.rows.find(row=>row.id===transferDestinationId).version),2);
@@ -160,7 +160,7 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
   const quickOrderId=randomUUID(),quickItemId=randomUUID(),quickCommand={commandId:randomUUID(),name:'order.quickAdd',payload:{orderId:quickOrderId,itemId:quickItemId,outletId,name:'Counter sale',productId,quantity:2,portionId:'regular',modifierIds:['oat'],note:'Quick add acceptance'},expectedVersions:{[`orders:${quickOrderId}`]:0,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1,[`products:${productId}`]:1}};
   const quickAdded=await executeCommand({db:store,actor,registry,command:quickCommand});
   assert.equal(quickAdded.kind,'CONFIRMED',`order.quickAdd: ${JSON.stringify(quickAdded)}`);
-  assert.equal(quickAdded.result.state,'OPEN');assert.equal(quickAdded.result.data.items.length,1);assert.equal(quickAdded.result.data.items[0].id,quickItemId);assert.equal(quickAdded.result.data.items[0].quantity,2);assert.equal(quickAdded.result.data.items[0].notes,'Quick add acceptance');
+  assert.equal(quickAdded.result.data.state,'OPEN');assert.equal(quickAdded.result.data.items.length,1);assert.equal(quickAdded.result.data.items[0].id,quickItemId);assert.equal(quickAdded.result.data.items[0].quantity,2);assert.equal(quickAdded.result.data.items[0].notes,'Quick add acceptance');
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_events WHERE business_id=$1 AND command_id=$2',[businessId,quickCommand.commandId])).rows[0].count,1,'a new counter sale and its first item share one auditable command');
   assert.deepEqual(await executeCommand({db:store,actor,registry,command:quickCommand}),quickAdded,'retrying a quick sale returns its stored outcome without creating a duplicate order or line');
  const orderId=randomUUID();

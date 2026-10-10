@@ -39,6 +39,8 @@ Those details belong inside SERVEOS, not in the operator experience.
 
 ## Non-negotiable deployment freeze
 
+**Current execution scope:** Defer all deployment-related work and artifacts, including this document's section 4 self-contained installation package, PR 02 packaging, deployment-package support in section 13.1, and release/install preparation. Continue local product development and acceptance only. Do not act on deployed environments. This instruction supersedes language elsewhere that calls for deployment-ready packaging.
+
 Until the product owner explicitly authorizes deployment:
 
 - DO NOT SSH into production servers.

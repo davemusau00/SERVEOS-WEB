@@ -212,7 +212,7 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('inventory.adjust'))throw new ApiProblem(403,'PERMISSION_DENIED','Inventory adjustment permission is required to create stock or post opening quantities.');
   if(product&&!actor.permissions?.includes('*')&&!actor.permissions?.includes('catalog.manage'))throw new ApiProblem(403,'PERMISSION_DENIED','Catalog management permission is required to create a sellable product.');
   const stockId = stock?.id ?? id;
-  if (!uuid(id) || !stock || typeof stock !== 'object' || !uuid(stockId) || !uuid(locationId)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Opening stock setup requires valid stock item and location IDs.');
+  if (!stock || typeof stock !== 'object' || !uuid(stockId) || (id!==undefined&&(!uuid(id)||id!==stockId)) || !uuid(locationId)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Opening stock setup requires valid stock item and location IDs.');
   if (!await tx.requireStockLocation(actor.businessId, locationId)) throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'The selected stock location is missing or archived.');
   const stockExpected = expectedVersion(command, 'stockItems', stockId);
   if (stockExpected !== 0) throw new ApiProblem(400, 'VALIDATION_FAILED', 'A new stock item must include expected version 0.');

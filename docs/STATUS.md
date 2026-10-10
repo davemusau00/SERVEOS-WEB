@@ -4,6 +4,11 @@
 
 ServOS is a web-based hospitality ERP/POS delivered as a PWA against a Node API and PostgreSQL, with an optional local Print Bridge for receipts and kitchen printing. Operator CSV imports go through the API controlled importer.
 
+## Current task scope
+
+- Deployment work is deferred, including `SERVEOS-V2.md` section 4, PR 02 packaging, release/install artifacts, and section 13.1 deployment-package support. This task made no deployment changes.
+- Deployment details below record earlier environment state and are historical; no deployed environment was accessed or changed during this task.
+
 ## Cleanup delivered
 
 - The production web entry uses the API session flow and `WebBusinessApp`.
@@ -16,9 +21,9 @@ ServOS is a web-based hospitality ERP/POS delivered as a PWA against a Node API 
 ## Local verification
 
 - `npm run verify:fast` passed: lint, API contracts, architecture checks, build and the 23 root tests.
-- `npm run docs:check` passed across 23 current documents and 22 offline help guides.
+- `npm run docs:check` passed across 22 current documents and 22 offline help guides.
 - API unit tests passed (29 passed). Eight PostgreSQL integration suites, including first-run setup, import application, POS lifecycle, and recovery, were skipped because `TEST_DATABASE_URL` is unset. Docker is installed but its local daemon is unavailable; `psql` is unavailable.
-- Production browser checks passed (26 tests across desktop and mobile). They cover PWA bootstrap, API login/catalog sync, first-run setup and resume, IndexedDB recovery, the offline shell, and the System health panel with a mocked readiness response. These mocked browser checks do not establish PostgreSQL acceptance.
+- The last complete production browser run passed 26 tests across desktop and mobile, covering PWA bootstrap, API login/catalog sync, first-run setup and resume, IndexedDB recovery, the offline shell, and the System health panel. After adding the product-guide flow, the API catalog spec passed in targeted desktop and mobile runs; the mock readiness response includes the required CORS headers. The full suite was not rerun after that final test-fixture change. Mocked browser checks do not establish PostgreSQL acceptance.
 - Print Bridge and transport formatting, Clippy, tests, release builds, and the Windows service feature checks passed. The Print Bridge app currently has no unit tests; the transport crate has 12 passing tests.
 - `npm run audit:ui:gate` passed: 1,645 interactions inventoried and no browser prompt/confirm findings. It recorded 254 review signals; they are unreviewed source-level prompts, not confirmed defects or accepted workflow evidence.
 - Settings includes a System health panel for API/database readiness, app version, saved-work counts, browser printing, local Print Bridge selection, and backup status. The backup status is explicitly “Not reported”; no backup or restore result is inferred.
@@ -29,6 +34,6 @@ ServOS is a web-based hospitality ERP/POS delivered as a PWA against a Node API 
 
 - PostgreSQL integration and browser/API E2E tests must run against a disposable PostgreSQL database.
 - PWA release `8fa46716fc97` is deployed at `/var/www/serveos-prod/current`. Its 58-file archive passed manifest/hash checks; direct web and API TLS route checks passed before and after the atomic symlink switch, and the served HTML asset references matched the release. The public-origin browser smoke still times out before `domcontentloaded`, as it did before deployment.
-- The production API image remains `serveos-api:b2a3c35ab527b1709e6ae0c86db173afea69e12d`. API source changes, including the stock-item CSV importer fix, are not deployed. Seven PostgreSQL suites were skipped locally because no test database is configured. Staging/API acceptance, schema high-water review, PostgreSQL backup/restore rehearsal, live multi-device acceptance, and physical printer acceptance remain open.
+- The production API image remains `serveos-api:b2a3c35ab527b1709e6ae0c86db173afea69e12d`. API source changes, including the stock-item CSV importer fix, are not deployed. Eight PostgreSQL integration suites were skipped locally because no test database is configured. Staging/API acceptance, schema high-water review, PostgreSQL backup/restore rehearsal, live multi-device acceptance, and physical printer acceptance remain open.
 - The worker process currently registers zero job handlers.
 - A standalone Countryside SQLite-to-current-PostgreSQL migration executor is not present. The older cutover source in the pre-cleanup tag targets an older protocol and is not safe to run against the current API schema. A dedicated, rehearsed migration utility remains a separate gate; it must not run as part of deployment or operator CSV import.

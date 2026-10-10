@@ -18,7 +18,7 @@ test('PostgreSQL API lifecycle, catalog writes, replay, and ordered change feed'
   await pool.query("INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password) VALUES($1,$2,$3,$4,'Admin','test-hash',false)",[businessId,staffId,`test-${staffId}@example.invalid`,'Integration Admin']);
   await pool.query("INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,'catalog.manage'),($1,$2,'catalog.view')",[businessId,staffId]);
   await pool.query('INSERT INTO api_enrolled_devices(id,business_id,staff_id,public_key,created_at) VALUES($1,$2,$3,$4,now())',[deviceId,businessId,staffId,JSON.stringify({kty:'EC',crv:'P-256',x:'x',y:'y'})]);
-  const actor={businessId,staffId,deviceId,permissions:['catalog.manage','catalog.view']};
+  const actor={businessId,staffId,deviceId,permissions:['catalog.manage','catalog.view','inventory.adjust']};
   const stockId=randomUUID(),productId=randomUUID(),locationId=randomUUID();
   const stockCommand={commandId:randomUUID(),name:'stockItem.save',expectedVersions:{[`stockItems:${stockId}`]:0},payload:{id:stockId,data:{name:'Coffee beans',code:`COF-${stockId.slice(0,6)}`,baseUnit:'kg',scanUnitQuantity:1,reorderLevel:2,averageUnitCostMinor:900,purchasePackages:[]}}};
   const confirmed=await executeCommand({db:store,command:stockCommand,actor,registry:catalogCommandRegistry});
@@ -68,7 +68,7 @@ test('PostgreSQL API lifecycle, catalog writes, replay, and ordered change feed'
   const openingStockId=randomUUID(),openingProductId=randomUUID(),openingMovementId=randomUUID();
   const opening={commandId:randomUUID(),name:'catalog.createWithOpeningStock',expectedVersions:{[`stockItems:${openingStockId}`]:0,[`products:${openingProductId}`]:0,[`stockLocations:${locationId}`]:1,[`stockMovements:${openingMovementId}`]:0},payload:{id:openingStockId,stockItem:{id:openingStockId,name:'Opening tea',code:`TEA-${openingStockId.slice(0,6)}`,baseUnit:'kg',averageUnitCostMinor:400},product:{id:openingProductId,name:'Opening cup',code:`CUP-${openingProductId.slice(0,6)}`,priceMinor:200,category:'TEA',routeTo:'BAR'},locationId,startingQuantity:5,openingMovementId}};
   const openingResult=await executeCommand({db:store,command:opening,actor,registry:catalogCommandRegistry});
-  assert.equal(openingResult.kind,'CONFIRMED');
+  assert.equal(openingResult.kind,'CONFIRMED',JSON.stringify(openingResult));
   const openingChanges=(await store.changesAfter(businessId,4,20)).changes;
   assert.equal(openingChanges.length,1);
   assert.deepEqual(new Set(openingChanges[0].records.map(record=>record.collection)),new Set(['stockItems','products','stockMovements']));

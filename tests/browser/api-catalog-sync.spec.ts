@@ -11,7 +11,7 @@ test('API login, catalog command, reload projection, and reconnect change feed',
  const stockId='a1000000-0000-4000-8000-000000000004';
  const outcomes=new Map<string,unknown>();const snapshots=new Map<string,{expiresAt:string;cursor:number;manifest:Record<string,unknown>;records:unknown[]}>();
  let cursor=1;let stockVersion=1;let stockName='Coffee beans';let feed:any[]=[];let offline=false;
- await page.route('**/health/ready',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ready'})}));
+ await page.route('**/health/ready',route=>route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'http://127.0.0.1:3010','access-control-allow-credentials':'true'},body:JSON.stringify({status:'ready'})}));
  await page.route('**/v1/**',async route=>{
   const request=route.request();const url=new URL(request.url());
   if(offline){await route.abort('internetdisconnected');return}
