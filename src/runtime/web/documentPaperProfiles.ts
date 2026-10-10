@@ -25,4 +25,11 @@ export function documentCopyStatus(attempt: number): DocumentCopyStatus {
   return Number.isSafeInteger(attempt) && attempt > 1 ? 'REPRINT' : 'ORIGINAL';
 }
 
+/** Show the copy label for the next queued retry, but preserve the prior attempt while uncertain. */
+export function documentPreviewAttempt(attempt: number, state: string): number {
+  const current = Number.isSafeInteger(attempt) && attempt > 0 ? attempt : 0;
+  if (['QUEUED', 'FAILED'].includes(state) && current > 0) return current + 1;
+  return Math.max(1, current);
+}
+
 export const DOCUMENT_DEVELOPER_FOOTER = 'Developed By Kingsforge, 0746157440';
