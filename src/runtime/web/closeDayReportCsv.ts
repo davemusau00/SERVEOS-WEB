@@ -25,7 +25,7 @@ export async function buildVerifiedCloseDayReportCsv(document:CloseDayReportCsvD
   const hash=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
   if(hash!==document.hash)throw new Error('The close-day snapshot hash does not match. Synchronize the issued report before exporting.');
 
-  const lines=[['document_number','document_id','issued_at','snapshot_path','value','value_type'].map(cell).join(',')];
+  const lines=[['document_number','document_id','issued_at','snapshot_path','value','value_type'].map(value=>cell(value)).join(',')];
   const add=(path:string,value:unknown)=>{
     let serialized:string,type:string;
     if(value===null){serialized='';type='null';}
