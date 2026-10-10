@@ -1,1134 +1,1587 @@
 # SERVEOS V2.1
-# FINAL DEVELOPMENT SPRINT AND DAY-ONE ACCEPTANCE DIRECTIVE
+# FINAL DEVELOPMENT SPRINT: CORE PRODUCT COMPLETION & CRITICAL DEFECT RESOLUTION
 
 **Repository:** `davemusau00/SERVEOS-WEB`  
-**Target branch:** `reset/vps-platform`  
-
+**Development branch:** `reset/vps-platform`  
+**Inspected baseline:** `9ed56dd251abc2bb77e0480c12a1ede88309112b`  
 **Date:** 10 October 2026  
-**Priority:** P0, product completion and release stabilization  
-**Production deployment:** NOT AUTHORIZED
+**Directive type:** Mandatory engineering execution specification  
+**Deployment status:** STRICTLY DEFERRED
 
-## 1. Executive mandate
+---
 
-This is the final product-completion sprint for SERVEOS V2.1.
+## 1. EXECUTIVE MANDATE
 
-The objective is to convert the existing hospitality ERP/POS into a dependable, understandable and professionally presented system that can be operated on Day One.
+This development sprint must prioritize completion, stability, simplicity, financial correctness and the operational usefulness of the existing SERVEOS platform.
 
-We are no longer prioritizing infrastructure expansion, speculative modules, architectural experimentation or additional complexity.
+We are not commencing a new architectural rewrite.
 
-Development must concentrate on:
+We are not expanding into additional speculative features.
 
-1. Restoring a completely green development and CI baseline.
-2. Completing and simplifying the day-to-day hospitality operating experience.
-3. Making product creation, stock onboarding and future inventory imports predictable and safe.
-4. Producing excellent printed receipts, reports, invoices, statements and operational documents.
-5. Printing these documents directly from the browser/PWA, without any SERVEOS Print Bridge installation.
-6. Completing hotel, restaurant, bar, cashier, inventory, payment and financial acceptance.
-7. Validating multi-device consistency and safe recovery from ordinary failures.
-8. Preparing a plan for a future isolated fresh-stack redeployment while preserving every existing installation on the VPS.
+We are not deploying to production.
 
-Do not treat feature presence as feature completion.
+We are finishing the existing system to a standard at which a newly onboarded hospitality business can operate its daily activities without developer assistance.
 
-A feature is complete only when it works through the intended operator interface, produces the correct authoritative business records, handles errors intelligibly, and passes documented acceptance tests.
+### Primary engineering objectives
 
-## 2. Non-negotiable architecture and scope
+The development team shall complete these nine workstreams, in the order and with the dependencies established below.
 
-Preserve the existing platform:
+| Workstream | Previous estimated maturity | Required final outcome |
+|---|---:|---|
+| Core API, database and commands | 85–90% | Regression-proven authoritative transaction engine |
+| Administrator and onboarding | 85% | Complete role-specific first-use experience |
+| POS and cash operations | 80% | Fast checkout, correct settlement and dependable recovery |
+| CSV imports and catalogue | 75% | Easy first inventory load and safe bulk repricing |
+| Stock and sealed/open bottles | 65–70% | Accurate physical opening counts and stock conservation |
+| Hotel/resort operations | 65% | Fully working booking-to-checkout lifecycle |
+| Direct PWA printing | 70% software | Real printer acceptance without a SERVEOS Print Bridge |
+| Professional reports | 40–45% | Complete, accurate, attractive operational and financial reporting |
+| Multi-terminal and recovery | 55–60% | Concurrent operation without duplicated, lost or corrupted transactions |
 
-- React and TypeScript browser/PWA.
-- Node.js business API.
-- PostgreSQL as the authoritative database.
-- IndexedDB for supported browser projections and recoverable offline state.
-- Existing validated domain-command and authorization mechanisms.
-- Existing financial, inventory, hospitality and business-document records.
+These maturity figures are prior engineering estimates, not measured test coverage. Developers must not mechanically increase percentages after adding files or passing unit tests.
 
-Do not introduce a second POS, second inventory system, second database, competing import engine or alternative authentication layer.
+**A workstream is complete only when its functional, financial, browser, operator and relevant physical acceptance gates have passed.**
 
-Maintain necessary role permissions, HTTPS, idempotency, tenant separation, audit history, transaction consistency and data integrity.
+### Operational success criterion
 
-Reduce operator friction rather than removing financial controls.
+A business owner must be able to:
 
-### Printing decision
+1. Register a new business and create its first administrator.
+2. Configure the correct business type, outlets, stock locations and payment accounts.
+3. Import products and opening stock.
+4. Assign employees and appropriate roles.
+5. Open a cashier shift.
+6. Process products, portions, recipes, rooms and payments.
+7. Print legitimate, professionally formatted business documents.
+8. Track stock consumption, receiving, movement and discrepancies.
+9. Close the operating day and reconcile cash, payments and stock.
+10. Review accurate reports for a selected period.
+11. Recover safely from interrupted operations.
+12. Resume normal business activity on the next day.
 
-**Direct PWA printing is mandatory.**
+No hidden SQL interventions, manual command replays, unapproved administrative workarounds or developer-only configuration steps may be necessary.
 
-The operator must be able to print to an operating-system-configured printer using the native browser print dialog.
+---
 
-No SERVEOS Print Bridge, Windows service, companion application, localhost printer listener, device-pairing ceremony or browser extension may be necessary for everyday printing.
+# PHASE 0: FIX THE THREE RELEASE-BLOCKING FAILURES
 
-The legacy Print Bridge source can remain isolated temporarily if removing it would disrupt unrelated development checks. However, no normal V2 operator workflow should depend on it.
+This phase takes precedence over every other workstream.
 
-Do not promise universal silent or background printing. Standard browser printing requires user initiation and platform printer support.
+The inspected HEAD has four successful GitHub Actions jobs and one failed API/PostgreSQL job.
 
-### Deployment decision
+The API suite itself passed 37 tests, but the real-API browser suite reported four failures across desktop and mobile.
 
-**Do not deploy during this sprint.**
+**No workstream may be considered release-ready while these failures remain.**
 
-When deployment is separately authorized, install a fresh, isolated SERVEOS V2 stack without replacing or modifying pre-existing applications, APIs, databases, containers, hostnames, ports, volumes, proxy rules or release directories.
+## DEFECT-001: SALES RECEIPT SETTLEMENT-STATUS INCONSISTENCY
 
-The previously deployed SERVEOS instances and all pre-ServeOS services must remain operational and untouched.
+**Severity:** P0  
+**Affected capability:** POS, payments, immutable receipts and financial reporting
 
-## 3. First action: repair the current broken CI baseline
+### Observed failure
 
-### Observed problems
+The browser acceptance creates and fully pays a KES 100 sale.
 
-At inspected commit `f8f2ef06`, the frontend job fails during TypeScript checking.
+PostgreSQL confirms the recorded sale and payment.
 
-`WebDocumentQueue` no longer accepts `apiAuth`, but the following callers still supply it:
+The issued receipt displays:
 
-- `src/runtime/web/WebApiGoodsReceipts.tsx`
-- `src/runtime/web/WebApiPurchaseOrders.tsx`
-- `src/runtime/web/WebApiSupplierPayments.tsx`
+"Settlement balance not recorded in this document; tender recorded KES 100.00."
 
-The compiler reports TS2322 property incompatibilities.
+The browser test expects the document to truthfully identify the sale as settled.
 
-The preceding CI run also failed its new hotel end-to-end browser test at the Guest Accounts action confirmation stage on desktop and mobile.
+### Relevant implementation
 
-### Instructions
+- `apps/api/src/payment-commands.mjs`
+- `apps/api/src/pos-commands.mjs`
+- `src/runtime/web/BusinessDocumentRenderer.tsx`
+- `tests/browser/api-postgres-setup.spec.ts`
 
-**DEV-001: Correct the printing component contract**
+The payment command constructs a completed-sale receipt containing:
 
-- Establish one authoritative props interface for `WebDocumentQueue`.
-- Remove obsolete `apiAuth` props from all call sites that no longer require them.
-- Check every dynamic and static invocation of the component.
-- Preserve API-authenticated print claim, report, confirmation and retry commands.
-- Do not reintroduce the Print Bridge merely to satisfy the previous interface.
-- Add a source-level regression test or compile-time coverage to prevent call-site drift.
+- `totalMinor`
+- `paidMinor`
+- `creditedMinor`
+- `roomChargedMinor`
+- Payment settlement lines
 
-**DEV-002: Repair hotel acceptance**
+However, the receipt snapshot currently does not explicitly include `balanceMinor`.
 
-Investigate the actual command and state transitions in `tests/browser/api-postgres-setup.spec.ts`.
+The renderer's `paymentStatus()` function only displays "Settled when issued" if `snapshot.balanceMinor === 0`.
 
-The scenario creates a hotel, room type, room, nightly rate, guest, walk-in reservation and guest account.
+This is a specific source-level mismatch.
 
-It subsequently posts accommodation, settles the balance and checks out.
+### Required implementation
 
-Trace any failing call by its command name, server response, expected version, folio state and subsequent client projection.
+**DEV-FIX-001A: Reconcile receipt settlement at issuance**
 
-Differentiate:
+Use the authoritative completed order and settled payment state already available inside the transaction that issues the sales receipt.
 
-- A legitimate server-side domain conflict.
-- A stale client projection.
-- A premature UI success expectation.
-- A permission or command payload error.
-- A race between command confirmation and projection refresh.
-- A genuine business-lifecycle defect.
+The settlement invariant is:
 
-Fix the root cause, not just the assertion.
+`outstanding = total - recorded payments - approved account credit - valid room charges`
 
-Never insert arbitrary sleeps, suppress failed assertions or mark the test skipped to manufacture a green workflow.
+For a completed order, outstanding must equal zero.
 
-**DEV-003: Restore all quality gates**
+Validate that all components are safe integer minor-unit amounts, and ensure existing settlement-line reconciliation remains intact.
 
-Required checks include:
+**DEV-FIX-001B: Persist the required settlement fact**
 
-- TypeScript and lint.
-- Production build.
-- API contracts.
-- Architecture validation.
-- Root unit tests.
-- API and PostgreSQL integration.
-- Desktop and mobile real-API browser acceptance.
-- Production browser acceptance.
-- Documentation and UI audit.
+Include the authoritative outstanding balance in the immutable receipt snapshot.
 
-**Acceptance:** All mandatory jobs pass on the exact same HEAD commit. No failing test is silenced, and no test counts are inflated.
+Where a completed order is being receipted, the verified snapshot should contain `balanceMinor: 0`.
 
-## 4. Product and inventory model: establish one authoritative structure
+Do not manufacture a balance in the renderer merely because some money was recorded.
 
-SERVEOS must maintain the distinction between a selling product and physical inventory.
+Do not use a mutable current-order projection to recalculate an old issued receipt.
 
-### Authoritative relationship
+Preserve the snapshot's existing hash and versioning rules. Because the snapshot content changes, newly issued documents must be hashed using the final complete snapshot. Already-issued documents must remain immutable.
 
-**Product:** what appears on the POS and is sold to a customer.
+**DEV-FIX-001C: Render precise settlement states**
 
-**Stock item:** what the business purchases, stores, measures and counts.
+The document renderer must distinguish:
 
-**Stock location:** where a stock quantity physically exists.
+- Fully settled.
+- Partially paid.
+- Customer account allocation.
+- Room charge allocation.
+- Unpaid or unknown settlement state.
+- Zero-value order that requires no payment.
 
-**Outlet:** where an operator sells or serves products.
+A recorded cash payment must not automatically be described as full settlement unless the order's entire consideration is accounted for.
 
-**Purchase package:** how stock is received and costed.
-
-**Product portion:** quantity and price selected by the customer.
-
-**Recipe:** stock ingredients consumed to fulfil a product.
-
-**Inventory movement:** auditable change caused by opening balance, receiving, transfer, waste, count or sale.
-
-These concepts must be visible and understandable in the interface without exposing internal IDs.
-
-### Supported item classes
-
-| Class | Required meaning |
-|---|---|
-| SERVICE | Sellable item without direct stock consumption |
-| TRACKED | Sellable item linked to tracked physical stock |
-| SPIRIT | Bottle stock measured in millilitres with serving rules |
-| WINE | Bottle stock measured in millilitres with glass/bottle rules |
-| STOCK_ONLY | Physical stock not directly sold |
-
-The advanced Catalog also supports recipe and batch relationships. Those must continue using the existing domain model rather than pretending the simple CSV import automatically creates multi-ingredient recipes.
-
-### DEV-004: Cleanly separate product and stock editing
-
-The item interface must clearly distinguish:
-
-- Selling price from acquisition cost.
-- Selling product code from physical stock code.
-- Barcode from internal identifier.
-- Package units from individual physical units.
-- Stock balance from stock-master configuration.
-- Selling portion from purchase package quantity.
-- Tax class from business-wide tax settings.
-- Service route from physical storage location.
-
-Managers should be able to explain these distinctions after a brief guided walkthrough.
-
-Changing a product's price must not change inventory valuation.
-
-Changing a stock item's opening quantity must create the appropriate reviewed inventory event rather than silently editing a quantity field.
-
-### DEV-005: Define stable product identities
-
-Implement or verify:
-
-- Unique active product codes.
-- Unique and validated applicable barcodes.
-- Stable codes for each pack size and product variant.
-- Separate 250ml and 500ml SKUs where appropriate.
-- Consistent search by name, barcode and product code.
-- Explicit active/archived status.
-- Safe product reactivation and duplicate prevention.
-
-Preserve leading zeros in all barcodes and reject malformed scanner identifiers before saving.
-
-## 5. CSV import: make the first stock load dependable
-
-**Primary source:** `apps/api/src/csv-import.mjs`  
-**Operator UI:** `src/runtime/web/WebApiImportCenter.tsx`
-
-The API currently publishes 13 import templates.
-
-For a first operational catalogue, prioritize `sellableItems`, labelled **Products and opening stock (simple)**.
-
-Its current required header structure must remain authoritative:
-
-`name,code,stock_mode,price,category,barcode,tax_class_id,service_area,outlet_names,stock_location_name,base_unit,units_per_package,quantity_per_unit,purchase_price,opening_packages,reorder_level,container_size,portion_size,selling_mode,whole_container_price`
-
-### DEV-006: Establish a formal import contract
-
-Maintain an import schema specification describing:
-
-- Every supported template.
-- Exact headers.
-- Required and optional columns.
-- Conditional required fields.
-- Accepted field values.
-- Quantity and money precision.
-- Duplicate rules.
-- Required permissions.
-- Existing dependency requirements.
-- Whether the import creates, updates or rejects existing records.
-- Any business operation required after applying the file.
-
-Do not maintain conflicting static CSV specifications.
-
-The PWA should obtain templates from the API and offer a downloadable header/template with understandable examples.
-
-### DEV-007: Improve importer usability
-
-The desired workflow is:
-
-1. Choose the business-data category.
-2. Download its template.
-3. Upload or paste a prepared CSV.
-4. View a validation summary.
-5. Review blocked rows with plain-language explanations.
-6. Run the server dry run.
-7. Review what will be created.
-8. Explicitly apply the import.
-9. Receive a clear final result, including partial failures.
-10. Confirm that actual records and starting quantities match the reviewed plan.
-
-Avoid requiring operators to understand UUIDs, expected-version maps, command payloads or API endpoints.
-
-Error output must identify the CSV row, column, rejected value, reason and corrective action.
-
-Example: "Row 18: Viceroy 500ml uses stock_mode SPIRIT, so base_unit must be ml and quantity_per_unit must match container_size."
-
-### DEV-008: Import safety and validation
-
-Preserve the current limits unless an evidenced business need requires revising them:
-
-- Maximum 2 MB CSV.
-- Maximum 20,000 data rows.
-- Preview limited to 500 rows, clearly labelled as a partial display.
-- Exact allowed headers.
-- No sensitive credential columns.
-- Non-negative money values.
-- Supported units and tax classes.
-- Stable external references.
-- Duplicate checks within the file and against business records.
-
-A server dry run must not commit business records.
-
-No import may silently overwrite an existing record.
-
-A partially applied batch must provide an accurate per-row result and a safe correction procedure.
-
-Applied row IDs and source hashes must remain auditable.
-
-### DEV-009: Simplified first-stock initialization
-
-The `sellableItems` importer currently uses `catalog.createWithOpeningStock`.
-
-Preserve the command's atomic creation of:
-
-- New stock master.
-- Optional selling product.
-- Product-to-stock link.
-- Purchase package definition.
-- Initial cost rate.
-- Opening quantity movement, when nonzero.
-- Actual storage location balance.
-
-Do not split this into loosely coupled client-side operations that can leave a product disconnected from its stock.
-
-The first import must make it easy to confirm:
-
-- Number of products created.
-- Number of stock-only items created.
-- Total opening quantities by location.
-- Opening stock valuation.
-- Products missing tax classifications.
-- Duplicate and rejected items.
-- Stock items without sellable product relationships.
-- Sellable products without stock or recipes where stock tracking is expected.
-
-**Acceptance:** A new manager can import a realistic catalogue, verify stock on hand and make a test sale without manual SQL or API repairs.
-
-## 6. Packaging, costs and physical unit handling
-
-### DEV-010: Ensure package calculations are comprehensible
-
-For every tracked item, display:
-
-**Package quantity = units_per_package × quantity_per_unit**
-
-**Opening quantity = opening_packages × package quantity**
-
-**Unit acquisition cost = purchase_price ÷ package quantity**
-
-Use the configured base unit consistently.
-
-Example:
-
-- Soda crate contains 24 bottles.
-- Each bottle equals 1 piece.
-- One crate costs KES 1,440.
-- Opening count is two crates.
-
-Expected opening stock is 48 pieces at a calculated unit cost of KES 60.
-
-For products bought in boxes but sold individually, support this distinction without creating duplicate product records.
-
-### DEV-011: Avoid unit ambiguity
-
-Test representative businesses using:
-
-- Piece and each.
-- Gram and kilogram.
-- Millilitre and litre.
-- Boxes, cases and crates as purchase packages.
-- Single units as sale portions.
-
-Ensure conversions never silently multiply or divide by the wrong factor.
-
-Do not allow a kitchen recipe defined in grams to consume the same numerical quantity of kilograms.
-
-Avoid fake zero-cost valuations unless the actual supplier cost is genuinely zero. For unavailable costs, offer a clearly visible review or correction workflow rather than inventing purchase prices.
-
-## 7. Spirits and wine: finish the sealed/open model
-
-This is a launch-critical area for bars, clubs and resorts.
-
-The current system requires millilitre-based stock and can model sealed bottles and opened-liquid balances.
-
-However, the simple CSV opening-stock command records total quantity without necessarily initializing the physical sealed/open composition needed for sales.
-
-### DEV-012: Repair opening bottle-state continuity
-
-When importing SPIRIT or WINE stock:
-
-- Enforce base unit `ml`.
-- Enforce `quantity_per_unit = container_size`.
-- Validate positive container and portion sizes.
-- Distinguish `BOTTLE_ONLY` from `SERVING_AND_BOTTLE`.
-- Ensure every offered whole-bottle price maps to the correct portion.
-- Prevent a whole-bottle transaction from consuming a fractional container.
-- Preserve package acquisition cost independently of selling prices.
-
-After import, one of the following must happen:
-
-**Preferred behavior:** A guided physical-count step records sealed containers and open liquid before bottle stock becomes sellable.
-
-**Alternative:** If the import explicitly declares that all opening stock is sealed and that assertion is valid, initialize a documented all-sealed physical state through a reviewed command.
-
-Never silently invent a physical bottle state.
-
-### DEV-013: Validate mixed bottle/shot sales
-
-Example fixture:
-
-- 750ml spirit.
-- Twelve sealed bottles received.
-- 45ml pour price.
-- Separate whole-container price.
+**DEV-FIX-001D: Add regression coverage**
 
 Test:
 
-- Single shot.
-- Multiple shots.
-- Exact remaining-liquid exhaustion.
-- Sale requiring a new bottle to be opened.
-- Whole-bottle sale.
-- Whole-bottle sale when insufficient sealed stock exists.
-- Transfers between Store and Bar.
-- Waste and spillage.
-- Bottle count reconciliation.
-- Refund of unopened stock versus consumed stock.
-- Duplicate and timeout-safe consumption.
-
-The existing implementation represents an aggregate open remainder smaller than one full container per stock/location balance. Determine whether this is acceptable for real bar operations with multiple opened bottles.
-
-If a customer workflow needs independently tracked open bottles, either implement that correctly using the existing inventory architecture or document an explicitly accepted operating limitation. Do not claim full open-bottle tracking when multiple bottle states cannot be represented.
-
-### DEV-014: Protect stock conservation
-
-Always validate:
-
-`total ml = sealed containers × container size + open ml`
-
-Stock must remain consistent through every sale, transfer, adjustment and count.
-
-A zero-quantity condition must never produce negative stock, negative sealed counts or inconsistent open quantities.
-
-Test product sizes including 250ml, 500ml, 750ml and 1,000ml, as applicable.
-
-## 8. Recipes, kitchen production and shared ingredients
-
-### DEV-015: Make recipe creation practical
-
-A restaurant product should be able to consume multiple stock masters.
-
-Example: Chicken, ugali and greens may consume chicken, maize flour, oil and greens according to a configured recipe.
-
-Implement or improve:
-
-- Recipe ingredient search and selection.
-- Stock units and conversion.
-- Quantity consumed per selling portion.
-- Ingredient cost visibility.
-- Calculated food cost and indicative margin.
-- Portion changes.
-- Ingredient substitutions or modifiers where already supported.
-- Clear kitchen production routing.
-- Correct consumption when an order is fired.
-- Correct separation of payment refunds and physical returns.
-
-Do not represent the same physical ingredients as unrelated duplicate stock items for every menu dish.
-
-### DEV-016: Explicitly document importer limitations
-
-The simple product CSV currently does not create complex multi-ingredient recipes.
-
-The importer must not imply otherwise.
-
-Provide a post-import checklist identifying recipes that need manual linking or a dedicated future recipe-import contract.
-
-If introducing a recipe CSV during this sprint is unavoidable, ensure it reuses existing stock external references, validates units and remains transactional. Do not create another parallel recipe engine.
-
-## 9. POS: complete the simplified cashier experience
-
-### DEV-017: Implement a truly simple counter-sale mode
-
-For ordinary bar and retail transactions, the ideal operator experience is:
-
-**Select product → adjust quantity → choose payment → confirm → view/print receipt.**
-
-Remove needless intermediate review screens where they do not protect a meaningful financial or inventory decision.
-
-Preserve:
-
-- Correct outlet and till association.
-- Valid product prices and tax classes.
-- Immutable recorded payment facts.
-- Stock consumption.
-- Transaction version checks.
-- Idempotent command behavior.
-- A meaningful failure/retry response.
-- Original receipt identity.
-
-Kitchen/table service may require an explicit fire or preparation stage. Ordinary takeaway counter sales should not inherit unnecessary restaurant workflow complexity.
-
-### DEV-018: Cashier productivity features
-
-Verify or improve:
-
-- Product search, SKU and barcode input.
-- Keyboard Enter selection.
-- Quick quantity changes.
-- Categories and favorites.
-- Responsive grid for touchscreen terminals.
-- Scanner keyboard-wedge compatibility.
-- Accurate line totals and basket total.
-- Cash tendered and change calculation.
-- Manual M-Pesa selection and transaction reference.
-- Mixed payment where already supported.
-- Refund and void workflows that require appropriate review.
-- Clear "Payment confirmed" versus "Payment awaiting verification" language.
-
-Every operator must be able to identify what is completed, pending, rejected or unresolved.
-
-No page refresh should create a second transaction.
-
-## 10. Manual M-Pesa and payment accuracy
-
-### DEV-019: Validate manual M-Pesa from UI to database
-
-Manual M-Pesa support is a priority. Daraja automation is not required in this sprint.
-
-Test:
-
-- Cash-only transaction.
-- M-Pesa-only transaction.
-- Split cash/M-Pesa payment where supported.
-- Correct account destination.
-- Entered transaction reference.
-- Duplicate-reference handling.
+- KES 100 fully paid in cash.
+- Fully paid via manually confirmed M-Pesa.
+- Split cash/M-Pesa settlement.
 - Partial payment.
-- Unconfirmed payment.
-- Network interruption.
-- Repeated Complete click.
-- Receipt showing the actual method and reference.
-- Refund or payment reversal.
+- Customer credit.
+- Room folio charge.
+- Zero-value sale.
+- Receipt reprint after price changes.
+- Refund after receipt issuance.
+- Missing or tampered snapshot evidence.
 
-No user interface should imply a manual payment was automatically verified by Safaricom.
+### Acceptance criteria
 
-If payment confirmation relies on a staff member checking the customer's transaction, the UI must say so.
+- The original KES 100 test passes without weakening the assertion.
+- A genuine completed order displays "Settled when issued".
+- Partial payments do not appear fully settled.
+- Immutable receipt values match the authoritative transaction records.
+- Reprinting does not change historical payment status.
+- Both desktop and mobile browser acceptance pass.
 
-Amounts should remain consistent across POS, payment records, cashier till, sales reports and customer receipts.
+**Never fix this defect by hardcoding the word "Settled" into every receipt.**
 
-## 11. First-run setup and guided business initialization
+---
 
-### DEV-020: Complete day-one onboarding
+## DEFECT-002: HOTEL CHECKOUT ACCEPTANCE FAILURE
 
-The setup flow must do more than create an administrator and open a workspace.
+**Severity:** P0  
+**Affected capability:** Guest Accounts, accommodation posting, folio settlement, check-out and room lifecycle
 
-Provide a clear post-setup checklist tailored by business type:
+### Observed failure
 
-**Bar/club**
+The real-API browser test creates:
 
-- Confirm bar outlet.
-- Confirm stock location.
-- Add or import saleable products.
-- Count spirits and wine.
-- Set cash/M-Pesa accounts.
-- Open first shift.
-- Print test receipt.
+- A hotel.
+- Room type and room.
+- Nightly rate.
+- Guest.
+- Walk-in reservation.
+- Checked-in stay.
+- Accommodation charge.
+- Cash settlement.
 
-**Restaurant**
+The final checkout confirmation is not found.
 
-- Configure restaurant/kitchen routing.
-- Import ingredients and selling products.
-- Link recipes.
-- Configure preparation tickets.
-- Open shift.
-- Process test order.
+The test attempts to locate the message:
 
-**Hotel/resort**
+"Guest account action confirmed and synchronized."
 
-- Configure room types.
-- Create rooms.
-- Define rates.
-- Configure Front Desk and payment accounts.
-- Add a sample guest.
-- Process a sample booking/stay.
-- Print sample folio and receipt.
+### Relevant implementation
 
-The wizard must distinguish **required**, **recommended** and **later** tasks.
+- `src/runtime/web/WebHospitalityViews.tsx`
+- `apps/api/src/hospitality-commands.mjs`
+- `apps/api/src/room-commands.mjs`
+- `tests/browser/api-postgres-setup.spec.ts`
 
-It must remain resumable and must not create duplicates after refresh or retry.
+### Important diagnostic detail
 
-Use business-facing terminology rather than schema and API terminology.
+In the current Guest Accounts UI, confirmed outcomes are rendered using `role="status"`.
 
-## 12. Hotel/resort acceptance must be complete
+Rejected, blocked, conflicted or unknown outcomes are rendered using `role="alert"`.
 
-### DEV-021: Validate the whole guest lifecycle
+Therefore, the absence of the expected status element may mean that the command returned a blocking outcome.
 
-Using real API and PostgreSQL browser acceptance:
+It is not sufficient to conclude that the message simply disappeared.
 
-1. Create hotel business and room category.
-2. Create rooms and rates.
-3. Create guest.
-4. Make reservation or walk-in booking.
-5. Check availability and prevent overlaps.
-6. Check in.
-7. Post accommodation.
-8. Add a restaurant or additional-service charge.
-9. Record deposit/partial payment if supported.
-10. Settle folio.
-11. Check out.
-12. Generate guest folio and checkout statement.
-13. Confirm room and housekeeping state transitions.
-14. Reconcile financial and operational records.
+### Required implementation
 
-Use varied dates, night counts, room rates and payment conditions.
+**DEV-FIX-002A: Inspect the actual command result**
 
-A one-night test alone is insufficient. Include multi-night stays, date changes, overlapping reservations and unpaid balances.
+Instrument the test with safe diagnostics that capture:
 
-Review the current Guest Accounts CI failure as a mandatory blocker.
+- Operation name.
+- Response status.
+- Server error code.
+- Sanitized error message.
+- Command identifier.
+- Reviewed entity versions.
+- Relevant reservation, stay and folio states.
 
-## 13. Professional business documents and reports
+Record the result in CI artifacts.
 
-This is a major release requirement.
+Do not log passwords, payment credentials, session tokens or guest-sensitive personal data.
 
-**DEV-022: Treat reporting as a product, not an afterthought**
+**DEV-FIX-002B: Verify checkout preconditions**
 
-Every major operational document must be properly composed for actual printing and PDF output.
+Before submitting `stay.checkOut`, confirm the authoritative database has:
 
-Use consistent:
+- A checked-in reservation.
+- A checked-in stay.
+- All required booked accommodation periods posted.
+- Zero outstanding folio balance.
+- Zero unapplied deposit.
+- No unresolved incompatible folio actions.
+- The correct expected versions.
 
-- Business logo and identity.
-- Report title.
-- Outlet/branch.
-- Financial or activity period.
-- Date and time, using the intended business timezone.
-- Record/document number.
-- Clear sections.
-- Aligned numeric columns.
-- KES formatting.
-- Subtotals and grand totals.
-- Source references.
-- Page margins.
-- Pagination.
-- Appropriate footer.
-- Original, copy, refund or void indicators.
+If a precondition is unmet, identify whether the prior UI action failed, the projection is stale, or the domain policy is incorrect.
 
-A functional but ugly table is not acceptable.
+**DEV-FIX-002C: Verify the final PostgreSQL transition**
 
-A screenshot of a dashboard is not a professional report.
+After a confirmed checkout, assert:
 
-### DEV-023: Required document catalogue
+- Reservation status is `CHECKED_OUT`.
+- Stay status is `CHECKED_OUT`.
+- Folio status is `CLOSED`.
+- Outstanding balance is zero.
+- There are no unaccounted deposits.
+- Payment entries reconcile to charges.
+- Checkout timestamps and actor are persisted.
+- Expected room/housekeeping transitions are recorded.
 
-| Area | Required output |
-|---|---|
-| POS | Customer sales receipt |
-| Payments | Payment acknowledgement and refund receipt |
-| Bar/kitchen | KOT, BOT, cancellation and void notice |
-| Till | Shift opening/closing and cash reconciliation |
-| Sales | Detailed sales register and sales summary |
-| Finance | Close-day, journal, expenses, refund and account reports |
-| Inventory | Stock-on-hand, stock valuation and stock movement |
-| Stocktake | Physical count, variance and adjustment report |
-| Bar inventory | Sealed/open bottle and ml movement report |
-| Procurement | Purchase order and goods received note |
-| Suppliers | Return note, payment voucher and payable statement |
-| Customers | Account statement, credit and settlement documentation |
-| Hotel | Reservation confirmation, guest folio, invoice and checkout statement |
-| Management | Daily business summary and available occupancy/revenue reports |
+**DEV-FIX-002D: Resolve refresh and state timing**
 
-If a required report lacks authoritative data, label it incomplete rather than populate it with fictitious values.
+When the command is confirmed but the UI still holds an old projection, synchronize the original command result and refresh the relevant records.
 
-### DEV-024: Establish the reusable layout engine
+Do not submit a second checkout command simply to make the screen update.
 
-Build on:
+Ensure the operator receives a stable, accessible confirmation.
 
-- `BusinessDocumentRenderer.tsx`
-- `documentPaperProfiles.ts`
-- Existing immutable document snapshots.
-- Existing reporting and domain projections.
+**DEV-FIX-002E: Improve failure presentation**
 
-Keep one central composition system for:
-
-- Identity/header.
-- Metadata.
-- Line-item tables.
-- KPIs.
-- Financial totals.
-- Signatures.
-- Footer.
-- Print styles.
-
-Create explicit paper profiles:
-
-- 80mm continuous thermal.
-- A4 portrait.
-- A4 landscape.
-
-Ensure that a document's snapshot remains immutable. A reprint must not recalculate historical prices, costs or taxes from the current catalogue.
-
-### DEV-025: Thermal printing quality
-
-An 80mm receipt must:
-
-- Fit within the actual supported printable width.
-- Avoid clipping.
-- Wrap long item names.
-- Display quantity, price and line total clearly.
-- Show business logo without excessive raster size.
-- Show correct payment figures.
-- Differentiate subtotal, tax, total, amount paid and change.
-- Preserve QR quiet zones.
-- Place the owner-supplied M-Pesa payment QR below payment details and immediately before the footer.
-- Print a readable receipt number and timestamp.
-- Clearly identify a reprint.
-- Avoid excessive blank paper.
-- Avoid unnecessary page headers and margins imposed by the browser configuration.
-
-Do not assume that setting CSS width to 80mm establishes the printer's physical printable width.
-
-Test the current print CSS across actual supported browsers. In particular, validate named `@page` handling, physical media selection and the current thermal-width calculation.
-
-### DEV-026: A4 layout quality
-
-For each report, provide:
-
-- A readable title area.
-- Report metadata.
-- Summary figures.
-- Detail table or grouped sections.
-- Correct subtotals.
-- Proper table-head repetition where supported.
-- Clean breaks across multiple pages.
-- Reasonable row heights and line wrapping.
-- No hidden or horizontally clipped columns.
-- No blank trailing pages.
-- Clear final reconciliation.
-- Correct PDF appearance.
-
-For wide stock and financial tables, support landscape orientation deliberately.
-
-Test reports with 1 row, 100 rows and a larger multi-page fixture.
-
-### DEV-027: Data reconciliation
-
-Each report must reconcile to persisted business data.
+For a legitimate checkout blocker, display the precise business reason.
 
 Examples:
 
-**Cash close**
+- "KES 500 remains unpaid."
+- "A deposit must be applied or refunded before checkout."
+- "Accommodation for one booked night has not been posted."
+- "This guest was already checked out. Refresh the stay."
 
-Opening float + cash sales + cash movements - refunds = expected drawer cash, subject to the documented treatment of each entry.
+Avoid generic "Something went wrong" messages.
 
-**Inventory**
+### Acceptance criteria
 
-Opening + receipts + transfers in - transfers out - sales consumption - waste + reviewed adjustments = closing quantity.
+- Checkout completes on desktop and mobile.
+- The browser UI and PostgreSQL show consistent states.
+- Repeating checkout cannot post duplicate entries.
+- A rejected checkout preserves the existing reservation and folio.
+- A lost response can be reconciled without resubmitting financial activity.
+- The acceptance test detects both `status` and `alert` outcomes appropriately during diagnosis, while requiring confirmed success for the passing scenario.
 
-**Hotel**
+---
 
-Posted accommodation and services - payments/credits = outstanding folio balance, with the actual accounting treatment explicitly documented.
+## DEFECT-003: INCOMPLETE PROFESSIONAL REPORTING
 
-Do not assume visually attractive reports are financially accurate.
+**Severity:** P0  
+**Affected capability:** Sales, finance, stock, procurement, management and hospitality reporting
 
-Automate reconciliation tests and include a known fixture report.
+### Observed implementation gap
 
-## 14. Direct printing from the PWA, no native bridge
+The repository's `docs/report-catalogue.md` confirms that full historical-period reporting is not implemented for several major operational areas.
 
-### DEV-028: Complete the native print path
+In particular:
 
-The intended operator flow is:
+- Full sales-period registers and summaries are missing.
+- Historical stock valuation reports are missing.
+- Supplier payable statements are incomplete.
+- Management revenue and occupancy reporting is incomplete.
+- Existing browser projections often expose bounded recent-history data.
+- Some views display only the latest 1,000 records.
+- The current close-day CSV export is a hash-verified snapshot export, not a full financial-period reporting engine.
 
-**Confirm business transaction → View official document → Preview → Print → OS print dialog.**
+These limitations are unacceptable for a mature ERP/POS.
 
-There must be no requirement to:
+### Core requirement
 
-- Install a SERVEOS Print Bridge.
-- Start a local print daemon.
-- Pair a terminal.
-- Configure localhost HTTPS.
-- Run a workstation installer.
-- Manage bridge credentials.
-- Use a separate desktop application.
+**Reports must query complete, authorized, authoritative data for the selected period.**
 
-An existing OS printer driver remains the responsibility of the operating system.
+Never construct financial reports merely by summing whatever happens to be visible in the browser's recently loaded records.
 
-### DEV-029: Harden browser print preparation
+This report workstream is detailed in Phase 8 below.
 
-Verify:
+### Acceptance criteria
 
-- The correct immutable snapshot is loaded.
-- Snapshot hash verification succeeds.
-- Images and fonts are loaded before printing.
-- The correct paper profile is applied.
-- Printing works from installed PWA and ordinary browser tabs.
-- Printing handles Windows desktop, representative Android tablet and supported mobile/desktop browser behavior.
-- The browser print dialog opening is not recorded as guaranteed paper delivery.
-- Cancelling the dialog does not cancel the sale.
-- Printer failure does not duplicate the order.
-- Reprinting preserves the original document number and indicates COPY/REPRINT.
-- The operator can confirm physical delivery or safely retry an uncertain job.
+The required reports must support:
 
-If the platform cannot support unattended kitchen ticket output without a companion, document the limitation explicitly and provide an operator-driven print flow. Do not implement an unapproved hidden browser workaround.
+- Complete selected date ranges.
+- Correct tenant, outlet and permission scoping.
+- Pagination without loss of report totals.
+- Reconciled monetary and inventory amounts.
+- Professional A4 printing.
+- Appropriate CSV export.
+- Explicit document provenance.
+- Meaningful empty-state handling.
 
-### DEV-030: Physical printer certification
+**Do not mark reporting complete simply because the report catalogue exists.**
 
-Test at least one actual supported 80mm thermal printer, including the available Xprinter XP-80 hardware if it is authorized for testing.
+---
 
-Record:
+# PHASE 1: CORE API, DATABASE AND BUSINESS COMMAND REGRESSION
 
-- OS version.
-- Browser/PWA version.
-- Printer and driver model.
-- Paper profile.
-- Width/margin settings.
-- Logo result.
-- Long item-name result.
-- QR scan result.
-- Reprint result.
-- Paper-cut or feed issues.
-- Operator verification.
+**Priority:** P0  
+**Previous maturity:** 85–90%  
+**Objective:** Establish that the transaction engine is trustworthy under real operational conditions.
 
-The current source records a previous workstation inspection of two XP-80 queues sharing USB001 and a pre-existing pending job. Do not assume either queue is correctly configured merely because Windows lists it. Never clear the old queue or print to it without an explicit controlled test.
+## 1.1 Freeze and verify the intended architecture
 
-## 15. Full inventory and procurement continuity
+Maintain:
 
-### DEV-031: Verify receiving and replenishment
+- Node API as the authoritative business command processor.
+- PostgreSQL as the transactional source of truth.
+- Centralized authentication and authorization.
+- Tenant-scoped data access.
+- Version-controlled commands.
+- Idempotent retries.
+- Immutable accounting and transaction evidence.
+- IndexedDB as browser-local projection and recovery support.
+
+Do not allow frontend screens to directly update business records outside the API command architecture.
+
+Do not reintroduce duplicate legacy engines.
+
+## 1.2 Review the full command registry
+
+Inventory every currently registered business command.
+
+Group commands by:
+
+- Setup and business configuration.
+- Product and catalogue.
+- Inventory.
+- Procurement.
+- POS orders.
+- Payments.
+- Refunds.
+- Till and shift.
+- Hospitality.
+- Reporting.
+- Document issuance and printing.
+- Staff and permissions.
+
+For each command, document:
+
+- Input contract.
+- Required permissions.
+- Expected-version requirements.
+- Transaction boundaries.
+- Idempotency key behavior.
+- Result shape.
+- Projection updates.
+- Failure codes.
+- Whether offline queueing is permitted.
+- Whether money or stock changes.
+- Associated documents or journal entries.
+
+Commands with missing or inconsistent behavior must be corrected before functional acceptance.
+
+## 1.3 Transaction integrity tests
+
+**DEV-CORE-001**
+
+Prove atomicity of financial and inventory operations.
+
+A successful payment may affect:
+
+- Order settlement.
+- Payment record.
+- Till cash entries.
+- Financial journals.
+- Business document issuance.
+- Print-job creation.
+
+These records must not become partially committed.
+
+Similarly, a completed stocked sale must not independently succeed while the required stock deduction fails.
+
+Use the existing domain transaction mechanism rather than coordinating several business writes in the browser.
+
+## 1.4 Duplicate and retry protection
+
+**DEV-CORE-002**
+
+For all critical commands:
+
+- Same command ID and same payload must resolve to the original outcome.
+- Same command ID and conflicting payload must be rejected.
+- Two identical button clicks must not create duplicate financial entries.
+- A client timeout after commit must not trigger another payment.
+- Network recovery must query or reconcile the original command.
+- Version conflict messages must instruct the operator to refresh and review.
+- Duplicate external M-Pesa references must be handled according to the existing payment policy.
+- A failed command must leave no partial journal or stock movement.
+
+## 1.5 Data constraints
+
+**DEV-CORE-003**
+
+Verify database-level enforcement of:
+
+- Business/tenant boundaries.
+- Foreign-key integrity.
+- Supported units.
+- Non-negative monetary values where required.
+- Valid stock quantities.
+- Unique active SKUs.
+- Relevant barcode uniqueness.
+- Unique financial source references.
+- Legal business-state transitions.
+- Valid till ownership.
+- Valid room occupancy.
+- Immutable issued document identity.
+
+Backend validation and database constraints must complement each other.
+
+### Core API release gate
+
+Require a successful clean PostgreSQL migration and execution of all API tests, including integration fixtures that compare actual persisted balances, journals and business outcomes.
+
+All newly corrected failure scenarios must become permanent regression tests.
+
+---
+
+# PHASE 2: ADMINISTRATOR, STAFF AND ROLE-SPECIFIC ONBOARDING
+
+**Priority:** P0  
+**Previous maturity:** 85%  
+**Objective:** Make first use achievable by an ordinary hospitality operator.
+
+## 2.1 First-administrator creation
+
+**DEV-SETUP-001**
+
+Test completely fresh installation state with:
+
+- No previous business administrator.
+- One-time setup credential.
+- Correct administrative account creation.
+- Correct first session.
+- Secure setup credential retirement.
+- Successful business defaults initialization.
+
+The setup credential must not remain in browser storage or become reusable after first initialization.
+
+Test reload, tab closure and interrupted network responses.
+
+## 2.2 Guided business-type configuration
+
+**DEV-SETUP-002**
+
+The onboarding wizard must adapt to the chosen operational model.
+
+**Bar or club:** outlet, storage, payment account, products, sealed/open stock count, staff, first till.
+
+**Restaurant or café:** outlet, kitchen routing, ingredient stock, menu, recipes, cashier and preparation staff.
+
+**Hotel or resort:** room types, room inventory, rate plans, Front Desk, accommodation payment accounts, staff and guest folio setup.
+
+**Retail counter:** outlet, warehouse, catalogue, checkout, payment and inventory.
+
+Avoid asking users to configure unrelated features before opening their core workspace.
+
+## 2.3 First-day readiness checklist
+
+**DEV-SETUP-003**
+
+Create a first-use checklist showing:
+
+- Required setup completed.
+- Required setup outstanding.
+- Recommended setup.
+- Optional modules.
+- Problems preventing trading.
+- Test transaction readiness.
+- Printer readiness.
+- Initial inventory readiness.
+
+Each checklist item must deep-link to the appropriate screen and accurately reflect persisted setup state.
+
+## 2.4 Role-specific training
+
+**DEV-SETUP-004**
+
+Complete distinct first-use paths for:
+
+- Administrator.
+- Manager.
+- Cashier.
+- Storekeeper.
+- Bar attendant.
+- Front Desk receptionist.
+- Kitchen staff.
+- Accountant.
+
+Each walkthrough must demonstrate only actions available under that role's permission set.
+
+Include realistic tasks, not merely generic feature descriptions.
+
+### Onboarding release gate
+
+On a disposable fresh PostgreSQL business, an operator should be able to create the business and complete the first core transaction without developer guidance or database access.
+
+The test must cover desktop and tablet-sized interfaces, keyboard access, form validation, reload and permission boundaries.
+
+---
+
+# PHASE 3: POS, CASH OPERATIONS AND PAYMENT RECOVERY
+
+**Priority:** P0  
+**Previous maturity:** 80%  
+**Objective:** Make everyday selling fast, understandable and financially correct.
+
+## 3.1 Simplified counter checkout
+
+**DEV-POS-001**
+
+The current ordinary sale flow contains too many confirmation stages.
+
+Introduce a dedicated quick counter-sale experience while preserving detailed service workflows where necessary.
+
+The expected cashier journey is:
+
+**Find or scan item → set quantity → choose payment → confirm → receive receipt.**
+
+The system may internally create, fire and settle an order through existing authorized commands.
+
+Do not merge these operations in a way that bypasses transaction or inventory checks.
+
+The UI should not force ordinary retail/bar counter customers through unnecessary table-service screens.
+
+## 3.2 Preserve separate service modes
+
+**DEV-POS-002**
+
+Differentiate:
+
+- Immediate retail/counter sale.
+- Bar order.
+- Kitchen/restaurant order.
+- Open customer tab.
+- Table service.
+- Guest room charge.
+- Customer credit sale.
+
+Use shared business commands and money rules wherever possible.
+
+Do not create separate financial implementations for each workflow.
+
+## 3.3 Improve the cashier interface
+
+**DEV-POS-003**
+
+Required improvements:
+
+- Fast product search.
+- Barcode input support.
+- Clear product variants and portions.
+- Touch-friendly quantity controls.
+- Visible unit and line prices.
+- Discount and tax visibility.
+- Accurate basket total.
+- Clear payment methods.
+- Cash tendered and change.
+- Manual M-Pesa reference entry.
+- Correct split payment where supported.
+- Obvious transaction outcome.
+- Clear link to issued receipt.
+- Fast next-sale reset.
+
+The active outlet, shift and operator must be visible.
+
+## 3.4 Payment recovery
+
+**DEV-POS-004**
 
 Test:
 
-- New supplier.
-- Purchase order.
-- Goods receipt.
-- Quantity and cost posted to stock.
-- Weighted-cost behavior as applicable.
-- Purchase package conversion.
-- Returned/damaged delivery.
-- Supplier credit.
-- Stock transfer.
+- API unavailable before payment.
+- Request committed but response lost.
+- Cashier clicks Confirm twice.
+- Cashier refreshes during payment.
+- Payment account configuration changes.
+- Till closes on another terminal.
+- M-Pesa reference is reused.
+- Partial payment remains outstanding.
+- Split payment retries after one unknown result.
+
+Never offer an unsafe "Try again" action that blindly posts a new payment after an unknown outcome.
+
+Show the original transaction ID and recovery state.
+
+## 3.5 Till and shift reconciliation
+
+**DEV-POS-005**
+
+Verify:
+
+- Opening float.
+- Cash sales.
+- Cash refunds.
+- Cash drawer additions and withdrawals.
+- M-Pesa collections.
+- Card collections, where applicable.
+- Expected closing cash.
+- Actual counted cash.
+- Variance.
+- Manager authorization for applicable overrides.
+- Shift close report.
+- Day-close report.
+
+A cash refund must not automatically restore physical inventory.
+
+Stock restoration requires an appropriate and auditable stock disposition.
+
+### POS release gate
+
+Run a complete cashier shift on real API/PostgreSQL fixtures involving cash, M-Pesa, split tender, multiple orders, partial payments, refunds and close-day reconciliation.
+
+Amounts must agree across POS, payment records, cash drawer, journal and issued reports.
+
+---
+
+# PHASE 4: CSV IMPORTS, PRODUCT CATALOGUE AND BULK REPRICING
+
+**Priority:** P0  
+**Previous maturity:** 75%  
+**Objective:** Enable rapid, reliable setup and maintenance of a real Kenyan hospitality catalogue.
+
+## 4.1 Maintain the current import contract
+
+**DEV-IMPORT-001**
+
+Continue to use the existing API-controlled CSV importer:
+
+`apps/api/src/csv-import.mjs`
+
+The standard first-load template is `sellableItems`.
+
+Preserve its existing create-only semantics.
+
+No existing inventory, prices or product identities may be overwritten through a create-only import.
+
+## 4.2 Make templates understandable
+
+**DEV-IMPORT-002**
+
+For every import template, provide:
+
+- Downloadable blank template.
+- Downloadable example template.
+- Column definitions.
+- Required fields.
+- Conditional requirements.
+- Supported enum values.
+- Example product category.
+- Unit calculation examples.
+- Barcode formatting guidance.
+- Validation limits.
+- Common error explanations.
+
+Product examples should cover:
+
+- 24-piece soda crate.
+- Single bottled beer.
+- Whisky with shot and bottle pricing.
+- Wine sold by glass.
+- Stock-only maize flour.
+- Stock-only cooking oil.
+- Service with no stock.
+- Room-related services.
+
+## 4.3 Improve validation and preview
+
+**DEV-IMPORT-003**
+
+Before applying an import, show a structured analysis of:
+
+- Total rows.
+- Valid rows.
+- Invalid rows.
+- Duplicate product codes.
+- Duplicate barcodes.
+- Missing outlet references.
+- Missing storage references.
+- Missing tax classifications.
+- Invalid unit conversions.
+- Invalid prices.
+- Invalid acquisition costs.
+- Spirit/wine tracking problems.
+- Potential duplicates against existing records.
+
+For each invalid row, display the affected field, incorrect value and suggested correction.
+
+Downloadable row-error exports are recommended.
+
+## 4.4 First-load quantities and valuation
+
+**DEV-IMPORT-004**
+
+Clearly explain and consistently enforce:
+
+`package base quantity = units_per_package × quantity_per_unit`
+
+`opening base quantity = opening_packages × package base quantity`
+
+`base-unit cost = package purchase_price ÷ package base quantity`
+
+Currency input uses KES and must convert reliably to integer minor units.
+
+A purchase price is not a selling price.
+
+A purchase package is not necessarily the same quantity as the selling unit.
+
+## 4.5 Bulk repricing
+
+**DEV-IMPORT-005**
+
+Implement a separate **reviewed price-update workflow** for existing products.
+
+It must not be disguised as another create-only stock import.
+
+Required columns should include an unambiguous existing product identifier, new selling price and an optional reason or authorized effective-time field.
+
+Use current product code or a controlled export identifier rather than relying solely on human-readable names.
+
+The operation must:
+
+1. Match the correct existing products.
+2. Display old and proposed prices.
+3. Identify unknown codes.
+4. Identify duplicates in the update sheet.
+5. Reject ambiguous matches.
+6. Validate monetary precision.
+7. Validate permissions.
+8. Show the number of affected products.
+9. Require explicit confirmation.
+10. Apply updates through audited catalogue commands.
+
+Preserve historical orders, receipt snapshots, margins and tax evidence.
+
+For concurrent changes, reject stale reviewed versions instead of silently overwriting a newer operator's update.
+
+## 4.6 Catalogue consistency
+
+**DEV-IMPORT-006**
+
+Ensure product editing can independently manage:
+
+- Product name.
+- SKU/code.
+- Category.
+- Barcode.
+- Selling price.
+- Tax classification.
+- Service route.
+- Outlet availability.
+- Stock link.
+- Portions.
+- Recipe links.
+- Archived state.
+
+Products without a valid stock or recipe link must be visibly classified according to their actual stock behavior.
+
+### Import release gate
+
+Import a realistic 100-item hospitality fixture using a mix of bar, restaurant, retail and stock-only products.
+
+Then update prices for a subset of existing products without creating duplicates or changing historical transaction values.
+
+Verify database rows, stock quantities, valuation, product visibility and representative sales.
+
+---
+
+# PHASE 5: STOCK, SEALED/OPEN BOTTLES AND INVENTORY CONSERVATION
+
+**Priority:** P0  
+**Previous maturity:** 65–70%  
+**Objective:** Ensure physical stock and system stock remain consistent from first count through closing.
+
+## 5.1 Correct the opening-count workflow
+
+**DEV-STOCK-001**
+
+The first stock import may establish total quantities without fully recording physical sealed/open bottle state.
+
+This must be addressed before operational rollout.
+
+For each spirit or wine stock item:
+
+- Validate base unit `ml`.
+- Validate bottle/container size.
+- Validate package conversion.
+- Validate serving/portion sizes.
+- Capture sealed bottle count.
+- Capture total open-liquid quantity.
+- Reconcile the measured physical total.
+- Confirm the stock location.
+- Record the responsible staff member.
+- Create appropriate reviewed inventory evidence.
+
+A first import must never silently assume an opened bottle is sealed or vice versa.
+
+## 5.2 Clarify bottle-state limitations
+
+**DEV-STOCK-002**
+
+The current bottle model supports sealed containers plus an aggregate opened-liquid remainder constrained below one full bottle per stock item/location.
+
+Review this carefully against real bar practice.
+
+Determine whether the system can correctly accommodate:
+
+- Multiple independently opened bottles of the same brand.
+- Bottles held in different bar stations.
+- Partially consumed bottles.
+- Measured free pours.
+- Spillage.
+- Breakage.
+- Whole sealed-bottle sales.
+- Transfers between the store and bar.
+
+Where the business requires multiple independent open bottles, implement an appropriate physical-state model or formally identify and resolve the product limitation.
+
+Do not hide the limitation behind total-millilitre arithmetic.
+
+## 5.3 Stock conservation
+
+**DEV-STOCK-003**
+
+Every stock movement must have a documented reason and matching evidence.
+
+Test:
+
+- Opening stock.
+- Supplier receipt.
+- Receiving partial packages.
+- Store-to-bar transfer.
+- Shot sale.
+- Bottle sale.
+- Ingredient consumption.
 - Stock waste.
-- Physical stock count.
-- Variance report.
-- Reorder threshold visibility.
+- Breakage.
+- Physical count.
+- Variance adjustment.
+- Refund with stock return.
+- Refund without stock return.
 
-The physical stock model must work whether stock is counted in pieces, grams, kilograms, ml or litres.
+For bottle stock:
 
-### DEV-032: Confirm price-changing workflows
+`total ml = sealed bottle count × container size + open ml`
 
-The importer currently creates new master records and does not bulk-update existing prices.
+For location inventory:
 
-Therefore:
+`closing quantity = opening + receipts + transfers in - transfers out - consumption - waste + adjustments`
 
-- Existing price editing must be simple and tested.
-- Repricing must never be achieved by reimporting a second copy of the product.
-- Preserve historical sales at their original prices.
-- Make current price, previous value and change audit clearly understandable.
-- For businesses with frequent repricing, assess whether a reviewed price-update CSV is required before handover.
+Apply the system's actual rounding and precision rules consistently.
 
-If bulk repricing is implemented, it must be a separate, explicitly selected and previewable update operation. Do not quietly change the create-only import contract.
+## 5.4 Inventory reports
 
-## 16. Operator usability and permissions
+**DEV-STOCK-004**
 
-### DEV-033: Complete role-specific walkthroughs
+Provide clear, printable/exportable reports for:
 
-Use actual representative scenarios for:
+- Current stock on hand.
+- Stock by physical location.
+- Stock value by category and location.
+- Stock movements.
+- Purchase receipts.
+- Stocktake variance.
+- Sealed/open bottle reconciliation.
+- Stock below reorder level.
 
-- Owner/administrator.
-- Manager.
+Reports must show the applicable quantity units and valuation method.
+
+Do not use current average cost to fabricate historical valuation.
+
+### Stock release gate
+
+Prove a representative inventory sequence using 250ml, 500ml, 750ml and 1-litre containers, with varied selling portions and physical counts.
+
+No unexplained negative stock, missing inventory movement or incorrect ml conservation is acceptable.
+
+---
+
+# PHASE 6: HOTEL AND RESORT OPERATIONS
+
+**Priority:** P0  
+**Previous maturity:** 65%  
+**Objective:** Complete the full guest lifecycle and eliminate the current checkout failure.
+
+## 6.1 Core accommodation workflow
+
+**DEV-HOTEL-001**
+
+Test the following uninterrupted operator journey:
+
+1. Configure property.
+2. Configure room categories.
+3. Create rooms.
+4. Define rates.
+5. Create a guest.
+6. Make reservation.
+7. Confirm availability.
+8. Check in.
+9. Post accommodation.
+10. Post additional services.
+11. Receive deposit or payment.
+12. Apply credits/deposits correctly.
+13. Settle folio.
+14. Check out.
+15. Print final guest documents.
+16. Update room readiness and housekeeping.
+17. Verify management and financial reports.
+
+The current booking-to-checkout CI defect must be resolved in this phase.
+
+## 6.2 Room pricing and stay duration
+
+**DEV-HOTEL-002**
+
+Verify:
+
+- One-night booking.
+- Multiple nights.
+- Correct nightly rate.
+- Room-rate changes.
+- Stay extensions.
+- Walk-in guests.
+- Overlapping reservations.
+- Room unavailable for maintenance.
+- Housekeeping restrictions.
+- Late or early checkout, where applicable.
+
+Rates must be captured consistently in transaction snapshots so a later rate-plan change does not change the financial value of an existing booking.
+
+## 6.3 Folio correctness
+
+**DEV-HOTEL-003**
+
+Ensure:
+
+- Accommodation postings are not duplicated.
+- Restaurant room charges post to the correct guest.
+- Deposits remain distinct from settled revenue.
+- Cash payments reconcile.
+- Manual external payments retain the appropriate reference.
+- Reversals do not erase historical entries.
+- Check-out is blocked when a valid balance or deposit issue remains.
+- Final folio statements accurately represent the stay.
+
+## 6.4 Hotel documents and reporting
+
+**DEV-HOTEL-004**
+
+Provide polished documents for:
+
+- Reservation confirmation.
+- Guest folio.
+- Room invoice.
+- Payment acknowledgement.
+- Checkout statement.
+
+Add reconciled occupancy and room-revenue reporting in the reporting phase.
+
+### Hotel release gate
+
+Real PostgreSQL browser acceptance must pass for both normal and blocked checkout scenarios on desktop and mobile.
+
+Verify the entire guest lifecycle through authoritative database records.
+
+---
+
+# PHASE 7: DIRECT PWA PRINTING AND PHYSICAL PRINTER ACCEPTANCE
+
+**Priority:** P0  
+**Previous maturity:** 70% software  
+**Objective:** Make browser printing fully practical without a SERVEOS Print Bridge.
+
+## 7.1 Preserve the bridge-free design
+
+**DEV-PRINT-001**
+
+The expected path is:
+
+**Open issued document → Preview → Print → Native browser/OS print dialog → Operator verifies physical output.**
+
+No SERVEOS-installed Print Bridge, service, pairing helper, localhost agent or browser extension may be required.
+
+The printer may use its normal operating-system driver.
+
+Do not advertise universal silent or unattended thermal printing.
+
+## 7.2 Receipt layout requirements
+
+**DEV-PRINT-002**
+
+The thermal receipt must display:
+
+- Business identity and logo.
+- Receipt number.
+- Date/time.
+- Outlet.
 - Cashier.
-- Bar attendant.
-- Storekeeper.
-- Accountant.
-- Front Desk receptionist.
-- Kitchen operator.
+- Item description.
+- Quantity.
+- Unit price.
+- Line total.
+- Applicable discounts.
+- Net amount and tax information.
+- Grand total.
+- Payment method.
+- Amount paid.
+- Change or balance, where relevant.
+- Genuine owner-approved M-Pesa QR when enabled.
+- Footer.
+- Original/reprint identification.
 
-Check each for:
+The M-Pesa QR must appear **below the financial totals and above the footer**, with sufficient printable margin and a valid quiet zone.
 
-- Correct permitted actions.
-- Appropriate menu visibility.
-- Minimum required clicks.
-- Clear primary actions.
-- Good field labels.
-- Sensible defaults.
-- Readable validation and recovery messages.
-- Keyboard and touchscreen accessibility.
-- Mobile/tablet layouts.
-- No overlapping dialogs or hidden action buttons.
+Avoid clipping, illegible small text, distorted logos and oversized blank sections.
 
-The UI audit has previously recorded 255 review signals. These are not automatically 255 confirmed defects. Triage them by severity and actual operator impact, fixing validated P0 and P1 issues.
+## 7.3 Printing lifecycle
 
-## 17. Concurrent operation, offline states and recovery
+**DEV-PRINT-003**
 
-### DEV-034: Two-terminal acceptance
+Preserve the existing distinction between:
 
-Use separate authenticated browser contexts or devices connected to the same API/database.
+- Transaction confirmed.
+- Document issued.
+- Print attempt claimed.
+- Browser print dialog invoked.
+- Delivery uncertain.
+- Operator-confirmed physical output.
+- Reprint after duplicate acknowledgment.
 
-Prove:
+Opening a print dialog is not proof of paper delivery.
 
-- Two cashiers see appropriate latest stock.
-- A purchase is not deducted twice.
-- Stale inventory edits are rejected appropriately.
-- A stock count cannot overwrite a newer balance silently.
-- Order version conflicts produce understandable recovery.
-- A transaction does not appear confirmed until its result is actually confirmed.
-- Duplicate payment attempts cannot post duplicate money.
-- Refresh/reconnect restores the correct business projection.
+Cancelling printing must never cancel or duplicate a financial transaction.
 
-### DEV-035: Network failure acceptance
+## 7.4 Actual hardware tests
 
-Inject:
+**DEV-PRINT-004**
 
-- Lost response after successful server commit.
-- Failed API connection before commit.
-- Browser refresh during pending work.
-- Offline period followed by reconnect.
-- Application restart after partial preparation.
-- Concurrent price/stock change.
+Test a supported operating-system printer, preferably the known Xprinter XP-80 hardware when authorized.
 
-The system must recover the original operation where possible rather than ask the cashier to create another transaction.
+Record:
 
-Preserve separate states for pending, confirmed, rejected and unknown outcomes.
+- Device operating system.
+- Installed PWA/browser.
+- Printer driver.
+- Paper width.
+- Actual printable width.
+- Margins.
+- Receipt length.
+- Logo.
+- QR scan.
+- Long product names.
+- Multiple payment lines.
+- Reprint labeling.
+- Printer unavailable behavior.
 
-Do not enable unsafe automatic replay of financial commands to simplify the UX.
+### Printing release gate
 
-## 18. Backup and recoverability
+A genuine issued receipt must print successfully from the installed PWA without a SERVEOS Print Bridge.
 
-### DEV-036: Make restore evidence repeatable
+Automated `window.print()` interception does not satisfy this gate.
 
-The current local restore rehearsal is useful, but the standard CI path does not automatically enable the optional container-based restore test.
+---
 
-Add a dedicated, repeatable acceptance gate using disposable PostgreSQL infrastructure.
+# PHASE 8: PROFESSIONAL FINANCIAL AND MANAGEMENT REPORTS
 
-Verify restored:
+**Priority:** P0  
+**Previous maturity:** 40–45%  
+**Objective:** Deliver complete, trustworthy, professional reports rather than partial dashboard projections.
 
-- Business identity.
-- Products and stock masters.
-- Inventory balances and movements.
-- Sales.
-- Payments and refunds.
-- Cash drawer records.
-- Journals.
-- Guest folios where exercised.
-- Close-day reports.
-- Receipt/document snapshots.
+## 8.1 Build a proper authoritative reporting layer
 
-Compare before and after using both row counts and relevant financial/inventory totals.
+**DEV-REPORT-001**
 
-A local successful restore must not be presented as proof of hosted backup retention, encryption or disaster recovery.
+Reports must be generated from PostgreSQL queries appropriate for the selected reporting scope.
 
-Do not run destructive restore tests against production.
+Do not infer period totals from browser bootstrap records.
 
-## 19. Future fresh-stack redeployment, plan only
+Do not assume 1,000 recently loaded rows represent the complete historical period.
 
-### DEV-037: Prepare an isolation-first deployment strategy
+Implement report-oriented API queries with:
 
-The future deployment must create a separate SERVEOS V2 installation.
+- Explicit tenant scoping.
+- Correct permissions.
+- Start/end date.
+- Business timezone.
+- Outlet/location filters.
+- Appropriate status filters.
+- Stable pagination.
+- Complete aggregate totals.
+- Source-record provenance.
+- Clear definitions of every metric.
 
-Never overwrite or reuse an existing production deployment by default.
+Where relevant, expose total count, page metadata and aggregate results independently of the current visible result page.
 
-The planning document must account for:
+## 8.2 Sales reports
 
-| Resource | Required future handling |
+**DEV-REPORT-002**
+
+Implement:
+
+**Sales summary**
+
+- Gross sales.
+- Net sales.
+- Discounts.
+- VAT and levies.
+- Refunds.
+- Payment breakdown.
+- Sales by outlet.
+- Sales by operator.
+- Sales by product/category.
+
+**Detailed sales register**
+
+- Timestamp.
+- Receipt/order reference.
+- Product.
+- Quantity.
+- Unit price.
+- Discount.
+- Tax.
+- Gross/net total.
+- Payment settlement.
+- Refund status.
+
+Differentiate sales recognized for a period from cash collected during that period.
+
+Do not equate a payment report with a sales report.
+
+## 8.3 Finance and cash reports
+
+**DEV-REPORT-003**
+
+Implement:
+
+- Shift close and variance.
+- Cash movement register.
+- Close-day statement.
+- Payment method reconciliation.
+- Refund register.
+- Journal report.
+- Expense register.
+- Customer credit/account report.
+- Outstanding receivables where supported.
+
+The existing close-day report is the starting point, not a replacement for full-period financial reporting.
+
+## 8.4 Inventory and procurement reports
+
+**DEV-REPORT-004**
+
+Implement:
+
+- Current stock quantities.
+- Stock value by location/category.
+- Stock movement history.
+- Purchase receipts.
+- Goods received and rejected.
+- Stocktake variance.
+- Sealed/open ml reconciliation.
+- Supplier purchases.
+- Supplier balances.
+- Supplier credits and returns.
+
+Historical valuation must come from appropriate transaction/cost evidence rather than the current average-cost field.
+
+## 8.5 Hotel management reports
+
+**DEV-REPORT-005**
+
+Implement:
+
+- Room availability.
+- Occupied rooms.
+- Occupancy percentage.
+- Room nights.
+- Room revenue.
+- Accommodation charges.
+- Folio payments.
+- Outstanding guest balances.
+- Guest check-in/check-out register.
+
+Document exact metric definitions.
+
+Do not present current occupancy as historical occupancy for an earlier date.
+
+Do not combine rooms blocked for maintenance with occupied rooms without clearly defining the calculation.
+
+## 8.6 Professional report presentation
+
+**DEV-REPORT-006**
+
+All essential reports must support a polished reading and printing experience.
+
+Required elements:
+
+- Business name and logo.
+- Report title.
+- Selected dates.
+- Filter context.
+- Generation timestamp.
+- Report/reference ID.
+- Clearly styled KPI summaries.
+- Well-spaced tables.
+- Numeric column alignment.
+- Category subtotals.
+- Overall totals.
+- Variance indicators.
+- Clear explanatory notes.
+- Page numbering when reliably supported.
+- Appropriate footer and signatures where relevant.
+
+Support both A4 portrait and landscape.
+
+Use intentional page breaks and repeated headings where supported.
+
+Avoid cut-off columns, horizontal scrolling on paper, microscopic typography and truncated detail.
+
+## 8.7 Report export
+
+**DEV-REPORT-007**
+
+Provide appropriately structured:
+
+- Browser preview.
+- Native browser printing.
+- Print-to-PDF.
+- CSV export for tabular reports.
+
+Keep the existing immutable close-day CSV as an audit-oriented snapshot export.
+
+Do not mistake its JSON-path/value format for a user-friendly sales or stock register.
+
+Report CSV exports should use proper business-oriented columns, units and references.
+
+Protect spreadsheet exports against formula injection, preserve codes with leading zeros, and avoid lossy conversions of monetary amounts.
+
+## 8.8 Report reconciliation
+
+**DEV-REPORT-008**
+
+For each major report, provide a known PostgreSQL fixture with independently calculated expected totals.
+
+Test:
+
+- No transactions.
+- Normal trading day.
+- Multiple outlets.
+- Refunds.
+- Partial payments.
+- Credit transactions.
+- Overnight business-day boundaries.
+- Many transactions exceeding bootstrap limits.
+- Multiple pages.
+- Permission-restricted staff.
+- Concurrent new transactions during report generation.
+
+The report must have consistent query/snapshot semantics so aggregates and detail rows do not contradict each other.
+
+### Reporting release gate
+
+A manager must be able to select a complete historical date range, obtain accurate totals, inspect the underlying records, export a usable CSV, and print a professional A4 report.
+
+Neither visual quality nor data accuracy may be sacrificed for the other.
+
+---
+
+# PHASE 9: MULTI-TERMINAL CONSISTENCY AND FAILURE RECOVERY
+
+**Priority:** P0  
+**Previous maturity:** 55–60%  
+**Objective:** Prove the system operates safely with simultaneous staff and unreliable connectivity.
+
+## 9.1 Two-terminal integration tests
+
+**DEV-SYNC-001**
+
+Run two independent authenticated clients against the same disposable PostgreSQL business.
+
+Required scenarios:
+
+- Two cashiers sell the same product concurrently.
+- One cashier changes quantity while another reviews an order.
+- Storekeeper counts stock while cashier sells.
+- Two users attempt to modify the same price.
+- Manager closes a till while a cashier prepares payment.
+- Two staff members try to post the same external reference.
+- One terminal completes an operation while another remains stale.
+
+The API must preserve authoritative version and financial consistency.
+
+## 9.2 Interrupted commands
+
+**DEV-SYNC-002**
+
+Test:
+
+- Request never reaches the server.
+- Server commits but response is lost.
+- Device reloads after submission.
+- Internet disconnects during read/sync.
+- Authentication expires.
+- Same command is retried.
+- A different command is submitted against a stale version.
+
+The UI must identify original pending operations and recover their outcomes.
+
+Do not silently regenerate command IDs during a retry of the same logical operation.
+
+## 9.3 Offline semantics
+
+**DEV-SYNC-003**
+
+Document which operations may safely be queued offline.
+
+Do not allow financial actions that require immediate authoritative confirmation to appear completed while disconnected.
+
+Offline drafts must be visibly different from confirmed records.
+
+Where user action requires connectivity, explain this clearly.
+
+## 9.4 Cross-device projections
+
+**DEV-SYNC-004**
+
+After synchronization, both terminals must agree on:
+
+- Stock balances.
+- Product prices.
+- Order status.
+- Till status.
+- Guest folio balances.
+- Payment states.
+- Stock-count versions.
+
+No stale view may quietly overwrite newer authoritative data.
+
+### Multi-terminal release gate
+
+Run a documented concurrency suite against real PostgreSQL using two independent sessions and injected connection failures.
+
+Demonstrate zero duplicate financial effects, no lost confirmed transactions and correct conflict recovery.
+
+---
+
+# PHASE 10: FINAL INTEGRATED ACCEPTANCE
+
+This phase is mandatory after the workstreams above.
+
+## 10.1 End-to-end business scenarios
+
+Create three primary disposable fixture businesses:
+
+**Scenario A: Bar and restaurant**
+
+Initial setup → product import → sealed/open counts → first purchase receipt → stock movement → counter/bar/restaurant sales → cash/M-Pesa → kitchen tickets → refunds → close till → stock and sales reports.
+
+**Scenario B: Hotel and resort**
+
+Initial setup → room types/rates → reservation → check-in → room and restaurant charges → payment/deposit → folio settlement → checkout → guest statement → management reporting.
+
+**Scenario C: Multi-terminal operations**
+
+Two staff identities → concurrent stock and sales activities → network interruption → command recovery → reconciled payment/stock state → accurate close-day report.
+
+## 10.2 Full acceptance requirements
+
+A workstream may be marked complete only when all relevant evidence exists:
+
+| Evidence class | Meaning |
 |---|---|
-| Application directory | New, uniquely named V2 directory |
-| Docker project | Separate Compose project and container namespace |
-| PostgreSQL | Independent V2 database, credentials and storage |
-| Docker volumes | V2-only volumes |
-| Docker networking | V2-only internal network |
-| Ports | Distinct, preflight-checked bindings |
-| Public URL | New approved hostname or nonconflicting route |
-| Reverse proxy | Additional isolated configuration, never overwrite old sites |
-| TLS | V2-specific approved certificate handling |
-| Sessions/PWA | Separate origin, cookies and service worker scope |
-| Uploads and logs | New dedicated filesystem paths |
-| Backups | Independent V2 backup/restore configuration |
-| Rollback | Disable or revert only V2, never unrelated services |
+| Source implemented | Required source exists |
+| Unit tested | Business logic checks pass |
+| API tested | Real domain/API behavior passes |
+| PostgreSQL verified | Persisted records reconcile |
+| Browser tested | Actual intended UI flow passes |
+| Multi-device tested | Concurrent behavior is correct |
+| Print validated | Browser output format is correct |
+| Physically validated | Approved hardware produces correct paper |
+| Operator accepted | Intended staff role completes task |
+| Documentation verified | Guides match the current interface |
 
-The old `/var/www/serveos-prod/current` release path is not the future fresh-stack destination.
+A test that only checks a command exists does not prove that an operator can use it.
 
-The existing production deployment script's original symlink-switching behavior is also not acceptable as a fresh-stack rollout method.
+A simulated print dialog does not prove physical printing.
 
-### DEV-038: Legacy preservation requirements
+A passing finance-unit test does not prove a correct management report.
 
-Before any separately authorized future deployment, create a read-only server inventory identifying:
+A complete UI mock does not prove the underlying database transaction.
 
-- Existing websites.
-- Existing APIs.
-- Existing database servers and schemas.
-- Running Docker containers and Compose projects.
-- Active host ports.
-- Proxy virtual hosts.
-- TLS certificates.
-- Release directories.
-- Persistent Docker volumes.
-- Backup targets.
-- Scheduled services.
-- Host CPU, RAM and storage headroom.
+## 10.3 Required regression test matrix
 
-No production commands are authorized in this sprint.
-
-Do not run `docker compose down -v`, prune commands, live database migrations, old deployment scripts or existing application restarts as part of preparing the new system.
-
-If the VPS lacks enough resources to safely host both generations, recommend additional capacity or a separate server rather than impacting an existing business.
-
-### DEV-039: Future noninterference acceptance
-
-After separate authorization, a new-stack installation will be acceptable only if before/after evidence proves:
-
-- Every older application remains accessible.
-- Legacy URLs remain unchanged.
-- Legacy database identities and contents are untouched.
-- Old services have not been stopped or replaced.
-- No unexpected ports or volume mounts have changed.
-- New SERVEOS data is isolated.
-- V2 can be independently rolled back.
-- Any change to shared proxy infrastructure is minimal, reviewed and non-disruptive.
-
-This sprint prepares the plan. It does not execute it.
-
-## 20. Mandatory acceptance matrix
-
-Use a single authoritative acceptance register.
-
-| ID | Gate | Required result |
+| ID | Required scenario | Minimum acceptance |
 |---|---|---|
-| F01 | Frontend compilation | No TS errors |
-| F02 | Full CI | All mandatory jobs green on one commit |
-| F03 | First admin setup | New browser account works |
-| F04 | Setup resume | No duplicate defaults |
-| F05 | Product import | All valid rows apply correctly |
-| F06 | Import validation | Invalid rows blocked clearly |
-| F07 | Import partial failure | No silent duplicate or overwrite |
-| F08 | Product and stock link | Correct identifiers and quantities |
-| F09 | Package costing | Correct purchase conversion |
-| F10 | Opening inventory | Correct movements and balances |
-| F11 | Sealed/open bottle count | Validated physical state |
-| F12 | 45ml serving | Exact ml deduction |
-| F13 | Whole bottle sale | Exact sealed-container deduction |
-| F14 | Multi-ingredient recipe | Correct ingredient usage |
-| F15 | Cash counter sale | Accurate receipt and stock |
-| F16 | Manual M-Pesa payment | Correct amount and reference |
-| F17 | Cashier shift close | Correct counted/expected variance |
-| F18 | Refund | Correct cash and stock disposition |
-| F19 | Hotel check-in | Correct reservation/stay state |
-| F20 | Hotel settlement | Correct folio and payment |
-| F21 | Hotel checkout | Closed folio and valid statement |
-| F22 | Browser receipt | Print dialog without bridge |
-| F23 | Physical thermal receipt | Correct print and legibility |
-| F24 | M-Pesa QR | Correct placement and real scan |
-| F25 | Receipt reprint | Original snapshot, copy label |
-| F26 | A4 reports | Clean pagination and margins |
-| F27 | Financial reporting | PostgreSQL-reconciled totals |
-| F28 | Inventory reports | Correct quantities and valuation |
-| F29 | Concurrent terminals | No duplicated or lost effects |
-| F30 | Network recovery | Safe original-command reconciliation |
-| F31 | Backup/restore | Reconciled disposable restoration |
-| F32 | Role-based access | Operator permissions correct |
-| F33 | Responsive/touch | Main workflows usable |
-| F34 | Guided onboarding | Nontechnical staff complete first use |
-| F35 | Future stack isolation plan | Reviewed; no live execution |
+| R001 | Fresh administrator creation | Successful, one-time bootstrap |
+| R002 | Reload during onboarding | Resumes without duplication |
+| R003 | Role-specific first use | Correct permissions and screens |
+| R004 | Product catalogue creation | Valid product and stock links |
+| R005 | First CSV stock import | Correct staged/applied records |
+| R006 | Invalid CSV | Clear row-level errors |
+| R007 | Repeat create-only import | No silent duplicates |
+| R008 | Bulk price update | Correct reviewed updates |
+| R009 | Historical price integrity | Old receipts remain unchanged |
+| R010 | Physical bottle count | Correct sealed/open state |
+| R011 | 45ml serving sale | Exactly 45ml consumed |
+| R012 | Whole-bottle sale | Correct sealed deduction |
+| R013 | Store-to-bar transfer | Quantity conserved |
+| R014 | Ingredient recipe sale | Correct stock consumption |
+| R015 | Cash sale | Correct settlement and receipt |
+| R016 | Split payment | Correct multi-tender accounting |
+| R017 | Manual M-Pesa | Correct recorded reference |
+| R018 | Payment timeout | No duplicate money |
+| R019 | Cash refund | Correct refund and drawer evidence |
+| R020 | Till close | Correct expected/counted variance |
+| R021 | Hotel reservation | Correct room availability |
+| R022 | Hotel accommodation posting | Correct folio entries |
+| R023 | Hotel payment | Correct settlement |
+| R024 | Hotel checkout | Reservation, stay, folio closed |
+| R025 | Hotel checkout blocked | Appropriate error, no damage |
+| R026 | Sales receipt status | Correct original settlement |
+| R027 | Receipt reprint | Immutable snapshot retained |
+| R028 | 80mm receipt print | Actual paper output |
+| R029 | M-Pesa QR | Correct physical scan |
+| R030 | Sales-period report | Complete, reconciled period |
+| R031 | Inventory valuation | Correct authoritative values |
+| R032 | Supplier statement | Correct outstanding balance |
+| R033 | Hotel occupancy report | Correct period metrics |
+| R034 | Multi-page A4 output | No clipping or missing rows |
+| R035 | Two-terminal sale | No double deduction |
+| R036 | Simultaneous stock count | Version-safe reconciliation |
+| R037 | Network interruption | Original command recovery |
+| R038 | Permission isolation | No cross-role data exposure |
+| R039 | Tenant isolation | No cross-business records |
+| R040 | Complete CI | Green on one selected SHA |
 
-For each gate, record:
+---
 
-- Implemented or not.
-- Automated test result.
-- Human UI verification result.
-- Physical hardware result when relevant.
-- Commit SHA.
-- Test fixture/business.
-- Evidence artifact.
-- Responsible developer.
-- Known limitation.
-- Reviewer acceptance.
+# PHASE 11: DEVELOPER EXECUTION ORDER
 
-Do not mark a test physically verified merely because Playwright intercepted `window.print()`.
+Implement as reviewable pull requests.
 
-## 21. Pull request execution program
+| PR | Priority | Scope | Merge requirement |
+|---|---|---|---|
+| PR-00 | BLOCKER | Receipt settlement and hotel checkout defects | Full real-API browser suite green |
+| PR-01 | P0 | API/DB/command regression hardening | Domain consistency proven |
+| PR-02 | P0 | Product imports and bulk repricing | Correct 100-item fixture import |
+| PR-03 | P0 | Physical stock and bottle-state continuity | Exact quantity conservation |
+| PR-04 | P0 | Simplified cashier flow and payment recovery | Full cashier day passes |
+| PR-05 | P0 | Hotel lifecycle and folio correction | Booking-to-checkout passes |
+| PR-06 | P0 | Complete report query and reconciliation layer | No truncated period totals |
+| PR-07 | P0 | Professional report layouts and exports | Approved A4/CSV specimens |
+| PR-08 | P0 | Direct PWA receipt printing | Approved real thermal output |
+| PR-09 | P0 | Multi-terminal and connectivity tests | No duplicate/lost transactions |
+| PR-10 | P1 | Role-specific onboarding and UX polish | Operator walkthroughs pass |
+| PR-11 | FINAL | Complete regression and acceptance pack | Release candidate approved for review |
 
-Implement in small, reviewable, sequential or clearly independent work packages.
+Independent workstreams may be developed in parallel after PR-00, but they must not bypass shared domain contracts or merge with red mandatory tests.
 
-| Work package | Priority | Deliverable |
-|---|---|---|
-| PR-01 | Blocker | Resolve TS2322 issues, hotel acceptance failure and restore green CI |
-| PR-02 | P0 | Final product/stock/import integrity and physical bottle-state continuity |
-| PR-03 | P0 | Simplified cashier workflow and manual M-Pesa acceptance |
-| PR-04 | P0 | Complete hotel and restaurant lifecycle acceptance |
-| PR-05 | P0 | Print-perfect 80mm receipts and direct PWA hardware testing |
-| PR-06 | P0 | Professional A4 reports, procurement documents and financial reconciliations |
-| PR-07 | P0 | Concurrent-terminal, recovery and full-business-day tests |
-| PR-08 | P1 | Operator usability, import guidance and first-day training |
-| PR-09 | P1 | CI recovery gate, documentation and release acceptance pack |
-| PR-10 | Future | Isolated-stack redeployment design and noninterference runbook only |
+The report-query foundation should start early because it has the largest functional gap.
 
-Each PR must include source changes, relevant regression tests, user-facing documentation changes and an honest acceptance statement.
+The hotel and stock teams must coordinate with the reporting team so authoritative events and monetary data remain usable for full-period queries.
 
-Do not combine unrelated unfinished features into a massive PR that is difficult to review.
+---
 
-## 22. Definition of done
+# PHASE 12: REQUIRED REPORTING FROM THE DEVELOPMENT TEAM
 
-The final development sprint is complete only when:
+The development team must maintain an evidence-based completion dashboard throughout the sprint.
 
-- [ ] All mandatory CI jobs pass on the selected release commit.
-- [ ] Initial setup works without developer intervention.
-- [ ] The business can create or import products and accurate physical stock.
-- [ ] Stock masters and selling products remain properly linked.
-- [ ] Spirit/wine opening counts and subsequent sales are accurate.
-- [ ] Restaurant recipe deductions reconcile.
-- [ ] A cashier can open shift, sell, receive payment and issue a receipt easily.
-- [ ] Manual M-Pesa transactions are correctly documented.
-- [ ] Cashier close-day totals reconcile.
-- [ ] Hotel booking-to-checkout acceptance passes.
-- [ ] Two terminals operate without corrupting stock or money.
-- [ ] Important interrupted operations recover safely.
-- [ ] Receipts print directly from the installed PWA without a SERVEOS Print Bridge.
-- [ ] Actual 80mm paper output is verified.
-- [ ] The M-Pesa QR is correctly placed and genuinely scannable.
-- [ ] A4 reports and official documents have professional layouts.
-- [ ] Printed report totals match persisted authoritative records.
-- [ ] Realistic multi-page reports have no clipping or broken pagination.
-- [ ] Local backup/restore passes a repeatable automated gate.
-- [ ] Operators can complete critical workflows without internal developer knowledge.
-- [ ] Unresolved limitations are documented and classified.
-- [ ] The future parallel fresh-stack deployment plan is reviewed.
-- [ ] Existing VPS deployments, databases, routes, containers and volumes remain untouched.
-- [ ] No production rollout has occurred.
+Each PR must include:
 
-## 23. Final developer handover
+1. Commit SHA.
+2. Summary of changed behavior.
+3. Files changed.
+4. Root cause of resolved defects.
+5. Tests added or updated.
+6. Tests executed.
+7. Passing and failing results.
+8. PostgreSQL evidence when relevant.
+9. UI/browser screenshots or traces.
+10. Physical print evidence when relevant.
+11. Remaining limitations.
+12. Effect on other modules.
+13. Updated progress classification.
+14. Recommended next action.
 
-Deliver a single release-candidate evidence pack containing:
+Use the following explicit statuses:
 
-1. Release commit and branch.
-2. Full change log.
-3. Passing CI results.
-4. API/PostgreSQL integration results.
-5. Desktop/mobile browser test results.
-6. Import template specifications and sample CSV files.
-7. Item type, purchase package, recipe and bottle-stock explanations.
-8. Opening stock reconciliation samples.
-9. Receipt and report template catalogue.
-10. 80mm paper samples and physical printer test results.
-11. Genuine M-Pesa QR scan acceptance.
-12. A4 portrait and landscape report PDF specimens.
-13. Full cashier business-day verification.
-14. Hotel booking-to-checkout verification.
-15. Multi-terminal/recovery verification.
-16. Database backup/restore evidence.
-17. Operator onboarding guides.
-18. Unresolved issues register.
-19. Future isolated-stack architecture and legacy-preservation plan.
-20. Explicit confirmation that no VPS or production deployment was modified.
+- **NOT STARTED**
+- **IMPLEMENTED, NOT TESTED**
+- **UNIT/API VERIFIED**
+- **BROWSER VERIFIED**
+- **PHYSICALLY VERIFIED**
+- **OPERATOR ACCEPTED**
+- **BLOCKED**
+- **COMPLETE**
 
-### Final engineering instruction
+No percentage increase should be reported without naming the completed acceptance evidence.
 
-SERVEOS must stop feeling like a collection of powerful features that require a developer to operate.
+## Final sprint exit criteria
 
-It must function as a connected hospitality business system with clear actions, trustworthy inventory, clean financial records and professionally designed business documents.
+The sprint is complete only when:
 
-Prioritize the operator's actual day:
+- All three critical failures are resolved.
+- Core commands are regression-proven.
+- Fresh onboarding and staff first use work.
+- POS checkout is simple and resilient.
+- Catalogue import and repricing are usable.
+- Sealed/open stock reconciles.
+- Hotel checkout passes real browser acceptance.
+- The installed PWA produces real, legible printed receipts without a SERVEOS Print Bridge.
+- Professional, complete date-range reports are available.
+- Two terminals operate consistently.
+- All mandatory CI and acceptance gates pass.
+- Any remaining noncritical limitations are explicitly documented and accepted.
+- A complete release-candidate evidence pack is produced.
 
-**Set up → import stock → open shift → serve customers → receive payments → print receipts → reconcile stock → close accounts → generate excellent reports → return tomorrow without complications.**
+## Strict deployment boundary
 
-**DO NOT DEPLOY. DO NOT MODIFY LEGACY STACKS.**
+**STOP BEFORE PRODUCTION DEPLOYMENT.**
 
-Only request deployment authorization after the product acceptance pack is complete and the owner has reviewed the separate clean-stack redeployment plan.
+No changes are authorized to the live VPS, existing SERVEOS instances, pre-ServeOS applications, running databases, reverse-proxy routes, persistent volumes or current server release directories.
+
+This sprint is solely about completing and proving the development product.
+
+The future SERVEOS V2 fresh-stack deployment will be separately planned and separately authorized, with existing server installations preserved and unaffected.
+
+## FINAL ENGINEERING INSTRUCTION
+
+Do not respond to this directive by rewriting the roadmap alone.
+
+Do not respond with an optimistic percentage.
+
+**Implement the defects and workstreams, demonstrate the actual business workflows, and produce independently verifiable evidence.**
+
+Begin with PR-00 and do not claim the sprint complete until the complete acceptance matrix has been satisfied.
+
+The goal is a reliable business platform where every payment is traceable, every unit of stock is accounted for, every guest balance reconciles, every report is professionally prepared, and staff can operate without a developer standing beside them.
