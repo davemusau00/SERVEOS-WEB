@@ -192,7 +192,7 @@ export function WebStaffAdminView({ records, session, disabled, command, current
     if (!isCommandConfirmed(result)) setError('The API staff deactivation needs review.');
   };
 
-  return <section className="space-y-6" aria-label="Staff and device administration">
+  return <section data-guide-anchor="staff.add" className="space-y-6" aria-label="Staff and device administration">
     <header><h2 className="text-xl font-bold">Staff, approvals and devices</h2><p className="mt-1 text-sm text-slate-400">API staff sign-ins and server permissions are managed by ServOS. New staff must change their initial password at first sign-in.</p></header>
     {outcome && <p role={['OUTCOME_UNKNOWN', 'REJECTED', 'CONFLICT', 'BLOCKED'].includes(outcome.kind) ? 'alert' : 'status'} className={`rounded-lg border p-3 text-sm ${outcome.kind === 'CONFIRMED' ? 'border-emerald-800 bg-emerald-950' : 'border-amber-800 bg-amber-950'}`}>{outcomeText(outcome)}</p>}
     {error && <p role="alert" className="rounded-lg border border-rose-800 bg-rose-950 p-3 text-sm">{error}</p>}

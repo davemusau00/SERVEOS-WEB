@@ -61,7 +61,7 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
  let allocated:number|null=null;try{allocated=tenders.reduce((sum,row)=>sum+parseMoneyToMinor(row.amount),0)}catch{ /* Incomplete tender input remains reviewable. */ }
  const balance=Number(order.data.grandTotalMinor)-Number(order.data.amountPaidMinor)-Number(order.data.amountCreditedMinor||0)-Number(order.data.roomChargeMinor||0);
  const payable=order.data.state==='FIRED'&&balance>0&&!(Array.isArray(order.data.items)&&order.data.items.some(row=>(row as Record<string,unknown>).state==='DRAFT'));
- return <section className="space-y-3 rounded-xl border border-slate-700 p-3">
+ return <section data-guide-anchor="pos.payment" className="space-y-3 rounded-xl border border-slate-700 p-3">
   <button className={button} disabled={disabled||busy||Boolean(pendingId)||!payable||!allowed(session,'payment.record')} onClick={open}>Record payment for {String(order.data.name)}</button>
   {review&&<form role="dialog" aria-label="Review order payment" onSubmit={event=>void save(event)} className="space-y-3">
    <h3 className="font-bold">{String(review.order.data.name)} · Reviewed balance {money(Number(review.order.data.grandTotalMinor)-Number(review.order.data.amountPaidMinor)-Number(review.order.data.amountCreditedMinor||0)-Number(review.order.data.roomChargeMinor||0))}</h3>

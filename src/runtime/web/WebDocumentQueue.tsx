@@ -69,7 +69,7 @@ export function WebDocumentQueue({records,actorId,deviceId,disabled,command,read
  const state=String(job?.data.state||'');
  const uncertain=['SENDING','SENT_TO_SPOOLER','DELIVERY_UNCERTAIN'].includes(state);
  const blocked=disabled||busy||Boolean(job&&(pending[job.id]!==undefined||unresolvedJob(job.id)));
- return <section className="space-y-3 rounded-xl border border-slate-700 p-4">
+ return <section data-guide-anchor="documents.printing" className="space-y-3 rounded-xl border border-slate-700 p-4">
   <h2 className="text-lg font-bold">Documents and printing</h2>
   <p className="text-sm text-slate-400">Review issued documents and resolve printer delivery. A browser print dialog does not prove the document printed.</p>
   <label className="block text-sm">Print job<select className="mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2" value={selected} disabled={busy} onChange={event=>{setSelected(event.target.value);setReason('');setDuplicate(false);setConfirmed(false);setMessage('')}}><option value="">Select a document…</option>{jobs.map(row=>{const doc=issuedDocument(records.find(item=>item.collection==='businessDocuments'&&item.id===row.data.documentId));return <option key={row.id} value={row.id}>{doc?.documentNumber||'Document unavailable'} · {String(row.data.printerRole)} · {String(row.data.state)}</option>})}</select></label>
