@@ -6,7 +6,7 @@
 | `apps/api/src/` | Node API, command handlers, authentication, projections, worker and migration runner |
 | `apps/api/migrations/` | Ordered PostgreSQL schema and domain migrations |
 | `apps/api/tests/` | API unit tests and PostgreSQL integration tests |
-| `apps/print-bridge/` | Local print service and its authenticated job handling |
+| `apps/print-bridge/` | Legacy source and maintenance checks; not used by the ServOS V2 operator print path |
 | `crates/servos-printer-transport/` | ESC/POS and platform printer transport |
 | `contracts/` | Canonical permissions, assignable staff permissions and role templates |
 | `tools/migration/` | Tenant specific, one time migration boundary; separate from the product |

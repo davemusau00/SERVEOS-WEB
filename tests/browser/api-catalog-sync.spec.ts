@@ -73,6 +73,7 @@ test('API login, catalog command, reload projection, and reconnect change feed',
    const health=page.getByRole('region',{name:'System health'});
    await expect(health).toContainText('Ready');
    await expect(health).toContainText('Not reported to this workspace.');
+   await expect(health).not.toContainText('Print Bridge');
   }
   const layout=await page.evaluate(()=>({viewport:window.innerWidth,documentWidth:document.documentElement.scrollWidth}));
   expect(layout.documentWidth,`${label} causes horizontal document overflow at ${layout.viewport}px`).toBeLessThanOrEqual(layout.viewport);

@@ -363,10 +363,12 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await expect(reservationForm.getByRole('status')).toContainText('1 room(s) available');
   const reservationSelects=reservationForm.locator('select');
   await reservationSelects.nth(0).selectOption({label:'Room 101'});
-  await reservationSelects.nth(1).selectOption({label:/Standard nightly/});
+  const reservationRateOption=reservationSelects.nth(1).locator('option').filter({hasText:'Standard nightly'});
+  await expect(reservationRateOption).toHaveCount(1);
+  await reservationSelects.nth(1).selectOption(await reservationRateOption.getAttribute('value')||'');
   await reservationSelects.nth(2).selectOption({label:'Amina Hotel Guest'});
   await reservationForm.getByRole('button',{name:'Walk in and check in',exact:true}).click();
-  await expect(reservationForm.getByText('Walk-in checked in.',{exact:true})).toBeVisible();
+  await expect(page.getByText('Walk-in checked in.',{exact:true})).toBeVisible();
   const stay=(await pool.query(`SELECT r.id,r.status AS reservation_status,s.status AS stay_status,r.quoted_amount_minor
     FROM business_room_reservations r JOIN business_stays s ON s.business_id=r.business_id AND s.id=r.id
     WHERE r.business_id=$1`,[businessId])).rows[0];
@@ -378,11 +380,12 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await guestAccounts.getByRole('button',{name:'Post booked accommodation',exact:true}).click();
   await expect(guestAccounts.getByRole('status')).toContainText('Guest account action confirmed and synchronized.');
   const cash=(await pool.query("SELECT id FROM payment_accounts WHERE business_id=$1 AND method='CASH' AND archived_at IS NULL",[businessId])).rows[0];
-  await guestAccounts.getByLabel('Payment account',{exact:true}).selectOption(cash.id);
+  await guestAccounts.getByRole('combobox',{name:'Payment account',exact:true}).selectOption(cash.id);
   await guestAccounts.getByLabel('Amount (KES)',{exact:true}).fill('2500.00');
   await guestAccounts.getByLabel('Cash tendered (KES)',{exact:true}).fill('2500.00');
   await guestAccounts.getByRole('button',{name:'Settle balance',exact:true}).click();
   await expect(guestAccounts.getByRole('status')).toContainText('Guest account action confirmed and synchronized.');
+  page.on('response',async response=>{if(response.url().endsWith('/v1/commands')&&response.status()===409){const request=response.request();console.log('HOTEL_COMMAND_CONFLICT',JSON.stringify({command:request.postDataJSON(),error:await response.json()}));}});
   await guestAccounts.getByRole('button',{name:'Check out guest',exact:true}).click();
   await expect(guestAccounts.getByRole('status')).toContainText('Guest account action confirmed and synchronized.');
 

@@ -442,6 +442,6 @@ Use only accurate labels: **Implemented**, **Automated acceptance passed**, **Ph
 
 **Build the system for the owner, cashier, receptionist and manager, not the developer.** An ordinary user should be able to start work, understand their numbers, produce attractive accurate paper reports, and print an 80mm receipt straight from the PWA without installing any SERVEOS print service.
 
-Then prepare to deploy V2 as a **fresh, parallel, isolated stack** when separately approved. **Never overwrite, stop, restart, migrate or repoint the pre-existing deployments simply to launch the new one.**
+Then prepare to deploy V2 as a **fresh, parallel, isolated stack** when separately approved. **Never overwrite, stop, restart, migrate or repoint the pre-existing deployments simply to launch the new one.**`
 
 **STOP BEFORE DEPLOYMENT.**
