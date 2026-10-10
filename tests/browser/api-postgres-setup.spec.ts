@@ -7,7 +7,7 @@ import {PostgresStore} from '../../apps/api/src/postgres-store.mjs';
 import {migrate} from '../../apps/api/src/migrate.mjs';
 import {createApiCommandRegistry} from '../../apps/api/src/command-registry.mjs';
 
-test('fresh PostgreSQL setup resumes in the browser and supports a complete first cash sale',async({page},testInfo)=>{
+test('browser first-admin setup leads through onboarding to a complete first cash sale',async({page},testInfo)=>{
  test.skip(!process.env.TEST_DATABASE_URL||testInfo.project.name!=='api-postgres','Requires the dedicated API browser project and a disposable TEST_DATABASE_URL.');
  const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
  const {Pool}=requireApi('pg');
@@ -16,7 +16,8 @@ test('fresh PostgreSQL setup resumes in the browser and supports a complete firs
  await adminPool.query(`CREATE SCHEMA "${schema}"`);
  const pool=new Pool({connectionString:process.env.TEST_DATABASE_URL,max:10,options:`-c search_path=${schema},public`});
  const priorSetupSecret=process.env.INITIAL_ADMIN_SETUP_SECRET;
- const businessId=randomUUID(),staffId=randomUUID(),loginName=`setup-${staffId}@example.invalid`;
+ let businessId='',staffId='';
+ const loginName=`setup-${randomUUID()}@example.invalid`;
  const password='Disposable-Setup-Owner-2026';
  const setupSecret=`disposable-${randomUUID()}-${randomUUID()}`;
  let server:ReturnType<typeof createApiServer>|undefined;
@@ -26,11 +27,21 @@ test('fresh PostgreSQL setup resumes in the browser and supports a complete firs
   process.env.INITIAL_ADMIN_SETUP_SECRET=setupSecret;
   server=createApiServer({store,registry:createApiCommandRegistry(),authenticate:(request:IncomingMessage)=>authenticateSession(request,store),origin:'http://127.0.0.1:3020'});
   await new Promise<void>((resolve,reject)=>{server!.once('error',reject);server!.listen(4317,'127.0.0.1',resolve)});
-  const initialAdmin=await fetch('http://127.0.0.1:4317/v1/setup/initial-admin',{method:'POST',headers:{'content-type':'application/json','x-serveos-setup-secret':setupSecret},body:JSON.stringify({businessId,staffId,businessName:'Disposable Cafe Setup',displayName:'Setup Owner',loginName,password})});
-  expect(initialAdmin.status,await initialAdmin.text()).toBe(201);
-  expect(process.env.INITIAL_ADMIN_SETUP_SECRET).toBeUndefined();
-
   await page.goto('/');
+  await page.getByRole('button',{name:'Set up a new business',exact:true}).click();
+  await page.getByLabel('Business name',{exact:true}).fill('Disposable Cafe Setup');
+  await page.getByLabel('Administrator name',{exact:true}).fill('Setup Owner');
+  await page.getByLabel('Login name',{exact:true}).fill(loginName);
+  await page.getByLabel('One-time setup key',{exact:true}).fill(setupSecret);
+  await page.getByLabel('Administrator password',{exact:true}).fill(password);
+  await page.getByLabel('Confirm administrator password',{exact:true}).fill(password);
+  await page.getByRole('button',{name:'Create administrator',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('The initial administrator was created.');
+  expect(process.env.INITIAL_ADMIN_SETUP_SECRET).toBeUndefined();
+  expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain(setupSecret);
+  businessId=(await pool.query('SELECT id FROM businesses WHERE name=$1',['Disposable Cafe Setup'])).rows[0].id;
+  staffId=(await pool.query('SELECT staff_id AS id FROM api_staff_profiles WHERE business_id=$1 AND login_name=$2',[businessId,loginName])).rows[0].id;
+
   await page.getByLabel('Staff login',{exact:true}).fill(loginName);
   await page.getByLabel('Password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();

@@ -88,7 +88,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
     try {
       if (req.method === 'OPTIONS') {
         if (!origin || req.headers.origin !== origin) return json(res, 403, {error: {code: 'ORIGIN_DENIED', message: 'Origin is not allowed.'}});
-        res.writeHead(204, {'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type, authorization, x-serveos-device-id', 'access-control-allow-credentials': 'true', vary: 'Origin'});
+        res.writeHead(204, {'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type, authorization, x-serveos-device-id, x-serveos-setup-secret', 'access-control-allow-credentials': 'true', vary: 'Origin'});
         return res.end();
       }
       if (req.headers.origin && origin && req.headers.origin !== origin) return json(res, 403, {error: {code: 'ORIGIN_DENIED', message: 'Origin is not allowed.'}});
