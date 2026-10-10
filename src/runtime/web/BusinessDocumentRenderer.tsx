@@ -6,13 +6,19 @@ const object=(value:unknown):Record<string,unknown>=>value&&typeof value==='obje
 const rows=(value:unknown):Record<string,unknown>[]=>Array.isArray(value)?value.map(object):[];
 const text=(value:unknown)=>typeof value==='string'?value:'';
 const number=(value:unknown)=>typeof value==='number'&&Number.isFinite(value)?value:null;
-const money=(value:unknown)=>{const amount=number(value);return amount===null?'—':(amount/100).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2});};
+const money=(value:unknown)=>{const amount=number(value);return amount===null?'—':`KES ${(amount/100).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2})}`;};
 const localTime=(value:unknown,timeZone='Africa/Nairobi')=>{const raw=text(value),date=new Date(raw);return raw&&Number.isFinite(date.getTime())?date.toLocaleString('en-KE',{timeZone}):raw;};
 const titles:Record<string,string>={SUPPLIER_RETURN_NOTE:'Supplier return note',SUPPLIER_PAYMENT_VOUCHER:'Supplier payment voucher',GOODS_RECEIPT:'Goods received note',PURCHASE_ORDER:'Purchase order',SALES_RECEIPT:'Sales receipt',CUSTOMER_CREDIT_INVOICE:'Customer credit invoice',CUSTOMER_CREDIT_PAYMENT_ACKNOWLEDGEMENT:'Customer credit payment acknowledgement',CUSTOMER_CREDIT_WRITE_OFF_NOTICE:'Customer credit write-off notice',CUSTOMER_CREDIT_REVERSAL_NOTICE:'Customer credit reversal notice',PAYMENT_ACKNOWLEDGEMENT:'Payment acknowledgement',GUEST_FOLIO:'Guest folio',GUEST_CHECKOUT:'Guest checkout statement',RESERVATION_CONFIRMATION:'Reservation confirmation',KOT:'Kitchen order ticket',BOT:'Bar order ticket',REFUND_RECEIPT:'Refund receipt',CLOSE_DAY_REPORT:'Close-day report',ORDER_VOID_NOTICE:'Order void notice',KOT_CANCEL:'Cancel kitchen order',BOT_CANCEL:'Cancel bar order'};
 const canonical=(value:unknown):string=>value===null||typeof value!=='object'?(JSON.stringify(value)??'null'):Array.isArray(value)?`[${value.map(canonical).join(',')}]`:`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${canonical((value as Record<string,unknown>)[key])}`).join(',')}}`;
 
 const documentState=(type:string,attempt:number)=>documentCopyStatus(attempt)==='REPRINT'?'REPRINT':type==='REFUND_RECEIPT'?'REFUND':['ORDER_VOID_NOTICE','KOT_CANCEL','BOT_CANCEL'].includes(type)?'VOIDED':'ISSUED';
-const paymentStatus=(snapshot:Record<string,unknown>)=>snapshot.noPaymentRequired===true?'No payment required':Array.isArray(snapshot.payments)&&snapshot.payments.length>0?'Payment recorded in issued document snapshot':'Payment status not recorded in this document';
+const paymentStatus=(snapshot:Record<string,unknown>)=>{
+ if(snapshot.noPaymentRequired===true)return 'No payment required; no money received.';
+ const balance=number(snapshot.balanceMinor),paid=number(snapshot.paidMinor),credited=number(snapshot.creditedMinor),roomCharged=number(snapshot.roomChargedMinor);
+ const settlement=balance===0?'Settled when issued':balance!==null?`Balance due when issued: KES ${money(balance)}`:'Settlement balance not recorded in this document';
+ const sources=[paid!==null&&paid>0?`tender recorded KES ${money(paid)}`:'',credited!==null&&credited>0?`customer account KES ${money(credited)}`:'',roomCharged!==null&&roomCharged>0?`room folio KES ${money(roomCharged)}`:''].filter(Boolean);
+ return sources.length?`${settlement}; ${sources.join('; ')}.`:`${settlement}.`;
+};
 
 function DocumentIdentity({document,attempt,business,timeZone}:{document:LocalBusinessDocument;attempt:number;business:Record<string,unknown>;timeZone:string}){
  const issued=new Date(document.issuedAt),preparedBy=text(business.preparedBy)||text(business.issuedBy)||text(document.snapshot.generatedBy)||text(document.snapshot.issuedBy)||text(object(document.snapshot.cashier).name)||text(document.snapshot.staffId)||text(document.snapshot.receivedBy)||text(document.snapshot.dispatchedBy);
@@ -27,7 +33,7 @@ function DocumentIdentity({document,attempt,business,timeZone}:{document:LocalBu
    {outlet&&<p>Outlet / property: {outlet}</p>}
   </div></div>
   <div className="servos-document-title"><div><h2>{titles[document.type]||document.type}</h2><p className="servos-document-number">Document no. {document.documentNumber}</p></div><strong className={`servos-document-state servos-document-state-${documentState(document.type,attempt).toLowerCase()}`}>{documentState(document.type,attempt)}</strong></div>
-  <dl className="servos-document-control"><div><dt>Issued</dt><dd>{Number.isFinite(issued.getTime())?issued.toLocaleString('en-KE',{timeZone,timeZoneName:'short'}):document.issuedAt}</dd></div>{(periodStart||periodEnd)&&<div><dt>Shift / report period</dt><dd>{periodStart?localTime(periodStart,timeZone):'—'} – {periodEnd?localTime(periodEnd,timeZone):'—'}</dd></div>}<div><dt>Source reference</dt><dd>{document.id}</dd></div>{preparedBy&&<div><dt>Prepared / recorded by</dt><dd>{preparedBy}</dd></div>}</dl>
+  <dl className="servos-document-control"><div><dt>Issued (Africa/Nairobi)</dt><dd>{Number.isFinite(issued.getTime())?issued.toLocaleString('en-KE',{timeZone}):document.issuedAt}</dd></div>{(periodStart||periodEnd)&&<div><dt>Shift / report period (Africa/Nairobi)</dt><dd>{periodStart?localTime(periodStart,timeZone):'—'} – {periodEnd?localTime(periodEnd,timeZone):'—'}</dd></div>}<div><dt>Source reference</dt><dd>{document.id}</dd></div>{preparedBy&&<div><dt>Prepared / recorded by</dt><dd>{preparedBy}</dd></div>}</dl>
   {document.type==='SALES_RECEIPT'&&<p className="servos-document-payment-status">Payment status: {paymentStatus(document.snapshot)}</p>}
  </header>;
 }
