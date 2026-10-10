@@ -1,14 +1,13 @@
 import React,{useCallback,useEffect,useState} from 'react';
 import appMetadata from '../../../package.json';
 import type {QueuedCommand} from './BusinessStore';
-import {readBridgePreference} from './printBridgePreferences';
 import {ds} from '../../design-system/tokens';
 
 type HealthClient={healthReadiness:()=>Promise<{status:'ready'|'not_ready';reason?:string}>};
 type Readiness='checking'|'ready'|'not_ready'|'unknown';
 const inFlight=(entry:QueuedCommand)=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN';
 
-export function WebSystemHealth({client,queue,businessId,deviceId,online}:{client:HealthClient;queue:QueuedCommand[];businessId:string;deviceId:string;online:boolean}){
+export function WebSystemHealth({client,queue,online}:{client:HealthClient;queue:QueuedCommand[];online:boolean}){
  const [readiness,setReadiness]=useState<Readiness>('checking');
  const [reason,setReason]=useState('');
  const [checkedAt,setCheckedAt]=useState('');
@@ -16,7 +15,6 @@ export function WebSystemHealth({client,queue,businessId,deviceId,online}:{clien
  const pending=queue.filter(entry=>entry.state==='PENDING_SYNC').length;
  const uncertain=queue.filter(entry=>entry.state==='OUTCOME_UNKNOWN').length;
  const needsReview=queue.filter(entry=>entry.state==='CONFLICT'||entry.state==='REJECTED').length;
- const bridge=(()=>{try{return readBridgePreference(businessId,deviceId)?'Selected on this browser device; availability has not been checked.':'Not selected on this browser device.'}catch{return 'Saved selection could not be read; review local Print Bridge settings.'}})();
  const check=useCallback(async()=>{
   if(!online){setReadiness('unknown');setReason('Reconnect this browser before checking API and database readiness.');return}
   setBusy(true);setReason('');
@@ -35,7 +33,6 @@ export function WebSystemHealth({client,queue,businessId,deviceId,online}:{clien
    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Application version</dt><dd className="mt-2 font-mono text-sm">{appMetadata.version}</dd></div>
    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saved work</dt><dd className="mt-2 text-sm">{syncLabel}</dd><p className="mt-1 text-xs text-slate-500">{pending} waiting · {uncertain} uncertain · {needsReview} need review</p></div>
    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Browser receipt printing</dt><dd className="mt-2 text-sm">{typeof window!=='undefined'&&typeof window.print==='function'?'Print dialog available; choose an installed operating-system printer.':'Browser print dialog unavailable.'}</dd></div>
-   <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Optional Print Bridge</dt><dd className="mt-2 text-sm">{bridge}</dd></div>
    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Backup status</dt><dd className="mt-2 text-sm">Not reported to this workspace.</dd><p className="mt-1 text-xs text-slate-500">Verify backups and restore readiness with the configured backup service.</p></div>
   </dl>
   <p className="text-xs text-slate-500">Last API readiness check: {checkedAt||'Not checked yet'}. Browser print availability does not confirm that a printer is installed or that paper was delivered.</p>

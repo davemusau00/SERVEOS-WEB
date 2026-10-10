@@ -9,21 +9,19 @@ Keywords: receipt, print, browser, printer, duplicate
 
 ## Overview
 
-After a confirmed sale, open its issued receipt from Activity and print it with the browser. The operating-system print dialog lets you choose an installed printer. A dialog opening does not prove that paper printed.
+After a confirmed sale, open its immutable receipt from Activity, preview it, then print from the browser/PWA. The operating-system print dialog lets you choose an installed printer and paper options. A dialog opening does not prove that paper printed. ServOS does not require or offer a Print Bridge or printer service.
 
 ## Procedure
 
 1. Confirm that the payment outcome is saved.
 2. Open Activity and find Documents and printing.
 3. Select the sales receipt and preview it.
-4. Choose **Print with browser** and select the installed printer and paper options.
+4. Choose **Print with browser** and select the installed operating-system printer and paper options.
 5. Check the physical output. Confirm delivery only after the receipt has printed.
-
-The optional Print Bridge can send supported documents to an approved local printer. It is not required for browser printing.
 
 ## What ServOS handles
 
-ServOS keeps the issued receipt immutable and tracks the shared print job. The operator confirms physical delivery after checking the printer output.
+ServOS keeps the issued receipt immutable and tracks print attempts. The operator confirms physical delivery only after checking the printer output.
 
 ## Common mistakes and correction
 

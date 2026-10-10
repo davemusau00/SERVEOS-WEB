@@ -350,12 +350,13 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await expect(rateForm.getByText(/Standard nightly.*2,500\.00 \(nightly\)/)).toBeVisible();
 
   await page.getByRole('button',{name:'Master data',exact:true}).click();
+  const customersView=page.locator('section[aria-label="API customers"]');
   await page.getByRole('button',{name:'Add customer',exact:true}).click();
   const customerForm=page.getByRole('dialog',{name:'Edit API customer',exact:true});
   await customerForm.getByLabel('Name',{exact:true}).fill('Amina Hotel Guest');
   await customerForm.getByLabel('Change reason',{exact:true}).fill('Disposable hotel onboarding acceptance');
   await customerForm.getByRole('button',{name:'Save customer',exact:true}).click();
-  await expect(page.getByRole('status')).toContainText('Customer saved and confirmed.');
+  await expect(customersView.getByText('Customer saved and confirmed.',{exact:true})).toBeVisible({timeout:15_000});
 
   await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();
   const reservationForm=page.locator('[data-guide-anchor="rooms.reservation"]');
@@ -364,7 +365,7 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await reservationForm.getByLabel('Rate plan',{exact:true}).selectOption({label:/Standard nightly/});
   await reservationForm.getByLabel('Guest',{exact:true}).selectOption({label:'Amina Hotel Guest'});
   await reservationForm.getByRole('button',{name:'Walk in and check in',exact:true}).click();
-  await expect(page.getByRole('status')).toContainText('Walk-in checked in.');
+  await expect(reservationForm.getByText('Walk-in checked in.',{exact:true})).toBeVisible();
   const stay=(await pool.query(`SELECT r.id,r.status AS reservation_status,s.status AS stay_status,r.quoted_amount_minor
     FROM business_room_reservations r JOIN business_stays s ON s.business_id=r.business_id AND s.id=r.id
     WHERE r.business_id=$1`,[businessId])).rows[0];

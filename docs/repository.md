@@ -14,4 +14,4 @@
 | `scripts/` | Build, docs, UI audit, PWA packaging and production operations helpers |
 | `docs/` | Current architecture and operating documentation |
 
-The root package builds and tests the PWA. `apps/api/package.json` owns the API database dependency. The Print Bridge and printer transport use their Cargo manifests directly.
+The root package builds and tests the PWA. `apps/api/package.json` owns the API database dependency. Legacy Print Bridge sources remain outside the ServOS V2 operator print path; their Cargo manifests are used only for maintenance checks.

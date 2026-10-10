@@ -1,6 +1,8 @@
-# Print Bridge
+# Legacy Print Bridge source
 
-The optional Print Bridge is the only local native companion. It receives an authorized print job, validates the API claim and rendered document, sends ESC/POS or configured network output, and records the transport result. The browser communicates with the local bridge and keeps business authorization with the API.
+The Print Bridge is not part of the ServOS V2 operator workflow. ServOS V2 prints through the browser/PWA and the workstation's operating-system print dialog. Do not install, pair, configure or depend on this legacy companion for receipts, kitchen tickets or reports.
+
+Bridge source and CI checks remain in the repository for maintenance only. Their presence does not indicate product support, printer compatibility or physical print acceptance.
 
 The bridge contains no product, inventory, payment, room or staff domain. Its local SQLite storage is for print job delivery and recovery. A `SENT_TO_SPOOLER` result means the transport accepted data; it does not prove that paper physically printed.
 

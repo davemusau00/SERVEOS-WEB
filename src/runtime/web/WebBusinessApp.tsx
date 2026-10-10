@@ -5,7 +5,6 @@
 
 
 
-import {exportBridgeRecoveryEvidence} from './printBridgeTransport';
 import {captureCountRecovery} from './countRecovery';
 
 
@@ -48,8 +47,6 @@ const WebApiSupplierCredits=React.lazy(()=>import('./WebApiSupplierCredits').the
 const WebApiSupplierReturns=React.lazy(()=>import('./WebApiSupplierReturns').then(module=>({default:module.WebApiSupplierReturns})));
 const WebApiSupplierPayments=React.lazy(()=>import('./WebApiSupplierPayments').then(module=>({default:module.WebApiSupplierPayments})));
 const WebApiSuppliers=React.lazy(()=>import('./WebApiSuppliers').then(module=>({default:module.WebApiSuppliers})));
-const WebBridgeSettings=React.lazy(()=>import('./WebBridgeSettings').then(module=>({default:module.WebBridgeSettings})));
-const WebBridgeRecovery=React.lazy(()=>import('./WebBridgeRecovery').then(module=>({default:module.WebBridgeRecovery})));
 const WebDocumentQueue=React.lazy(()=>import('./WebDocumentQueue').then(module=>({default:module.WebDocumentQueue})));
 const WebStorageDiagnostics=React.lazy(()=>import('./WebStorageDiagnostics').then(module=>({default:module.WebStorageDiagnostics})));
 const ActivitySyncCenter=React.lazy(()=>import('./ActivitySyncCenter').then(module=>({default:module.ActivitySyncCenter})));
@@ -124,8 +121,7 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
    const current=store.current;
    const evidence=await current.recoveryEvidence();
    const countDrafts=captureCountRecovery(current.scope,current.actorId);
-   const printBridge=await exportBridgeRecoveryEvidence(current.scope,apiAuth.identity);
-   const exportData={indexedDB:evidence,countDrafts,printBridge};
+   const exportData={indexedDB:evidence,countDrafts};
    const url=URL.createObjectURL(new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'}));
    const link=document.createElement('a');link.href=url;link.download=`servos-recovery-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
    document.body.appendChild(link);link.click();link.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -436,12 +432,10 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
   {ready&&tab==='Rooms'&&<WebApiRoomsView records={records} session={session} disabled={disabled} command={submit} client={apiAuth.client}/>} 
   {ready&&tab==='Assets'&&<WebApiFinanceAssets records={records} session={session} disabled={disabled} command={submit} client={apiAuth.client} deviceId={store.current?.deviceId||''} initialView="ASSETS"/>}
   
- {ready&&tab==='Settings'&&allowed(session,'business.configure')&&<WebBridgeSettings key={`${session.businessId}:${apiAuth.identity.deviceId}`} businessId={session.businessId} identity={apiAuth.identity} disabled={disabled}/>}
- {ready&&tab==='Settings'&&allowed(session,'business.configure')&&<WebBridgeRecovery key={`${session.businessId}:${apiAuth.identity.deviceId}`} businessId={session.businessId} identity={apiAuth.identity} disabled={disabled||queue.some(entry=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(entry.state)&&entry.command.operation.startsWith('print.'))} reporting={{auth:apiAuth,command:submit,readRecords:async()=>await store.current?.records()||[]}}/>}
  {ready&&tab==='Settings'&&allowed(session,'business.configure')&&<WebApiSettings records={records} session={session} disabled={disabled||queue.some(entry=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(entry.state)&&['business.settings.save','till.policy.save','paymentAccount.save','outlet.save'].includes(entry.command.operation))} command={submit}/>}
- {ready&&tab==='Settings'&&allowed(session,'business.configure')&&<WebSystemHealth client={apiAuth.client} queue={queue} businessId={session.businessId} deviceId={apiAuth.identity.deviceId} online={online}/>}
+ {ready&&tab==='Settings'&&allowed(session,'business.configure')&&<WebSystemHealth client={apiAuth.client} queue={queue} online={online}/>}
  
-  {ready&&tab==='Activity'&&<>{<WebBridgeRecovery key={`${session.businessId}:${apiAuth.identity.deviceId}`} businessId={session.businessId} identity={apiAuth.identity} disabled={disabled||queue.some(entry=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(entry.state)&&entry.command.operation.startsWith('print.'))} reporting={{auth:apiAuth,command:submit,readRecords:async()=>await store.current?.records()||[]}}/>}{['reports.view','accounting.view','audit.view'].some(permission=>allowed(session,permission))&&<WebApiCloseDayReports records={records} session={session} queue={queue} disabled={disabled||queue.some(entry=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(entry.state)&&entry.command.operation==='closeDay.generate')} command={submit}/>}{store.current&&<WebDocumentQueue apiAuth={apiAuth} records={records} actorId={session.actorId} deviceId={store.current.deviceId} disabled={disabled} command={submit} queue={queue} readRecords={async()=>await store.current?.records()||[]}/>}{['accounting.view','audit.view','reports.view'].some(permission=>allowed(session,permission))&&<WebApiJournalLedger records={records}/>}
+  {ready&&tab==='Activity'&&<>{['reports.view','accounting.view','audit.view'].some(permission=>allowed(session,permission))&&<WebApiCloseDayReports records={records} session={session} queue={queue} disabled={disabled||queue.some(entry=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(entry.state)&&entry.command.operation==='closeDay.generate')} command={submit}/>}{store.current&&<WebDocumentQueue records={records} actorId={session.actorId} deviceId={store.current.deviceId} disabled={disabled} command={submit} queue={queue} readRecords={async()=>await store.current?.records()||[]}/>}{['accounting.view','audit.view','reports.view'].some(permission=>allowed(session,permission))&&<WebApiJournalLedger records={records}/>}
 <ActivitySyncCenter queue={queue} drafts={drafts} online={online} syncing={syncing} onSync={syncNow} onReviewDraft={reviewDraft} onExportRecovery={exportRecovery}/>{store.current&&<WebStorageDiagnostics store={store.current} refreshKey={queue.map(entry=>`${entry.id}:${entry.state}`).join('|')}/>}</>}
   {ready&&tab==='Finance Controls'&&<WebApiCreditAccounts records={records} queue={queue} session={session} disabled={disabled} command={submit} client={apiAuth.client}/>}
   

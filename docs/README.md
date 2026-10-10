@@ -16,7 +16,6 @@
 - [Rooms and property operations](pms.md)
 - [Finance and assets](finance-assets.md)
 - [CSV import](import.md)
-- [Print Bridge](print-bridge.md)
 - [Deployment](deployment.md)
 - [Backup and restore](backup-restore.md)
 - [Operations](operations.md)

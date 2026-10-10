@@ -12,7 +12,7 @@ Use the displayed error and Activity record to identify whether a request was re
 
 ## Procedure
 
-1. Confirm the browser is online. A manager can open Settings and refresh System health to check API and database readiness, the application version, saved-work counts, browser printing, and whether a local Print Bridge is selected.
+1. Confirm the browser is online. A manager can open Settings and refresh System health to check API and database readiness, the application version, saved-work counts and whether the browser print dialog is available.
 2. Read the full operator message and note its command reference.
 3. For a conflict, refresh the record and review the current balance before correcting it.
 4. For an unknown result, recover the original command before repeating the action.
