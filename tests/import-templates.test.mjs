@@ -26,3 +26,18 @@ test('stock item CSV uses the current API columns and omits sealed-container dat
   assert.equal(result.rows[0].status, 'VALID');
   assert.deepEqual(result.rows[0].errors, []);
 });
+test('sellableItems example template covers the standard hospitality catalogue shapes and validates cleanly', () => {
+  const template = API_IMPORT_TEMPLATES.find(item => item.key === 'sellableItems');
+  assert.ok(Array.isArray(template.examples) && template.examples.length >= 8, 'the example template includes the standard product shapes');
+  const modeIndex = template.headers.indexOf('stock_mode');
+  const modes = new Set(template.examples.map(example => example[modeIndex]));
+  for (const mode of ['SERVICE', 'TRACKED', 'SPIRIT', 'WINE', 'STOCK_ONLY']) assert.ok(modes.has(mode), `examples cover stock_mode ${mode}`);
+  const escape = value => /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+  const csv = [template.headers.join(','), ...template.examples.map(example => {
+    assert.equal(example.length, template.headers.length, `example ${example[1]} matches the header count`);
+    return example.map(escape).join(',');
+  })].join('\r\n');
+  const result = validateImportCsv('sellableItems', csv);
+  assert.equal(result.rows.length, template.examples.length);
+  for (const row of result.rows) assert.deepEqual(row.errors, [], `example row ${row.rowNumber} (${row.externalId}) must be structurally valid`);
+});
