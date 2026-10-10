@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {Pool} from 'pg';
@@ -106,7 +106,7 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  const staleDestination=await run('order.transfer',{orderId:transferOrderId,targetTableId:transferDestinationId},{[`orders:${transferOrderId}`]:transferOrder.result.version,[`tables:${transferSourceId}`]:await tableVersion(transferSourceId),[`tables:${transferDestinationId}`]:(await tableVersion(transferDestinationId))+1});
  assert.equal(staleDestination.kind,'CONFLICT');assert.equal(staleDestination.error.code,'VERSION_CONFLICT','stale destination table revisions are refused');
  const transfer=await confirmed('order.transfer',{orderId:transferOrderId,targetTableId:transferDestinationId},{[`orders:${transferOrderId}`]:transferOrder.result.version,[`tables:${transferSourceId}`]:await tableVersion(transferSourceId),[`tables:${transferDestinationId}`]:await tableVersion(transferDestinationId)});
- assert.equal(transfer.result.order.data.tableId,transferDestinationId);
+ assert.equal(transfer.result.data.tableId,transferDestinationId);
  const transferState=await pool.query('SELECT id,state,version FROM business_floor_tables WHERE business_id=$1 AND id=ANY($2::uuid[])',[businessId,[transferSourceId,transferDestinationId]]);
  assert.equal(transferState.rows.find(row=>row.id===transferSourceId).state,'CLEANING');
  assert.equal(Number(transferState.rows.find(row=>row.id===transferDestinationId).version),2);

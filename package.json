@@ -11,7 +11,7 @@
     "clean": "node scripts/clean.mjs",
     "lint": "tsc --noEmit",
     "audit:ui": "node scripts/audit-ui.mjs",
-    "test:api": "node --test apps/api/tests/*.test.mjs",
+    "test:api": "node --test --test-concurrency=1 apps/api/tests/*.test.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "playwright test --config=playwright.production.config.ts",
     "test:browser:api": "playwright test --config=playwright.api.config.ts",
