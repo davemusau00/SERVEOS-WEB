@@ -14,6 +14,7 @@ import {refundProjections} from './refund-commands.mjs';
 import {journalProjections} from './financial-journals.mjs';
 import {closeDayProjections} from './close-day-commands.mjs';
 import {receiptSettingsProjections} from './business-tax.mjs';
+import {businessSetupProjections} from './business-setup.mjs';
 import {paymentProjections} from './payment-commands.mjs';
 import {paymentAccountProjections} from './payment-accounts.mjs';
 import {tillProjections} from './till-commands.mjs';
@@ -175,6 +176,7 @@ export class PostgresStore {
     const paymentAccounts=await paymentAccountProjections(db,businessId);
     const payments=await paymentProjections(db,businessId);
     const settings=await receiptSettingsProjections(db,businessId);
+    const setup=await businessSetupProjections(db,businessId);
     const refunds=await refundProjections(db,businessId);
     const journals=await journalProjections(db,businessId);
     const closeDays=await closeDayProjections(db,businessId);
@@ -219,6 +221,7 @@ export class PostgresStore {
       ...paymentAccounts,
       ...payments,
       ...settings,
+      ...setup,
       ...refunds,
       ...journals,
       ...closeDays,
@@ -415,6 +418,8 @@ export class PostgresStore {
       await tx.client.query('INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password,created_at,updated_at) VALUES($1,$2,$3,$4,\'Admin\',$5,false,$6,$6)',[businessId,staffId,loginName,displayName,credentialHash,at]);
       for(const permission of permissions)await tx.client.query('INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,$3)',[businessId,staffId,permission]);
       await tx.client.query("INSERT INTO business_entity_versions(business_id,entity_type,entity_id,version) VALUES($1,'employees',$2,1)",[businessId,staffId]);
+      await tx.client.query("INSERT INTO business_setup(business_id,status,current_step,configuration,version,created_at,updated_by,updated_at) VALUES($1,'IN_PROGRESS',0,'{}'::jsonb,1,$2,$3,$2)",[businessId,at,staffId]);
+      await tx.client.query("INSERT INTO business_entity_versions(business_id,entity_type,entity_id,version) VALUES($1,'businessSetup',$2,1)",[businessId,businessId]);
       return true;
     });
   }

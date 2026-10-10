@@ -31,7 +31,7 @@ test('PostgreSQL API CSV importer stages, dry-runs and applies domain commands w
  const apiOrigin=`http://127.0.0.1:${api.address().port}`;
  const request=async(path,init={})=>{const response=await fetch(`${apiOrigin}${path}`,{...init,headers:{'content-type':'application/json',...(init.headers||{})}});return {status:response.status,body:await response.json()}};
  t.after(async()=>new Promise(resolve=>api.close(resolve)));
- const templates=await request('/v1/import/templates');assert.equal(templates.status,200);assert.equal(templates.body.templates.length,12);
+ const templates=await request('/v1/import/templates');assert.equal(templates.status,200);assert.equal(templates.body.templates.length,13);
 
  const stockBatchId=randomUUID();
  const stockRows=Array.from({length:84},(_,index)=>`stock-${index+1},Stock item ${index+1},SKU-${String(index+1).padStart(3,'0')},each,0,`);
@@ -90,4 +90,17 @@ test('PostgreSQL API CSV importer stages, dry-runs and applies domain commands w
  assert.equal(appliedOutlet.plan.status,'APPLIED');
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM business_outlets WHERE business_id=$1',[businessId])).rows[0].count,1);
  assert.equal(outlet.batch.validCount,1);
+
+ const simpleTemplate=templates.body.templates.find(item=>item.key==='sellableItems');assert.ok(simpleTemplate);
+ const simpleValues={name:'House spirit',code:'SIMPLE-SPIRIT',stock_mode:'SPIRIT',price:'150',tax_class_id:'A_16',service_area:'BAR',outlet_names:'Main Outlet',stock_location_name:'Main Store',base_unit:'ml',units_per_package:'12',quantity_per_unit:'750',purchase_price:'24000',opening_packages:'1',reorder_level:'0',container_size:'750',portion_size:'45',selling_mode:'SERVING_AND_BOTTLE',whole_container_price:'1800'};
+ const simpleCsv=`${simpleTemplate.headers.join(',')}\n${simpleTemplate.headers.map(header=>simpleValues[header]||'').join(',')}\n`;
+ const simpleBatchId=randomUUID(),simpleBatch=await stageImport(pool,actor,{id:simpleBatchId,templateKey:'sellableItems',fileName:'simple-products.csv',csvText:simpleCsv});
+ assert.equal(simpleBatch.batch.validCount,1);
+ const simplePlan=await planImport({store,registry,actor,batchId:simpleBatchId});assert.equal(simplePlan.plan.status,'READY');
+ const simpleSteps=(await pool.query('SELECT steps FROM api_import_plans WHERE business_id=$1 AND id=$2',[businessId,simplePlan.plan.id])).rows[0].steps;
+ assert.equal(simpleSteps[0].operation,'catalog.createWithOpeningStock');assert.equal(simpleSteps[0].targetCollection,'products');
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM products WHERE business_id=$1 AND code=$2',[businessId,'SIMPLE-SPIRIT'])).rows[0].count,0,'the reviewed simple import has not written domain records');
+ const simpleApply=await applyImport({store,registry,actor,planId:simplePlan.plan.id});assert.equal(simpleApply.plan.status,'APPLIED');assert.equal(simpleApply.plan.summary.applied,1);
+ const linked=(await pool.query(`SELECT p.stock_item_id AS "stockItemId",p.inventory_type AS "inventoryType",s.sealed_container_size AS "containerSize",b.quantity FROM products p JOIN stock_items s ON s.business_id=p.business_id AND s.id=p.stock_item_id JOIN inventory_location_balances b ON b.business_id=s.business_id AND b.stock_item_id=s.id WHERE p.business_id=$1 AND p.code='SIMPLE-SPIRIT'`,[businessId])).rows[0];
+ assert.equal(linked.inventoryType,'SPIRIT');assert.equal(Number(linked.containerSize),750);assert.equal(Number(linked.quantity),9000);assert.ok(linked.stockItemId);
 });

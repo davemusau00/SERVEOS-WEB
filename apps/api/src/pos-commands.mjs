@@ -63,11 +63,12 @@ async function editable(tx,command,actor,id,{allowPaid=false}={}){
  if(!['OPEN','FIRED'].includes(rows[0].state))throw new ApiProblem(409,'ORDER_NOT_EDITABLE','This order is closed.');
  return rows[0];
 }
-async function finish(tx,command,actor,at,id,data){
+async function finish(tx,command,actor,at,id,data,{versionAlreadyBumped=false}={}){
  const {rows}=await tx.client.query(`SELECT COALESCE(sum(line_total_minor),0) AS total,count(*)::integer AS count,bool_and(state='FIRED') AS "allFired" FROM pos_order_lines WHERE business_id=$1 AND order_id=$2 AND state<>'VOIDED'`,[actor.businessId,id]);
  const amount=Number(rows[0].total);if(!Number.isSafeInteger(amount)||amount<0)fail('Order total exceeds the supported amount.');
  const zeroCompleted=amount===0&&rows[0].count>0&&rows[0].allFired===true;
- const version=await tx.bumpEntityVersion(actor.businessId,'orders',id,expected(command,'orders',id));
+  const baseline=expected(command,'orders',id);
+  const version=versionAlreadyBumped?baseline:await tx.bumpEntityVersion(actor.businessId,'orders',id,baseline);
  await tx.client.query(`UPDATE pos_orders SET grand_total_minor=$3,version=$4,updated_at=$5,state=CASE WHEN $6 THEN 'COMPLETED' ELSE state END WHERE business_id=$1 AND id=$2`,[actor.businessId,id,amount,version,at,zeroCompleted]);
  const receipt=zeroCompleted?await zeroReceipt(tx,command,actor,at,id):null;
  await event(tx,command,actor,at,id,version,{...data,zeroCompleted,...(receipt?{receiptDocumentId:receipt.id}:{})});
@@ -89,7 +90,7 @@ async function zeroReceipt(tx,command,actor,at,orderId){
  return {id,records:[{collection:'businessDocuments',id,version:1,archived:false,data:{id,type:'SALES_RECEIPT',documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}},await queueDocumentPrint(tx,{businessId:actor.businessId,documentId:id,printerRole:'RECEIPT',staffId:actor.staffId,at})]};
 }
 
-const create=async({tx,command,actor,at})=>{
+const create=async({tx,command,actor,at},{deferEvent=false}={})=>{
  await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`till-policy:${actor.businessId}`]);
  const p=command.payload,id=p.id;
  if(!uuid(id)||!uuid(p.outletId)||typeof p.name!=='string'||!p.name.trim()||p.name.trim().length>120)fail('Order ID, outlet and a name of up to 120 characters are required.');
@@ -128,7 +129,7 @@ const create=async({tx,command,actor,at})=>{
  if(expected(command,'businessSettings',actor.businessId)!==settings.version)throw new ApiProblem(409,'VERSION_CONFLICT','Business settings changed. Review them before opening the order.');
  const version=await tx.bumpEntityVersion(actor.businessId,'orders',id,0);
  await tx.client.query(`INSERT INTO pos_orders(business_id,id,outlet_id,stock_location_id,name,service_destination,service_reference,version,created_by,device_id,created_at,updated_at,business_snapshot,customer_id,customer_name_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$11,$12::jsonb,$13,$14)`,[actor.businessId,id,p.outletId,rows[0].locationId,p.name.trim(),destination,JSON.stringify(serviceReference),version,actor.staffId,actor.deviceId,at,JSON.stringify(settings),p.customerId??null,customer?.name??null]);
- await event(tx,command,actor,at,id,version,{outletId:p.outletId,name:p.name.trim(),serviceDestination:destination,serviceReference,customerId:p.customerId??null});
+  if(!deferEvent)await event(tx,command,actor,at,id,version,{outletId:p.outletId,name:p.name.trim(),serviceDestination:destination,serviceReference,customerId:p.customerId??null});
  const output=await result(tx,actor.businessId,id);return tableId?{...output,records:[...output.records,...(await floorplanProjections(tx.client,actor.businessId)).filter(record=>record.id===tableId)]}:output;
 };
 
@@ -149,7 +150,7 @@ const assignCustomer=async({tx,command,actor,at})=>{
  return result(tx,actor.businessId,p.orderId);
 };
 
-const add=async({tx,command,actor,at},{deferFinish=false}={})=>{
+const add=async({tx,command,actor,at},{deferFinish=false,eventData={}}={})=>{
  await tx.lockInventoryCatalog(actor.businessId);
  const p=command.payload,order=await editable(tx,command,actor,p.orderId);
  if(!uuid(p.itemId)||!uuid(p.productId))fail('Product and line IDs are required.');
@@ -177,7 +178,20 @@ const add=async({tx,command,actor,at},{deferFinish=false}={})=>{
  const snapshot={...product,recipeIngredients,ingredientSnapshot,version:Number(product.version),priceMinor:Number(product.priceMinor),portionVolume:product.portionVolume===null?null:Number(product.portionVolume)};
  await tx.client.query(`INSERT INTO pos_order_lines(business_id,order_id,id,product_id,product_version,product_snapshot,portion_snapshot,quantity,unit_price_minor,line_total_minor,created_at,updated_at,tax_snapshot,net_minor,vat_minor,levy_minor,gross_minor,notes,modifier_snapshots,course_name,round_no) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10,$11,$11,$12::jsonb,$13,$14,$15,$10,$16,$17::jsonb,$18,$19)`,[actor.businessId,p.orderId,p.itemId,p.productId,product.version,JSON.stringify(snapshot),portion?JSON.stringify(portion):null,count,price,lineTotal,at,JSON.stringify(taxSnapshot),tax.netMinor,tax.vatMinor,tax.levyMinor,notes,JSON.stringify(modifiers),course,order.currentRoundNo]);
  const evidence={itemId:p.itemId,productId:p.productId,quantity:count,unitPriceMinor:price,baseUnitPriceMinor:basePrice,portion,modifiers,note:notes,courseName:course,roundNo:order.currentRoundNo};
- return deferFinish?evidence:finish(tx,command,actor,at,p.orderId,evidence);
+  return deferFinish?evidence:finish(tx,command,actor,at,p.orderId,{...evidence,...eventData});
+};
+
+const quickAdd=async({tx,command,actor,at})=>{
+ const p=command.payload;
+ if(!uuid(p.orderId)||!uuid(p.itemId)||!uuid(p.outletId)||!uuid(p.productId))fail('A new counter sale needs stable order, item, outlet and product IDs.');
+ if(p.tableId||p.customerId||p.serviceReference)fail('Quick counter sales cannot include a table, customer or caller-supplied service reference.');
+ const name=typeof p.name==='string'&&p.name.trim()?p.name.trim():'Counter sale';
+ const createCommand={...command,payload:{id:p.orderId,outletId:p.outletId,name,serviceDestination:'COUNTER'}};
+ await create({tx,command:createCommand,actor,at},{deferEvent:true});
+ const expectedVersions={...command.expectedVersions,[`orders:${p.orderId}`]:1};
+ const addCommand={...command,expectedVersions,payload:{orderId:p.orderId,itemId:p.itemId,productId:p.productId,quantity:p.quantity,note:p.note,courseName:p.courseName,portionId:p.portionId,modifierIds:p.modifierIds}};
+ const evidence=await add({tx,command:addCommand,actor,at},{deferFinish:true});
+ return finish(tx,addCommand,actor,at,p.orderId,{...evidence,createdOrder:{outletId:p.outletId,name,serviceDestination:'COUNTER'}},{versionAlreadyBumped:true});
 };
 
 const edit=remove=>async({tx,command,actor,at})=>{
@@ -494,7 +508,7 @@ const preparation=async({tx,command,actor,at})=>{
 };
 
 export const posCommandRegistry=new Map([
- ['order.create',create],['order.addItem',add],['order.updateItem',edit(false)],['order.removeItem',edit(true)],
+ ['order.create',create],['order.addItem',add],['order.quickAdd',quickAdd],['order.updateItem',edit(false)],['order.removeItem',edit(true)],
 ].map(([name,handler])=>[name,{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler}]));
 posCommandRegistry.set('order.fire',{permission:'order.fire',offlinePolicy:'ONLINE_ONLY',handler:fire});
 posCommandRegistry.set('order.void',{permission:'order.void',approvalPermission:'order.void',offlinePolicy:'ONLINE_ONLY',handler:voidOrder});

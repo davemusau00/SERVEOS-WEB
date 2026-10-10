@@ -157,6 +157,12 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
 
  const customerId=randomUUID();
  const customer=await confirmed('customer.save',{id:customerId,reason:'Create POS acceptance customer',data:{name:'POS Guest',phone:'',email:'',notes:''}},{[`customers:${customerId}`]:0});
+  const quickOrderId=randomUUID(),quickItemId=randomUUID(),quickCommand={commandId:randomUUID(),name:'order.quickAdd',payload:{orderId:quickOrderId,itemId:quickItemId,outletId,name:'Counter sale',productId,quantity:2,portionId:'regular',modifierIds:['oat'],note:'Quick add acceptance'},expectedVersions:{[`orders:${quickOrderId}`]:0,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1,[`products:${productId}`]:1}};
+  const quickAdded=await executeCommand({db:store,actor,registry,command:quickCommand});
+  assert.equal(quickAdded.kind,'CONFIRMED',`order.quickAdd: ${JSON.stringify(quickAdded)}`);
+  assert.equal(quickAdded.result.state,'OPEN');assert.equal(quickAdded.result.data.items.length,1);assert.equal(quickAdded.result.data.items[0].id,quickItemId);assert.equal(quickAdded.result.data.items[0].quantity,2);assert.equal(quickAdded.result.data.items[0].notes,'Quick add acceptance');
+  assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_events WHERE business_id=$1 AND command_id=$2',[businessId,quickCommand.commandId])).rows[0].count,1,'a new counter sale and its first item share one auditable command');
+  assert.deepEqual(await executeCommand({db:store,actor,registry,command:quickCommand}),quickAdded,'retrying a quick sale returns its stored outcome without creating a duplicate order or line');
  const orderId=randomUUID();
  const opened=await confirmed('order.create',{id:orderId,name:'Counter sale',outletId,serviceDestination:'COUNTER'},{[`orders:${orderId}`]:0,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1});
  const assigned=await confirmed('order.assignCustomer',{orderId,customerId},{[`orders:${orderId}`]:opened.result.version,[`customers:${customerId}`]:customer.result.version});

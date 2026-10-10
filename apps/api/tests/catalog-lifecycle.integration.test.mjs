@@ -39,6 +39,12 @@ test('PostgreSQL catalog lifecycle preserves recipes, scan identifiers, archive 
 
   const location=await saveLocation(),outletId=randomUUID();
   await pool.query('INSERT INTO business_outlets(business_id,id,name,default_stock_location_id,version) VALUES($1,$2,$3,$4,1)',[businessId,outletId,'Main outlet',location.id]);
+  const stockedProductId=randomUUID(),stockedItemId=randomUUID(),openingMovementId=randomUUID();
+  const stockedCreation=await run('catalog.createWithOpeningStock',{stockItem:{id:stockedItemId,name:'Linked spirit stock',code:'CAT-LINKED-STOCK',baseUnit:'ml',sealedContainerSize:750,scanUnitQuantity:750,reorderLevel:0,averageUnitCostMinor:1200,purchasePackages:[]},product:{id:stockedProductId,name:'Linked spirit',code:'CAT-LINKED-PRODUCT',priceMinor:500,category:'Spirits',routeTo:'BAR',inventoryType:'SPIRIT',outletIds:[outletId],taxClassId:'A_16',portionVolume:45,sellingMode:'SERVING_AND_BOTTLE',portions:[{id:'pour',name:'Pour',volume:45,priceMinor:500}]},locationId:location.id,startingQuantity:1500,openingMovementId},{[`stockItems:${stockedItemId}`]:0,[`products:${stockedProductId}`]:0,[`stockLocations:${location.id}`]:location.record.version,[`stockMovements:${openingMovementId}`]:0});
+  assert.equal(stockedCreation.kind,'CONFIRMED',JSON.stringify(stockedCreation));
+  const linkedProjection=(await store.catalogBootstrap(businessId)).records;
+  assert.equal(linkedProjection.find(row=>row.collection==='products'&&row.id===stockedProductId)?.data.stockItemId,stockedItemId,'guided sellable products must retain their stock master link');
+  assert.equal(linkedProjection.find(row=>row.collection==='stockItems'&&row.id===stockedItemId)?.data.currentStock?.[location.id],1500,'opening stock must remain attached to the linked product inventory');
   const direct=await saveStock({code:'CAT-DIRECT',barcode:'616000010',barcodeAliases:[' 616000011 '],purchasePackages:[{id:randomUUID(),name:'Case',baseQuantity:12,unitCostMinor:1000,barcode:'616000012'}]});
   const ingredient=await saveStock({code:'CAT-RECIPE'});
   const modifierStock=await saveStock({code:'CAT-MODIFIER'});

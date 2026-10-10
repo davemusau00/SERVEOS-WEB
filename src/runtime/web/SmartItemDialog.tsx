@@ -12,7 +12,7 @@ import { operatorError } from './operatorError';
 import { isCommandConfirmed, type CommandOutcome } from '../../types/transactions';
 
 type Command = (operation: string, collection: string, id: string, payload: Record<string, unknown>) => Promise<CommandOutcome>;
-type SetupKind = 'STOCKED' | 'RECIPE' | 'BATCH' | 'STOCK_ONLY';
+type SetupKind = 'STOCKED' | 'RECIPE' | 'BATCH' | 'STOCK_ONLY' | 'SERVICE';
 type RecipeLine = { stockItemId: string; quantity: number; tracked: true };
 
 const input = 'mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white';
@@ -29,14 +29,16 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
   const canInventory = session.permissions.includes('*') || session.permissions.includes('inventory.adjust');
   const canRecipe = canCatalog && (session.permissions.includes('*') || session.permissions.includes('inventory.view'));
   const [step, setStep] = useState(0);
-  const [setupKind, setSetupKind] = useState<SetupKind>(canCatalog && canInventory ? 'STOCKED' : canRecipe ? 'RECIPE' : 'STOCK_ONLY');
+  const [setupKind, setSetupKind] = useState<SetupKind>(canCatalog && canInventory ? 'STOCKED' : canCatalog ? 'SERVICE' : canRecipe ? 'RECIPE' : 'STOCK_ONLY');
   const [itemType, setItemType] = useState(setupKind === 'RECIPE' ? 'DISH' : 'DRINK');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [codeEdited, setCodeEdited] = useState(false);
   const [price, setPrice] = useState(0);
-  const [routeTo, setRouteTo] = useState('BAR');
-  const [category, setCategory] = useState('GENERAL');
+  const [routeTo, setRouteTo] = useState(setupKind==='SERVICE'?'ROOMS':setupKind==='RECIPE'||setupKind==='BATCH'?'KITCHEN':'BAR');
+  const [category, setCategory] = useState(setupKind==='RECIPE'||setupKind==='BATCH'?'Food':setupKind==='SERVICE'?'Services':'Drinks');
+  const [outletIds, setOutletIds] = useState<string[]>([]);
+  const [taxClassId, setTaxClassId] = useState('');
   const [locationId, setLocationId] = useState('');
   const [purchaseName, setPurchaseName] = useState('Case');
   const [unitsPerPackage, setUnitsPerPackage] = useState(24);
@@ -46,7 +48,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
   const [openingPackages, setOpeningPackages] = useState(0);
   const [saleQuantity, setSaleQuantity] = useState(1);
   const [wholeContainerPrice, setWholeContainerPrice] = useState(0);
-  const [sellingMode,setSellingMode]=useState<'BOTTLE_ONLY'|'BOTTLE_AND_PORTIONS'>('BOTTLE_AND_PORTIONS');
+  const [sellingMode,setSellingMode]=useState<'BOTTLE_ONLY'|'SERVING_AND_BOTTLE'>('SERVING_AND_BOTTLE');
   const [barcode, setBarcode] = useState('');
   const [recipeIngredients, setRecipeIngredients] = useState<RecipeLine[]>([]);
   const [recipeYield, setRecipeYield] = useState(10);
@@ -57,6 +59,9 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
   const [recipeError, setRecipeError] = useState('');
   const [busy, setBusy] = useState(false);
   const [pendingReview, setPendingReview] = useState(false);
+  const settings=fields(records,'businessSettings').find(record=>record.id===session.businessId);
+  const standardVatRate=Number(settings?.data.vatRateBasisPoints||0)/100;
+  const applyCategoryPreset=(value:string)=>{setCategory(value);const normalized=value.trim().toLowerCase();if(['food','snacks'].includes(normalized))setRouteTo('KITCHEN');else if(['accommodation','services'].includes(normalized))setRouteTo('ROOMS');else if(['drinks','spirits','beer','wine','retail'].includes(normalized))setRouteTo('BAR');};
 
   const mode: MeasurementMode = unit === 'g' || unit === 'kg' ? 'WEIGHT' : unit === 'ml' || unit === 'l' ? 'VOLUME' : 'COUNT';
   const baseUnit = mode === 'WEIGHT' ? 'g' : mode === 'VOLUME' ? 'ml' : 'piece';
@@ -111,18 +116,18 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
 
   const sellable = async (productId: string) => {
     if (!session.permissions.includes('*') && !session.permissions.includes('catalog.manage')) throw new Error('This role cannot create sellable catalog items. Ask an Admin for catalog access.');
-    if (!outlets.length) throw new Error('Add a service area before creating a sellable item.');
+    if (!outletIds.length) throw new Error('Choose at least one outlet before creating a sellable item.');
     return {
       id: productId,
       name: name.trim(),
       code: code.trim(),
       price: Number(price),
       category: category.trim() || 'GENERAL',
-      inventoryType: itemType,
+      inventoryType: isSealedContainer?itemType:'STOCKED',
       routeTo,
       stockItemId: '',
-      outletIds: outlets.map(outlet => outlet.id),
-      taxClassId: 'A_STANDARD',
+      outletIds,
+      taxClassId,
       favorite: false,
       barcode: barcode.trim(),
       portionVolume: isSealedContainer && calculation ? calculation.pkg.baseQuantity / unitsPerPackage : calculation?.sale || 1,
@@ -156,10 +161,12 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
         setError('This role cannot create sellable catalog items. Ask an Admin for catalog access.');
         return;
       }
-      if (!name.trim() || !code.trim() || !outlets.length || !Number.isFinite(price) || price < 0 || recipeIngredients.length === 0 || setupKind === 'BATCH' && (!Number.isInteger(recipeYield) || recipeYield < 1 || recipeYield > 100000 || !locationId)) {
+      if (!name.trim() || !code.trim() || !outletIds.length || !taxClassId || !Number.isFinite(price) || price < 0 || recipeIngredients.length === 0 || setupKind === 'BATCH' && (!Number.isInteger(recipeYield) || recipeYield < 1 || recipeYield > 100000 || !locationId)) {
         setError('Complete the item identity, selling price, service area, and at least one recipe ingredient.');
         return;
       }
+    } else if(setupKind==='SERVICE'){
+      if(!canCatalog||!name.trim()||!code.trim()||!outletIds.length||!taxClassId||!Number.isFinite(price)||price<0){setError('Complete the item name, code, selling price, tax classification, and at least one outlet.');return;}
     } else {
       if (!session.permissions.includes('*') && !session.permissions.includes('inventory.adjust')) {
         setError('This role cannot create a stock master. Ask an Admin to grant inventory adjustment access.');
@@ -169,7 +176,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
         setError('This role cannot create the sellable item. Ask an Admin for catalog access.');
         return;
       }
-      if (!name.trim() || !code.trim() || !locationId || !calculation || setupKind === 'STOCKED' && (!Number.isFinite(price) || price < 0 || !Number.isFinite(wholeContainerPrice) || wholeContainerPrice < 0)) {
+      if (!name.trim() || !code.trim() || !locationId || !calculation || setupKind === 'STOCKED' && (!outletIds.length || !taxClassId || !Number.isFinite(price) || price < 0 || !Number.isFinite(wholeContainerPrice) || wholeContainerPrice < 0)) {
         setError('Complete the required item, package, price, and storage details with valid quantities.');
         return;
       }
@@ -177,7 +184,10 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
     setBusy(true);
     try {
       let result: CommandOutcome;
-      if (setupKind === 'RECIPE') {
+      if (setupKind === 'SERVICE') {
+        const productId=crypto.randomUUID();
+        result=await command('product.save','products',productId,{id:productId,data:{name:name.trim(),code:code.trim(),priceMinor:Math.round(Number(price)*100),category:category.trim()||'GENERAL',inventoryType:'STANDARD',routeTo,outletIds,taxClassId,favorite:false,barcode:barcode.trim()||undefined,recipeIngredients:[]}});
+      } else if (setupKind === 'RECIPE') {
         const productId = crypto.randomUUID();
         result = await command('product.save', 'products', productId, {
           id: productId,
@@ -187,10 +197,10 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
             code: code.trim(),
             priceMinor: Math.round(Number(price) * 100),
             category: category.trim() || 'GENERAL',
-            inventoryType: itemType,
+            inventoryType: 'RECIPE',
             routeTo,
-            outletIds: outlets.map(outlet => outlet.id),
-            taxClassId: 'A_STANDARD',
+            outletIds,
+            taxClassId,
             favorite: false,
             barcode: barcode.trim() || undefined,
             recipeIngredients,
@@ -205,7 +215,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
         };
         const product = {
           id: productId, name: name.trim(), code: code.trim(), price: Number(price), category: category.trim() || 'GENERAL',
-          inventoryType: 'BATCH', routeTo, outletIds: outlets.map(outlet => outlet.id), taxClassId: 'A_STANDARD', favorite: false,
+          inventoryType: 'BATCH', routeTo, outletIds, taxClassId, favorite: false,
           barcode: barcode.trim(), portionVolume: 1, portions: [{ id: 'each', name: 'Portion', volume: 1, priceMinor: Math.round(Number(price) * 100) }],
           recipeIngredients, recipeYield,
         };
@@ -255,14 +265,15 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
       setError('Enter an item name and code.');
       return;
     }
-    if (step === 1 && setupKind !== 'STOCK_ONLY' && (!Number.isFinite(price) || price < 0)) {
-      setError('Enter a valid selling price.');
+    if (step === 1 && setupKind !== 'STOCK_ONLY' && (!Number.isFinite(price) || price < 0 || !taxClassId || !outletIds.length)) {
+      setError('Choose a tax classification and at least one outlet, then enter a valid selling price.');
       return;
     }
-    if (step === 1 && (setupKind === 'RECIPE' || setupKind === 'BATCH') && (!outlets.length || recipeIngredients.length === 0 || setupKind === 'BATCH' && (!Number.isInteger(recipeYield) || recipeYield < 1 || recipeYield > 100000))) {
+    if (step === 1 && (setupKind === 'RECIPE' || setupKind === 'BATCH') && (!recipeIngredients.length || setupKind === 'BATCH' && (!Number.isInteger(recipeYield) || recipeYield < 1 || recipeYield > 100000))) {
       setError('A recipe item needs a service area and at least one recipe ingredient.');
       return;
     }
+    if(step===1&&setupKind==='SERVICE'){setStep(3);return;}
     if (step === 2 && setupKind !== 'RECIPE' && (setupKind === 'BATCH' ? !locationId : !locationId || !calculation)) {
       setError('Choose a storage place and enter a valid package conversion.');
       return;
@@ -270,12 +281,13 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
     setStep(value => Math.min(3, value + 1));
   };
 
-  const stepTitle = ['Identity', 'Selling', setupKind === 'RECIPE' || setupKind === 'BATCH' ? 'Recipe' : 'Package & stock', 'Review'][step];
+  const stepTitle = ['Identity', 'Selling', setupKind === 'RECIPE' || setupKind === 'BATCH' ? 'Recipe' : setupKind==='SERVICE'?'Service':'Package & stock', 'Review'][step]||'Review';
   return <Dialog title={`Smart item setup - ${stepTitle}`} onClose={busy ? () => undefined : onClose}>
     <div aria-disabled={pendingReview} className={`max-h-[min(70vh,620px)] space-y-4 overflow-y-auto pr-1 ${pendingReview ? 'pointer-events-none opacity-60' : ''}`}>
       {step === 0 && <div className="space-y-3">
         <label className="block text-sm">What are you setting up?
-          <select className={input} value={setupKind} onChange={event => { const nextKind = event.target.value as SetupKind; setSetupKind(nextKind); if (nextKind === 'RECIPE') setItemType('DISH'); else if (nextKind === 'BATCH') setItemType('BATCH'); else if (nextKind === 'STOCKED') setItemType('DRINK'); }}>
+          <select className={input} value={setupKind} onChange={event => { const nextKind = event.target.value as SetupKind; setSetupKind(nextKind); if (nextKind === 'RECIPE') {setItemType('DISH');applyCategoryPreset('Food')} else if (nextKind === 'BATCH') {setItemType('BATCH');applyCategoryPreset('Food')} else if (nextKind === 'STOCKED') {setItemType('DRINK');applyCategoryPreset('Drinks')} else if(nextKind==='SERVICE'){applyCategoryPreset('Services')} }}>
+            {canCatalog && <option value="SERVICE">Service or menu item without tracked stock</option>}
             {canInventory && canCatalog && <option value="STOCKED">Sellable item with linked stock</option>}
             {canRecipe && <option value="RECIPE">Menu item made from a recipe</option>}
             {canInventory && canCatalog && <option value="BATCH">Batch recipe with prepared portion stock</option>}
@@ -294,10 +306,11 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
         <label className="block text-sm">Barcode (optional)<input className={input} value={barcode} onChange={event => setBarcode(event.target.value.trim())}/></label>
       </div>}
       {step === 1 && setupKind !== 'STOCK_ONLY' && <div className="space-y-3">
-        <label className="block text-sm">Item type
+        {setupKind!=='SERVICE'&&<label className="block text-sm">Item type
           <select className={input} value={itemType} onChange={event => {
             const nextType = event.target.value;
             setItemType(nextType);
+            if(nextType==='DISH'||nextType==='BATCH')applyCategoryPreset('Food');else if(nextType==='COCKTAIL'||nextType==='DRINK')applyCategoryPreset('Drinks');else if(nextType==='SPIRIT')applyCategoryPreset('Spirits');else if(nextType==='WINE')applyCategoryPreset('Wine');else if(nextType==='RETAIL')applyCategoryPreset('Retail');
             setWholeContainerPrice(0);
             if (nextType === 'SPIRIT' || nextType === 'WINE') {
               setPurchaseName('Case'); setUnitsPerPackage(12); setContents(750); setUnit('ml'); setSaleQuantity(45);
@@ -305,14 +318,16 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
               setPurchaseName('Case'); setUnitsPerPackage(24); setContents(1); setUnit('piece'); setSaleQuantity(1);
             }
           }}>
-            {setupKind === 'RECIPE' ? <><option value="DISH">Prepared dish</option><option value="COCKTAIL">Mixed drink</option></> : setupKind === 'BATCH' ? <option value="BATCH">Batch recipe</option> : <><option value="DRINK">Drink / retail sale</option><option value="SPIRIT">Spirit bottle</option><option value="WINE">Wine bottle</option><option value="RETAIL">Packaged retail</option></>}
+            {setupKind === 'RECIPE' ? <><option value="DISH">Prepared dish</option><option value="COCKTAIL">Mixed drink</option></> : setupKind === 'BATCH' ? <option value="BATCH">Batch recipe</option> : <><option value="DRINK">Drink</option><option value="SPIRIT">Spirit bottle</option><option value="WINE">Wine bottle</option><option value="RETAIL">Packaged retail</option></>}
           </select>
-        </label>
+        </label>}
         <label className="block text-sm">{itemType === 'SPIRIT' ? 'Pour price' : itemType === 'WINE' ? 'Glass price' : 'Selling price'} (KES)<input className={input} type="number" min="0" step="0.01" value={price} onChange={event => setPrice(Number(event.target.value))}/></label>
-        {isSealedContainer&&<label className="block text-sm">Selling method<select className={input} value={sellingMode} onChange={event=>setSellingMode(event.target.value as typeof sellingMode)}><option value="BOTTLE_ONLY">Sealed bottles only</option><option value="BOTTLE_AND_PORTIONS">Bottles and measured portions</option></select></label>}
-        {isSealedContainer && sellingMode==='BOTTLE_AND_PORTIONS' && <label className="block text-sm">Whole bottle price (KES, optional)<input className={input} type="number" min="0" step="0.01" value={wholeContainerPrice} onChange={event => setWholeContainerPrice(Number(event.target.value))}/><span className="text-xs text-slate-400">Add a separate POS price for selling a sealed bottle; measured pours open bottles as needed.</span></label>}
-        <label className="block text-sm">Category<input className={input} value={category} onChange={event => setCategory(event.target.value)}/></label>
-        <label className="block text-sm">Preparation station<select className={input} value={routeTo} onChange={event => setRouteTo(event.target.value)}><option>BAR</option><option>KITCHEN</option><option>SERVICE</option></select></label>
+        <label className="block text-sm">Category<input list="serveos-product-category-presets" className={input} value={category} onChange={event=>applyCategoryPreset(event.target.value)}/><datalist id="serveos-product-category-presets">{['Drinks','Spirits','Beer','Wine','Food','Snacks','Accommodation','Retail','Services','GENERAL'].map(value=><option key={value} value={value}/>)}</datalist></label>
+        <label className="block text-sm">Tax classification<select required className={input} value={taxClassId} onChange={event=>setTaxClassId(event.target.value)}><option value="">Choose the classification from your tax policy</option><option value="A_16">Standard VAT · configured rate ({standardVatRate.toLocaleString()}%)</option><option value="B_0">Zero-rated (0%)</option><option value="C_EXEMPT">Exempt</option></select></label>
+        <fieldset className="space-y-2 rounded-lg border border-slate-700 p-3"><legend className="px-1 text-sm">Available at</legend>{outlets.length?outlets.map(outlet=><label key={outlet.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={outletIds.includes(outlet.id)} onChange={event=>setOutletIds(current=>event.target.checked?[...current,outlet.id]:current.filter(id=>id!==outlet.id))}/>{String(outlet.data.name||outlet.id)}</label>):<p className="text-xs text-amber-200">Create an outlet before making a sellable item.</p>}</fieldset>
+        <label className="block text-sm">Preparation station<select className={input} value={routeTo} onChange={event=>setRouteTo(event.target.value)}><option value="BAR">Bar</option><option value="KITCHEN">Kitchen</option><option value="ROOMS">Rooms / services</option></select></label>
+        {isSealedContainer&&<label className="block text-sm">Selling method<select className={input} value={sellingMode} onChange={event=>setSellingMode(event.target.value as typeof sellingMode)}><option value="BOTTLE_ONLY">Sealed bottles only</option><option value="SERVING_AND_BOTTLE">Bottles and measured portions</option></select></label>}
+        {isSealedContainer && sellingMode==='SERVING_AND_BOTTLE' && <label className="block text-sm">Whole bottle price (KES, optional)<input className={input} type="number" min="0" step="0.01" value={wholeContainerPrice} onChange={event => setWholeContainerPrice(Number(event.target.value))}/><span className="text-xs text-slate-400">Add a separate POS price for selling a sealed bottle; measured pours open bottles as needed.</span></label>}
         {(setupKind === 'RECIPE' || setupKind === 'BATCH') && <section className="space-y-3 rounded-lg border border-slate-700 p-3">
           <div><b>Recipe ingredients</b><p className="text-xs text-slate-400">{setupKind === 'BATCH' ? 'Enter the total ingredient amount for one complete batch. ServOS divides it by yield; preparation consumes the full recipe and POS sells prepared portions.' : 'Enter the amount used for one sale. ServOS converts it to the ingredient\'s stock unit; POS deducts the recipe instead of a linked item balance.'}</p></div>
           {setupKind === 'BATCH' && <label className="block text-sm">Sale portions produced by one batch<input aria-label="Batch recipe yield" className={input} type="number" min="1" max="100000" step="1" value={recipeYield} onChange={event => setRecipeYield(Number(event.target.value))}/></label>}
@@ -341,7 +356,7 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
       </div>}
       {step === 1 && setupKind === 'STOCK_ONLY' && <p className="rounded-lg border border-slate-700 p-3 text-sm text-slate-300">This item will be created as stock only and will not appear at the point of sale.</p>}
       {step === 2 && setupKind === 'BATCH' && <div className="space-y-3"><p className="rounded-lg border border-slate-700 p-3 text-sm">ServOS will create a separate finished-portions stock master linked to this batch recipe. It starts at zero; prepare stock from Inventory after saving.</p><label className="block text-sm">Storage place<select className={input} value={locationId} onChange={event => setLocationId(event.target.value)}><option value="">Choose storage place</option>{locations.map(location => <option key={location.id} value={location.id}>{String(location.data.name || location.id)}</option>)}</select></label><p className="rounded-lg bg-slate-950 p-3 text-sm">{recipeYield} portions per batch · estimated ingredient cost {Number.isFinite(recipeCostMinor) ? cash(recipeCostMinor / 100) : 'unavailable'} per portion</p></div>}
-      {step === 2 && setupKind !== 'RECIPE' && setupKind !== 'BATCH' && <div className="space-y-3">
+      {step === 2 && (setupKind === 'STOCKED' || setupKind === 'STOCK_ONLY') && <div className="space-y-3">
         <label className="block text-sm">Purchase package name<input className={input} value={purchaseName} onChange={event => setPurchaseName(event.target.value)}/></label>
         <label className="block text-sm">Number of units per package<input className={input} type="number" min="1" step="1" value={unitsPerPackage} onChange={event => setUnitsPerPackage(Number(event.target.value))}/></label>
         <div className="grid grid-cols-2 gap-2"><label className="block text-sm">{isSealedContainer ? 'Size of one bottle (ml)' : 'Stock quantity in one unit'}<input className={input} type="number" min="0.000001" step="any" value={contents} onChange={event => setContents(Number(event.target.value))}/></label><label className="block text-sm">Measurement unit<select className={input} disabled={isSealedContainer} value={unit} onChange={event => setUnit(event.target.value)}>{['piece', 'g', 'kg', 'ml', 'l'].map(value => <option key={value}>{value}</option>)}</select></label></div>
@@ -355,14 +370,15 @@ export function SmartItemDialog({ records, session, disabled, command, onClose }
       {step === 3 && <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
         <h3 className="font-bold">Review before saving</h3><p>{name} - {code}</p>
         <p>{setupKind === 'STOCK_ONLY' ? 'Stock-only item' : `${setupKind === 'RECIPE' ? 'Recipe item' : 'Sellable at ' + cash(price)} - ${routeTo}`}</p>
-        {setupKind === 'BATCH' ? <p>{recipeYield} portions per batch; {recipeIngredients.length} ingredient(s) are converted to per-portion recipe quantities. Estimated cost {Number.isFinite(recipeCostMinor) ? cash(recipeCostMinor / 100) : 'unavailable'} per portion. Linked finished stock begins at zero.</p> : setupKind === 'RECIPE' ? <p>{recipeIngredients.length} recipe ingredient(s); estimated cost {Number.isFinite(recipeCostMinor) ? cash(recipeCostMinor / 100) : 'unavailable'} per sale.</p> : <p>{calculation ? `${purchaseName}: ${calculation.pkg.baseQuantity} ${baseUnit} per package; ${openingPackages} packages opened as ${calculation.opening} ${baseUnit}.${isSealedContainer ? ` ${unitsPerPackage} sealed bottles at ${contents} ml each; ${saleQuantity} ml per pour${wholeContainerPrice > 0 ? `; whole bottle ${cash(wholeContainerPrice)}` : ''}.` : ''}` : 'Package details are incomplete.'}</p>}
-        <p className="text-xs text-slate-400">{setupKind === 'RECIPE' ? 'The validated product.save command records the menu item and recipe. Ingredient stock is consumed when the order is fired.' : 'The server creates the catalog record, stock master, link, and optional opening movement atomically. A rejection leaves all of them unchanged.'}</p>
+        {setupKind!=='STOCK_ONLY'&&<p>Tax: {taxClassId==='A_16'?`Standard VAT at the configured ${standardVatRate}% rate`:taxClassId==='B_0'?'Zero-rated':taxClassId==='C_EXEMPT'?'Exempt':'Choose a tax classification'}</p>}
+        {setupKind === 'SERVICE' ? <p>This service has no tracked stock. It will be available at {outletIds.map(id=>String(outlets.find(outlet=>outlet.id===id)?.data.name||id)).join(', ')}.</p> : setupKind === 'BATCH' ? <p>{recipeYield} portions per batch; {recipeIngredients.length} ingredient(s) are converted to per-portion recipe quantities. Estimated cost {Number.isFinite(recipeCostMinor) ? cash(recipeCostMinor / 100) : 'unavailable'} per portion. Linked finished stock begins at zero.</p> : setupKind === 'RECIPE' ? <p>{recipeIngredients.length} recipe ingredient(s); estimated cost {Number.isFinite(recipeCostMinor) ? cash(recipeCostMinor / 100) : 'unavailable'} per sale.</p> : setupKind === 'STOCK_ONLY' ? <p>{calculation ? `${purchaseName}: ${calculation.pkg.baseQuantity.toLocaleString()} ${baseUnit} per package; ${openingPackages} packages will be recorded as opening stock (${calculation.opening.toLocaleString()} ${baseUnit}).` : 'Package details are incomplete.'} No sellable product will be created.</p> : <p>{calculation ? `${purchaseName}: ${calculation.pkg.baseQuantity.toLocaleString()} ${baseUnit} per package; ${openingPackages} packages opened as ${calculation.opening.toLocaleString()} ${baseUnit}.${isSealedContainer ? ` ${unitsPerPackage} sealed bottles at ${contents} ml each; ${saleQuantity} ml per pour${wholeContainerPrice > 0 ? `; whole bottle ${cash(wholeContainerPrice)}` : ''}.` : ''}` : 'Package details are incomplete.'}</p>}
+        <p className="text-xs text-slate-400">{setupKind === 'SERVICE' ? 'This product is not linked to an inventory balance.' : setupKind === 'RECIPE' ? 'The validated product.save command records the menu item and recipe. Ingredient stock is consumed when the order is fired.' : 'The server creates the catalog record, stock master, link, and optional opening movement atomically. A rejection leaves all of them unchanged.'}</p>
       </div>}
       {error && <p role="alert" className="rounded-lg border border-rose-800 p-3 text-sm text-rose-200">{error}</p>}
     </div>
     <div className="mt-4 flex justify-between gap-2 border-t border-slate-800 pt-3">
-      <button type="button" className={button} disabled={busy || pendingReview || step === 0} onClick={() => setStep(value => Math.max(0, value - 1))}>Back</button>
-      {step < 3 ? <button type="button" className={primary} disabled={disabled || busy || pendingReview} onClick={next}>Continue</button> : <button type="button" className={primary} disabled={disabled || busy || pendingReview || (setupKind === 'RECIPE' || setupKind === 'BATCH') && (!outlets.length || !recipeIngredients.length) || setupKind === 'BATCH' && (!locationId || !Number.isInteger(recipeYield) || recipeYield < 1) || setupKind !== 'RECIPE' && setupKind !== 'BATCH' && (!calculation || !locationId || setupKind === 'STOCKED' && !outlets.length)} onClick={() => void save()}>{busy ? 'Saving item...' : pendingReview ? 'Check save status' : setupKind === 'RECIPE' ? 'Save recipe item' : 'Save item and opening stock'}</button>}
+      <button type="button" className={button} disabled={busy || pendingReview || step === 0} onClick={() => setStep(value => setupKind==='SERVICE'&&value===3?1:Math.max(0,value-1))}>Back</button>
+      {step < 3 ? <button type="button" className={primary} disabled={disabled || busy || pendingReview} onClick={next}>Continue</button> : <button type="button" className={primary} disabled={disabled||busy||pendingReview||setupKind==='SERVICE'&&(!outletIds.length||!taxClassId)||(['RECIPE','BATCH'].includes(setupKind)&&(!outletIds.length||!taxClassId||!recipeIngredients.length))||setupKind==='BATCH'&&(!locationId||!Number.isInteger(recipeYield)||recipeYield<1)||(['STOCKED','STOCK_ONLY'].includes(setupKind)&&(!calculation||!locationId||setupKind==='STOCKED'&&(!outletIds.length||!taxClassId)))} onClick={() => void save()}>{busy ? 'Saving item...' : pendingReview ? 'Check save status' : setupKind === 'SERVICE' ? 'Save service item' : setupKind === 'RECIPE' ? 'Save recipe item' : setupKind==='STOCK_ONLY'?'Save stock item':'Save item and opening stock'}</button>}
     </div>
   </Dialog>;
 }

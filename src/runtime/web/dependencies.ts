@@ -119,7 +119,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
       if (ingredient && typeof ingredient === 'object') add('stockItems', (ingredient as Record<string, unknown>).stockItemId);
     }
   }
-  if (operation === 'order.create' || operation === 'order.addItem') {
+  if (operation === 'order.create' || operation === 'order.addItem' || operation === 'order.quickAdd') {
     add('posPolicy', 'policy');
     const product = typeof payload.productId === 'string' ? byKey.get(key('products', payload.productId)) : undefined;
     const productData = product?.data as Record<string, unknown> | undefined;
@@ -137,6 +137,10 @@ export function resolveOperationDependencies(operation: string, collection: stri
       const adjustments = Array.isArray(entry.ingredientAdjustments) ? entry.ingredientAdjustments : [];
       for (const adjustment of adjustments) if (adjustment && typeof adjustment === 'object') add('stockItems', (adjustment as Record<string, unknown>).stockItemId);
     }
+  }
+  if (operation === 'order.quickAdd') {
+    const outlet = typeof payload.outletId === 'string' ? byKey.get(key('outlets', payload.outletId)) : undefined;
+    add('stockLocations', outlet?.data.defaultStockLocationId);
   }
   const order = collection === 'orders' ? byKey.get(key('orders', id)) : undefined;
   if (operation === 'payment.refund' || operation === 'payment.reverse') {

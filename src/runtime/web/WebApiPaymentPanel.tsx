@@ -22,7 +22,7 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
   if(!order||disabled||busy||pendingId)return;
   if(window.document.querySelector('[role="dialog"]')){setMessage('Finish the open review before recording payment.');return;}
   const till=records.find(row=>row.collection==='tillSessions'&&row.data.status==='OPEN'&&row.data.operatorId===session.actorId&&row.data.deviceId===deviceId&&row.data.outletId===order.data.outletId);
-  if(!till){setMessage('Open your till in this order’s outlet before recording payment.');return;}
+   if(!till){setMessage('Start a shift for this sale’s outlet before recording payment.');return;}
   const accounts=records.filter(row=>row.collection==='paymentAccounts'&&!row.archived&&(row.data.method!=='MPESA'||allowed(session,'mpesa.record')));
   if(!accounts.length){setMessage('An authorized administrator must configure a payment account.');return;}
   const account=accounts.find(row=>row.data.method==='CASH')||accounts[0];

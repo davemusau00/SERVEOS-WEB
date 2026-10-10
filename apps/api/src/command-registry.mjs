@@ -17,6 +17,7 @@ import {closeDayCommandRegistry} from './close-day-commands.mjs';
 import {outletCommandRegistry} from './outlet-commands.mjs';
 import {printCommandRegistry} from './print-commands.mjs';
 import {businessTaxCommandRegistry} from './business-tax.mjs';
+import {businessSetupCommandRegistry} from './business-setup.mjs';
 import {paymentCommandRegistry} from './payment-commands.mjs';
 import {paymentAccountCommandRegistry} from './payment-accounts.mjs';
 import {tillCommandRegistry} from './till-commands.mjs';
@@ -38,6 +39,7 @@ export function createApiCommandRegistry() {
     posCommandRegistry, offlinePosCommandRegistry, floorplanCommandRegistry, roomCommandRegistry,
     hospitalityCommandRegistry, financeAssetCommandRegistry, tillCommandRegistry,
     paymentAccountCommandRegistry, paymentCommandRegistry, businessTaxCommandRegistry,
+    businessSetupCommandRegistry,
     printCommandRegistry, outletCommandRegistry, refundCommandRegistry, closeDayCommandRegistry,
   ];
   const registry = new Map();

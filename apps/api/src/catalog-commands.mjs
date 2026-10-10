@@ -209,6 +209,8 @@ const reactivateStockLocation=masterArchive({table:'stock_locations',entityType:
 const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   await tx.lockInventoryCatalog(actor.businessId);
   const {id, stockItem: stock, product, locationId, startingQuantity = 0, openingMovementId} = command.payload;
+  if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('inventory.adjust'))throw new ApiProblem(403,'PERMISSION_DENIED','Inventory adjustment permission is required to create stock or post opening quantities.');
+  if(product&&!actor.permissions?.includes('*')&&!actor.permissions?.includes('catalog.manage'))throw new ApiProblem(403,'PERMISSION_DENIED','Catalog management permission is required to create a sellable product.');
   const stockId = stock?.id ?? id;
   if (!uuid(id) || !stock || typeof stock !== 'object' || !uuid(stockId) || !uuid(locationId)) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Opening stock setup requires valid stock item and location IDs.');
   if (!await tx.requireStockLocation(actor.businessId, locationId)) throw new ApiProblem(409, 'RESOURCE_CONFLICT', 'The selected stock location is missing or archived.');
@@ -237,7 +239,7 @@ const catalogCreateWithOpeningStock = async ({tx, command, actor, at}) => {
   let productResult = null;const openingMovements=[];
   if (product && typeof product === 'object') {
     const productId = product.id ?? `${id}:product`;
-    const productData = {...product, stockItemId: product.stockItemId || (product.inventoryType === 'BATCH' ? stockId : null)};
+    const productData = {...product, stockItemId: product.stockItemId || (product.inventoryType === 'RECIPE' ? null : stockId)};
     if (!uuid(productId)) throw new ApiProblem(400,'VALIDATION_FAILED','Product ID must be a UUID.');
     const normalizedProductData = {...productData, priceMinor:productData.priceMinor ?? (Number.isFinite(productData.price)?Math.round(productData.price*100):undefined),portionVolume:productData.portionVolume,sellingMode:productData.sellingMode,portions:productData.portions,inventoryType:productData.inventoryType};
     for(const ingredient of normalizedProductData.recipeIngredients||[])if(ingredient&&uuid(ingredient.stockItemId))expectedVersion(command,'stockItems',ingredient.stockItemId);
@@ -449,7 +451,7 @@ export const catalogCommandRegistry = new Map([
   ['stockItem.reactivate',{permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:reactivateStockItem}],
   ['stockLocation.archive',{permission:'inventory.adjust',offlinePolicy:'ONLINE_ONLY',handler:archiveStockLocation}],
   ['stockLocation.reactivate',{permission:'inventory.adjust',offlinePolicy:'ONLINE_ONLY',handler:reactivateStockLocation}],
-  ['catalog.createWithOpeningStock', {permission:'catalog.manage',offlinePolicy:'ONLINE_ONLY',handler:catalogCreateWithOpeningStock}],
+  ['catalog.createWithOpeningStock', {permission:'catalog.manage',permissionAny:['catalog.manage','inventory.adjust'],offlinePolicy:'ONLINE_ONLY',handler:catalogCreateWithOpeningStock}],
   ['inventory.countLocation',{permission:'inventory.count',offlinePolicy:'ONLINE_ONLY',handler:inventoryCount}],
   ['inventory.countSelected',{permission:'inventory.count',offlinePolicy:'ONLINE_ONLY',handler:inventoryCount}],
   ['inventory.transfer',{permission:'inventory.transfer',offlinePolicy:'ONLINE_ONLY',handler:inventoryMovement}],

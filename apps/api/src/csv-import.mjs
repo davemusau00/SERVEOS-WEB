@@ -2,7 +2,8 @@ import {createHash, randomUUID} from 'node:crypto';
 import {ApiProblem, commandHash, executeCommand} from './command-kernel.mjs';
 
 export const API_IMPORT_TEMPLATES = Object.freeze([
-  {key:'products',label:'Products',permission:'catalog.manage',headers:['external_id','name','code','price','category','barcode','stock_item_external_id','outlet_external_ids'],required:['external_id','name','code','price']},
+  {key:'products',label:'Products (existing stock references)',permission:'catalog.manage',headers:['external_id','name','code','price','category','barcode','stock_item_external_id','outlet_external_ids'],required:['external_id','name','code','price']},
+  {key:'sellableItems',label:'Products and opening stock (simple)',permission:'catalog.manage',permissions:['catalog.manage','inventory.adjust'],headers:['name','code','stock_mode','price','category','barcode','tax_class_id','service_area','outlet_names','stock_location_name','base_unit','units_per_package','quantity_per_unit','purchase_price','opening_packages','reorder_level','container_size','portion_size','selling_mode','whole_container_price'],required:['name','code','stock_mode']},
   {key:'stockItems',label:'Stock items',permission:'catalog.manage',headers:['external_id','name','code','base_unit','reorder_level','barcode'],required:['external_id','name','code','base_unit']},
   {key:'stockLocations',label:'Stock locations',permission:'catalog.manage',permissions:['catalog.manage','inventory.adjust'],headers:['external_id','name','code','type'],required:['external_id','name']},
   {key:'outlets',label:'Outlets',permission:'business.configure',headers:['external_id','name','default_stock_location_external_id'],required:['external_id','name','default_stock_location_external_id']},
@@ -26,7 +27,7 @@ const ownPermission=(actor,definition)=>actor.permissions?.includes('*')||(defin
 const iso=value=>value instanceof Date?value.toISOString():value;
 const problem=(status,code,message)=>{throw new ApiProblem(status,code,message)};
 const normalizedHeader=value=>String(value??'').trim().toLowerCase();
-const uniqueColumns={products:['code','barcode'],stockItems:['code','barcode'],stockLocations:['code'],outlets:[],suppliers:['code'],roomTypes:['code'],rooms:['room_number'],ratePlans:[],hotelServices:['code'],assetCategories:['code'],assets:['asset_tag'],customers:[]};
+const uniqueColumns={products:['code','barcode'],sellableItems:['code','barcode'],stockItems:['code','barcode'],stockLocations:['code'],outlets:[],suppliers:['code'],roomTypes:['code'],rooms:['room_number'],ratePlans:[],hotelServices:['code'],assetCategories:['code'],assets:['asset_tag'],customers:[]};
 
 export function parseCsv(csvText){
   if(typeof csvText!=='string')problem(400,'VALIDATION_FAILED','CSV content must be text.');
@@ -94,8 +95,8 @@ function parseRows(template,csvText){
     const errors=[];
     if(values.length!==headers.length)errors.push(`Expected ${headers.length} columns but found ${values.length}.`);
     const normalized=Object.fromEntries(headers.map((header,column)=>[keys[column],values[column]??'']));
-    const externalId=text(values[externalColumn]);
-    if(!externalId)errors.push('external_id is required.');else if(externalId.length>200)errors.push('external_id may not exceed 200 characters.');
+    const externalId=template.key==='sellableItems'?text(normalized.code):text(values[externalColumn]);
+    if(!externalId)errors.push(template.key==='sellableItems'?'code is required and also identifies the imported item.':'external_id is required.');else if(externalId.length>200)errors.push('The import reference may not exceed 200 characters.');
     const key=externalId.toLocaleLowerCase('en-US');if(key&&externalIds.has(key))errors.push('external_id is duplicated within this file.');externalIds.add(key);
     for(const [column,seen] of uniqueValues){const value=text(normalized[column]).toLocaleLowerCase('en-US');if(!value)continue;if(seen.has(value))errors.push(`${column} duplicates row ${seen.get(value)} within this file.`);else seen.set(value,index+2)}
     for(const name of template.required)if(!text(normalized[name]))errors.push(`${name} is required.`);
@@ -110,8 +111,45 @@ function parseRows(template,csvText){
     if(normalized.currency&&text(normalized.currency).toUpperCase()!=='KES')errors.push('Only KES is supported by this API importer.');
     if(normalized.acquisition_date){try{date(normalized.acquisition_date,'Acquisition date')}catch(error){errors.push(error.message)}}
     if(normalized.acquisition_cost!==undefined&&text(normalized.acquisition_cost)){try{minorUnits(normalized.acquisition_cost,'Acquisition cost')}catch(error){errors.push(error.message)}}
+    if(template.key==='sellableItems'){
+      const mode=text(normalized.stock_mode).toUpperCase();
+      if(!['SERVICE','TRACKED','SPIRIT','WINE','STOCK_ONLY'].includes(mode))errors.push('stock_mode must be SERVICE, TRACKED, SPIRIT, WINE, or STOCK_ONLY.');
+      const sells=mode!=='STOCK_ONLY',tracks=mode!=='SERVICE';
+      if(sells){
+        if(!text(normalized.price))errors.push('price is required for a sellable item.');else{try{minorUnits(normalized.price,'Price')}catch(error){errors.push(error.message)}}
+        if(!['A_16','B_0','C_EXEMPT'].includes(text(normalized.tax_class_id)))errors.push('tax_class_id must be A_16, B_0, or C_EXEMPT.');
+        if(!['BAR','KITCHEN','ROOMS'].includes(text(normalized.service_area).toUpperCase()))errors.push('service_area must be BAR, KITCHEN, or ROOMS.');
+        const outletNames=text(normalized.outlet_names).split(';').map(text).filter(Boolean);
+        if(!outletNames.length)errors.push('outlet_names must identify at least one existing outlet; separate names with semicolons.');
+        if(new Set(outletNames.map(value=>value.toLocaleLowerCase('en-US'))).size!==outletNames.length)errors.push('outlet_names contains a duplicate outlet.');
+      }
+      if(!sells&&['price','tax_class_id','service_area','outlet_names'].some(key=>text(normalized[key])))errors.push('Clear selling fields when stock_mode is STOCK_ONLY.');
+      if(tracks){
+        if(!text(normalized.stock_location_name))errors.push('stock_location_name is required for tracked stock.');
+        if(!['each','piece','g','kg','ml','l'].includes(text(normalized.base_unit).toLowerCase()))errors.push('base_unit must be each, piece, g, kg, ml, or l.');
+        try{whole(normalized.units_per_package,'Units per package',{min:1,max:100000})}catch(error){errors.push(error.message)}
+        try{decimal(normalized.quantity_per_unit,'Quantity per unit',{min:Number.MIN_VALUE})}catch(error){errors.push(error.message)}
+        if(!text(normalized.purchase_price))errors.push('purchase_price is required for tracked stock.');else{try{minorUnits(normalized.purchase_price,'Purchase price')}catch(error){errors.push(error.message)}}
+        try{whole(normalized.opening_packages,'Opening packages',{fallback:0,max:100000})}catch(error){errors.push(error.message)}
+        if(normalized.reorder_level&&text(normalized.reorder_level)){try{decimal(normalized.reorder_level,'Reorder level')}catch(error){errors.push(error.message)}}
+        const packageCount=Number(text(normalized.units_per_package)),unitQuantity=Number(text(normalized.quantity_per_unit)),openingCount=Number(text(normalized.opening_packages)||0);
+        if(Number.isFinite(packageCount*unitQuantity)&&(packageCount*unitQuantity>1_000_000_000||Math.abs(packageCount*unitQuantity*1_000_000-Math.round(packageCount*unitQuantity*1_000_000))>0.0001))errors.push('Package quantity exceeds the supported range or precision.');
+        if(Number.isFinite(packageCount*unitQuantity*openingCount)&&packageCount*unitQuantity*openingCount>1_000_000_000)errors.push('Opening stock quantity exceeds the supported range.');
+      }
+      if(mode==='SPIRIT'||mode==='WINE'){
+        if(text(normalized.base_unit).toLowerCase()!=='ml')errors.push('SPIRIT and WINE stock must use base_unit ml.');
+        try{decimal(normalized.container_size,'Container size',{min:Number.MIN_VALUE})}catch(error){errors.push(error.message)}
+        const containerSize=Number(text(normalized.container_size)),quantityPerUnit=Number(text(normalized.quantity_per_unit));
+        if(Number.isFinite(containerSize*quantityPerUnit)&&Math.abs(containerSize-quantityPerUnit)>0.000001)errors.push('For SPIRIT and WINE, quantity_per_unit must equal container_size.');
+        const sellingMode=text(normalized.selling_mode)||'SERVING_AND_BOTTLE';
+        if(!['SERVING_AND_BOTTLE','BOTTLE_ONLY'].includes(sellingMode))errors.push('selling_mode must be SERVING_AND_BOTTLE or BOTTLE_ONLY.');
+        if(sellingMode==='SERVING_AND_BOTTLE'){try{decimal(normalized.portion_size,'Portion size',{min:Number.MIN_VALUE})}catch(error){errors.push(error.message)}}
+        if(text(normalized.whole_container_price)){try{minorUnits(normalized.whole_container_price,'Whole-container price')}catch(error){errors.push(error.message)}}
+      }else if(['container_size','portion_size','selling_mode','whole_container_price'].some(key=>text(normalized[key])))errors.push('Container and portion fields are only valid for SPIRIT or WINE items.');
+      if(!tracks&&['stock_location_name','base_unit','units_per_package','quantity_per_unit','purchase_price','opening_packages','reorder_level'].some(key=>text(normalized[key])))errors.push('Clear stock fields when stock_mode is SERVICE.');
+    }
     if(template.key==='assets'&&Boolean(text(normalized.room_external_id))===Boolean(text(normalized.stock_location_external_id)))errors.push('Provide exactly one of room_external_id or stock_location_external_id.');
-    for(const [key,max] of Object.entries({name:160,code:80,category:80,phone:80,email:254,address:2000,notes:2000,contact_name:160,asset_tag:80,room_number:40,base_unit:40,external_id:200}))if(normalized[key]!==undefined&&text(normalized[key]).length>max)errors.push(`${key} exceeds ${max} characters.`);
+    for(const [key,max] of Object.entries({name:160,code:80,category:80,phone:80,email:254,address:2000,notes:2000,contact_name:160,asset_tag:80,room_number:40,base_unit:40,external_id:200,stock_location_name:120,outlet_names:1000,tax_class_id:20,service_area:40,stock_mode:40,selling_mode:40}))if(normalized[key]!==undefined&&text(normalized[key]).length>max)errors.push(`${key} exceeds ${max} characters.`);
     return {rowNumber:index+2,externalId:externalId||null,values:normalized,errors:[...new Set(errors)],status:errors.length?'INVALID':'VALID'};
   });
   return {headers,rows};
@@ -150,7 +188,7 @@ const expected=(collection,id,value)=>({[`${collection}:${id}`]:value});
 const relationVersion=async(tx,businessId,map,collection)=>expected(map.collection,map.id,await version(tx,businessId,map.collection,map.id));
 
 async function commandForRow(tx,actor,template,row){
-  const v=row.values,id=randomUUID(),externalId=row.externalId;let name,payload,expectedVersions=expected(template.key,id,0),targetCollection=template.key;
+  const v=row.values,id=randomUUID(),externalId=row.externalId;let name,payload,expectedVersions=expected(template.key,id,0),targetCollection=template.key,requiredPermissions=[];
   const requireExternal=async(namespace,externalId,collection)=>{const found=await importedId(tx,actor.businessId,namespace,externalId);if(collection&&found.collection!==collection)throw new ApiProblem(409,'IMPORT_REFERENCE_TYPE','The referenced external ID belongs to another record type.');Object.assign(expectedVersions,await relationVersion(tx,actor.businessId,found));return found.id};
   const requireMap=(key,namespace,collection)=>requireExternal(namespace,v[key],collection);
   switch(template.key){
@@ -167,6 +205,49 @@ async function commandForRow(tx,actor,template,row){
         ...optionalPlain(v.category,'category','Category',80),
         ...optionalPlain(v.barcode,'barcode','Barcode',120),
       }};
+      break;
+    }
+    case 'sellableItems':{
+      const mode=text(v.stock_mode).toUpperCase(),sells=mode!=='STOCK_ONLY',tracks=mode!=='SERVICE';
+      const code=plain(v.code,'Product code',80),itemName=plain(v.name,'Item name',160);
+      let outletIds=[];
+      if(sells){
+        const requested=[...new Set(text(v.outlet_names).split(';').map(item=>item.trim()).filter(Boolean).map(item=>item.toLocaleLowerCase('en-US')))];
+        outletIds=[];
+        for(const outletName of requested){
+          const result=await tx.client.query('SELECT id FROM business_outlets WHERE business_id=$1 AND lower(name)=lower($2) AND archived_at IS NULL ORDER BY id',[actor.businessId,outletName]);
+          if(result.rows.length!==1)throw new ApiProblem(409,result.rows.length?'IMPORT_REFERENCE_AMBIGUOUS':'IMPORT_REFERENCE_MISSING',result.rows.length?`Outlet name "${outletName}" matches more than one active outlet.`:`Outlet "${outletName}" was not found. Use an existing outlet name exactly as shown in Settings.`);
+          const outlet={collection:'outlets',id:result.rows[0].id};outletIds.push(outlet.id);Object.assign(expectedVersions,await relationVersion(tx,actor.businessId,outlet,'outlets'));
+        }
+        requiredPermissions.push('catalog.manage');
+      }
+      if(tracks){
+        const locationResult=await tx.client.query('SELECT id FROM stock_locations WHERE business_id=$1 AND lower(name)=lower($2) AND archived_at IS NULL ORDER BY id',[actor.businessId,plain(v.stock_location_name,'Storage location name',120)]);
+        if(locationResult.rows.length!==1)throw new ApiProblem(409,locationResult.rows.length?'IMPORT_REFERENCE_AMBIGUOUS':'IMPORT_REFERENCE_MISSING',locationResult.rows.length?'That storage place name matches more than one active location.':'The named storage place was not found. Use an existing storage place name exactly as shown in Inventory.');
+        const locationId=locationResult.rows[0].id,locationMap={collection:'stockLocations',id:locationId},locationVersion=await version(tx,actor.businessId,'stockLocations',locationId);
+        if(locationVersion<1)throw new ApiProblem(409,'IMPORT_REFERENCE_MISSING','The selected storage place has no current version. Refresh the workspace and try again.');
+        const unitsPerPackage=whole(v.units_per_package,'Units per package',{min:1,max:100000}),quantityPerUnit=decimal(v.quantity_per_unit,'Quantity per unit',{min:Number.MIN_VALUE}),packageQuantity=Number((unitsPerPackage*quantityPerUnit).toFixed(6));
+        if(!Number.isFinite(packageQuantity)||packageQuantity<=0||packageQuantity>1_000_000_000)throw new ApiProblem(400,'VALIDATION_FAILED','Package quantity is outside the supported range.');
+        const baseUnit=plain(v.base_unit,'Base unit',40).toLowerCase();
+        if((mode==='SPIRIT'||mode==='WINE')&&(baseUnit!=='ml'||Math.abs(quantityPerUnit-decimal(v.container_size,'Container size',{min:Number.MIN_VALUE}))>0.000001))throw new ApiProblem(400,'VALIDATION_FAILED','For spirits and wine, use ml and make quantity_per_unit equal container_size.');
+        const stockId=randomUUID(),movementId=randomUUID(),packageCostMinor=minorUnits(v.purchase_price,'Purchase price'),openingPackages=whole(v.opening_packages,'Opening packages',{fallback:0,max:100000}),startingQuantity=Number((openingPackages*packageQuantity).toFixed(6));
+        const stockCode=`${code.slice(0,58)}-STOCK-${stockId.slice(0,6).toUpperCase()}`;
+        const stockItem={id:stockId,name:itemName,code:stockCode,baseUnit,barcode:text(v.barcode)?plain(v.barcode,'Barcode',120):undefined,scanUnitQuantity:quantityPerUnit,reorderLevel:decimal(v.reorder_level,'Reorder level',{fallback:0}),averageUnitCostMinor:packageCostMinor/packageQuantity,...(mode==='SPIRIT'||mode==='WINE'?{sealedContainerSize:decimal(v.container_size,'Container size',{min:Number.MIN_VALUE})}:{}),purchasePackages:[{id:randomUUID(),name:`${unitsPerPackage} unit package`,baseQuantity:packageQuantity,unitCostMinor:packageCostMinor,barcode:null}]};
+        const productId=sells?id:undefined,openingMovementId=startingQuantity>0?movementId:undefined;
+        expectedVersions=expected('stockItems',stockId,0);
+        Object.assign(expectedVersions,expected('stockLocations',locationId,locationVersion));
+        if(startingQuantity>0)Object.assign(expectedVersions,expected('stockMovements',movementId,0));
+        if(productId)Object.assign(expectedVersions,expected('products',productId,0));
+        const product=productId?{
+          id:productId,name:itemName,code,priceMinor:minorUnits(v.price,'Price'),category:plain(text(v.category)||'GENERAL','Category',80),barcode:text(v.barcode)?plain(v.barcode,'Barcode',120):undefined,
+          inventoryType:mode==='SPIRIT'||mode==='WINE'?mode:'STOCKED',routeTo:plain(v.service_area,'Service area',40).toUpperCase(),outletIds,taxClassId:plain(v.tax_class_id,'Tax classification',20),favorite:false,
+          ...(mode==='SPIRIT'||mode==='WINE'?(()=>{const sellingMode=text(v.selling_mode)||'SERVING_AND_BOTTLE',containerSize=decimal(v.container_size,'Container size',{min:Number.MIN_VALUE}),serving=sellingMode==='BOTTLE_ONLY'?containerSize:decimal(v.portion_size,'Portion size',{min:Number.MIN_VALUE}),wholePrice=text(v.whole_container_price)?minorUnits(v.whole_container_price,'Whole-container price'):0;const portions=sellingMode==='BOTTLE_ONLY'?[{id:'whole-container',name:'Whole bottle',volume:containerSize,priceMinor:minorUnits(v.price,'Price'),wholeContainerSale:true}]:[{id:'serving',name:mode==='WINE'?'Glass':'Pour',volume:serving,priceMinor:minorUnits(v.price,'Price')},...(wholePrice>0?[{id:'whole-container',name:'Whole bottle',volume:containerSize,priceMinor:wholePrice,wholeContainerSale:true}]:[])];return {portionVolume:serving,sellingMode,portions}})():{portionVolume:quantityPerUnit,portions:[{id:'each',name:'Each',volume:quantityPerUnit,priceMinor:minorUnits(v.price,'Price')}]})
+        }:null;
+        name='catalog.createWithOpeningStock';payload={id:stockId,stockItem,...(product?{product}:{}),locationId,startingQuantity,...(openingMovementId?{openingMovementId}:{})};targetCollection=product?'products':'stockItems';requiredPermissions.push('inventory.adjust');
+      }else{
+        name='product.save';expectedVersions=expected('products',id,0);targetCollection='products';
+        payload={id,data:{name:itemName,code,priceMinor:minorUnits(v.price,'Price'),category:plain(text(v.category)||'GENERAL','Category',80),...(text(v.barcode)?{barcode:plain(v.barcode,'Barcode',120)}:{}),routeTo:plain(v.service_area,'Service area',40).toUpperCase(),outletIds,taxClassId:plain(v.tax_class_id,'Tax classification',20),favorite:false}};
+      }
       break;
     }
     case 'stockItems':name='stockItem.save';payload={id,data:{
@@ -243,7 +324,8 @@ async function commandForRow(tx,actor,template,row){
   }
   if(!name)throw new ApiProblem(400,'IMPORT_TEMPLATE_UNSUPPORTED','This template is not supported by the ServOS API importer.');
   for(const key of Object.keys(expectedVersions))if(key!==`${template.key}:${id}`){}
-  return {command:{commandId:randomUUID(),name,payload,expectedVersions},externalId,rowNumber:row.rowNumber,targetCollection,targetId:id};
+  const targetId=name==='catalog.createWithOpeningStock'&&targetCollection==='stockItems'?payload.id:id;
+  return {command:{commandId:randomUUID(),name,payload,expectedVersions},externalId,rowNumber:row.rowNumber,targetCollection,targetId,requiredPermissions};
 }
 
 export async function planImport({store,registry,actor,batchId}){
@@ -260,6 +342,7 @@ export async function planImport({store,registry,actor,batchId}){
         const built=await commandForRow(tx,actor,template,row);const definition=registry.get(built.command.name);if(!definition)throw new ApiProblem(409,'IMPORT_COMMAND_UNAVAILABLE',`API command ${built.command.name} is unavailable.`);
         step.operation=built.command.name;step.targetCollection=built.targetCollection;step.targetId=built.targetId;step.command=built.command;
         if(!ownPermission(actor,definition))throw new ApiProblem(403,'IMPORT_DOMAIN_PERMISSION',`The ${definition.permissionAny?.join(' or ')||definition.permission} permission is required for this row.`);
+        for(const permission of built.requiredPermissions||[])requirePermission(actor,permission);
         await tx.client.query('SAVEPOINT api_import_dry_run');await tx.assertExpectedVersions(actor.businessId,built.command.expectedVersions);await definition.handler({tx,command:built.command,actor,at:new Date()});await tx.client.query('ROLLBACK TO SAVEPOINT api_import_dry_run');await tx.client.query('RELEASE SAVEPOINT api_import_dry_run');
         step.status='PLANNED';step.reason='Create validated by the current API domain rules.';
       }catch(error){

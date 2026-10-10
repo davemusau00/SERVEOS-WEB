@@ -24,6 +24,24 @@ test('supported API templates validate create-only master rows and keep unsafe i
  assert.equal(API_IMPORT_TEMPLATES.some(template=>template.key==='inventory'),false);
 });
 
+test('simple item import validates sellable service, tracked, bottle, and stock-only rows',()=>{
+ const template=API_IMPORT_TEMPLATES.find(item=>item.key==='sellableItems');
+ const line=values=>template.headers.map(header=>values[header]||'').join(',');
+ const rows=[
+  {name:'Room service',code:'ROOM-SVC',stock_mode:'SERVICE',price:'250',tax_class_id:'A_16',service_area:'ROOMS',outlet_names:'Front Desk'},
+  {name:'Soda can',code:'SODA-CAN',stock_mode:'TRACKED',price:'120',tax_class_id:'B_0',service_area:'BAR',outlet_names:'Main Bar',stock_location_name:'Main Store',base_unit:'ml',units_per_package:'24',quantity_per_unit:'330',purchase_price:'1800',opening_packages:'2',reorder_level:'500'},
+  {name:'House spirit',code:'HOUSE-SPIRIT',stock_mode:'SPIRIT',price:'150',tax_class_id:'A_16',service_area:'BAR',outlet_names:'Main Bar',stock_location_name:'Main Store',base_unit:'ml',units_per_package:'12',quantity_per_unit:'750',purchase_price:'24000',opening_packages:'1',container_size:'750',portion_size:'45',selling_mode:'SERVING_AND_BOTTLE',whole_container_price:'1800'},
+  {name:'Bar napkins',code:'NAPKIN',stock_mode:'STOCK_ONLY',stock_location_name:'Main Store',base_unit:'each',units_per_package:'100',quantity_per_unit:'1',purchase_price:'500',opening_packages:'4'},
+ ];
+ const result=validateImportCsv('sellableItems',`${template.headers.join(',')}\n${rows.map(line).join('\n')}\n`);
+ assert.deepEqual(result.rows.map(row=>row.status),['VALID','VALID','VALID','VALID']);
+ assert.deepEqual(result.rows.map(row=>row.externalId),['ROOM-SVC','SODA-CAN','HOUSE-SPIRIT','NAPKIN']);
+ const invalid=validateImportCsv('sellableItems',`${template.headers.join(',')}\n${line({...rows[1],tax_class_id:'FAKE'})}\n`);
+ assert.match(invalid.rows[0].errors.join(' '),/tax_class_id/u);
+ assert.equal(validateImportCsv('sellableItems',`${template.headers.join(',')}\n${line({...rows[2],quantity_per_unit:'700'})}\n`).rows[0].status,'INVALID');
+ assert.equal(validateImportCsv('sellableItems',`${template.headers.join(',')}\n${line({...rows[0],stock_location_name:'Main Store'})}\n`).rows[0].status,'INVALID');
+});
+
 test('stock-item CSV keeps the supported columns and accepts rows without sealed-container data',()=>{
  const template=API_IMPORT_TEMPLATES.find(item=>item.key==='stockItems');
  assert.deepEqual(template.headers,['external_id','name','code','base_unit','reorder_level','barcode']);

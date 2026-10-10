@@ -15,10 +15,10 @@ ServOS is a web-based hospitality ERP/POS delivered as a PWA against a Node API 
 
 ## Local verification
 
-- `npm run lint`, `npm run contracts:check`, and `npm run architecture:check` passed.
-- `npm run build`, `npm test` (23 passed), and `npm run docs:check` passed.
-- API unit tests passed (23 passed). Seven PostgreSQL integration suites were skipped because `TEST_DATABASE_URL` is unset; the Docker service is stopped and no local PostgreSQL service is installed.
-- Production browser checks passed at desktop and mobile viewports (10 tests each). The API catalog workflow now visits every workspace exposed to the signed-in session and checks navigation state and horizontal document overflow at both sizes. The wider suite covers PWA bootstrap, API login/catalog sync, IndexedDB recovery and offline shell behavior; it does not establish full operator workflow acceptance.
+- `npm run verify:fast` passed: lint, API contracts, architecture checks, build and the 23 root tests.
+- `npm run docs:check` passed across 22 current documents and 21 offline help guides.
+- API unit tests passed (28 passed). Eight PostgreSQL integration suites, including first-run business setup, were skipped because `TEST_DATABASE_URL` is unset. Docker is installed but its local daemon is unavailable; `psql` is unavailable.
+- Production browser checks passed (26 tests across desktop and mobile). They cover PWA bootstrap, API login/catalog sync, first-run setup and resume, IndexedDB recovery and the offline shell. The first-run browser scenario uses a mocked API and does not establish PostgreSQL acceptance.
 - Print Bridge and transport formatting, Clippy, tests, release builds, and the Windows service feature checks passed. The Print Bridge app currently has no unit tests; the transport crate has 12 passing tests.
 - Workspace screens and recovery panels are lazy-loaded. The latest build's main JavaScript chunk is 234 kB, down from 597 kB, with no chunk-size warning. The receipt and application logo assets remain large at 786 kB and 1.86 MB.
 - Thrown web-screen errors now pass through the shared operator-safe error mapper, including authentication, catalog, inventory, finance, printing, settings, and activity flows. The static UI audit inventories 1,551 interactions and produces 241 review signals. They are unreviewed source-level prompts, not confirmed defects or accepted workflow evidence. Review of every operator workflow, keyboard path, responsive screen, permissions state, and recovery path remains open.

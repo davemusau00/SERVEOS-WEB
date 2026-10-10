@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
 // native and Supabase fixtures are not production browser acceptance.
 export default defineConfig({
   testDir: './tests/browser',
-  testMatch: /(?:api-bootstrap-recovery|api-catalog-sync|setup-flow|web-storage)\.spec\.ts/,
+  testMatch: /(?:api-bootstrap-recovery|api-catalog-sync|business-setup|setup-flow|web-storage)\.spec\.ts/,
   outputDir: './test-results/production',
   fullyParallel: false,
   workers: 1,
