@@ -3,6 +3,7 @@ import {ApiProblem} from './command-kernel.mjs';
 import {documentHash} from './business-documents.mjs';
 import {queueDocumentPrint} from './print-commands.mjs';
 import {assertUniqueExternalPaymentReference} from './external-payment-references.mjs';
+import {receiptSettings} from './business-tax.mjs';
 
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const problem=(status,code,message)=>{throw new ApiProblem(status,code,message)};
