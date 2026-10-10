@@ -27,6 +27,13 @@ test('browser first-admin setup leads through onboarding to a complete first cas
   process.env.INITIAL_ADMIN_SETUP_SECRET=setupSecret;
   server=createApiServer({store,registry:createApiCommandRegistry(),authenticate:(request:IncomingMessage)=>authenticateSession(request,store),origin:'http://127.0.0.1:3020'});
   await new Promise<void>((resolve,reject)=>{server!.once('error',reject);server!.listen(4317,'127.0.0.1',resolve)});
+  await page.addInitScript(()=>{
+   (window as unknown as {__serveosTestPrintCount:number}).__serveosTestPrintCount=0;
+   window.addEventListener('message',event=>{if(event.data?.type==='serveos-test-print'){
+    const testWindow=window as unknown as {__serveosTestPrintCount:number};testWindow.__serveosTestPrintCount++;
+   }});
+   Object.defineProperty(Window.prototype,'print',{configurable:true,value:function(){window.top?.postMessage({type:'serveos-test-print'},'*');}});
+  });
   await page.goto('/');
   await page.getByRole('button',{name:'Set up a new business',exact:true}).click();
   await page.getByLabel('Business name',{exact:true}).fill('Disposable Cafe Setup');
@@ -125,6 +132,31 @@ test('browser first-admin setup leads through onboarding to a complete first cas
   expect(payment).toMatchObject({method:'CASH',amount_minor:'10000',cash_tendered_minor:'10000',till_session_id:till.id});
   const drawerSale=(await pool.query("SELECT count(*)::int AS count FROM till_cash_entries WHERE business_id=$1 AND till_session_id=$2 AND kind='SALE' AND amount_delta_minor=10000",[businessId,till.id])).rows[0];
   expect(drawerSale.count).toBe(1);
+
+  const receiptJob=(await pool.query(`SELECT j.id,j.state,d.document_number,d.snapshot
+    FROM document_print_jobs j JOIN business_documents d ON d.business_id=j.business_id AND d.id=j.document_id
+    WHERE j.business_id=$1 AND d.document_type='SALES_RECEIPT' AND d.snapshot->>'orderId'=$2`,[businessId,order.id])).rows[0];
+  expect(receiptJob).toMatchObject({state:'QUEUED'});
+  expect(receiptJob.snapshot).toMatchObject({orderName:'Counter sale',totalMinor:10000,payments:[{tenderType:'CASH',amountMinor:10000}]});
+  const printing=page.locator('[data-guide-anchor="documents.printing"]');
+  await printing.getByLabel('Print job',{exact:true}).selectOption(receiptJob.id);
+  await printing.getByText('Preview issued document',{exact:true}).click();
+  const receiptPreview=printing.locator('article[aria-label="Sales receipt"]');
+  await expect(receiptPreview).toContainText('Kijani Cafe');
+  await expect(receiptPreview).toContainText('First sale tea');
+  await expect(receiptPreview).toContainText('100.00');
+  await expect(receiptPreview).toContainText('CASH');
+  await printing.getByRole('button',{name:'Print with browser',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>((window as unknown as {__serveosTestPrintCount:number}).__serveosTestPrintCount))).toBe(1);
+  await expect.poll(async()=>(await pool.query('SELECT state FROM document_print_jobs WHERE business_id=$1 AND id=$2',[businessId,receiptJob.id])).rows[0]?.state).toBe('DELIVERY_UNCERTAIN');
+  await expect(printing.getByRole('status')).toContainText('browser print dialog cannot confirm paper delivery');
+  await printing.getByLabel('Delivery review reason',{exact:true}).fill('Headless browser cannot verify paper delivery');
+  await printing.getByLabel('I checked the printer and accept that retrying may print a duplicate',{exact:true}).check();
+  await printing.getByRole('button',{name:'Requeue after review',exact:true}).click();
+  await expect.poll(async()=>(await pool.query('SELECT state FROM document_print_jobs WHERE business_id=$1 AND id=$2',[businessId,receiptJob.id])).rows[0]?.state).toBe('QUEUED');
+  const retryEvent=(await pool.query(`SELECT event_type,reason,possible_duplicate_acknowledged
+    FROM document_print_events WHERE business_id=$1 AND job_id=$2 ORDER BY job_version DESC LIMIT 1`,[businessId,receiptJob.id])).rows[0];
+  expect(retryEvent).toMatchObject({event_type:'print.retry',reason:'Headless browser cannot verify paper delivery',possible_duplicate_acknowledged:true});
  }finally{
   if(!page.isClosed())await page.goto('about:blank').catch(()=>undefined);
   if(server){const closingServer=server;closingServer.closeAllConnections();await new Promise<void>(resolve=>closingServer.close(()=>resolve()))}
