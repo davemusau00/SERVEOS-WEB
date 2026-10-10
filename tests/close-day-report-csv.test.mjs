@@ -18,9 +18,10 @@ test('close-day CSV exports the hash-verified issued snapshot with escaped detai
   const original=structuredClone(snapshot);
   const csv=await buildVerifiedCloseDayReportCsv(makeDocument(snapshot));
 
-  assert.ok(csv.startsWith('"document_number","document_id","issued_at","snapshot_path","value","value_type"\r\n'));
-  assert.ok(csv.includes('"/business/businessName","Cafe, ""East""","string"'));
-  assert.ok(csv.includes('"/business/taxPin","\'=HYPERLINK(""https://example.invalid"")","string"'), 'spreadsheet formulas in snapshot text are neutralized');
+  assert.ok(csv.startsWith('"document_number","document_id","snapshot_hash","issued_at","snapshot_path","value","value_type"\r\n'));
+  const hash=makeDocument(snapshot).hash;
+  assert.ok(csv.includes(`"CLOSE-001","report-1","${hash}","2026-10-10T10:00:00.000Z","/business/businessName","Cafe, ""East""","string"`));
+  assert.ok(csv.includes(`"/business/taxPin","'`+`=HYPERLINK(""https://example.invalid"")","string"`), 'spreadsheet formulas in snapshot text are neutralized');
   assert.ok(csv.includes('"/paymentsByTender/0/receivedMinor","1234","number"'));
   assert.ok(csv.includes('"/cash/varianceMinor","-12","number"'), 'negative numeric amounts remain numeric');
   assert.ok(csv.includes('"/payment~1method","M-Pesa","string"'), 'JSON Pointer path separators are escaped');

@@ -25,7 +25,7 @@ export async function buildVerifiedCloseDayReportCsv(document:CloseDayReportCsvD
   const hash=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
   if(hash!==document.hash)throw new Error('The close-day snapshot hash does not match. Synchronize the issued report before exporting.');
 
-  const lines=[['document_number','document_id','issued_at','snapshot_path','value','value_type'].map(value=>cell(value)).join(',')];
+  const lines=[['document_number','document_id','snapshot_hash','issued_at','snapshot_path','value','value_type'].map(value=>cell(value)).join(',')];
   const add=(path:string,value:unknown)=>{
     let serialized:string,type:string;
     if(value===null){serialized='';type='null';}
@@ -34,7 +34,7 @@ export async function buildVerifiedCloseDayReportCsv(document:CloseDayReportCsvD
     else if(typeof value==='boolean'){serialized=String(value);type='boolean';}
     else if(typeof value==='object'&&value!==null&&(Array.isArray(value)||Object.keys(value).length===0)){serialized=JSON.stringify(value);type=Array.isArray(value)?'array':'object';}
     else throw new Error('The close-day snapshot contains a value that cannot be represented safely in CSV.');
-    lines.push([document.documentNumber,document.id,document.issuedAt,path,serialized,type].map((value,index)=>cell(value,index!==4||type==='string')).join(','));
+    lines.push([document.documentNumber,document.id,document.hash,document.issuedAt,path,serialized,type].map((value,index)=>cell(value,index!==5||type==='string')).join(','));
   };
   const visit=(value:unknown,path:string):void=>{
     if(Array.isArray(value)){
