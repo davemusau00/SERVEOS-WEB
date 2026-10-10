@@ -877,9 +877,22 @@ class PostgresTransaction {
   }
 
   async insertChange({businessId, cursor, commandId, name, result, at}) {
+    // The change feed must only carry records whose version strictly increased:
+    // idempotent handlers may return existing unchanged rows, and re-emitting
+    // them would permanently wedge clients that enforce version monotonicity.
+    const emitted=[];
+    for(const record of result.records??[]){
+      const {rowCount}=await this.client.query(`
+        INSERT INTO business_change_records (business_id, collection, record_id, version, cursor)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (business_id, collection, record_id) DO UPDATE SET version = EXCLUDED.version, cursor = EXCLUDED.cursor
+        WHERE business_change_records.version < EXCLUDED.version
+      `, [businessId, String(record.collection), String(record.id), record.version, cursor]);
+      if(rowCount===1)emitted.push(record);
+    }
     await this.client.query(`
       INSERT INTO business_changes (business_id, cursor, command_id, change_type, projection, occurred_at)
       VALUES ($1, $2, $3, $4, $5::jsonb, $6)
-    `, [businessId, cursor, commandId, name, JSON.stringify(result), at]);
+    `, [businessId, cursor, commandId, name, JSON.stringify({...result, records: emitted}), at]);
   }
 }

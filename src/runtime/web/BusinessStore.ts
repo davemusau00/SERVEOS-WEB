@@ -262,8 +262,15 @@ export class BusinessStore {
         for(const record of change.records){
           if(!record.collection||!record.id||!Number.isSafeInteger(record.version)||record.version<1||!record.data||typeof record.data!=='object'||Array.isArray(record.data)||typeof record.archived!=='boolean')throw new Error('Invalid record version or projection');
           const previous=await request(records.get([record.collection,record.id]));
-          if(previous&&previous.version>=record.version)throw new Error('Non-increasing record version');
-          await request(records.put(record));
+          if(previous){
+            // Idempotent re-delivery of a byte-identical record is a no-op: the
+            // feed may replay an unchanged row, but it must never regress or
+            // silently mutate a record at the same version.
+            if(previous.version>record.version)throw new Error('Non-increasing record version');
+            if(previous.version===record.version){
+              if(stableJson(previous)!==stableJson(record))throw new Error('Conflicting record content at the same version');
+            }else await request(records.put(record));
+          }else await request(records.put(record));
         }
         cursor=change.sequence;
       }
