@@ -66,6 +66,13 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   return body as T;
  };
  return {
+  async healthReadiness():Promise<{status:'ready'|'not_ready';reason?:string}>{
+   const response=await fetcher(new URL('/health/ready',url),{credentials:'include',cache:'no-store',signal:AbortSignal.timeout(10000)});
+   const body=await response.json().catch(()=>({})) as {status?:string;reason?:string};
+   if(body.status==='ready')return {status:'ready'};
+   if(body.status==='not_ready')return {status:'not_ready',...(body.reason?{reason:body.reason}:{})};
+   throw new ApiHttpError(response.status||503,'HEALTH_CHECK_FAILED','The API did not return a usable readiness status.');
+  },
   async login(loginName:string,password:string):Promise<ApiStaffLogin>{
    const response=await fetcher(new URL('/v1/auth/login',url),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({loginName,password}),credentials:'include',cache:'no-store',signal:AbortSignal.timeout(20000)});
    const body=await response.json();if(!response.ok){const problem=body?.error;throw new ApiHttpError(response.status,problem?.code||'AUTH_INVALID',problem?.message||'Sign-in failed.')}return body as ApiStaffLogin;

@@ -4,9 +4,12 @@ import { existsSync } from 'node:fs';
 import { API_IMPORT_TEMPLATES, validateImportCsv } from '../apps/api/src/csv-import.mjs';
 
 test('operator CSV templates come from the API manifest and have unique headers', () => {
-  assert.equal(API_IMPORT_TEMPLATES.length, 12);
+  assert.equal(API_IMPORT_TEMPLATES.length, 13);
   for (const template of API_IMPORT_TEMPLATES) {
-    assert.ok(template.headers.includes('external_id'), `${template.key} requires external_id`);
+    if (template.key === 'sellableItems') {
+      assert.ok(template.headers.includes('code'), 'sellableItems uses product code as its import reference');
+      assert.ok(template.required.includes('code'), 'sellableItems requires its product code');
+    } else assert.ok(template.headers.includes('external_id'), `${template.key} requires external_id`);
     assert.equal(new Set(template.headers).size, template.headers.length, `${template.key} has duplicate headers`);
     for (const forbidden of ['password', 'password_confirm', 'device_token', 'device_secret', 'access_token', 'publishable_key', 'cloud_key']) {
       assert.equal(template.headers.includes(forbidden), false, `${template.key} must not contain ${forbidden}`);

@@ -17,6 +17,8 @@ Payment and till commands record the tender and drawer events confirmed by staff
 3. Enter the required reference or amount and review the total.
 4. At close, count the drawer and submit the actual count for review.
 
+For M-Pesa, compare the transaction reference, actual received amount, and receipt time with the payment received before confirming. This is a manual staff confirmation; ServOS does not verify payments with an M-Pesa provider.
+
 ## What ServOS handles
 
 The API records payment events, till sessions and any reviewed variance.

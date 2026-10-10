@@ -11,6 +11,7 @@ test('API login, catalog command, reload projection, and reconnect change feed',
  const stockId='a1000000-0000-4000-8000-000000000004';
  const outcomes=new Map<string,unknown>();const snapshots=new Map<string,{expiresAt:string;cursor:number;manifest:Record<string,unknown>;records:unknown[]}>();
  let cursor=1;let stockVersion=1;let stockName='Coffee beans';let feed:any[]=[];let offline=false;
+ await page.route('**/health/ready',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ready'})}));
  await page.route('**/v1/**',async route=>{
   const request=route.request();const url=new URL(request.url());
   if(offline){await route.abort('internetdisconnected');return}
@@ -54,11 +55,25 @@ test('API login, catalog command, reload projection, and reconnect change feed',
  await expect(workspaceNav).toHaveCount(1);
  const workspaceLabels=(await workspaceNav.getByRole('button').allTextContents()).map(label=>label.trim());
  expect(workspaceLabels.length).toBeGreaterThan(1);
+ await workspaceNav.getByRole('button',{name:'Home',exact:true}).click();
+ await page.getByRole('button',{name:/Add a product/}).click();
+ const tour=page.getByRole('dialog',{name:'Add a product: Set up an item'});
+ await expect(tour).toBeVisible();
+ await page.getByRole('button',{name:'Smart item setup',exact:true}).click();
+ const smartItem=page.getByRole('dialog',{name:/Smart item setup/});
+ await expect(smartItem).toBeVisible();
+ await smartItem.getByRole('button',{name:'Close dialog',exact:true}).click();
+ await tour.getByRole('button',{name:'Close',exact:true}).click();
  for(const label of workspaceLabels){
   const workspaceButton=workspaceNav.getByRole('button',{name:label,exact:true});
   await workspaceButton.click();
   await expect(workspaceButton).toHaveAttribute('aria-current','page');
   await expect(page.locator('main h1')).toHaveText(label);
+  if(label==='Settings'){
+   const health=page.getByRole('region',{name:'System health'});
+   await expect(health).toContainText('Ready');
+   await expect(health).toContainText('Not reported to this workspace.');
+  }
   const layout=await page.evaluate(()=>({viewport:window.innerWidth,documentWidth:document.documentElement.scrollWidth}));
   expect(layout.documentWidth,`${label} causes horizontal document overflow at ${layout.viewport}px`).toBeLessThanOrEqual(layout.viewport);
  }

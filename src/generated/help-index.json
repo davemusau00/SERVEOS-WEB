@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-10T07:20:26.436Z",
+  "generatedAt": "2026-10-10T08:03:10.396Z",
   "source": "docs/user-guide",
-  "count": 21,
+  "count": 22,
   "articles": [
     {
       "id": "01-getting-started",
@@ -139,7 +139,8 @@
         "Do not record a tender that has not been received. If the outcome is unknown, recover that command in Activity instead of creating another payment."
       ],
       "relatedTasks": [
-        "11-payments"
+        "11-payments",
+        "30-receipt-printing"
       ],
       "guideId": "pos.first-sale",
       "estimatedMinutes": 1,
@@ -178,11 +179,12 @@
         "Do not enter an expected amount as the counted drawer amount. Ask a manager to review a variance before closing it."
       ],
       "relatedTasks": [
-        "07-pos-tabs"
+        "07-pos-tabs",
+        "30-receipt-printing"
       ],
       "guideId": "",
       "estimatedMinutes": 1,
-      "body": "Section: Point of Sale\nRoles: Cashier, Manager, Accountant\nPermission: payment.record, till.open, till.close\nScreen: pos\nKeywords: cash, payment, till, variance\n\n## Overview\n\nPayment and till commands record the tender and drawer events confirmed by staff.\n\n## Procedure\n\n1. Open the till for the current shift if required.\n2. Select the tender that matches the money actually received.\n3. Enter the required reference or amount and review the total.\n4. At close, count the drawer and submit the actual count for review.\n\n## What ServOS handles\n\nThe API records payment events, till sessions and any reviewed variance.\n\n## Common mistakes and correction\n\nDo not enter an expected amount as the counted drawer amount. Ask a manager to review a variance before closing it.",
+      "body": "Section: Point of Sale\nRoles: Cashier, Manager, Accountant\nPermission: payment.record, till.open, till.close\nScreen: pos\nKeywords: cash, payment, till, variance\n\n## Overview\n\nPayment and till commands record the tender and drawer events confirmed by staff.\n\n## Procedure\n\n1. Open the till for the current shift if required.\n2. Select the tender that matches the money actually received.\n3. Enter the required reference or amount and review the total.\n4. At close, count the drawer and submit the actual count for review.\n\nFor M-Pesa, compare the transaction reference, actual received amount, and receipt time with the payment received before confirming. This is a manual staff confirmation; ServOS does not verify payments with an M-Pesa provider.\n\n## What ServOS handles\n\nThe API records payment events, till sessions and any reviewed variance.\n\n## Common mistakes and correction\n\nDo not enter an expected amount as the counted drawer amount. Ask a manager to review a variance before closing it.",
       "keywords": [
         "cash",
         "payment",
@@ -254,9 +256,9 @@
         "Do not mark ordered quantities as received when they did not arrive. Record a correction through the relevant reviewed workflow."
       ],
       "relatedTasks": [],
-      "guideId": "stock.receive",
+      "guideId": "procurement.receive-delivery",
       "estimatedMinutes": 1,
-      "body": "Section: Procurement\nRoles: Admin, Manager, Storekeeper\nPermission: procurement.view, procurement.receive\nScreen: procurement\nGuide: stock.receive\nKeywords: receive, delivery, purchase order, supplier\n\n## Overview\n\nRecord the quantities that arrived against the supplier or approved purchase order.\n\n## Procedure\n\n1. Open Procurement and choose the order or supplier.\n2. Enter the delivery reference and receiving location.\n3. Review each delivered and rejected quantity and the item cost.\n4. Confirm the receipt only after checking it against the physical delivery.\n\n## What ServOS handles\n\nThe API records the goods receipt and related stock and payable changes in a transaction.\n\n## Common mistakes and correction\n\nDo not mark ordered quantities as received when they did not arrive. Record a correction through the relevant reviewed workflow.",
+      "body": "Section: Procurement\nRoles: Admin, Manager, Storekeeper\nPermission: procurement.view, procurement.receive\nScreen: procurement\nGuide: procurement.receive-delivery\nKeywords: receive, delivery, purchase order, supplier\n\n## Overview\n\nRecord the quantities that arrived against the supplier or approved purchase order.\n\n## Procedure\n\n1. Open Procurement and choose the order or supplier.\n2. Enter the delivery reference and receiving location.\n3. Review each delivered and rejected quantity and the item cost.\n4. Confirm the receipt only after checking it against the physical delivery.\n\n## What ServOS handles\n\nThe API records the goods receipt and related stock and payable changes in a transaction.\n\n## Common mistakes and correction\n\nDo not mark ordered quantities as received when they did not arrive. Record a correction through the relevant reviewed workflow.",
       "keywords": [
         "receive",
         "delivery",
@@ -475,7 +477,8 @@
       "summary": "Use the displayed error and Activity record to identify whether a request was rejected, queued or has an unknown outcome.",
       "example": "",
       "steps": [
-        "Confirm the browser is online and the API status is healthy."
+        "Confirm the browser is online.",
+        "A manager can open Settings and refresh System health to check API and database readiness, the application version, saved-work counts, browser printing, and whether a local Print Bridge is selected."
       ],
       "systemHandles": [
         "The API preserves command outcomes and provides change history for recovery."
@@ -488,13 +491,52 @@
       ],
       "guideId": "",
       "estimatedMinutes": 1,
-      "body": "Section: Operations\nRoles: Admin, Manager, Staff\nPermission: help.view\nScreen: help\nKeywords: sign in, network, conflict, printer, troubleshooting\n\n## Overview\n\nUse the displayed error and Activity record to identify whether a request was rejected, queued or has an unknown outcome.\n\n## Procedure\n\n1. Confirm the browser is online and the API status is healthy.\n2. Read the full operator message and note its command reference.\n3. For a conflict, refresh the record and review the current balance before correcting it.\n4. For an unknown result, recover the original command before repeating the action.\n5. For printer uncertainty, check the paper and printer queue before retrying.\n\n## What ServOS handles\n\nThe API preserves command outcomes and provides change history for recovery.\n\n## Common mistakes and correction\n\nDo not refresh by clearing site data or create a replacement transaction while the first outcome is unknown.",
+      "body": "Section: Operations\nRoles: Admin, Manager, Staff\nPermission: help.view\nScreen: help\nKeywords: sign in, network, conflict, printer, troubleshooting\n\n## Overview\n\nUse the displayed error and Activity record to identify whether a request was rejected, queued or has an unknown outcome.\n\n## Procedure\n\n1. Confirm the browser is online. A manager can open Settings and refresh System health to check API and database readiness, the application version, saved-work counts, browser printing, and whether a local Print Bridge is selected.\n2. Read the full operator message and note its command reference.\n3. For a conflict, refresh the record and review the current balance before correcting it.\n4. For an unknown result, recover the original command before repeating the action.\n5. For printer uncertainty, check the paper and printer queue before retrying.\n\n## What ServOS handles\n\nThe API preserves command outcomes and provides change history for recovery.\n\n## Common mistakes and correction\n\nDo not refresh by clearing site data or create a replacement transaction while the first outcome is unknown.\n\nSystem health currently has no backup heartbeat to display. A “Not reported” backup status is unknown, not proof that a backup exists or can be restored. Browser print availability also does not confirm an installed printer or paper delivery.",
       "keywords": [
         "sign in",
         "network",
         "conflict",
         "printer",
         "troubleshooting"
+      ]
+    },
+    {
+      "id": "30-receipt-printing",
+      "title": "Print a receipt",
+      "section": "Point of Sale",
+      "roles": [
+        "Cashier",
+        "Manager"
+      ],
+      "permissions": [
+        "pos.sell",
+        "payment.record"
+      ],
+      "screen": "activity",
+      "summary": "After a confirmed sale, open its issued receipt from Activity and print it with the browser. The operating-system print dialog lets you choose an installed printer. A dialog opening does not prove that paper printed.",
+      "example": "",
+      "steps": [
+        "Confirm that the payment outcome is saved."
+      ],
+      "systemHandles": [
+        "ServOS keeps the issued receipt immutable and tracks the shared print job. The operator confirms physical delivery after checking the printer output."
+      ],
+      "commonMistakes": [
+        "Do not treat a browser dialog or a queued job as proof of delivery. If delivery is uncertain, check the printer before retrying because a retry may create a duplicate."
+      ],
+      "relatedTasks": [
+        "07-pos-tabs",
+        "11-payments"
+      ],
+      "guideId": "receipt.print",
+      "estimatedMinutes": 1,
+      "body": "Section: Point of Sale\nRoles: Cashier, Manager\nPermission: pos.sell, payment.record\nScreen: activity\nGuide: receipt.print\nKeywords: receipt, print, browser, printer, duplicate\n\n## Overview\n\nAfter a confirmed sale, open its issued receipt from Activity and print it with the browser. The operating-system print dialog lets you choose an installed printer. A dialog opening does not prove that paper printed.\n\n## Procedure\n\n1. Confirm that the payment outcome is saved.\n2. Open Activity and find Documents and printing.\n3. Select the sales receipt and preview it.\n4. Choose **Print with browser** and select the installed printer and paper options.\n5. Check the physical output. Confirm delivery only after the receipt has printed.\n\nThe optional Print Bridge can send supported documents to an approved local printer. It is not required for browser printing.\n\n## What ServOS handles\n\nServOS keeps the issued receipt immutable and tracks the shared print job. The operator confirms physical delivery after checking the printer output.\n\n## Common mistakes and correction\n\nDo not treat a browser dialog or a queued job as proof of delivery. If delivery is uncertain, check the printer before retrying because a retry may create a duplicate.",
+      "keywords": [
+        "receipt",
+        "print",
+        "browser",
+        "printer",
+        "duplicate"
       ]
     },
     {
@@ -550,21 +592,22 @@
         "Download the template from the Import Center."
       ],
       "systemHandles": [
-        "The API validates rows and applies each accepted row using a normal domain command."
+        "The API validates rows and applies each accepted row using a normal domain command. Product, stock master, product-to-stock link, and opening quantity are created atomically for a tracked item."
       ],
       "commonMistakes": [
-        "Do not add unsupported columns or use the operator importer for staff credentials, opening stock or historical transactions. Correct a blocked import in a fresh batch."
+        "Do not add unsupported columns or use the importer for staff credentials or historical transactions. Correct a blocked import in a fresh batch. Stock creation and opening quantities require inventory adjustment access; sellable rows also require catalog management access."
       ],
       "relatedTasks": [],
       "guideId": "",
       "estimatedMinutes": 1,
-      "body": "Section: Administration\nRoles: Admin, Manager\nPermission: data.import.stage\nScreen: settings\nKeywords: CSV, import, template, dry run, external ID\n\n## Overview\n\nUse the API Import Center for supported create-only master data.\n\n## Procedure\n\n1. Download the template from the Import Center.\n2. Fill the required columns and preserve the exact header names.\n3. Import dependency files first and keep external IDs stable.\n4. Stage the file and review validation errors.\n5. Run the server dry run, then apply only a ready plan after review.\n\n## What ServOS handles\n\nThe API validates rows and applies each accepted row using a normal domain command.\n\n## Common mistakes and correction\n\nDo not add unsupported columns or use the operator importer for staff credentials, opening stock or historical transactions. Correct a blocked import in a fresh batch.",
+      "body": "Section: Administration\nRoles: Admin, Manager\nPermission: data.import.stage\nScreen: settings\nKeywords: CSV, import, template, dry run, opening stock, product\n\n## Overview\n\nUse the API Import Center for supported create-only master data.\n\nFor a first catalog load, choose **Products and opening stock (simple)**. It uses the product code as the row reference, creates linked stock and the optional opening balance in the same reviewed command, and does not ask for internal record IDs. Existing outlets and storage places must already exist.\n\n## Procedure\n\n1. Download the template from the Import Center.\n2. Fill the required columns and preserve the exact header names.\n3. For the simple item template, use existing outlet names separated by semicolons and an existing storage-place name for tracked items. Set `stock_mode` to `SERVICE`, `TRACKED`, `SPIRIT`, `WINE`, or `STOCK_ONLY`.\n4. For the other templates, import dependencies first and keep external IDs stable.\n5. Stage the file and review validation errors.\n6. Run the server dry run, then apply only a ready plan after review.\n\nSellable rows in the simple template must include a price, supported tax class, service area, and outlet name. Tracked rows also need a storage place, base unit, package size, quantity per unit, and purchase price. `opening_packages` is optional and defaults to zero. For spirits and wine, use `ml`, set `quantity_per_unit` equal to `container_size`, and provide `portion_size` unless selling sealed bottles only. The import creates records only; it never updates an existing price or balance.\n\n## What ServOS handles\n\nThe API validates rows and applies each accepted row using a normal domain command. Product, stock master, product-to-stock link, and opening quantity are created atomically for a tracked item.\n\n## Common mistakes and correction\n\nDo not add unsupported columns or use the importer for staff credentials or historical transactions. Correct a blocked import in a fresh batch. Stock creation and opening quantities require inventory adjustment access; sellable rows also require catalog management access.",
       "keywords": [
         "CSV",
         "import",
         "template",
         "dry run",
-        "external ID"
+        "opening stock",
+        "product"
       ]
     },
     {

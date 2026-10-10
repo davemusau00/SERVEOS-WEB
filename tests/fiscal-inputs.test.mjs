@@ -30,13 +30,12 @@ test('quantities reject invalid values and enforce unit precision',()=>{
 });
 
 test('active web product editors require an explicit tax class',()=>{
-  const web=readFileSync('src/runtime/web/WebBusinessApp.tsx','utf8');
   const catalog=readFileSync('src/runtime/web/WebCatalogInventory.tsx','utf8');
-  assert.match(web,/key:'taxClassId',label:'Tax class',type:'select'/);
+  const smartItem=readFileSync('src/runtime/web/SmartItemDialog.tsx','utf8');
   assert.match(catalog,/Tax class<select required/);
-  assert.doesNotMatch(web,/taxClassId:'A_STANDARD'/);
+  assert.match(smartItem,/Tax classification<select required/);
   assert.doesNotMatch(catalog,/taxClassId:'A_STANDARD'/);
-  assert.doesNotMatch(catalog,/taxClassId:'A_STANDARD'/);
+  assert.doesNotMatch(smartItem,/taxClassId:'A_STANDARD'/);
 });
 
 test('API physical stock count validates precise quantities and preserves sealed/open balance',()=>{

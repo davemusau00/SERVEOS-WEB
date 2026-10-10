@@ -40,7 +40,7 @@ export function WebApiSettings({records,session,disabled,command}:{records:Busin
    else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPending(true);setMessage('message' in outcome?outcome.message:'The original action is saved. Check Activity before submitting another configuration change.');}
   }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
- return <section className="space-y-6">
+ return <section data-guide-anchor="business.settings" className="space-y-6">
   <header className="space-y-1"><h2 className="text-xl font-bold">Business and payment settings</h2><p className="max-w-3xl text-sm leading-6 text-slate-400">Set property rules, outlets, receipt details, till controls, and payment accounts. Each section saves independently and confirms its result.</p></header>
   <ApiHospitalitySettings records={records} session={session} disabled={disabled||busy||pending} command={command}/>
   <WebOutletSettings records={records} disabled={disabled||busy||pending} command={command}/>

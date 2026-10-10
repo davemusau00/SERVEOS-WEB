@@ -4,7 +4,7 @@ Section: Procurement
 Roles: Admin, Manager, Storekeeper
 Permission: procurement.view, procurement.receive
 Screen: procurement
-Guide: stock.receive
+Guide: procurement.receive-delivery
 Keywords: receive, delivery, purchase order, supplier
 
 ## Overview
