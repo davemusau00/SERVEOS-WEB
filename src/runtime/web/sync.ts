@@ -62,10 +62,22 @@ export async function synchronizeStore(store:BusinessStore,transport:ApiTranspor
        if(result.status==='CONFLICT'||result.status==='REJECTED')blocked.push(row.command);
       }catch(error){blocked.push(row.command);replayError??=error;}
     }
+    // Each cash envelope contains its order and settlement dependency atomically.
+    // A failed sale retains evidence and does not poison independent cash replay.
+    for(const entry of await store.localCashOutbox()){
+      if(['SERVER_CONFIRMED','RECONCILIATION_REQUIRED'].includes(entry.state))continue;
+      await store.markLocalCashState(entry.id,'SYNCING');
+      try{
+        const sale=entry.sale;
+        const result=await transport.execute({id:entry.id,schemaVersion:2,deviceId:store.deviceId,actorId:store.actorId,operation:'pos.offlineSale.commitV2',payload:{sale,lease:entry.lease},expectedVersions:[],allocationRefs:[],clientSequence:sale.sequence,occurredAt:sale.occurredAt});
+        if(result.commandId!==entry.id)throw Error('Server acknowledged a different local cash sale.');
+        if(result.status!=='SYNCHRONIZED')await store.markLocalCashState(entry.id,'RECONCILIATION_REQUIRED',result.error?.message||'Server did not accept the cash-received sale.');
+      }catch(error){await store.markLocalCashState(entry.id,'OUTCOME_UNKNOWN');replayError??=error;}
+    }
     for(let pages=0;pages<100;pages++){
       const cursor=await store.cursor();const page=await transport.pull(cursor);
       if(page.hasMore&&page.cursor<=cursor)throw new Error('Change feed made no progress');
-      await store.applyPage(page);if(!page.hasMore){if(replayError)throw replayError;publish('SYNC_FINISHED');return}
+      await store.applyPage(page);if(!page.hasMore){await store.applyLocalCashReconciliations();if(replayError)throw replayError;publish('SYNC_FINISHED');return}
     }
     throw new Error('Change feed exceeded the per-cycle page limit');
    });

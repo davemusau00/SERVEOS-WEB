@@ -1,6 +1,7 @@
 import type {BusinessCommandV2,ChangePage,RecordVersion,TransactionResult} from '../../types/transactions';
 import {canonicalCashJson,priceLocalCash,verifyCashLease} from './offlineCashLedger';
 import type {OfflineCashLease,LocalCashInput} from './offlineCashLedger';
+import {lockOfflineIdentity,unlockOfflineIdentity,type LockedOfflineIdentity} from './offlineIdentity';
 
 export interface QueuedCommand {id:string; sequence:number; command:BusinessCommandV2; state:'PENDING_SYNC'|'OUTCOME_UNKNOWN'|'SYNCHRONIZED'|'CONFLICT'|'REJECTED'; result?:TransactionResult; firstAttemptAt?:string}
 export interface WorkflowDraftField {key:string;label:string;type?:'text'|'number'|'money'|'datetime-local'|'select';options?:Array<{value:string;label:string}>;value?:string;optional?:boolean}
@@ -108,6 +109,37 @@ export class BusinessStore {
     });return store;}catch(error){db.close();throw error;}
   }
   close(){this.closed=true;this.db.close();}
+  private async cashTransaction<T>(stores:string[],mode:IDBTransactionMode,run:(tx:IDBTransaction)=>Promise<T>):Promise<T>{
+    if(this.closed)throw Error('Browser storage is closed. Reopen without clearing data.');
+    const opening=indexedDB.open(`servos-cash-v2:${this.scope}:${this.deviceId}`,1);
+    opening.onupgradeneeded=()=>{const db=opening.result;db.createObjectStore('meta');for(const name of ['cashSales','cashEntries','localStockMovements','localOrderTickets','outboxV2','syncReconciliations','localShiftLedger','localPrintEvidence','capabilityLeases'])db.createObjectStore(name,{keyPath:'id'});};
+    const db=await request(opening);
+    try{
+      const tx=db.transaction(stores,mode),done=new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||Error('Local cash transaction aborted'));tx.onerror=()=>{};});void done.catch(()=>undefined);
+      try{const value=await run(tx);await done;return value;}catch(error){try{tx.abort()}catch{}await done.catch(()=>undefined);throw error;}
+    }finally{db.close();}
+  }
+  async provisionOfflineIdentity(pin:string,lease:OfflineCashLease,publicKey:JsonWebKey,operatorName:string){
+    if(!(await verifyCashLease(lease,publicKey,{businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId})))throw Error('Offline identity requires verified cashier authority.');
+    const locked=await lockOfflineIdentity(pin,lease,operatorName);
+    await this.cashTransaction(['meta'],'readwrite',tx=>request(tx.objectStore('meta').put(locked,`offlineIdentity:${this.actorId}`)));
+  }
+  async reopenOfflineIdentity(pin:string,publicKey:JsonWebKey){
+    if(!navigator.locks)throw Error('Secure kiosk locking is unavailable.');
+    return navigator.locks.request(`servos-pin:${this.scope}:${this.deviceId}`,async()=>{
+      const locked=await this.cashTransaction(['meta'],'readonly',tx=>request(tx.objectStore('meta').get(`offlineIdentity:${this.actorId}`))) as LockedOfflineIdentity|undefined;
+      if(!locked)throw Error('This browser has not been provisioned for offline reopening. Sign in online.');
+      if(locked.lockedUntil>Date.now())throw Error('Kiosk PIN is locked. Wait before trying again.');
+      try{
+        const identity=await unlockOfflineIdentity(pin,locked,publicKey,{businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId});
+        await this.cashTransaction(['meta'],'readwrite',tx=>request(tx.objectStore('meta').put({...locked,failures:0,lockedUntil:0},`offlineIdentity:${this.actorId}`)));return identity;
+      }catch{
+        const failures=locked.failures+1,lockedUntil=failures>=3?Date.now()+Math.min(30*60000,30000*2**Math.min(10,failures-3)):0;
+        await this.cashTransaction(['meta'],'readwrite',tx=>request(tx.objectStore('meta').put({...locked,failures,lockedUntil},`offlineIdentity:${this.actorId}`)));
+        throw Error('PIN or cached authority could not be verified. Reconnect if the capability has expired.');
+      }
+    });
+  }
   /** Foundation only: UI activation additionally requires accepted offline identity and replay. */
   async recordLocalCash(input:LocalCashInput,lease:OfflineCashLease,publicKey:JsonWebKey){
     const identity={businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId};
@@ -115,7 +147,7 @@ export class BusinessStore {
     if(input.outletId!==lease.outletId||input.tillSessionId!==lease.tillSessionId)throw Error('Sale does not belong to the authorized outlet and shift.');
     if(!navigator.locks)throw Error('This browser cannot safely lock the checkout terminal.');
     const priced=priceLocalCash(input),payloadHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonicalCashJson(input)))),value=>value.toString(16).padStart(2,'0')).join('');
-    return navigator.locks.request(`servos-cash:${this.scope}:${this.deviceId}`,{mode:'exclusive'},()=>this.transaction(['meta','cashSales','cashEntries','localStockMovements','localOrderTickets','outboxV2','localShiftLedger','localPrintEvidence','capabilityLeases'],'readwrite',async tx=>{
+    return navigator.locks.request(`servos-cash:${this.scope}:${this.deviceId}`,{mode:'exclusive'},()=>this.cashTransaction(['meta','cashSales','cashEntries','localStockMovements','localOrderTickets','outboxV2','localShiftLedger','localPrintEvidence','capabilityLeases'],'readwrite',async tx=>{
       const sales=tx.objectStore('cashSales'),existing=await request(sales.get(input.id));
       if(existing){if(existing.payloadHash!==payloadHash)throw Error('Local sale ID is already bound to another payload.');return existing;}
       if(Date.parse(lease.expiresAt)<=Date.now())throw Error('Checkout capability expired before local commit.');
@@ -133,6 +165,27 @@ export class BusinessStore {
       await request(tx.objectStore('capabilityLeases').put({id:lease.leaseId,lease}));
       await request(meta.put(sequence,'cashSequence'));return sale;
     }));
+  }
+  async localCashSales(){return this.cashTransaction(['cashSales'],'readonly',async tx=>(await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId).sort((a,b)=>a.sequence-b.sequence));}
+  async localCashOutbox(){return this.cashTransaction(['outboxV2'],'readonly',async tx=>(await request(tx.objectStore('outboxV2').getAll())).filter(entry=>entry.sale.staffId===this.actorId).sort((a,b)=>a.sale.sequence-b.sale.sequence));}
+  async markLocalCashState(id:string,state:'SYNCING'|'OUTCOME_UNKNOWN'|'RECONCILIATION_REQUIRED',reason?:string){
+    await this.cashTransaction(['cashSales','outboxV2'],'readwrite',async tx=>{
+      for(const name of ['cashSales','outboxV2']){const store=tx.objectStore(name),value=await request(store.get(id));if(!value)throw Error('Local cash evidence is unavailable.');if(value.state==='SERVER_CONFIRMED')continue;await request(store.put({...value,state,reason}));}
+    });
+  }
+  async applyLocalCashReconciliations(){
+    const records=(await this.records()).filter(record=>record.collection==='offlineCashReconciliations');
+    await this.cashTransaction(['cashSales','outboxV2','localStockMovements','syncReconciliations'],'readwrite',async tx=>{
+      for(const record of records){
+        const sales=tx.objectStore('cashSales'),sale=await request(sales.get(record.id));if(!sale)continue;
+        if(record.data.staffId!==sale.staffId||record.data.deviceId!==sale.deviceId||record.data.reference!==sale.reference)throw Error('Server reconciliation does not match local cash identity.');
+        const state=String(record.data.status);if(!['SERVER_CONFIRMED','RECONCILIATION_REQUIRED'].includes(state))throw Error('Invalid server cash reconciliation state.');
+        await request(sales.put({...sale,state,serverOrderId:record.data.orderId,serverDocumentIds:record.data.documentIds,reason:record.data.reason}));
+        const outbox=tx.objectStore('outboxV2'),entry=await request(outbox.get(sale.id));if(entry)await request(outbox.put({...entry,state}));
+        await request(tx.objectStore('syncReconciliations').put({id:sale.id,...record.data}));
+        if(state==='SERVER_CONFIRMED'){const movements=tx.objectStore('localStockMovements');for(const movement of await request(movements.getAll()))if(movement.saleId===sale.id)await request(movements.put({...movement,state:'SERVER_CONFIRMED'}));}
+      }
+    });
   }
   private async transaction<T>(stores:string[],mode:IDBTransactionMode,run:(tx:IDBTransaction)=>Promise<T>):Promise<T>{
     if(this.closed)throw new Error('Browser storage is closed. Reopen this ServOS workspace before continuing; do not clear browser data.');
@@ -308,7 +361,10 @@ export class BusinessStore {
     });
   }
   async records():Promise<Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>>{return this.transaction(['records'],'readonly',tx=>request(tx.objectStore('records').getAll()))}
-  async hasPending():Promise<boolean>{return (await this.queue()).some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN')}
+  async hasPending():Promise<boolean>{
+    if((await this.queue()).some(entry=>entry.state==='PENDING_SYNC'||entry.state==='OUTCOME_UNKNOWN'))return true;
+    return this.cashTransaction(['cashSales'],'readonly',async tx=>(await request(tx.objectStore('cashSales').getAll())).some(sale=>sale.state!=='SERVER_CONFIRMED'));
+  }
   async recoveryEvidence(){
     return this.transaction(['records','queue','drafts','meta','documents','printJobs','printEvents','legacyRecovery'],'readonly',async tx=>{
       const read=(name:string)=>request(tx.objectStore(name).getAll());

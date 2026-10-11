@@ -29,6 +29,7 @@ export function visibleRecord(actor,record){
  if(collection==='closeDayReports')return has(actor,'reports.view','accounting.view','audit.view');
  if(collection==='orders')return has(actor,'pos.sell','pos.open_tab','order.fire','order.void','order.discount','order.comp','payment.record','order.refund','payment.reverse','credit.view','credit.charge','credit.settle','credit.write_off','payments.view','reports.view','kds.view','kds.update');
  if(collection==='tillSessions')return has(actor,'till.view','till.override_variance','accounting.view','reports.view','audit.view')||data.operatorId===actor.staffId&&has(actor,'till.open','till.close','payment.record','order.refund','payment.reverse','till.cashMovement','credit.settle','credit.write_off');
+ if(collection==='offlineCashReconciliations')return has(actor,'accounting.view','audit.view')||data.staffId===actor.staffId&&data.deviceId===actor.deviceId&&has(actor,'pos.sell');
  if(collection==='cashMovements')return has(actor,'till.view','accounting.view')||data.staffId===actor.staffId&&has(actor,'till.cashMovement','payment.record','credit.settle','credit.write_off');
  if(collection==='tillPolicy')return has(actor,'business.configure','till.view','till.open','till.close');
  if(collection==='paymentAccounts')return has(actor,'business.configure','payment.record','payment.split','payments.view','accounting.view','procurement.pay','credit.settle');

@@ -1,3 +1,4 @@
+import {offlineCashV2Registry} from './offline-cash-v2.mjs';
 import {supplierCreditApplicationCommandRegistry} from './supplier-credit-application-commands.mjs';
 import {ticketCommandRegistry,enforceCheckoutWhenEnrolled} from './ticket-commands.mjs';
 import {supplierCreditCommandRegistry} from './supplier-credit-commands.mjs';
@@ -39,7 +40,7 @@ export function createApiCommandRegistry() {
     goodsReceiptCommandRegistry, supplierInvoiceCommandRegistry, supplierPaymentCommandRegistry,
     supplierReturnCommandRegistry, supplierCreditCommandRegistry, supplierCreditApplicationCommandRegistry,
     posCommandRegistry, offlinePosCommandRegistry, floorplanCommandRegistry, roomCommandRegistry,
-    hospitalityCommandRegistry, financeAssetCommandRegistry, tillCommandRegistry,
+    offlineCashV2Registry, hospitalityCommandRegistry, financeAssetCommandRegistry, tillCommandRegistry,
     paymentAccountCommandRegistry, paymentCommandRegistry, businessTaxCommandRegistry,
     businessSetupCommandRegistry,
     printCommandRegistry, outletCommandRegistry, refundCommandRegistry, closeDayCommandRegistry,

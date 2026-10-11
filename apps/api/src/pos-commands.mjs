@@ -64,7 +64,7 @@ async function editable(tx,command,actor,id,{allowPaid=false}={}){
  if(!['OPEN','FIRED'].includes(rows[0].state))throw new ApiProblem(409,'ORDER_NOT_EDITABLE','This order is closed.');
  return rows[0];
 }
-async function finish(tx,command,actor,at,id,data,{versionAlreadyBumped=false}={}){
+async function finish(tx,command,actor,at,id,data,{versionAlreadyBumped=false,deferEvent=false}={}){
  const {rows}=await tx.client.query(`SELECT COALESCE(sum(line_total_minor),0) AS total,count(*)::integer AS count,bool_and(state='FIRED') AS "allFired" FROM pos_order_lines WHERE business_id=$1 AND order_id=$2 AND state<>'VOIDED'`,[actor.businessId,id]);
  const amount=Number(rows[0].total);if(!Number.isSafeInteger(amount)||amount<0)fail('Order total exceeds the supported amount.');
  const zeroCompleted=amount===0&&rows[0].count>0&&rows[0].allFired===true;
@@ -72,7 +72,7 @@ async function finish(tx,command,actor,at,id,data,{versionAlreadyBumped=false}={
   const version=versionAlreadyBumped?baseline:await tx.bumpEntityVersion(actor.businessId,'orders',id,baseline);
  await tx.client.query(`UPDATE pos_orders SET grand_total_minor=$3,version=$4,updated_at=$5,state=CASE WHEN $6 THEN 'COMPLETED' ELSE state END WHERE business_id=$1 AND id=$2`,[actor.businessId,id,amount,version,at,zeroCompleted]);
  const receipt=zeroCompleted?await zeroReceipt(tx,command,actor,at,id):null;
- await event(tx,command,actor,at,id,version,{...data,zeroCompleted,...(receipt?{receiptDocumentId:receipt.id}:{})});
+ if(!deferEvent)await event(tx,command,actor,at,id,version,{...data,zeroCompleted,...(receipt?{receiptDocumentId:receipt.id}:{})});
  const output=await result(tx,actor.businessId,id);
  return {...output,records:[...output.records,...(receipt?.records??[])]};
 }
@@ -206,7 +206,7 @@ const edit=remove=>async({tx,command,actor,at})=>{
  return finish(tx,command,actor,at,p.orderId,{itemId:p.itemId,before:{quantity:Number(rows[0].quantity),note:rows[0].notes,courseName:rows[0].courseName},...(remove?{removed:true}:{quantity:p.quantity,note:notes,courseName:course})});
 };
 
-const fire=async({tx,command,actor,at,approvedTicket})=>{
+const fire=async({tx,command,actor,at,approvedTicket},{deferEvent=false}={})=>{
  await tx.lockInventoryCatalog(actor.businessId);
  const p=command.payload;await editable(tx,command,actor,p.orderId,{allowPaid:true});
  if(p.itemIds!==undefined&&(!Array.isArray(p.itemIds)||p.itemIds.length<1||p.itemIds.length>500||p.itemIds.some(id=>!uuid(id))||new Set(p.itemIds).size!==p.itemIds.length))fail('Select unique draft lines to fire.');
@@ -268,7 +268,7 @@ const fire=async({tx,command,actor,at,approvedTicket})=>{
   records.push({collection:'businessDocuments',id,version:1,archived:false,data:{id,type,documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}},printJob);
   documents.push(id);
  }
- const outcome=await finish(tx,command,actor,at,p.orderId,{firedLineIds:lines.map(line=>line.id),courseName:selectedCourse,roundAdvanced:completesRound,previousRoundNo:order.data.currentRoundNo,heldLineIds:order.data.items.filter(line=>line.state==='DRAFT'&&!lines.some(selected=>selected.id===line.id)).map(line=>line.id),documentIds:documents});
+ const outcome=await finish(tx,command,actor,at,p.orderId,{firedLineIds:lines.map(line=>line.id),courseName:selectedCourse,roundAdvanced:completesRound,previousRoundNo:order.data.currentRoundNo,heldLineIds:order.data.items.filter(line=>line.state==='DRAFT'&&!lines.some(selected=>selected.id===line.id)).map(line=>line.id),documentIds:documents},{deferEvent});
  if(outcome.value.data.receiptDocumentId)documents.push(outcome.value.data.receiptDocumentId);
  return {value:{order:outcome.value,documentIds:documents},records:[...outcome.records,...records]};
 };
