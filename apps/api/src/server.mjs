@@ -100,7 +100,11 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if (req.method === 'GET' && url.pathname === '/health/ready') {
         const {rows} = await store.pool.query("SELECT to_regclass('public.api_schema_migrations') IS NOT NULL AS ready");
         if (!rows[0]?.ready) return json(res, 503, {status: 'not_ready', reason: 'database_migrations_pending'});
-        return json(res, 200, {status: 'ready'});
+        const expectedMigrations = 72;
+        const {rows: migrationRows} = await store.pool.query('SELECT count(*)::int AS applied FROM api_schema_migrations');
+        const applied = migrationRows[0]?.applied ?? 0;
+        if (applied < expectedMigrations) return json(res, 503, {status: 'not_ready', reason: 'database_migrations_pending', expected: expectedMigrations, applied});
+        return json(res, 200, {status: 'ready', migrations: {expected: expectedMigrations, applied}});
       }
       if(req.method==='POST'&&url.pathname==='/v1/auth/login'){
         const input=await readJson(req);const loginName=typeof input.loginName==='string'?input.loginName.trim():'';const password=typeof input.password==='string'?input.password:'';

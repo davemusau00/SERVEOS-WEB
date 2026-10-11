@@ -5,7 +5,7 @@ const requireReportAccess=actor=>{if(!actor.permissions?.includes('*')&&!actor.p
 const day=value=>{if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/u.test(value)||!Number.isFinite(Date.parse(`${value}T00:00:00Z`))||new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)!==value)throw new ApiProblem(400,'VALIDATION_FAILED','Report dates must use the YYYY-MM-DD format.');return value};
 const zone=value=>{if(value===undefined||value===null)return 'Africa/Nairobi';if(typeof value!=='string'||value.length>100)throw new ApiProblem(400,'VALIDATION_FAILED','The report time zone is invalid.');try{new Intl.DateTimeFormat('en',{timeZone:value})}catch{throw new ApiProblem(400,'VALIDATION_FAILED','The report time zone is invalid.')}return value};
 
-const readTransaction=async(pool,work)=>{const client=await pool.connect();try{await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');const result=await work(client);await client.query('COMMIT');return result}finally{client.release()}};
+const readTransaction=async(pool,work)=>{const client=await pool.connect();try{await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');const result=await work(client);await client.query('COMMIT');return result}catch(err){await client.query('ROLLBACK');throw err}finally{client.release()}};
 
 const salesCte=outletClause=>`
   WITH sales AS (
@@ -109,7 +109,7 @@ export async function stockOnHand(pool,actor,{locationId=null}={}){
    JOIN stock_locations l ON l.business_id=b.business_id AND l.id=b.location_id
    WHERE b.business_id=$1 AND b.quantity<>0 AND ($2::uuid IS NULL OR b.location_id=$2)
    ORDER BY l.name,s.name`,[actor.businessId,locationId]);
- for(const row of rows)row.valueMinor=Number(BigInt(row.average_unit_cost_minor??0)*BigInt(Math.round(Number(row.quantity))));
+ for(const row of rows)row.valueMinor=Number(BigInt(Math.round(Number(row.average_unit_cost_minor??0)))*BigInt(Math.round(Number(row.quantity))));
  return {report:'STOCK_ON_HAND',generatedAt:new Date().toISOString(),locationId,valuation:'Current average unit cost is reported for current quantities only; historical periods must use transaction cost evidence.',totals:{stockValueMinor:rows.reduce((sum,row)=>sum+row.valueMinor,0),items:rows.length},rows:rows.map(r=>({stockItemId:r.stock_item_id,name:r.name,code:r.code,baseUnit:r.base_unit,averageUnitCostMinor:Number(r.average_unit_cost_minor),locationId:r.location_id,locationName:r.location_name,quantity:r.quantity,sealedContainers:r.sealed_containers,openQuantity:r.open_quantity,valueMinor:r.valueMinor}))};
 }
 

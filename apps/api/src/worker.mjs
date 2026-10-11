@@ -93,7 +93,12 @@ async function main() {
   const workerId = process.env.WORKER_ID || randomUUID();
   // Add typed handlers as their owning domain modules are implemented.
   const handlers = new Map();
-  console.log(JSON.stringify({event: 'worker_started', workerId, supportedJobTypes: []}));
+  if (handlers.size === 0) {
+    console.log(JSON.stringify({event: 'worker_started', workerId, supportedJobTypes: [], notice: 'No job handlers registered; worker exiting. Implement handlers in domain modules to enable background processing.'}));
+    await pool.end();
+    return;
+  }
+  console.log(JSON.stringify({event: 'worker_started', workerId, supportedJobTypes: [...handlers.keys()]}));
   try { await runWorker({pool, handlers, workerId, signal: controller.signal}); }
   finally { process.off('SIGTERM', stop); process.off('SIGINT', stop); await pool.end(); }
 }

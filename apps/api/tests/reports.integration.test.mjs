@@ -98,7 +98,7 @@ test('Report layer reconciles recognized sales, collections, and refunds from th
  assert.equal(Number(register.totals.grossMinor),1500);
  const fullPage=await salesRegister(pool,manager,{...period,limit:1000});
  assert.equal(fullPage.lines.length,2);
- assert.equal(Number(fullPage.lines.reduce((sum,line)=>sum+Number(line.netMinor)+Number(line.vatMinor)+Number(line.levyMinor)),0),Number(fullPage.totals.grossMinor));
+ assert.equal(Number(fullPage.lines.reduce((sum,line)=>sum+Number(line.netMinor)+Number(line.vatMinor)+Number(line.levyMinor),0)),Number(fullPage.totals.grossMinor));
 
  // Permission gate: actors without reports.view are rejected.
  const restricted={businessId,staffId:randomUUID(),deviceId:randomUUID(),permissions:['pos.sell']};
