@@ -1,15 +1,16 @@
 FROM node:22-alpine AS dependencies
-WORKDIR /app
-COPY package.json package-lock.json ./
+WORKDIR /app/apps/api
+COPY apps/api/package.json apps/api/package-lock.json ./
 RUN npm ci --omit=dev
 
 FROM node:22-alpine
 ENV NODE_ENV=production
-WORKDIR /app
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY package.json package-lock.json ./
-COPY src ./src
-COPY migrations ./migrations
+WORKDIR /app/apps/api
+COPY --from=dependencies /app/apps/api/node_modules ./node_modules
+COPY apps/api/package.json apps/api/package-lock.json ./
+COPY apps/api/src ./src
+COPY apps/api/migrations ./migrations
+COPY contracts /app/contracts
 USER node
 EXPOSE 3000
 CMD ["node", "src/server.mjs"]

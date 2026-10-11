@@ -1,0 +1,11 @@
+**
+!apps/
+!apps/api/
+!apps/api/package.json
+!apps/api/package-lock.json
+!apps/api/src/
+!apps/api/src/**
+!apps/api/migrations/
+!apps/api/migrations/**
+!contracts/
+!contracts/**
