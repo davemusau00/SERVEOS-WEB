@@ -8,7 +8,7 @@
 
 ---
 
-## Sprint 0: Make Existing POS Trustworthy (P0) - COMPLETE ✅
+## Sprint 0: Make Existing POS Trustworthy (P0) - LOCAL IMPLEMENTATION; ACCEPTANCE OPEN
 
 ### Historical supplied baseline (fresh verification required)
 - **Git SHA:** `7a3462292dc3700b9bd0aa978ccf92944fe7fb67`
@@ -194,7 +194,7 @@ This checkpoint supersedes the initial planning statuses above. Neither the hist
 | Payment truth and independent recovery | Confirmation requires original payment evidence plus consistent order projection. Same IDs survive timeout; failed dependencies do not freeze independent aggregates. | Root payment tests and storage replay scenario. Current live 900-KES diagnostic not inspected. |
 | Waiter approval | Additive ticket commands, device authorization, revision checks, transactional existing fire/stock handlers and preparation job deduplication. | Real PostgreSQL ticket approval test; full RBAC/operator acceptance still required. |
 | Universal thermal rendering | Explicit 80-mm profiles, fail-closed unknown types, 72-mm content, stacked documents, pre-footer QR and concise displayed references. New document numbers are allocated in PostgreSQL; historical snapshots remain intact. | Thermal browser fixtures cover 21 types with 1/15/100 rows. Printer model, physical paper, QR scanning, continuous roll and fiscal evidence remain OPEN. |
-| Single-terminal local cash | Signed V2 shift capability, encrypted PIN identity, device-scoped atomic sale/cash/stock/slip/outbox/sequence transaction. Cash remains provisional until confirmed projection is pulled. | Atomic 100-sale ledger/replay fixture; three BAR sales with API unreachable and three PIN-protected reloads pass. Browser-process restart and expanded concurrency checks are being verified. |
+| Single-terminal local cash | Signed V2 shift capability, encrypted PIN identity, device-scoped atomic sale/cash/stock/slip/outbox/sequence transaction. Cash remains provisional until confirmed projection is pulled. | Atomic 100-sale ledger/replay fixture; three BAR sales with API unreachable and three PIN-protected reloads pass. Three complete browser-process restarts, continued offline selling, concurrent-tab stale-balance rejection and persistent stop protection also pass. |
 | Replay and conflict evidence | `pos.offlineSale.commitV2` reuses canonical pricing/inventory and existing POS/payment transactions. Price/stock conflicts retain cash evidence for reconciliation; retries do not reprint. | PostgreSQL 100-sale/five-replay scenario exists; rerun after shift-end safeguards is required. Legacy `order.offlineCashSale` remains supported with its original grant policy. |
 | Shift safety | Local creation can be frozen under the device lock. `pos.offlineCapability.finish` requires the complete confirmed shift ledger. Till close rejects outstanding capabilities, including expired ones, and cash reconciliation exceptions. | Current integration scenario includes blocked close, undrained finish and a fully reconciled close. Acceptance pending that test's current result. |
 | Browser tiers | Feature detection, static readable fallback, capability-gated offline authorization and optional legacy build. SW activation retains its safe-boundary protocol. | Legacy validation build succeeds; all 95 generated modern/legacy assets appear in its precache. Exact older-browser versions are NOT advertised or accepted. |
@@ -202,7 +202,7 @@ This checkpoint supersedes the initial planning statuses above. Neither the hist
 
 ### Local validation boundary
 
-- Source checks: lint, contracts (131 commands), architecture, docs and UI audit have passed locally; all 41 root tests pass. Rerun relevant checks after further changes.
+- Source checks: lint, contracts (131 commands), architecture, docs and UI audit have passed locally; all 42 root tests pass. Rerun relevant checks after further changes.
 - The full PostgreSQL run on the disk-backed disposable local database encountered WAL-sync stalls and integration timeouts. It was stopped and is being rerun against a separate **disposable PostgreSQL 16** instance using temporary memory-backed data storage. This is transaction/integration testing, not backup/restore or production disk-durability evidence.
 - Local Docker packaging check: `API_IMPORT_GRAPH=PASS CONTRACTS_READABLE=PASS NONROOT=PASS`; candidate image digest is not a deployed artifact.
 - Production gates G0?G8, hosted CI/code review, actual printer acceptance, fiscal approval and real-device browser acceptance remain OPEN. No source flag is enabled by default and no production migration or deployment was performed.

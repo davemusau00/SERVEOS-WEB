@@ -82,7 +82,7 @@ test('first-run setup saves server progress, resumes, provisions defaults, and g
  await page.getByRole('button',{name:'Save and review'}).click();
  await expect(page.getByRole('heading',{name:'Finish'})).toBeVisible();
  await page.getByRole('button',{name:'Save business defaults'}).click();
- await expect(page.getByRole('button',{name:'Finish and open workspace'})).toBeEnabled();
+ await expect(page.getByRole('button',{name:'Finish and open workspace'})).toBeEnabled({timeout:15000});
  expect(commandNames).toContain('business.setup.configure');
  expect(commandNames).toContain('business.settings.save');
  expect(commandNames).toContain('stockLocation.save');

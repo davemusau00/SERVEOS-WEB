@@ -1,6 +1,6 @@
 # SERVEOS POS 2.0
 ## Final engineering sprint, acceptance contract and non-destructive VPS deployment runbook
-refer to document Perfomance.md and incorporate into this plan too
+Supporting requirements from [Performance.md](Performance.md) are incorporated throughout this guide. Track local implementation and evidence in [the sprint checkpoint](docs/sprint/pos2-offline-cashier.md); open release gates remain binding.
 
 **Prepared:** 2026-10-11
 
@@ -32,7 +32,7 @@ This repository file is the canonical consolidated guide. The consolidation incl
 
 | Source | Consolidation treatment |
 |---|---|
-| Original pasted versions: attachments `70591f14-eaba-4261-adf1-7589c63b0988` and `a380b8e5-ba61-4ca0-a261-e74bd7dde668` | Byte-for-byte identical; retain their shared A?J engineering and deployment requirements once. |
+| Original pasted versions: attachments `70591f14-eaba-4261-adf1-7589c63b0988` and `a380b8e5-ba61-4ca0-a261-e74bd7dde668` | Byte-for-byte identical; retain their shared A–J engineering and deployment requirements once. |
 | Thermal revision: attachment `3790c8cb-ac4c-49e1-b56a-5b576c1b32e7` / `REV80MM` | Integrate universal 80 mm printing into architecture, implementation, acceptance and release gates. |
 | Final thermal, clean UI and browser revision: attachment `9967a098-a60d-45d8-854d-781ef5fbb497` / `FINAL_SPRINT_THERMAL_CLEAN_UI_BROWSER_COMPAT_20261011(3)` | Matches the pre-consolidation target; retain professional receipts, human references, browser tiers and Sprint 2B. |
 | Current working document and committed baseline | Preserve existing edits; collapse repeated committed document bodies into one guide and check superseded wording for lost requirements. |

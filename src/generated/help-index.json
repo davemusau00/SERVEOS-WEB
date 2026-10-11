@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T14:13:24.195Z",
+  "generatedAt": "2026-10-11T21:42:20.029Z",
   "source": "docs/user-guide",
   "count": 22,
   "articles": [
@@ -127,7 +127,7 @@
         "payment.record"
       ],
       "screen": "pos",
-      "summary": "Use the POS workspace to prepare an order and record the payment confirmed by the customer.",
+      "summary": "Use the POS workspace to prepare an order and record cash received or an external tender verified according to the configured settlement policy.",
       "example": "",
       "steps": [
         "Open or select the correct tab."
@@ -144,7 +144,7 @@
       ],
       "guideId": "pos.first-sale",
       "estimatedMinutes": 1,
-      "body": "Section: Point of Sale\nRoles: Cashier, Server, Manager\nPermission: pos.sell, payment.record\nScreen: pos\nGuide: pos.first-sale\nKeywords: sale, tab, order, payment\n\n## Overview\n\nUse the POS workspace to prepare an order and record the payment confirmed by the customer.\n\n## Procedure\n\n1. Open or select the correct tab.\n2. Add the requested products and quantities.\n3. Review the order, outlet, customer and displayed total.\n4. Choose payment, enter the tender details, and confirm only after receiving the money.\n5. Review the command outcome before starting another transaction.\n\n## What ServOS handles\n\nThe API validates prices, permissions and record versions, then stores the order and payment outcome.\n\n## Common mistakes and correction\n\nDo not record a tender that has not been received. If the outcome is unknown, recover that command in Activity instead of creating another payment.",
+      "body": "# Make a sale\r\n\r\nSection: Point of Sale\r\nRoles: Cashier, Server, Manager\r\nPermission: pos.sell, payment.record\r\nScreen: pos\r\nGuide: pos.first-sale\r\nKeywords: sale, tab, order, payment\r\n\r\n## Overview\r\n\r\nUse the POS workspace to prepare an order and record cash received or an external tender verified according to the configured settlement policy.\r\n\r\n## Procedure\r\n\r\n1. Open or select the correct tab.\r\n2. Add the requested products and quantities.\r\n3. Review the order, outlet, customer and displayed total.\r\n4. Choose payment, enter the tender details, and confirm only after receiving the money.\r\n5. Review the command outcome before starting another transaction.\r\n\r\n## What ServOS handles\r\n\r\nThe API validates prices, permissions and record versions, then stores the order and payment outcome.\r\n\r\n## Common mistakes and correction\r\n\r\nDo not record a tender that has not been received. If the outcome is unknown, recover that command in Activity instead of creating another payment.\r\n\r\n\r\nWhen the simple cashier cohort is enabled, tap a product to add it immediately to the new-sale bill; tap again to increment it. Only required choices open an options sheet. Review the visible total and use **Pay KES �**. Creating the server order happens at checkout, so product taps do not wait for API round trips. Advanced authorized workflows remain under **More / Shift / Activity**.\r\n\r\nWaiters use **Send to cashier** for an order proposal and wait for acknowledgement. Submission does not fire preparation, consume stock or record payment. The enrolled cashier reviews or edits the pending revision, then explicitly approves it once or rejects it with a reason. A later add-on is a new pending round.",
       "keywords": [
         "sale",
         "tab",
@@ -428,6 +428,8 @@
       "title": "Offline work and recovery",
       "section": "Operations",
       "roles": [
+        "Cashier",
+        "Waiter",
         "Admin",
         "Manager",
         "Staff"
@@ -436,25 +438,28 @@
         "help.view"
       ],
       "screen": "help",
-      "summary": "Supported work may continue offline when the device has an unexpired grant for that command.",
+      "summary": "Offline cash is available only on the specifically enrolled checkout terminal in an authorized pilot. An administrator must provision its catalogue, open shift, signed capability and kiosk PIN while online. A new browser must sign in online first. Legacy installations retain their existing authorized behavior until their cohort is enabled.",
       "example": "",
       "steps": [
-        "Check the connection and offline grant status before starting work."
+        "While online, open the enrolled cashier shift and provision its offline capability under **Offline checkout security** using a private kiosk PIN.",
+        "Check its expiry and device support."
       ],
       "systemHandles": [
-        "The API checks the signed grant and command identity when queued work is submitted."
+        "Each local cash commit stores its immutable sale, cash entry, provisional stock, slip evidence, checkout sequence and replay envelope atomically. Server reconciliation checks identity, authorization, canonical prices and inventory. A conflict retains the original cash evidence for review. Independent outcomes can recover without inventing settlement or automatically printing a second receipt."
       ],
       "commonMistakes": [
-        "Do not clear browser storage to remove a queued action. This can discard recovery evidence. Ask an administrator to help resolve the command."
+        "Do not clear storage, reinstall the browser, switch browser profiles or activate a pending update to remove queued financial work. A private recovery export contains business evidence; keep it in authorized storage and give it only to the manager responsible for recovery. Do not label an offline customer-claimed M-Pesa reference as verified payment. Refunds, room charges and credit remain online-only. Another phone or browser is not a substitute offline cashier."
       ],
       "relatedTasks": [
         "28-troubleshooting"
       ],
       "guideId": "",
       "estimatedMinutes": 1,
-      "body": "Section: Operations\nRoles: Admin, Manager, Staff\nPermission: help.view\nScreen: help\nKeywords: offline, sync, queued, unknown outcome, recovery\n\n## Overview\n\nSupported work may continue offline when the device has an unexpired grant for that command.\n\n## Procedure\n\n1. Check the connection and offline grant status before starting work.\n2. Keep the browser open while queued work synchronizes.\n3. Review Activity after reconnecting.\n4. Recover an unknown outcome using the original command before taking the action again.\n\n## What ServOS handles\n\nThe API checks the signed grant and command identity when queued work is submitted.\n\n## Common mistakes and correction\n\nDo not clear browser storage to remove a queued action. This can discard recovery evidence. Ask an administrator to help resolve the command.",
+      "body": "# Offline work and recovery\r\n\r\nSection: Operations\r\nRoles: Cashier, Waiter, Admin, Manager, Staff\r\nPermission: help.view\r\nScreen: help\r\nKeywords: offline, cash, kiosk PIN, sync, queued, unknown outcome, recovery\r\n\r\n## Overview\r\n\r\nOffline cash is available only on the specifically enrolled checkout terminal in an authorized pilot. An administrator must provision its catalogue, open shift, signed capability and kiosk PIN while online. A new browser must sign in online first. Legacy installations retain their existing authorized behavior until their cohort is enabled.\r\n\r\nA locally recorded cash sale means cash was physically received and its evidence was saved on this terminal. It remains provisional for central reporting until the server confirms reconciliation. Waiter devices can save personal drafts during an outage; a draft has not reached the cashier.\r\n\r\n## Procedure\r\n\r\n1. While online, open the enrolled cashier shift and provision its offline capability under **Offline checkout security** using a private kiosk PIN. Check its expiry and device support.\r\n2. Use the same product search, current bill and Pay action during an outage. Review the exact total, physically receive cash, enter tendered cash and check change.\r\n3. Continue only after **recorded locally** is shown. A storage or authorization failure is a hard failure; preserve any physical cash already received and ask the manager to reconcile it before claiming the sale was saved.\r\n4. After restarting this provisioned browser, choose **Unlock provisioned offline checkout** and enter its kiosk PIN. Preserve the browser profile and local data.\r\n5. On reconnect, review **Local cash activity and recovery** and Activity. Sync reuses the original IDs. Review exceptions without repeating their payment.\r\n6. Before shift close, select **Stop offline creation / end capability**, synchronize all local sales and resolve exceptions. Retry ending the capability only after every original cash record is server confirmed. Expiry alone does not prove the ledger is drained.\r\n\r\n## What ServOS handles\r\n\r\nEach local cash commit stores its immutable sale, cash entry, provisional stock, slip evidence, checkout sequence and replay envelope atomically. Server reconciliation checks identity, authorization, canonical prices and inventory. A conflict retains the original cash evidence for review. Independent outcomes can recover without inventing settlement or automatically printing a second receipt.\r\n\r\n## Common mistakes and correction\r\n\r\nDo not clear storage, reinstall the browser, switch browser profiles or activate a pending update to remove queued financial work. A private recovery export contains business evidence; keep it in authorized storage and give it only to the manager responsible for recovery. Do not label an offline customer-claimed M-Pesa reference as verified payment. Refunds, room charges and credit remain online-only. Another phone or browser is not a substitute offline cashier.",
       "keywords": [
         "offline",
+        "cash",
+        "kiosk PIN",
         "sync",
         "queued",
         "unknown outcome",
@@ -513,10 +518,11 @@
         "payment.record"
       ],
       "screen": "activity",
-      "summary": "After a confirmed sale, open its immutable receipt from Activity, preview it, then print from the browser/PWA. The operating-system print dialog lets you choose an installed printer and paper options. A dialog opening does not prove that paper printed. ServOS does not require or offer a Print Bridge or printer service.",
+      "summary": "After a confirmed sale, open its immutable receipt from Activity, preview it, then print from the browser/PWA. The operating-system print dialog lets you choose the accepted 80 mm thermal printer preset. A dialog opening does not prove that paper printed. ServOS does not require or offer a Print Bridge or printer service.",
       "example": "",
       "steps": [
-        "Confirm that the payment outcome is saved."
+        "Confirm that payment evidence and the order balance agree.",
+        "An offline slip remains clearly provisional until reconciliation."
       ],
       "systemHandles": [
         "ServOS keeps the issued receipt immutable and tracks print attempts. The operator confirms physical delivery only after checking the printer output."
@@ -530,7 +536,7 @@
       ],
       "guideId": "receipt.print",
       "estimatedMinutes": 1,
-      "body": "Section: Point of Sale\nRoles: Cashier, Manager\nPermission: pos.sell, payment.record\nScreen: activity\nGuide: receipt.print\nKeywords: receipt, print, browser, printer, duplicate\n\n## Overview\n\nAfter a confirmed sale, open its immutable receipt from Activity, preview it, then print from the browser/PWA. The operating-system print dialog lets you choose an installed printer and paper options. A dialog opening does not prove that paper printed. ServOS does not require or offer a Print Bridge or printer service.\n\n## Procedure\n\n1. Confirm that the payment outcome is saved.\n2. Open Activity and find Documents and printing.\n3. Select the sales receipt and preview it.\n4. Choose **Print with browser** and select the installed operating-system printer and paper options.\n5. Check the physical output. Confirm delivery only after the receipt has printed.\n\n## What ServOS handles\n\nServOS keeps the issued receipt immutable and tracks print attempts. The operator confirms physical delivery only after checking the printer output.\n\n## Common mistakes and correction\n\nDo not treat a browser dialog or a queued job as proof of delivery. If delivery is uncertain, check the printer before retrying because a retry may create a duplicate.",
+      "body": "# Print a receipt\r\n\r\nSection: Point of Sale\r\nRoles: Cashier, Manager\r\nPermission: pos.sell, payment.record\r\nScreen: activity\r\nGuide: receipt.print\r\nKeywords: receipt, print, browser, printer, duplicate\r\n\r\n## Overview\r\n\r\nAfter a confirmed sale, open its immutable receipt from Activity, preview it, then print from the browser/PWA. The operating-system print dialog lets you choose the accepted 80 mm thermal printer preset. A dialog opening does not prove that paper printed. ServOS does not require or offer a Print Bridge or printer service.\r\n\r\n## Procedure\r\n\r\n1. Confirm that payment evidence and the order balance agree. An offline slip remains clearly provisional until reconciliation.\r\n2. Open Activity and find Documents and printing.\r\n3. Select the sales receipt and preview it.\r\n4. Choose **Print with browser** and select the accepted operating-system 80 mm thermal printer with 100% scaling, browser headers/footers disabled and no fit-to-page.\r\n5. Check the physical output. Confirm delivery only after the receipt has printed.\r\n\r\n## What ServOS handles\r\n\r\nServOS keeps the issued receipt immutable and tracks print attempts. The operator confirms physical delivery only after checking the printer output.\r\n\r\n## Common mistakes and correction\r\n\r\nDo not treat a browser dialog or a queued job as proof of delivery. If delivery is uncertain, check the printer before retrying because a retry may create a duplicate.\r\n\r\n\r\nEvery receipt, preparation ticket, stock/supplier/hotel document and printed report uses an 80 mm thermal roll with 72 mm default content width. There is no A4, Letter or landscape fallback. QR codes appear before the footer. A pay-to QR is not payment confirmation; do not ask a customer to pay a settled receipt again.\r\n\r\nLocal slips carry a stable readable reference and **PENDING SERVER SYNC / NOT FISCAL INVOICE**. Use **View original local slips** in local activity. Direct local printing stays disabled outside the physically accepted printer cohort. Reconciliation links the official document without automatically printing or changing an already printed provisional slip. Check uncertain physical delivery before requesting an explicitly marked reprint.",
       "keywords": [
         "receipt",
         "print",
@@ -565,7 +571,7 @@
       "relatedTasks": [],
       "guideId": "",
       "estimatedMinutes": 1,
-      "body": "Section: Printing\nRoles: Admin, Manager\nPermission: system.configure\nScreen: settings\nKeywords: printer, Windows, driver, USB, network, receipt\n\n## Overview\n\nServOS uses the browser/PWA print dialog and an operating-system printer. ServOS does not install a Print Bridge, local service or printer driver. The printer model and print profile must be checked on the actual workstation before being treated as supported.\n\n## Procedure\n\n1. Install the printer using its manufacturer instructions and the workstation's operating-system settings.\n2. Print an operating-system test page and confirm the queue is ready.\n3. In ServOS, open Activity, choose an issued document and preview it.\n4. Choose **Print with browser**, select the operating-system printer and verify the paper-size and scaling options.\n5. Inspect the paper output before confirming delivery or retrying an uncertain document.\n\n## What ServOS handles\n\nThe API authorizes each print attempt and records its status. The browser dialog does not confirm that paper emerged from the printer.\n\n## Common mistakes and correction\n\nOperating-system queue readiness and a test page do not prove that a ServOS receipt is correctly scaled. Inspect the actual receipt before retrying; a retry may create a duplicate.",
+      "body": "# Configure an operating-system printer\r\n\r\nSection: Printing\r\nRoles: Admin, Manager\r\nPermission: system.configure\r\nScreen: settings\r\nKeywords: printer, Windows, driver, USB, network, receipt\r\n\r\n## Overview\r\n\r\nServOS uses the browser/PWA print dialog and an operating-system printer. ServOS does not install a Print Bridge, local service or printer driver. The printer model and print profile must be checked on the actual workstation before being treated as supported.\r\n\r\n## Procedure\r\n\r\n1. Install the printer using its manufacturer instructions and the workstation's operating-system settings.\r\n2. Print an operating-system test page and confirm the queue is ready.\r\n3. In ServOS, open Activity, choose an issued document and preview it.\r\n4. Choose **Print with browser**, select the operating-system printer and verify **80 mm thermal roll**, 100% scaling, no fit-to-page and disabled browser headers/footers.\r\n5. Inspect the paper output before confirming delivery or retrying an uncertain document.\r\n\r\n## What ServOS handles\r\n\r\nThe API authorizes each print attempt and records its status. The browser dialog does not confirm that paper emerged from the printer.\r\n\r\n## Common mistakes and correction\r\n\r\nOperating-system queue readiness and a test page do not prove that a ServOS receipt is correctly scaled. Inspect the actual receipt before retrying; a retry may create a duplicate.\r\n\r\n\r\n## Physical acceptance record\r\n\r\nRecord the actual printer model, Windows driver/version, 80 mm roll preset, measured printable width (72 mm by default), margins, density, feed/cut policy, workstation/browser version, test date and approver. The guide filename does not establish that a particular printer is installed or accepted.\r\n\r\nTest legibility, unclipped totals and long names, logo, a scannable QR, a two-metre continuous document or clearly numbered 80 mm continuation slips, cold browser restart and marked reprints. An operating-system test page or spooler success does not establish ServOS paper delivery. Keep physical acceptance open and direct printing disabled if these tests cannot be completed; never choose A4 as a substitute.",
       "keywords": [
         "printer",
         "Windows",

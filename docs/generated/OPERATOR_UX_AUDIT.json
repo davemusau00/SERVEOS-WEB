@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedBy": "npm run audit:ui",
-  "sourceDigest": "7b36837d1ed82927b57a02287ed0a219943a2b18f0cbed4d7daf9be166a2f4c3",
+  "sourceDigest": "c45be0c2c88d4d0f5052d76c017c4283cacd5c6d1e6b4742b5bca214066986f9",
   "scope": "Compact tracked summary; full static signals are a CI artifact and do not imply acceptance",
   "interactionCount": 1792,
   "findingCount": 275,

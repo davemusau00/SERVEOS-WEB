@@ -4,6 +4,7 @@ import {allowed,type BusinessRecord} from '../session';
 import {inventoryRevisions} from '../inventoryRevisions';
 import {formatDocumentMoney} from '../documentPaperProfiles';
 import {operatorError} from '../operatorError';
+import {useModalFocus} from './useModalFocus';
 
 const rows=(value:unknown):Record<string,unknown>[]=>Array.isArray(value)?value:[];
 const object=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'?value as Record<string,unknown>:{};
@@ -13,7 +14,8 @@ export function TicketsInbox({records,session,store,command,disabled,queue}:WebA
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived),products=records.filter(row=>row.collection==='products'&&!row.archived);
  const [ticketId,setTicket]=useState<string>(()=>crypto.randomUUID()),[revision,setRevision]=useState(0),[outletId,setOutlet]=useState(outlets[0]?.id||''),[tableId,setTable]=useState(''),[name,setName]=useState(''),[lines,setLines]=useState<Line[]>([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[search,setSearch]=useState('');
  const [decision,setDecision]=useState<{ticket:BusinessRecord;operation:string}|null>(null),[decisionReason,setDecisionReason]=useState('');
- const inFlight=useRef(false);
+ const inFlight=useRef(false),dialogRef=useRef<HTMLDivElement|null>(null),returnFocus=useRef<HTMLElement|null>(null);
+ useModalFocus(dialogRef,Boolean(decision),()=>{if(!busy)setDecision(null);},returnFocus);
  useEffect(()=>{let mounted=true;void store.drafts().then(drafts=>{const draft=drafts.find(row=>row.operation==='ticket.submit'&&row.editorKind==='Waiter ticket');if(!draft||!mounted)return;const p=draft.payload;setTicket(draft.id);setOutlet(String(p.outletId||''));setTable(String(p.tableId||''));setName(String(p.name||''));setLines(Array.isArray(p.lines)?p.lines as Line[]:[]);setMessage('Unsent draft restored on this device. It has not reached the cashier.');});return()=>{mounted=false};},[store]);
  const payload=()=>({ticketId,outletId,tableId:tableId||undefined,name:name.trim()||'Waiter order',lines});
  const chooseOptions=(lineId:string,patch:Partial<Line>)=>{
@@ -40,7 +42,7 @@ export function TicketsInbox({records,session,store,command,disabled,queue}:WebA
   }catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false);}
  };
  const act=async(ticket:BusinessRecord,operation:string,reason?:string)=>{
-  if(operation!=='ticket.approve'&&!reason){setDecision({ticket,operation});setDecisionReason('');return;}
+  if(operation!=='ticket.approve'&&!reason){returnFocus.current=document.activeElement as HTMLElement;setDecision({ticket,operation});setDecisionReason('');return;}
   if(inFlight.current||disabled||busy)return;inFlight.current=true;setBusy(true);
   try{
    const base={ticketId:ticket.id,expectedVersions:[version(ticket)]};
@@ -80,7 +82,7 @@ export function TicketsInbox({records,session,store,command,disabled,queue}:WebA
    <p>Only server acknowledgement delivers this proposal. The cashier must approve before preparation or stock movement.</p>
   </form>}
   {tickets.map(ticket=><article key={ticket.id} className="space-y-2 rounded-xl border border-slate-700 p-3"><h3 className="font-bold">{String(object(ticket.data.payload).name)} · {String(ticket.data.status)}</h3><p>{new Date(String(ticket.data.submittedAt)).toLocaleString('en-KE',{timeZone:'Africa/Nairobi'})}</p>{rows(object(ticket.data.payload).lines).map(line=><p key={String(line.id)}>{String(products.find(product=>product.id===line.productId)?.data.name||'Unavailable product')} × {String(line.quantity)} · reviewed unit {formatDocumentMoney(Number(line.unitPriceMinor))}{line.note?` · ${String(line.note)}`:''}</p>)}{Boolean(ticket.data.reason)&&<p>{String(ticket.data.reason)}</p>}{['SUBMITTED','NEEDS_REVIEW'].includes(String(ticket.data.status))&&<div className="flex flex-wrap gap-2">{allowed(session,'ticket.approve')&&<button className={button} disabled={disabled||busy||!navigator.onLine} onClick={()=>void act(ticket,'ticket.approve')}>Approve & send</button>}{allowed(session,'ticket.reject')&&<button className={button} disabled={disabled||busy||!navigator.onLine} onClick={()=>void act(ticket,'ticket.reject')}>Reject with reason</button>}{(ticket.data.createdByStaffId===session.actorId||allowed(session,'ticket.approve'))&&<><button className={button} disabled={disabled||busy||pending} onClick={()=>{setTicket(ticket.id);setRevision(ticket.version);setOutlet(String(ticket.data.outletId));setTable(String(ticket.data.tableId||''));setName(String(object(ticket.data.payload).name));setLines(reviewLines(ticket));setMessage('Review the current product prices and options before re-submitting.');}}>Review / edit pending ticket</button>{ticket.data.createdByStaffId===session.actorId&&<button className={button} disabled={disabled||busy||!navigator.onLine} onClick={()=>void act(ticket,'ticket.cancel')}>Cancel proposal</button>}</>}</div>}</article>)}
-  {decision&&<div role="dialog" aria-modal="true" aria-label="Ticket decision reason" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onKeyDown={event=>{if(event.key==='Escape'&&!busy)setDecision(null);}}><form className="w-full max-w-md space-y-3 rounded-xl bg-slate-900 p-4" onSubmit={event=>{event.preventDefault();if(decisionReason.trim().length>=3){const chosen=decision;setDecision(null);void act(chosen.ticket,chosen.operation,decisionReason.trim());}}}><h3>Reason for {decision.operation==='ticket.reject'?'rejecting':'cancelling'} this ticket</h3><label>Reason<textarea autoFocus required minLength={3} maxLength={500} className="w-full rounded border p-2" value={decisionReason} onChange={event=>setDecisionReason(event.target.value)}/></label><button className={button} disabled={busy||decisionReason.trim().length<3}>Record decision</button><button className={button} type="button" disabled={busy} onClick={()=>setDecision(null)}>Back</button></form></div>}
+  {decision&&<div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket decision reason" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onKeyDown={event=>{if(event.key==='Escape'&&!busy)setDecision(null);}}><form className="w-full max-w-md space-y-3 rounded-xl bg-slate-900 p-4" onSubmit={event=>{event.preventDefault();if(decisionReason.trim().length>=3){const chosen=decision;setDecision(null);void act(chosen.ticket,chosen.operation,decisionReason.trim());}}}><h3>Reason for {decision.operation==='ticket.reject'?'rejecting':'cancelling'} this ticket</h3><label>Reason<textarea autoFocus required minLength={3} maxLength={500} className="w-full rounded border p-2" value={decisionReason} onChange={event=>setDecisionReason(event.target.value)}/></label><button className={button} disabled={busy||decisionReason.trim().length<3}>Record decision</button><button className={button} type="button" disabled={busy} onClick={()=>setDecision(null)}>Back</button></form></div>}
   {message&&<p role="status">{message}</p>}
  </section>;
 }

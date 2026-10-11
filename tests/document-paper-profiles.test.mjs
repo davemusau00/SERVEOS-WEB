@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { documentCopyStatus, documentPaperProfile, documentPreviewAttempt, formatDocumentMoney, DOCUMENT_DEVELOPER_FOOTER,THERMAL_DOCUMENT_TYPES } from '../src/runtime/web/documentPaperProfiles.ts';
-import {readFileSync} from 'node:fs';
+import {readFileSync,readdirSync} from 'node:fs';
+import path from 'node:path';
 
 test('customer receipts, refunds and kitchen tickets use the narrow thermal profile', () => {
   for (const type of ['SALES_RECEIPT', 'PAYMENT_ACKNOWLEDGEMENT', 'REFUND_RECEIPT', 'KOT', 'BOT', 'KOT_CANCEL', 'BOT_CANCEL', 'ORDER_VOID_NOTICE']) {
@@ -43,4 +44,10 @@ test('document money formatting applies KES exactly once and rejects non-minor-u
   assert.equal(formatDocumentMoney(-125), 'KES -1.25');
   assert.equal(formatDocumentMoney(null), '—');
   assert.equal(formatDocumentMoney(1.5), '—');
+});
+
+
+test('all active web print paths reject wide-paper branches',()=>{
+ const visit=directory=>{for(const entry of readdirSync(directory,{withFileTypes:true})){const file=path.join(directory,entry.name);if(entry.isDirectory())visit(file);else if(/\.(tsx?|mjs)$/.test(entry.name)){const source=readFileSync(file,'utf8');assert.doesNotMatch(source,/a4-portrait|a4-landscape|size\s*:\s*A4|210\s*mm|297\s*mm/i,file);}}};
+ visit('src/runtime/web');
 });

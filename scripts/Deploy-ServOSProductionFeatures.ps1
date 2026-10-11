@@ -2,10 +2,30 @@ param(
   [ValidateSet('ApiKeys', 'VerifyKeys', 'TenantId', 'ReleaseRecord', 'Alerts', 'TestAlert', 'Monitor', 'Pwa', 'RouteRollback')]
   [string]$Mode = 'ApiKeys',
   [string]$ReleaseId = '',
-  [string]$ArchivePath = ''
+  [string]$ArchivePath = '',
+  [ValidateSet('ServeosNext')][string]$TargetEnvironment,
+  [string]$ExpectedCurrentRelease = '',
+  [string]$ExpectedNginxSha256 = '',
+  [int]$ExpectedApiPort = 0,
+  [switch]$PlanOnly,
+  [switch]$ExecuteApprovedSwitch
 )
 
 $ErrorActionPreference = 'Stop'
+# The retired serveos-prod modes are intentionally inaccessible for serveos-next.
+# No network or filesystem mutation occurs until explicit target/baseline validation.
+if ($TargetEnvironment -ne 'ServeosNext') { throw 'Specify -TargetEnvironment ServeosNext. No retired target or default deployment is allowed.' }
+if ($Mode -ne 'Pwa') { throw 'Only the target-aware Pwa mode is supported. Retired key, monitor and route modes require a separately reviewed replacement.' }
+if ($ExpectedCurrentRelease -notmatch '^/var/www/serveos-next/releases/[a-f0-9]{7,40}$') { throw 'Supply the freshly verified absolute current serveos-next release path.' }
+if ($ExpectedNginxSha256 -notmatch '^[a-f0-9]{64}$') { throw 'Supply the freshly verified ServeOS Nginx site SHA-256.' }
+if ($ExpectedApiPort -notin @(3102,3103)) { throw 'Supply the freshly verified loopback API port (3102 or 3103).' }
+$targetWebRoot = '/var/www/serveos-next'
+if ($PlanOnly) {
+  @{target=$TargetEnvironment; mode=$Mode; webRoot=$targetWebRoot; expectedCurrent=$ExpectedCurrentRelease; expectedApiPort=$ExpectedApiPort; expectedNginxSha256=$ExpectedNginxSha256; releaseId=$ReleaseId; archive=$ArchivePath; executes=$false} | ConvertTo-Json
+  return
+}
+if (-not $ExecuteApprovedSwitch) { throw 'Execution requires -ExecuteApprovedSwitch after the guide release gates and explicit deployment approval. Use -PlanOnly for a local review.' }
+
 $ssh = 'C:\Windows\System32\OpenSSH\ssh.exe'
 $identity = Join-Path $env:USERPROFILE '.ssh\id_ed25519'
 $destination = 'administrator@93.127.131.55'
@@ -209,6 +229,38 @@ os.chmod(dropin,0o644)
   ssh -i $identity -o BatchMode=yes $destination 'sudo systemctl daemon-reload && sudo systemctl restart serveos-prod-healthcheck.timer && sudo systemctl start serveos-prod-healthcheck.service && sudo systemctl is-active serveos-prod-healthcheck.timer'
 }
 elseif ($Mode -eq 'Pwa') {
+  $baseline = @{root=$targetWebRoot; expectedCurrent=$ExpectedCurrentRelease; nginxSha256=$ExpectedNginxSha256; apiPort=$ExpectedApiPort} | ConvertTo-Json -Compress
+  $baselineEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($baseline))
+  $preflight = @"
+import base64,hashlib,json,pathlib,re,subprocess
+c=json.loads(base64.b64decode('$baselineEncoded'))
+root=pathlib.Path(c['root']);current=root/'current';site=pathlib.Path('/etc/nginx/sites-enabled/serveos-production')
+if str(root)!='/var/www/serveos-next' or not current.is_symlink() or str(current.resolve())!=c['expectedCurrent']: raise SystemExit('ServeOS current release does not match the approved baseline')
+raw=site.read_bytes()
+if hashlib.sha256(raw).hexdigest()!=c['nginxSha256']: raise SystemExit('ServeOS Nginx site checksum changed')
+text=raw.decode('utf-8');proxy='proxy_pass http://127.0.0.1:'+str(c['apiPort'])+';'
+def validate_virtual_hosts(source,port):
+ source=re.sub(r'#[^\n]*','',source);blocks=[]
+ for match in re.finditer(r'\bserver\s*\{',source):
+  depth=1;end=match.end()
+  while end<len(source) and depth:
+   if source[end]=='{': depth+=1
+   elif source[end]=='}': depth-=1
+   end+=1
+  if depth: raise ValueError('Unbalanced ServeOS site configuration')
+  blocks.append(source[match.end():end-1])
+ def host(block,name):
+  return any(name in names.split() for names in re.findall(r'server_name\s+([^;]+);',block))
+ proxy='proxy_pass http://127.0.0.1:'+str(port)+';'
+ api=[block for block in blocks if host(block,'serveosapi.davemusau.co.ke') and 'proxy_pass' in block]
+ web=[block for block in blocks if host(block,'serveos.davemusau.co.ke') and 'root /var/www/serveos-next/current;' in block]
+ if len(api)!=1 or len(web)!=1 or api[0].count(proxy)!=2 or len(re.findall(r'\bproxy_pass\s+',api[0]))!=2 or source.count(proxy)!=2: raise ValueError('ServeOS virtual host/root/API baseline mismatch')
+validate_virtual_hosts(text,c['apiPort'])
+subprocess.run(['nginx','-t'],check=True,capture_output=True)
+subprocess.run(['curl','-fsS','--max-time','10','http://127.0.0.1:'+str(c['apiPort'])+'/health/ready'],check=True,capture_output=True)
+print('serveos-next-baseline=verified')
+"@
+  Invoke-SecureSshInput 'sudo python3 -' $preflight
   if (-not $ReleaseId) { $ReleaseId = (& git rev-parse --short=12 HEAD).Trim() }
   if ($ReleaseId -notmatch '^[a-f0-9]{7,40}$') { throw 'ReleaseId must be a Git SHA from 7 to 40 hexadecimal characters.' }
   if (-not $ArchivePath) { $ArchivePath = Join-Path (Get-Location) "release\web\$ReleaseId.zip" }
@@ -222,7 +274,7 @@ elseif ($Mode -eq 'Pwa') {
   $scp = Join-Path (Split-Path -Parent $ssh) 'scp.exe'
   & $scp -i $identity -o BatchMode=yes $ArchivePath "$($destination):$remoteArchive"
   if ($LASTEXITCODE -ne 0) { throw "PWA archive upload failed with exit code $LASTEXITCODE." }
-  $config = @{ releaseId = $ReleaseId; archivePath = $remoteArchive } | ConvertTo-Json -Compress
+  $config = @{ releaseId = $ReleaseId; archivePath = $remoteArchive; webRoot=$targetWebRoot; expectedCurrent=$ExpectedCurrentRelease; nginxSha256=$ExpectedNginxSha256; apiPort=$ExpectedApiPort } | ConvertTo-Json -Compress
   $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($config))
   $python = @"
 import base64,hashlib,json,os,pathlib,re,shutil,stat,subprocess,tempfile,uuid,zipfile
@@ -231,7 +283,11 @@ release=config['releaseId']
 archive=pathlib.Path(config['archivePath'])
 if not re.fullmatch(r'[a-f0-9]{7,40}',release): raise SystemExit('Invalid PWA release ID')
 if archive.parent!=pathlib.Path('/tmp') or not archive.is_file(): raise SystemExit('Uploaded PWA archive is missing or outside the temporary release directory')
-root=pathlib.Path('/var/www/serveos-prod')
+root=pathlib.Path(config['webRoot'])
+if str(root)!='/var/www/serveos-next': raise SystemExit('Unsupported PWA deployment root')
+if not (root/'current').is_symlink() or str((root/'current').resolve())!=config['expectedCurrent']: raise SystemExit('Current release changed since preflight')
+site=pathlib.Path('/etc/nginx/sites-enabled/serveos-production')
+if hashlib.sha256(site.read_bytes()).hexdigest()!=config['nginxSha256']: raise SystemExit('Nginx baseline changed since preflight')
 releases=root/'releases'
 destination=releases/release
 current=root/'current'
@@ -273,6 +329,15 @@ def check_route(host,path):
  body,status=result.stdout.rsplit('\n',1)
  if status!='200': raise RuntimeError(host+path+' returned HTTP '+status)
  return body
+def protected_origins():
+ result={}
+ for host in ['detailskilonzo.com','sms.detailskilonzo.com','africa.detailskilonzo.com']:
+  response=subprocess.run(['curl','--noproxy','*','-sS','-o','/dev/null','-w','%{http_code}:%{ssl_verify_result}','--max-time','15','--resolve',host+':443:127.0.0.1','https://'+host+'/'],capture_output=True,text=True,check=True)
+  code,ssl=response.stdout.split(':')
+  if ssl!='0' or code not in ['200','301','302','303','307','308']: raise RuntimeError('Protected origin baseline is unhealthy: '+host)
+  result[host]=response.stdout
+ return result
+protected_before=protected_origins()
 try:
  check_route('serveos.davemusau.co.ke','/')
  check_route('serveosapi.davemusau.co.ke','/health/ready')
@@ -296,6 +361,7 @@ except Exception:
  shutil.rmtree(staging,ignore_errors=True)
  archive.unlink(missing_ok=True)
  raise
+if str(current.resolve())!=config['expectedCurrent']: raise SystemExit('Concurrent PWA switch detected; immutable candidate retained')
 next_link=root/('.current.next-'+uuid.uuid4().hex)
 next_link.symlink_to(destination)
 os.replace(next_link,current)
@@ -305,8 +371,10 @@ try:
  missing=[asset for asset in referenced if asset.lstrip('/') not in entries]
  if missing: raise RuntimeError('Activated page refers to assets absent from the release: '+', '.join(sorted(missing)))
  check_route('serveosapi.davemusau.co.ke','/health/ready')
+ if protected_origins()!=protected_before: raise RuntimeError('Protected origin response changed; restore only the ServeOS PWA link')
+ if hashlib.sha256(site.read_bytes()).hexdigest()!=config['nginxSha256']: raise RuntimeError('Nginx baseline changed during PWA switch')
 except Exception:
- if old:
+ if old and current.resolve()==destination.resolve():
   rollback=root/('.current.rollback-'+uuid.uuid4().hex)
   rollback.symlink_to(old)
   os.replace(rollback,current)
