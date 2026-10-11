@@ -212,3 +212,11 @@ This checkpoint supersedes the initial planning statuses above. Neither the hist
 - Full local API suite: `npm run test:api` passes all 43 tests, with zero skips, against disposable PostgreSQL 16. Full built-PWA suite: `npm run test:browser:production` passes 43 tests with one intentional duplicate mobile browser-process-restart skip; the enrolled desktop restart scenario passes. No physical printer delivery or real older-browser claim follows from these results.
 
 - Local printing recovery now retains an append-only attempt/state history alongside each current claim. Automatic duplicate requests are refused; operator-checked marked reprints remain available after a restart. The cash-ledger browser scenario verifies two attempts, four history events and cleared delivery uncertainty without a new sale or stock debit. This records software behavior, not physical printing acceptance.
+
+- Real API browser suite: `npm run test:browser:api` passes all six desktop/mobile scenarios after correcting historical developer-footer and A4 assertions to the consolidated thermal policy. Sale, printer uncertainty/retry, refund, close-day, hotel and persisted API projection flows pass. Print transport is instrumented; physical delivery is not accepted.
+
+### Remaining source and release work
+
+The full guide is not complete. Remaining source acceptance includes a complete manager cash-exception resolution workflow, local shift counting and reconciled device/staff handoff, presentation of provisional stock balances across inventory screens, a historical API binary against the expanded schema, a full waiting-worker upgrade/rollback with outstanding cash, and an isolated deployment archive/symlink rollback rehearsal. These are separate from the completed local regression checks and must not be inferred from their results.
+
+External gates remain open: hosted CI/review, fresh live baseline and unresolved-command review, two independently restorable backup generations, isolated VPS staging, approved migration/canary/cutover, actual printer model/driver/continuous paper/QR tests, fiscal approval and exact real-device browser inventory. Current production flags, schema and release are unverified; no production action was taken.
