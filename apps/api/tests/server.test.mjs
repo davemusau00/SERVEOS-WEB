@@ -19,9 +19,16 @@ test('session authentication hashes bearer token and ignores caller identity hea
 });
 
 test('health routes are public and command routes require session authentication', async t => {
+  let queryCount = 0;
   const pool = {
     query: async (sql) => {
-      if (sql.includes('api_schema_migrations')) {
+      queryCount++;
+      // First query: check if api_schema_migrations table exists
+      if (queryCount === 1) {
+        return {rows: [{ready: true}]};
+      }
+      // Second query: count applied migrations
+      if (sql.includes('count(*)') && sql.includes('api_schema_migrations')) {
         return {rows: [{applied: 72}]};
       }
       return {rows: [{ready: true}]};
