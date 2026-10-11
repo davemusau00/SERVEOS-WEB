@@ -38,7 +38,7 @@ export async function inspectBrowserCapabilities():Promise<BrowserSupport>{
  if(!('serviceWorker' in navigator)||!('caches' in window))missing.push('Offline application support');
  if(!('locks' in navigator))missing.push('Exclusive checkout locking');
  if(!('print' in window))missing.push('Browser printing');
- if(typeof CSS==='undefined'||!CSS.supports('color','oklch(50% 0.1 120)'))missing.push('Modern display support');
+ if(typeof CSS==='undefined'||!CSS.supports('color','oklch(50% 0.1 120)')||!('registerProperty' in CSS))missing.push('Modern display support');
  if(!modernBrowserBaseline(navigator.userAgent))missing.push('Browser version needs online-only acceptance');
  const unsupported=missing.some(value=>['Secure connection','Secure cryptography','Local transaction storage','Local date formatting'].includes(value));
  return {mode:unsupported?'Unsupported':missing.length?'Online only':'Full',missing};

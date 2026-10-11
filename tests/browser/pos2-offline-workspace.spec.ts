@@ -1,4 +1,7 @@
-import {test,expect} from '@playwright/test';
+import {test,expect,chromium} from '@playwright/test';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
 import {buildSync} from 'esbuild';
 import {generateKeyPairSync} from 'node:crypto';
 const keys=generateKeyPairSync('ec',{namedCurve:'P-256'}),privateJwk=keys.privateKey.export({format:'jwk'}),publicJwk=keys.publicKey.export({format:'jwk'});
@@ -10,10 +13,25 @@ const unsigned={leaseId:crypto.randomUUID(),version:2,businessId:business,device
 await store.applyPage({cursor:1,highWater:1,hasMore:false,changes:[{sequence:1,commandId:crypto.randomUUID(),records:records.map(row=>({...row,archived:false}))}]});await store.provisionOfflineIdentity('482916',lease,${JSON.stringify(publicJwk)},'Cashier Jane');localStorage.setItem('servos:offline-checkout',JSON.stringify({businessId:business,staffId:staff,deviceId:device}));createRoot(document.getElementById('fixture')).render(React.createElement(CashierWorkspace,{store,records,session:{businessId:business,actorId:staff,permissions:lease.permissions,enabled:true,policyVersion:'test',capabilities:{'pos2.simpleCashier':true,'pos2.offlineCash':true}},deviceId:device,queue:[],disabled:false,initialOfflineLease:lease,onMore:()=>{},readRecords:async()=>records,command:async()=>{window.apiCalls++;return {kind:'BLOCKED',message:'Unexpected API call'};}}));};
 `,resolveDir:process.cwd()},bundle:true,write:false,format:'iife',platform:'browser',define:{'process.env.NODE_ENV':'"production"','import.meta.env.VITE_API_OFFLINE_GRANT_PUBLIC_JWK':JSON.stringify(JSON.stringify(publicJwk))}}).outputFiles[0].text;
 test('same cashier UI records consecutive BAR cash sales with the API unreachable',async({page,context})=>{
- await page.goto('/');await page.evaluate(()=>{document.body.innerHTML='<div id="fixture"></div>';});await page.addScriptTag({content:harness});await page.evaluate(()=>(window as any).startOfflineFixture());await page.evaluate(async()=>{await navigator.serviceWorker.ready;if(!navigator.serviceWorker.controller)await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));});await context.setOffline(true);
+ test.setTimeout(120000);
+ await page.goto('/');await page.evaluate(async()=>{await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;});await page.reload();await page.evaluate(()=>{document.body.innerHTML='<div id="fixture"></div>';});await page.addScriptTag({content:harness});await page.evaluate(()=>(window as any).startOfflineFixture());await context.setOffline(true);
  for(let i=0;i<3;i++){
   await page.getByRole('button',{name:/^Bar spirit/}).click();await expect(page.getByLabel('Current bill')).toContainText('KES 900.00');await page.getByRole('button',{name:'Pay KES 900.00'}).click();await page.getByLabel('Cash tendered').fill('1000');await page.getByRole('button',{name:'Record cash received'}).click();await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.getByText(/Cash received\. POS01/)).toContainText('Change KES 100.00');
  }
  const result=await page.evaluate(async()=>({calls:(window as any).apiCalls,sales:await (window as any).fixtureStore.localCashSales()}));expect(result.calls).toBe(0);expect(result.sales).toHaveLength(3);expect(result.sales.map((sale:any)=>sale.input.stockMovements[0].after.quantity)).toEqual([149750,149500,149250]);expect(result.sales.every((sale:any)=>sale.state==='RECORDED_LOCALLY')).toBe(true);
  for(let reload=0;reload<3;reload++){await page.reload();await page.evaluate(()=>document.body.innerHTML='<div id="fixture"></div>');await page.addScriptTag({content:harness});await page.evaluate(()=>(window as any).openColdFixture());await page.getByLabel('Kiosk PIN').fill('482916');await page.getByRole('button',{name:'Unlock checkout',exact:true}).click();await expect(page.getByLabel('Cashier workspace')).toBeVisible();await page.getByRole('button',{name:'More / Shift / Activity'}).click();await expect(page.getByLabel('Local cash activity').locator('article')).toHaveCount(3);}
+});
+
+
+test('provisioned PIN and cash evidence survive three complete browser-process restarts',async({},testInfo)=>{
+ test.skip(testInfo.project.name!=='desktop-web','Complete browser restarts exercise the desktop checkout.');
+ test.setTimeout(180000);
+ const profile=await mkdtemp(path.join(tmpdir(),'servos-pos2-offline-'));let terminal=await chromium.launchPersistentContext(profile,{headless:true,viewport:{width:1366,height:768}});
+ const cash=async(page:any)=>{await page.getByRole('button',{name:/^Bar spirit/}).click();await page.getByRole('button',{name:'Pay KES 900.00'}).click();await page.getByLabel('Cash tendered').fill('1000');await page.getByRole('button',{name:'Record cash received'}).click();await expect(page.getByRole('dialog')).toHaveCount(0);};
+ try{
+  let page=terminal.pages()[0];await page.goto('http://127.0.0.1:3010/');await page.evaluate(async()=>{await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;});await page.reload();await page.evaluate(()=>document.body.innerHTML='<div id="fixture"></div>');await page.addScriptTag({content:harness});await page.evaluate(()=>(window as any).startOfflineFixture());await terminal.setOffline(true);await cash(page);await terminal.close();
+  for(let restart=0;restart<3;restart++){
+   terminal=await chromium.launchPersistentContext(profile,{headless:true,viewport:{width:1366,height:768}});await terminal.setOffline(true);page=terminal.pages()[0];await page.goto('http://127.0.0.1:3010/');await page.evaluate(()=>document.body.innerHTML='<div id="fixture"></div>');await page.addScriptTag({content:harness});await page.evaluate(()=>(window as any).openColdFixture());await page.getByLabel('Kiosk PIN').fill('482916');await page.getByRole('button',{name:'Unlock checkout',exact:true}).click();await expect(page.getByLabel('Cashier workspace')).toBeVisible();await page.getByRole('button',{name:'More / Shift / Activity'}).click();await expect(page.getByLabel('Local cash activity').locator('article')).toHaveCount(restart+1);await page.getByRole('button',{name:'Back to products',exact:true}).click();await cash(page);await terminal.close();
+  }
+ }finally{await terminal.close().catch(()=>{});const resolved=path.resolve(profile),root=path.resolve(tmpdir())+path.sep;if(!resolved.startsWith(root)||!path.basename(resolved).startsWith('servos-pos2-offline-'))throw Error('Unexpected test profile path.');await rm(resolved,{recursive:true,force:true});}
 });

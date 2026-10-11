@@ -18,6 +18,10 @@ jobs:
       - run: npm run lint
       - run: npm run contracts:check
       - run: npm run build
+      - name: Build optional legacy assets and verify complete shell precache
+        run: |
+          SERVEOS_LEGACY_BUILD=true npm run build -- --minify false --outDir dist-legacy-ci
+          node scripts/verify-shell-assets.mjs dist-legacy-ci --legacy
       - run: npm test
       - run: npm run architecture:check
       - run: npm run audit:ui

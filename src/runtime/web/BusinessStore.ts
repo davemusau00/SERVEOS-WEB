@@ -122,7 +122,7 @@ export class BusinessStore {
   async provisionOfflineIdentity(pin:string,lease:OfflineCashLease,publicKey:JsonWebKey,operatorName:string){
     if(!(await verifyCashLease(lease,publicKey,{businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId})))throw Error('Offline identity requires verified cashier authority.');
     const locked=await lockOfflineIdentity(pin,lease,operatorName);
-    await this.cashTransaction(['meta'],'readwrite',tx=>request(tx.objectStore('meta').put(locked,`offlineIdentity:${this.actorId}`)));
+    await this.cashTransaction(['meta'],'readwrite',async tx=>{await request(tx.objectStore('meta').put(locked,`offlineIdentity:${this.actorId}`));await request(tx.objectStore('meta').delete('offlineCreationStopped'));});
   }
   async reopenOfflineIdentity(pin:string,publicKey:JsonWebKey){
     if(!navigator.locks)throw Error('Secure kiosk locking is unavailable.');
@@ -150,7 +150,17 @@ export class BusinessStore {
     return navigator.locks.request(`servos-cash:${this.scope}:${this.deviceId}`,{mode:'exclusive'},()=>this.cashTransaction(['meta','cashSales','cashEntries','localStockMovements','localOrderTickets','outboxV2','localShiftLedger','localPrintEvidence','capabilityLeases'],'readwrite',async tx=>{
       const sales=tx.objectStore('cashSales'),existing=await request(sales.get(input.id));
       if(existing){if(existing.payloadHash!==payloadHash)throw Error('Local sale ID is already bound to another payload.');return existing;}
+      if(await request(tx.objectStore('meta').get('offlineCreationStopped')))throw Error('Offline creation has stopped on this terminal. Synchronize its ledger before reprovisioning.');
       if(Date.parse(lease.expiresAt)<=Date.now())throw Error('Checkout capability expired before local commit.');
+      // The basket may have been priced before another tab committed. Check the
+      // latest provisional physical balance while holding the device lock.
+      const prior=await request(tx.objectStore('localStockMovements').getAll()),sequenceBySale=new Map((await request(sales.getAll())).map(row=>[row.id,row.sequence]));
+      prior.sort((a,b)=>Number(sequenceBySale.get(a.saleId)||0)-Number(sequenceBySale.get(b.saleId)||0));
+      for(const movement of input.stockMovements){
+        const latest=prior.filter(row=>row.state==='PROVISIONAL'&&row.stockItemId===movement.stockItemId&&row.locationId===movement.locationId).at(-1);
+        const before=(movement as Record<string,unknown>).before;
+        if(latest?.after&&before&&canonicalCashJson(latest.after)!==canonicalCashJson(before))throw Error('Stock changed on this checkout. Review the basket before recording cash.');
+      }
       const meta=tx.objectStore('meta'),sequence=Number(await request(meta.get('cashSequence'))||0)+1;
       if(!Number.isSafeInteger(sequence))throw Error('Local checkout sequence exhausted.');
       const occurredAt=new Date().toISOString(),parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),day=['year','month','day'].map(type=>parts.find(part=>part.type===type)?.value).join(''),reference=`${lease.deviceLabel}-${day}-${String(sequence).padStart(6,'0')}`;
@@ -166,6 +176,10 @@ export class BusinessStore {
       await request(meta.put(sequence,'cashSequence'));return sale;
     }));
   }
+  async stopOfflineCashCreation(){return navigator.locks.request(`servos-cash:${this.scope}:${this.deviceId}`,{mode:'exclusive'},()=>this.cashTransaction(['meta','cashSales'],'readwrite',async tx=>{
+    await request(tx.objectStore('meta').put(true,'offlineCreationStopped'));
+    return (await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId);
+  }));}
   async localCashSales(){return this.cashTransaction(['cashSales'],'readonly',async tx=>(await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId).sort((a,b)=>a.sequence-b.sequence));}
   async localCashOutbox(){return this.cashTransaction(['outboxV2'],'readonly',async tx=>(await request(tx.objectStore('outboxV2').getAll())).filter(entry=>entry.sale.staffId===this.actorId).sort((a,b)=>a.sale.sequence-b.sale.sequence));}
   async claimLocalCashPrint(saleId:string,type:string,reprint=false){return this.cashTransaction(['localPrintEvidence'],'readwrite',async tx=>{

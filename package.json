@@ -23,7 +23,14 @@
     "architecture:check": "node scripts/check-web-architecture.mjs",
     "verify:fast": "npm run lint && npm run contracts:check && npm run architecture:check && npm run build && npm test",
     "verify:release": "npm run verify:fast && npm run test:api && npm run test:browser:api && npm run test:browser:production && npm run audit:ui:gate && npm run architecture:check && npm run docs:check",
-    "verify": "npm run verify:fast && npm run test:browser:production && npm run audit:ui && npm run docs:check"
+    "verify": "npm run verify:fast && npm run test:browser:production && npm run audit:ui && npm run docs:check",
+    "test:pos2-cashier-ui": "playwright test --config playwright.production.config.ts pos2-cashier",
+    "test:tickets-approval": "node --test apps/api/tests/tickets-approval.integration.test.mjs",
+    "test:offline-cash-ledger": "playwright test --config playwright.production.config.ts offline-cash-ledger pos2-offline-workspace",
+    "test:offline-replay": "node --test apps/api/tests/offline-cash-v2.integration.test.mjs",
+    "test:thermal-80mm-contract": "node --test tests/document-paper-profiles.test.mjs",
+    "test:thermal-80mm-visual-regression": "playwright test --config playwright.production.config.ts thermal-documents",
+    "test:browser-compatibility": "playwright test --config playwright.production.config.ts browser-capabilities"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

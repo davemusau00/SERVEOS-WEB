@@ -10,11 +10,11 @@
 
 ## Sprint 0: Make Existing POS Trustworthy (P0) - COMPLETE ✅
 
-### Baseline Captured
+### Historical supplied baseline (fresh verification required)
 - **Git SHA:** `7a3462292dc3700b9bd0aa978ccf92944fe7fb67`
 - **API Image Digest:** TBD (to be captured at G0)
 - **PWA Manifest SHA256:** TBD (to be captured at G0)
-- **Production Migration Head:** 72 (072_change_feed_record_monotonicity.sql)
+- **Last shared Production Migration Head:** 72 (072_change_feed_record_monotonicity.sql)
 - **Backend Health:** TBD (to be captured at G0)
 - **Preflight SMS Status:** TBD
 - **Preflight Details Status:** TBD
@@ -25,7 +25,7 @@
 - **Pending Unresolved Cash:** NOT VERIFIED (historical placeholder was 0)
 - **Rollback PWA:** TBD
 - **Rollback API:** TBD
-- **Feature Flags:** ALL OFF (pos2.simpleCashier=false, pos2.waiterTickets=false, pos2.offlineCash=false, pos2.localKitchenTickets=false, pos2.offlineAuthV2=false)
+- **Feature Flags:** Source defaults OFF; live values NOT VERIFIED (pos2.simpleCashier=false, pos2.waiterTickets=false, pos2.offlineCash=false, pos2.localKitchenTickets=false, pos2.offlineAuthV2=false)
 - **Operator Approver:** TBD
 
 ### Sprint 0 Tasks
@@ -124,7 +124,7 @@
 - `test:pos2-cashier-ui`, `test:tickets-approval`, `test:offline-cash-ledger`, `test:offline-replay`, `test:backward-compatibility`, `test:schema-expand`, `test:pwa-update-pending-ledger`, `test:print-reconciliation`
 
 ### Dockerfile Fix
-- `apps/api/Dockerfile` - add `COPY contracts ./contracts`
+- `apps/api/Dockerfile` - repository-root build context, `/app/apps/api` module layout and readable `/app/contracts` (corrected below).
 
 ### Deployment Script Refactor
 - `scripts/Deploy-ServOSProductionFeatures.ps1` - parameterize for serveos-next
@@ -182,3 +182,27 @@ Development follows Sprint 0 → 1 → 2 → 2B → 3 → 4 → 5. Existing prot
 
 Cashier UI, waiter tickets, universal thermal rendering, offline ledger/authentication and release hardening remain open until their guide requirements and evidence gates pass. Physical printing, fiscal compliance, exact legacy-browser support and production acceptance require separate recorded evidence.
 
+
+
+## Development checkpoint: 2026-10-12
+
+This checkpoint supersedes the initial planning statuses above. Neither the historical CI URL nor local development tests establish production acceptance. The canonical guide and `Performance.md` remain the requirements; local implementation does not authorize any VPS operation.
+
+| Requirement | Current source behavior | Local evidence / remaining acceptance |
+|---|---|---|
+| Instant new-sale product taps | In-memory basket updates immediately; server order creation is deferred to Pay. Rejected creation can return to its retained draft. Existing held-order amendments retain server revision checks. | `pos2-cashier.spec.ts`: 73 products, two taps, zero commands before Pay. Required viewport/operator checks remain open. |
+| Payment truth and independent recovery | Confirmation requires original payment evidence plus consistent order projection. Same IDs survive timeout; failed dependencies do not freeze independent aggregates. | Root payment tests and storage replay scenario. Current live 900-KES diagnostic not inspected. |
+| Waiter approval | Additive ticket commands, device authorization, revision checks, transactional existing fire/stock handlers and preparation job deduplication. | Real PostgreSQL ticket approval test; full RBAC/operator acceptance still required. |
+| Universal thermal rendering | Explicit 80-mm profiles, fail-closed unknown types, 72-mm content, stacked documents, pre-footer QR and concise displayed references. New document numbers are allocated in PostgreSQL; historical snapshots remain intact. | Thermal browser fixtures cover 21 types with 1/15/100 rows. Printer model, physical paper, QR scanning, continuous roll and fiscal evidence remain OPEN. |
+| Single-terminal local cash | Signed V2 shift capability, encrypted PIN identity, device-scoped atomic sale/cash/stock/slip/outbox/sequence transaction. Cash remains provisional until confirmed projection is pulled. | Atomic 100-sale ledger/replay fixture; three BAR sales with API unreachable and three PIN-protected reloads pass. Browser-process restart and expanded concurrency checks are being verified. |
+| Replay and conflict evidence | `pos.offlineSale.commitV2` reuses canonical pricing/inventory and existing POS/payment transactions. Price/stock conflicts retain cash evidence for reconciliation; retries do not reprint. | PostgreSQL 100-sale/five-replay scenario exists; rerun after shift-end safeguards is required. Legacy `order.offlineCashSale` remains supported with its original grant policy. |
+| Shift safety | Local creation can be frozen under the device lock. `pos.offlineCapability.finish` requires the complete confirmed shift ledger. Till close rejects outstanding capabilities, including expired ones, and cash reconciliation exceptions. | Current integration scenario includes blocked close, undrained finish and a fully reconciled close. Acceptance pending that test's current result. |
+| Browser tiers | Feature detection, static readable fallback, capability-gated offline authorization and optional legacy build. SW activation retains its safe-boundary protocol. | Legacy validation build succeeds; all 95 generated modern/legacy assets appear in its precache. Exact older-browser versions are NOT advertised or accepted. |
+| API packaging and schema | Root-context image includes module imports and readable nonroot contracts. Readiness validates names/checksums. Candidate migrations are additive 073?076. | Local image import graph/nonroot check PASS. Production restore, migration rehearsal and compatibility/cutover approvals remain OPEN. |
+
+### Local validation boundary
+
+- Source checks: lint, contracts (131 commands), architecture, docs and UI audit have passed locally; all 41 root tests pass. Rerun relevant checks after further changes.
+- The full PostgreSQL run on the disk-backed disposable local database encountered WAL-sync stalls and integration timeouts. It was stopped and is being rerun against a separate **disposable PostgreSQL 16** instance using temporary memory-backed data storage. This is transaction/integration testing, not backup/restore or production disk-durability evidence.
+- Local Docker packaging check: `API_IMPORT_GRAPH=PASS CONTRACTS_READABLE=PASS NONROOT=PASS`; candidate image digest is not a deployed artifact.
+- Production gates G0?G8, hosted CI/code review, actual printer acceptance, fiscal approval and real-device browser acceptance remain OPEN. No source flag is enabled by default and no production migration or deployment was performed.

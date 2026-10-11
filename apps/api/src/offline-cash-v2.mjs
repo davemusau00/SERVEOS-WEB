@@ -22,6 +22,16 @@ const issue=async({tx,command,actor,at})=>{
  await tx.client.query('INSERT INTO pos_offline_capabilities(business_id,lease_id,device_id,staff_id,outlet_id,till_session_id,signed_lease,issued_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)',[actor.businessId,lease.leaseId,actor.deviceId,actor.staffId,p.outletId,p.tillSessionId,JSON.stringify(signed),at,lease.expiresAt]);
  return {value:signed,records:[]};
 };
+const finishCapability=async({tx,command,actor,at})=>{
+ const p=command.payload;
+ if(!uuid(p.tillSessionId)||!Array.isArray(p.saleIds)||p.saleIds.length>10000||p.saleIds.some(id=>!uuid(id))||new Set(p.saleIds).size!==p.saleIds.length)fail('Supply the frozen checkout ledger IDs.');
+ const leases=await tx.client.query('SELECT * FROM pos_offline_capabilities WHERE business_id=$1 AND till_session_id=$2 AND device_id=$3 AND staff_id=$4 FOR UPDATE',[actor.businessId,p.tillSessionId,actor.deviceId,actor.staffId]);
+ const lease=leases.rows[0];if(!lease)fail('Use the capability issued to this cashier and device.','OFFLINE_CAPABILITY_INVALID',403);
+ const evidence=await tx.client.query("SELECT sale_id,status FROM pos_offline_cash_reconciliations WHERE business_id=$1 AND device_id=$2 AND staff_id=$3 AND local_snapshot->>'tillSessionId'=$4",[actor.businessId,actor.deviceId,actor.staffId,lease.till_session_id]);
+ if(evidence.rows.length!==p.saleIds.length||evidence.rows.some(row=>row.status!=='SERVER_CONFIRMED'||!p.saleIds.includes(row.sale_id)))fail('Every original locally recorded cash ID must be server confirmed before ending this capability.','OFFLINE_SHIFT_NOT_DRAINED',409);
+ await tx.client.query('UPDATE pos_offline_capabilities SET revoked_at=COALESCE(revoked_at,$3) WHERE business_id=$1 AND till_session_id=$2 AND device_id=$4 AND staff_id=$5',[actor.businessId,p.tillSessionId,at,actor.deviceId,actor.staffId]);
+ return {value:{tillSessionId:p.tillSessionId,status:'ENDED',confirmedSales:p.saleIds.length},records:[]};
+};
 const reconciliation=row=>({collection:'offlineCashReconciliations',id:row.sale_id,version:1,archived:false,data:{id:row.sale_id,deviceId:row.device_id,staffId:row.staff_id,reference:row.local_reference,status:row.status,reason:row.reason,orderId:row.server_order_id,documentIds:row.server_document_ids,recordedAt:row.recorded_at.toISOString()}});
 export async function offlineCashReconciliationProjections(db,businessId){const {rows}=await db.query('SELECT * FROM pos_offline_cash_reconciliations WHERE business_id=$1 ORDER BY reconciled_at DESC LIMIT 1000',[businessId]);return rows.map(reconciliation);}
 const commit=async({tx,command,actor,at})=>{
@@ -70,6 +80,7 @@ const commit=async({tx,command,actor,at})=>{
  const record=reconciliation(saved.rows[0]);return {value:record,records:[...records,record]};
 };
 export const offlineCashV2Registry=new Map([
+ ['pos.offlineCapability.finish',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:finishCapability}],
  ['pos.offlineCapability.issue',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:issue}],
  ['pos.offlineSale.commitV2',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:commit}],
 ]);

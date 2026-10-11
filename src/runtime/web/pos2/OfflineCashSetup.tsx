@@ -4,7 +4,7 @@ import {verifyCashLease,type OfflineCashLease} from '../offlineCashLedger';
 import {operatorError} from '../operatorError';
 import {inspectBrowserCapabilities} from '../browserCapabilities';
 export function offlinePublicKey():JsonWebKey {const key=JSON.parse(String(import.meta.env.VITE_API_OFFLINE_GRANT_PUBLIC_JWK||'null'));if(!key||key.d)throw Error('The public offline verification key is not configured.');return key;}
-export function OfflineCashSetup({store,session,apiAuth,outletId,tillId,onUnlocked}:{store:WebApiPosProps['store'];session:WebApiPosProps['session'];apiAuth:WebApiPosProps['apiAuth'];outletId:string;tillId?:string;onUnlocked:(lease:OfflineCashLease)=>void}){
+export function OfflineCashSetup({store,session,apiAuth,outletId,tillId,onUnlocked,onStopped}:{store:WebApiPosProps['store'];session:WebApiPosProps['session'];apiAuth:WebApiPosProps['apiAuth'];outletId:string;tillId?:string;onUnlocked:(lease:OfflineCashLease)=>void;onStopped:()=>void}){
  const [pin,setPin]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
  const run=async(provision:boolean)=>{if(busy)return;setBusy(true);setMessage('');try{
   if((await inspectBrowserCapabilities()).mode!=='Full')throw Error('This browser is restricted to online use. Update to a supported browser before offline checkout.');
@@ -19,5 +19,12 @@ export function OfflineCashSetup({store,session,apiAuth,outletId,tillId,onUnlock
   }else{const identity=await store.reopenOfflineIdentity(pin,publicKey);onUnlocked(identity.lease);setMessage('Offline checkout unlocked until its capability expires.');}
   setPin('');
  }catch(error){setMessage(operatorError(error));}finally{setBusy(false);}};
- return <details className="rounded border p-2"><summary>Offline checkout security</summary><label>Kiosk PIN<input type="password" inputMode="numeric" autoComplete="off" minLength={6} maxLength={12} value={pin} onChange={event=>setPin(event.target.value)}/></label><button className="min-h-11 border px-3" disabled={busy||!/^\d{6,12}$/.test(pin)} onClick={()=>void run(false)}>Unlock cached shift</button>{apiAuth&&<button className="min-h-11 border px-3" disabled={busy||!navigator.onLine||!/^\d{6,12}$/.test(pin)} onClick={()=>void run(true)}>Provision four-hour shift online</button>}{message&&<p role="status">{message}</p>}</details>;
+ const stop=async()=>{if(busy||!apiAuth||!tillId)return;setBusy(true);setMessage('');try{
+  const sales=(await store.stopOfflineCashCreation()).filter(sale=>sale.tillSessionId===tillId);onStopped();
+  if(sales.some(sale=>sale.state!=='SERVER_CONFIRMED'))throw Error('Offline creation stopped. Synchronize or reconcile every local cash sale in Activity, then retry ending this capability.');
+  const outcome=await apiAuth.client.submitCommand({commandId:crypto.randomUUID(),name:'pos.offlineCapability.finish',payload:{tillSessionId:tillId,saleIds:sales.map(sale=>sale.id)},expectedVersions:{}});
+  if(outcome.kind!=='CONFIRMED')throw Error(outcome.error?.message||'Capability ending was not confirmed. Retry after recovering its outcome.');
+  setMessage('Offline capability ended with the complete confirmed ledger. The shift may now be closed using its ordinary reconciliation.');
+ }catch(error){setMessage(operatorError(error));}finally{setBusy(false);}};
+ return <details className="rounded border p-2"><summary>Offline checkout security</summary><label>Kiosk PIN<input type="password" inputMode="numeric" autoComplete="off" minLength={6} maxLength={12} value={pin} onChange={event=>setPin(event.target.value)}/></label><button className="min-h-11 border px-3" disabled={busy||!/^\d{6,12}$/.test(pin)} onClick={()=>void run(false)}>Unlock cached shift</button>{apiAuth&&<button className="min-h-11 border px-3" disabled={busy||!navigator.onLine||!/^\d{6,12}$/.test(pin)} onClick={()=>void run(true)}>Provision four-hour shift online</button>}{apiAuth&&tillId&&<button className="min-h-11 border px-3" disabled={busy||!navigator.onLine} onClick={()=>void stop()}>Stop offline creation / end capability</button>}{message&&<p role="status">{message}</p>}</details>;
 }
