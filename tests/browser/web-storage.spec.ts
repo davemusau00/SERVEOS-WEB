@@ -3,6 +3,27 @@ import {buildSync} from 'esbuild';
 
 const harness=buildSync({stdin:{contents:"export {BusinessStore} from './src/runtime/web/BusinessStore'; export {synchronizeStore} from './src/runtime/web/sync'; export {getOrCreateWebDeviceIdentity} from './src/runtime/web/deviceIdentity';",resolveDir:process.cwd()},bundle:true,write:false,format:'iife',globalName:'ServOSQueue',platform:'browser',target:'es2022'}).outputFiles[0].text;
 
+test('failed replay retains its ID, blocks its aggregate, and still pulls confirmed independent changes',async({page})=>{
+ await page.goto('/');await page.addScriptTag({content:harness});
+ const result=await page.evaluate(async()=>{
+  const {BusinessStore,synchronizeStore}=(window as any).ServOSQueue;
+  const store=await BusinessStore.open('isolated-replay','device','actor');
+  const first=await store.enqueue('record.save',{name:'Lost'},[{collection:'customers',id:'first',version:0}]);
+  const dependent=await store.enqueue('record.save',{name:'Dependent'},[{collection:'customers',id:'first',version:0}]);
+  const independent=await store.enqueue('record.save',{name:'Other'},[{collection:'customers',id:'other',version:0}]);
+  const calls:string[]=[];
+  const transport={execute:async(command:any)=>{calls.push(command.id);if(command.id===first.id)throw new Error('Response lost');return {commandId:command.id,status:'SYNCHRONIZED',recordVersions:[],serverSequence:1}},pull:async()=>({cursor:1,highWater:1,hasMore:false,changes:[{sequence:1,commandId:independent.id,actorId:'actor',deviceId:'device',occurredAt:new Date().toISOString(),records:[{collection:'customers',id:'other',version:1,data:{name:'Other'},archived:false}]}]})};
+  let failed=false;try{await synchronizeStore(store,transport)}catch{failed=true}
+  const queue=await store.queue(),records=await store.records();store.close();
+  return {failed,calls,first:first.id,dependent:dependent.id,independent:independent.id,states:queue.map((q:any)=>({id:q.id,state:q.state})),records};
+ });
+ expect(result.failed).toBe(true);expect(result.calls).toEqual([result.first,result.independent]);
+ expect(result.states).toContainEqual({id:result.first,state:'OUTCOME_UNKNOWN'});
+ expect(result.states).toContainEqual({id:result.dependent,state:'PENDING_SYNC'});
+ expect(result.states).toContainEqual({id:result.independent,state:'SYNCHRONIZED'});
+ expect(result.records.some((row:any)=>row.id==='other'&&row.data.name==='Other')).toBe(true);
+});
+
 test('device identity keeps a non-exportable WebCrypto key in IndexedDB across reloads',async({page})=>{
   await page.goto('/');await page.addScriptTag({content:harness});
   const first=await page.evaluate(async()=>{const identity=await (window as any).ServOSQueue.getOrCreateWebDeviceIdentity('identity-business');return{deviceId:identity.deviceId,extractable:identity.privateKey.extractable,algorithm:identity.privateKey.algorithm.name,publicKey:identity.publicKey.kid||identity.publicKey.crv}});

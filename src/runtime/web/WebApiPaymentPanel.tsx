@@ -2,7 +2,8 @@ import {operatorError} from './operatorError';
 import React,{useEffect,useRef,useState} from 'react';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import type {QueuedCommand} from './BusinessStore';
-import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
+import {type CommandOutcome} from '../../types/transactions';
+import {paymentProjectionConfirmed} from './paymentConfirmation';
 import {parseMoneyToMinor} from '../../utils/fiscal';
 import {businessDateTimeToUtc} from '../../utils/businessTime';
 
@@ -21,17 +22,14 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
   if(!pendingId)return;
   const saved=queue.find(row=>row.id===pendingId);
   if(!saved||['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(saved.state))return;
-  // Also verify the order record reflects the payment
-  const currentOrder=records.find(r=>r.collection==='orders'&&r.id===order?.id);
-  const fullyPaid=currentOrder&&Number(currentOrder.data.amountPaidMinor)>=Number(currentOrder.data.grandTotalMinor);
-  if(saved.state==='SYNCHRONIZED'&&fullyPaid){
+  if(paymentProjectionConfirmed(saved,records)){
     setPendingId('');
     setReview(null);
     setTenders([]);
     setMessage('Payment confirmed. Issued documents and printing are in Activity.');
-  }else if(saved.state==='SYNCHRONIZED'&&!fullyPaid){
+  }else if(saved.state==='SYNCHRONIZED'){
     // Payment command synchronized but order not yet updated in local records
-    setMessage('Payment confirmed by server. Updating display...');
+    setMessage('Recorded, updating display. Recover the original payment in Activity; do not submit it again.');
   }else{
     setPendingId('');
     setMessage(saved.result?.error?.message||'Payment did not confirm. Reopen the review using the current order balance.');

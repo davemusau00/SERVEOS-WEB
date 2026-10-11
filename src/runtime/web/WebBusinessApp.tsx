@@ -22,6 +22,7 @@ import {BusinessStore,redactSensitiveData,type QueuedCommand,type WorkflowDraft,
 import {resolveOperationDependencies} from './dependencies';
 
 import {startAutomaticSync,subscribeSyncUpdates,synchronizeStore} from './sync';
+import {commandsShareAggregate} from './commandDependencies';
 import {allowed,apiAuthorizationPolicyVersion,loadApiCatalogSnapshot,type BusinessRecord,type WebGuidanceProgress,type WebSession} from './session';
 import {createApiTransport} from './sync';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
@@ -183,6 +184,8 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
       await refresh();
       if(!stopped){setReady(true);setError('')}
     }catch(error){
+      // A failed replay must not hide changes already pulled for confirmed commands.
+      await refresh();
       if(error instanceof ApiHttpError&&(error.status===401||error.status===403)&&!stopped){setReady(false);setRecords([])}
       throw error;
     }finally{activeSyncCycles.current--;}
@@ -345,7 +348,8 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
   if(submitInFlight.current)return {kind:'BLOCKED',message:'Another business action is being submitted. Wait for its outcome before continuing.'};
   submitInFlight.current=true;setBusy(true);setError('');setNotice('');let activeCommandId='';
   try{
-    const unresolvedCommand=(await store.current.queue()).find(item=>item.state==='OUTCOME_UNKNOWN');
+    const actionDependencies=resolveOperationDependencies(operation,collection,id,payload,records);
+    const unresolvedCommand=(await store.current.queue()).find(item=>item.state==='OUTCOME_UNKNOWN'&&commandsShareAggregate(item.command.expectedVersions,actionDependencies));
     if(unresolvedCommand&&unresolvedCommand.id!==payload.reviewCommandId){const message='A previous action still has an unknown outcome. Synchronize it to check the original command before starting another action.';setError(message);return {kind:'BLOCKED',message}}
     if(editor?.supersedes){const predecessor=(await store.current.queue()).find(item=>item.id===editor.supersedes);if(predecessor?.state==='PENDING_SYNC'||predecessor?.state==='OUTCOME_UNKNOWN'){const message='ServOS is still checking the original command. Synchronize it before submitting a replacement.';setError(message);return {kind:'BLOCKED',message}}if(predecessor?.state==='SYNCHRONIZED'){const message='The original command was confirmed. Its replacement was not submitted.';setEditor(null);setError(message);return {kind:'BLOCKED',message}}}
     if(operation==='roomStay.settings'){

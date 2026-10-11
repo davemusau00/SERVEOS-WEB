@@ -1,6 +1,7 @@
 import type {BusinessCommandV2,ChangePage,TransactionResult} from '../../types/transactions';
 import {BusinessStore} from './BusinessStore';
 import {ApiHttpError,ApiOutcomeUnknown,createServOSApiClient,type ApiCommandOutcome} from './apiClient';
+import {commandsShareAggregate} from './commandDependencies';
 
 export interface ApiTransport {execute(command:BusinessCommandV2):Promise<TransactionResult>;pull(cursor:number):Promise<ChangePage>}
 
@@ -50,16 +51,21 @@ export async function synchronizeStore(store:BusinessStore,transport:ApiTranspor
    await navigator.locks.request(`${syncChannel(store.scope,store.deviceId,store.actorId)}:lock`,async()=>{
     publish('SYNC_STARTED');
     const pending=(await store.queue()).filter(row=>row.state==='PENDING_SYNC'||row.state==='OUTCOME_UNKNOWN');
+    const blocked:BusinessCommandV2[]=[];let replayError:unknown;
     for(const row of pending){
+      if(blocked.some(command=>commandsShareAggregate(command.expectedVersions,row.command.expectedVersions)))continue;
       await store.markOutcomeUnknown(row.id);
-      const result=await transport.execute(row.command);
-      if(result.commandId!==row.id)throw new Error('Server acknowledged a different command');
-      await store.acknowledge(result);
+      try{
+       const result=await transport.execute(row.command);
+       if(result.commandId!==row.id)throw new Error('Server acknowledged a different command');
+       await store.acknowledge(result);
+       if(result.status==='CONFLICT'||result.status==='REJECTED')blocked.push(row.command);
+      }catch(error){blocked.push(row.command);replayError??=error;}
     }
     for(let pages=0;pages<100;pages++){
       const cursor=await store.cursor();const page=await transport.pull(cursor);
       if(page.hasMore&&page.cursor<=cursor)throw new Error('Change feed made no progress');
-      await store.applyPage(page);if(!page.hasMore){publish('SYNC_FINISHED');return}
+      await store.applyPage(page);if(!page.hasMore){if(replayError)throw replayError;publish('SYNC_FINISHED');return}
     }
     throw new Error('Change feed exceeded the per-cycle page limit');
    });

@@ -21,8 +21,8 @@
 - **Production Backup Restored:** NO (pending G0)
 - **Staging Acceptance:** NOT STARTED
 - **Cashier Pilot Transactions:** 0
-- **Replay Duplicates:** 0
-- **Pending Unresolved Cash:** 0
+- **Replay Duplicates:** NOT VERIFIED (historical placeholder was 0)
+- **Pending Unresolved Cash:** NOT VERIFIED (historical placeholder was 0)
 - **Rollback PWA:** TBD
 - **Rollback API:** TBD
 - **Feature Flags:** ALL OFF (pos2.simpleCashier=false, pos2.waiterTickets=false, pos2.offlineCash=false, pos2.localKitchenTickets=false, pos2.offlineAuthV2=false)
@@ -161,3 +161,24 @@
 
 ## Definition of Done
 At Countryside a waiter submits a ticket, the cashier approves it, the bar/kitchen receives the appropriate items once, a cashier takes cash and gets correct change, sales survive hours of API downtime on the single checkout terminal, then reconcile automatically without data loss or duplicates. The POS has no superfluous scrolling to finish ordinary sales, and all pre-existing production systems and records remain intact.
+
+---
+
+# Current development evidence and contract corrections
+
+Authoritative requirements: [consolidated engineering guide](../../SERVEOS_POS_2_0_OFFLINE_CASHIER_DEV_SPRINT_20261011.md).
+
+Development follows Sprint 0 → 1 → 2 → 2B → 3 → 4 → 5. Existing protocols, data, UUIDs, pending commands and unrelated edits remain intact. No production deployment or migration is authorized by development approval.
+
+## Sprint 0: payment and recovery
+
+- Payment confirmation requires payment projections carrying the original command ID, matching tender amounts and an order projection whose paid amount matches its payment records. Partial payments can confirm without falsely marking the order fully settled.
+- Unknown outcomes block overlapping aggregates, including the affected order/till. Commands without identifiable aggregates remain conservative. Shared catalogue/configuration reads alone do not block independent transactions.
+- Replay preserves the original command and payload. Failed replay retains evidence and blocks its dependents while independent commands and the change feed continue. Display refresh must run even when replay reports failure.
+- Automated proof: `tests/payment-confirmation.test.mjs` and the isolated-replay browser scenario in `tests/browser/web-storage.spec.ts`. Real PostgreSQL settlement/replay coverage remains required.
+- Live Countryside diagnostic, catalogue counts, till ownership, current backup and deployment SHA are NOT VERIFIED by local tests.
+
+## Remaining acceptance
+
+Cashier UI, waiter tickets, universal thermal rendering, offline ledger/authentication and release hardening remain open until their guide requirements and evidence gates pass. Physical printing, fiscal compliance, exact legacy-browser support and production acceptance require separate recorded evidence.
+
