@@ -1,3 +1,4 @@
+import {safeCashUpdateBoundary} from './updateBoundary';
 
 
 
@@ -245,7 +246,7 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
    const busyNow=()=>busy||syncing||activeSyncCycles.current>0||submitInFlight.current||!!editor||!!document.querySelector('[role="dialog"],dialog[open]');
    void(async()=>{
     let safe=false;
-    try{const current=store.current;if(current&&!busyNow()){const [pending,printing]=await Promise.all([current.hasPending(),current.hasUnresolvedPrintDelivery()]);safe=!pending&&!printing&&!busyNow()}}
+    try{safe=await safeCashUpdateBoundary(store.current||undefined,busyNow)}
     catch{safe=false}
     safe=safe&&!stopped&&generation===updateBoundaryGeneration.current;
     if(safe){updateHold.current=true;document.getElementById('root')?.setAttribute('inert','');}
