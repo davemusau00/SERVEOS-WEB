@@ -233,4 +233,16 @@ The user explicitly authorized an API/PWA update with POS2 activation after fixi
 - Fresh read-only live baseline: `serveos-next` serves PWA `7a3462292dc3`, API 3102 is healthy with 72 migrations; Countryside has 73 products and 72 stock masters. The server has no RECEIVED/PROCESSING commands; two terminal conflicts are KDS actions. The open Admin shift identifies device `67376099-9ac8-4c80-9cdd-4ec69c3ad4a2` as the checkout candidate. Unrelated HTTPS origins return 200/307/307 with valid TLS.
 - Two consistent backups of the new live database are retained under restricted `/opt/serveos-next/checkpoints/pos2-20261012-update`. Both have encrypted off-VPS Windows-user-protected copies and have been decrypted/restored into isolated local PostgreSQL databases. Each restore contains 72 migrations, 73 products, 72 stock masters and one 90,000-minor-unit payment. Backup storage and restored data are private and are not repository artifacts.
 
-Deployment status: PREPARING. No live migration, API proxy change or PWA symlink switch has occurred. Final candidate SHA, hosted CI, compatibility/staging evidence and post-switch results must be recorded before stating deployed.
+Preparation status at that checkpoint: PREPARING. The verified update below supersedes that historical deployment status.
+
+## Verified production update: 2026-10-12
+
+Deployment status: DEPLOYED at `ce59c2b2caeb5aeab5734b605a43086799812801`. See [the complete release evidence](../releases/pos2-20261012-update.md) for artifacts, test boundaries, backups, activation and recovery.
+
+- Manager matching/reconciliation, local provisional shift counts, reconciled checkout handoff and pending-ledger worker upgrade/rollback are implemented and tested. Genuine mismatches remain explicit financial exceptions; no invented settlement is accepted.
+- All five hosted CI jobs passed. The canonical candidate passed 43 isolated VPS API tests, staged browser login/stock/cash workflows and real signed offline PIN/reload/reconnect reconciliation. Old/new API binaries replayed the original payment against a migrated restore without money/stock changes.
+- Production migrations 073–077 are applied. API 3103 and PWA `ce59c2b2caeb` are live; API 3102 and PWA `7a3462292dc3` are retained. All 53 published PWA assets matched the manifest over HTTPS; the fresh browser login and worker smoke passed.
+- All five cohorts are enabled for four existing staff/device pairs, subject to RBAC, with one authoritative checkout binding. Its earlier shift is now closed. The operator must open/provision a new owned shift and kiosk PIN before offline selling; deployment issued no live lease or example payment.
+- Three encrypted off-VPS backup generations are restore-verified. Existing KES 900 payment/order totals, catalogue counts and stock fingerprint are unchanged; server unresolved count is zero. Protected origins remain 200/307/307 with valid TLS.
+- Physical printing was waived as a deployment gate by the user and remains unverified. Fiscal approval, exact older-browser support, full operator acceptance and provisional inventory presentation across all screens remain open. The entire guide is not declared complete.
+- Retain the V2 decoder for outstanding local cash even when creation/UI is disabled. Old API schema compatibility alone does not make a rollback to its legacy protocol safe for V2 queues.

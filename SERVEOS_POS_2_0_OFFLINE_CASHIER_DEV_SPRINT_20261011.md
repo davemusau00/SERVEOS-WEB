@@ -2,6 +2,8 @@
 ## Final engineering sprint, acceptance contract and non-destructive VPS deployment runbook
 Supporting requirements from [Performance.md](Performance.md) are incorporated throughout this guide. Track local implementation and evidence in [the sprint checkpoint](docs/sprint/pos2-offline-cashier.md); open release gates remain binding.
 
+**Verified update, 2026-10-12:** [Production release evidence](docs/releases/pos2-20261012-update.md) records the deployed API/PWA at `ce59c2b2caeb`, schema 077, scoped POS2 activation and retained recovery paths. Physical printer acceptance was waived for that deployment by explicit user instruction and remains unverified. Historical topology/findings below are not the current release record; the complete guide is not marked accepted.
+
 **Prepared:** 2026-10-11
 
 **Updated:** 2026-10-11, universal 80 mm thermal printing, short human references, professional receipt layouts and legacy-browser compatibility elevated to P0

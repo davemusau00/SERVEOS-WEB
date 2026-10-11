@@ -1,6 +1,8 @@
 # SERVEOS POS 2.0
 ## Final engineering sprint, acceptance contract and non-destructive VPS deployment runbook
 
+**Current release evidence:** See [the verified 2026-10-12 POS2 update](docs/releases/pos2-20261012-update.md). Its API/PWA deployment, scoped activation and remaining acceptance boundaries supersede historical live-topology claims in this reference document.
+
 **Prepared:** 2026-10-11  
 **Updated:** 2026-10-11, universal 80 mm thermal printing, short human references, professional receipt layouts and legacy-browser compatibility elevated to P0  
 **Repository:** `davemusau00/SERVEOS-WEB`  
