@@ -181,6 +181,25 @@ export class BusinessStore {
     return (await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId);
   }));}
   async localCashSales(){return this.cashTransaction(['cashSales'],'readonly',async tx=>(await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId).sort((a,b)=>a.sequence-b.sequence));}
+  async localCashRecoveryEvidence(saleId:string){
+    const names=['cashSales','cashEntries','localStockMovements','localOrderTickets','outboxV2','syncReconciliations','localShiftLedger','localPrintEvidence'];
+    return this.cashTransaction(names,'readonly',async tx=>{
+      const sale=await request(tx.objectStore('cashSales').get(saleId));
+      if(!sale||sale.staffId!==this.actorId||sale.deviceId!==this.deviceId)throw Error('Recovery evidence is unavailable for this operator and terminal.');
+      const evidence:Record<string,unknown>={};
+      for(const name of names){
+        const rows=await request(tx.objectStore(name).getAll());
+        evidence[name]=rows.filter(row=>row.id===saleId||row.saleId===saleId).map(row=>{
+          // Export audit facts, never a signed capability that can authorize replay.
+          if(name!=='outboxV2')return row;
+          const {lease,...rest}=row;void lease;return rest;
+        });
+      }
+      return redactSensitiveData({format:'servos-local-cash-recovery-evidence',version:1,exportedAt:new Date().toISOString(),
+        businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId,reference:sale.reference,
+        purpose:'Private reconciliation evidence only. Not an import or replay file; preserve the original terminal ledger.',...evidence});
+    });
+  }
   async localCashOutbox(){return this.cashTransaction(['outboxV2'],'readonly',async tx=>(await request(tx.objectStore('outboxV2').getAll())).filter(entry=>entry.sale.staffId===this.actorId).sort((a,b)=>a.sale.sequence-b.sale.sequence));}
   async claimLocalCashPrint(saleId:string,type:string,reprint=false){return this.cashTransaction(['localPrintEvidence'],'readwrite',async tx=>{
     const evidence=tx.objectStore('localPrintEvidence'),id=`${saleId}:${type}`,existing=await request(evidence.get(id));

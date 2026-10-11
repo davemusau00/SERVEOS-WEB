@@ -1,7 +1,7 @@
 {
   "generatedBy": "npm run audit:ui",
   "schemaVersion": 2,
-  "sourceDigest": "c45be0c2c88d4d0f5052d76c017c4283cacd5c6d1e6b4742b5bca214066986f9",
+  "sourceDigest": "f9a31fc5005e4bd71904ec77e7d7096d96b9ba4df788622e53b41e8b6455b3d8",
   "scope": "Compact tracked summary; full static inventory is a CI artifact and findings require human review",
   "count": 1792,
   "fullArtifact": "artifacts/ui-audit/UI_INTERACTION_INVENTORY.full.json",
@@ -203,338 +203,338 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:122:146",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:124:146",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 122,
+      "line": 124,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:122:518",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:124:518",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 122,
+      "line": 124,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:122:545",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 122,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:122:70",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 122,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:124:110",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:124:545",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
       "line": 124,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:124:242",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:124:70",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
       "line": 124,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:124:301",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 124,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:124:58",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 124,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:178",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:110",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
       "line": 126,
-      "surface": "onChange",
+      "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:250",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:242",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
       "line": 126,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:294",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:301",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
       "line": 126,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:674",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:58",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
       "line": 126,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:74",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:128:178",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 126,
+      "line": 128,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:128:250",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 128,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:128:294",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 128,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:128:674",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 128,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:128:74",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 128,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:126:771",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:128:771",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 126,
+      "line": 128,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:127:668",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:129:668",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 127,
+      "line": 129,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:127:841",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:129:841",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 127,
+      "line": 129,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:131:13",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:133:13",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 131,
+      "line": 133,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:131:156",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:133:172",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 131,
+      "line": 133,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:131:1789",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:133:1805",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 131,
+      "line": 133,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:131:1847",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:133:1863",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 131,
+      "line": 133,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:131:2076",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 131,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:131:2148",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 131,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:131:2205",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 131,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:1018",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:1073",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:11",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "form",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:1128",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:1188",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:1245",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:179",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "onSubmit",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:314",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:359",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:722",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:132:795",
-      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
-      "line": 132,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:133:29",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:133:2092",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
       "line": 133,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:133:56",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:133:2164",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 133,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:133:2221",
       "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
       "line": 133,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:1126",
-      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
-      "surface": "select",
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:1052",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
+      "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:1151",
-      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:11",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
+      "surface": "form",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:1107",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:1500",
-      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:1162",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:1557",
-      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:1222",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:1279",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:1619",
-      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:213",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
+      "surface": "onSubmit",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:348",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:393",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:756",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:134:829",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 134,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:135:29",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 135,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:1676",
-      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "id": "src/runtime/web/pos2/CashierWorkspace.tsx:135:56",
+      "file": "src/runtime/web/pos2/CashierWorkspace.tsx",
+      "line": 135,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:1860",
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:1408",
       "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "line": 29,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:1433",
+      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
+      "line": 29,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:1784",
+      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
+      "line": 29,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:1917",
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:1841",
       "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "line": 29,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:516",
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:1903",
       "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "line": 29,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:557",
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:1960",
       "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "line": 29,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:708",
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:2144",
       "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "line": 29,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:12:749",
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:2201",
       "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
-      "line": 12,
+      "line": 29,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:677",
+      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
+      "line": 29,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:718",
+      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
+      "line": 29,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:869",
+      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
+      "line": 29,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:910",
+      "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
+      "line": 29,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
@@ -854,296 +854,296 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:71:114",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:73:114",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 71,
+      "line": 73,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:71:42",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:73:42",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 71,
+      "line": 73,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:72:104",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:74:104",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 72,
+      "line": 74,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:72:37",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:74:37",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 72,
+      "line": 74,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:73:16",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 73,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:73:88",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 73,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:74:26",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 74,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:74:97",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 74,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:20",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:16",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 75,
-      "surface": "input",
+      "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:75",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:88",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 75,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:76:25",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:76:26",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 76,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:76:66",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 76,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:77:292",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 77,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:77:375",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 77,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1060",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 78,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1302",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 78,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1366",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 78,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1484",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 78,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1525",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 78,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:195",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 78,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:302",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 78,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:520",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 78,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:574",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:76:97",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 78,
+      "line": 76,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:972",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:77:20",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 77,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:77:75",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 77,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:25",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 78,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:137",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:66",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:292",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 79,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:203",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:375",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 79,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:3",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:1060",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 79,
+      "line": 80,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:1302",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 80,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:1366",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 80,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:1484",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 80,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1012",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:1525",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 82,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1084",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 82,
+      "line": 80,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1247",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:195",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 82,
+      "line": 80,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:302",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 80,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:520",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 80,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:574",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 80,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:80:972",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 80,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:81:137",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 81,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1309",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:81:203",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 82,
+      "line": 81,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1705",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:81:3",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 82,
+      "line": 81,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1777",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:84:1012",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 82,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:833",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 82,
+      "line": 84,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:905",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:84:1084",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 82,
+      "line": 84,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:237",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:84:1247",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 83,
+      "line": 84,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:84:1309",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 84,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:84:1705",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 84,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:84:1777",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 84,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:84:833",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 84,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:84:905",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 84,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:85:253",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 85,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:309",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:85:325",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 83,
+      "line": 85,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:601",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:85:617",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 83,
+      "line": 85,
       "surface": "textarea",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:721",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:85:737",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 83,
+      "line": 85,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:786",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:85:802",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 83,
+      "line": 85,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:885",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:85:901",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 83,
+      "line": 85,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:942",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:85:958",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 83,
+      "line": 85,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
