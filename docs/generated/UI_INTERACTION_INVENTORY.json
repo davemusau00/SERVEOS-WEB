@@ -1,9 +1,9 @@
 {
   "generatedBy": "npm run audit:ui",
   "schemaVersion": 2,
-  "sourceDigest": "680c02ceccdc56e5be93ba63225543426d8b30129fdd1f6408bf309530e70c0a",
+  "sourceDigest": "36ba96d32c09f6c33ca725306a261fcbb1dde7b02d5ae0fc9b6fd2fb5921b75c",
   "scope": "Compact tracked summary; full static inventory is a CI artifact and findings require human review",
-  "count": 1766,
+  "count": 1773,
   "fullArtifact": "artifacts/ui-audit/UI_INTERACTION_INVENTORY.full.json",
   "interactions": [
     {
@@ -735,247 +735,296 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:68:114",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:71:114",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 68,
+      "line": 71,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:68:42",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:71:42",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 68,
+      "line": 71,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:69:104",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:72:104",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 69,
+      "line": 72,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:69:37",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:72:37",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 69,
+      "line": 72,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:70:16",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 70,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:70:88",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 70,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:71:26",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 71,
-      "surface": "select",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:71:97",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 71,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:72:20",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 72,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:72:75",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 72,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:73:25",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:73:16",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 73,
-      "surface": "input",
+      "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:73:66",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:73:88",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 73,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:74:292",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:74:26",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 74,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:74:375",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 74,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:1060",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 75,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:1302",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 75,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:1366",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 75,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:1484",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 75,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:1525",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 75,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:195",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 75,
-      "surface": "input",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:302",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 75,
-      "surface": "onChange",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:520",
-      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 75,
       "surface": "select",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:574",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:74:97",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 75,
+      "line": 74,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:972",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:20",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 75,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:76:137",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:75:75",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 75,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:76:25",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 76,
-      "surface": "button",
+      "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:76:203",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:76:66",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 76,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:77:292",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 77,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:77:375",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 77,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:76:3",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1060",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 76,
+      "line": 78,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1302",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1366",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1484",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:1012",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:1525",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:195",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:302",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:520",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
+      "surface": "select",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:574",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:78:972",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 78,
+      "surface": "input",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:137",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 79,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:1084",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:203",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 79,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:1210",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:3",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 79,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:1272",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1012",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 79,
+      "line": 82,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1084",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 82,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:1883",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1210",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 79,
+      "line": 82,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:1955",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1272",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 79,
+      "line": 82,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:833",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1612",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 79,
+      "line": 82,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:79:905",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:1684",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
-      "line": 79,
+      "line": 82,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:833",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 82,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:82:905",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 82,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:237",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 83,
+      "surface": "form",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:309",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 83,
+      "surface": "onSubmit",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:601",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 83,
+      "surface": "textarea",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:721",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 83,
+      "surface": "onChange",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:786",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 83,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:885",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 83,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:83:942",
+      "file": "src/runtime/web/pos2/TicketsInbox.tsx",
+      "line": 83,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
