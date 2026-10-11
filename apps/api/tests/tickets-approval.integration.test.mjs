@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {Pool} from 'pg';
+import {migrate} from '../src/migrate.mjs';
+import {PostgresStore} from '../src/postgres-store.mjs';
+import {executeCommand} from '../src/command-kernel.mjs';
+import {createApiCommandRegistry} from '../src/command-registry.mjs';
+import {filterRecords} from '../src/projection-access.mjs';
+
+test('waiter proposals do not consume stock; checkout approval is atomic, concurrent and replay-safe',{skip:!process.env.TEST_DATABASE_URL,timeout:120000},async t=>{
+ const admin=new Pool({connectionString:process.env.TEST_DATABASE_URL}),schema=`tickets_${randomUUID().replaceAll('-','')}`;
+ await admin.query(`CREATE SCHEMA "${schema}"`);
+ const pool=new Pool({connectionString:process.env.TEST_DATABASE_URL,options:`-c search_path=${schema},public`,max:10});
+ const previous=process.env.POS2_WAITER_TICKET_COHORTS;
+ t.after(async()=>{if(previous===undefined)delete process.env.POS2_WAITER_TICKET_COHORTS;else process.env.POS2_WAITER_TICKET_COHORTS=previous;await pool.end();await admin.query(`DROP SCHEMA "${schema}" CASCADE`);await admin.end();});
+ await migrate(pool);
+ const businessId=randomUUID(),staffId=randomUUID(),deviceId=randomUUID(),waiterId=randomUUID(),waiterDevice=randomUUID(),secondId=randomUUID(),secondDevice=randomUUID();
+ const cashier={businessId,staffId,deviceId,permissions:['*']},waiter={businessId,staffId:waiterId,deviceId:waiterDevice,permissions:['ticket.create','ticket.view_own']},second={...waiter,staffId:secondId,deviceId:secondDevice};
+ process.env.POS2_WAITER_TICKET_COHORTS=JSON.stringify([cashier,waiter,second].map(({businessId,staffId,deviceId})=>({businessId,staffId,deviceId})));
+ await pool.query('INSERT INTO businesses(id,name) VALUES($1,$2)',[businessId,'Ticket acceptance']);
+ for(const actor of [cashier,waiter,second]){
+  await pool.query("INSERT INTO api_staff_profiles(business_id,staff_id,login_name,display_name,role,credential_hash,must_change_password) VALUES($1,$2,$3,'Ticket tester','Custom','test-hash',false)",[businessId,actor.staffId,`${actor.staffId}@example.invalid`]);
+  await pool.query('INSERT INTO api_enrolled_devices(id,business_id,staff_id,public_key,created_at) VALUES($1,$2,$3,$4,now())',[actor.deviceId,businessId,actor.staffId,JSON.stringify({kty:'EC',crv:'P-256',x:'x',y:'y'})]);
+ }
+ const store=new PostgresStore(pool),registry=createApiCommandRegistry();
+ const run=(actor,name,payload,expectedVersions={},commandId=randomUUID())=>executeCommand({db:store,actor,registry,command:{commandId,name,payload,expectedVersions}});
+ const ok=async(name,payload,expectedVersions={})=>{const out=await run(cashier,name,payload,expectedVersions);assert.equal(out.kind,'CONFIRMED',JSON.stringify(out));return out;};
+ const locationId=randomUUID(),stockId=randomUUID(),productId=randomUUID(),outletId=randomUUID();
+ await ok('stockLocation.save',{id:locationId,data:{name:'Store',code:'TICKET-STORE',type:'STORE'}},{[`stockLocations:${locationId}`]:0});
+ await ok('stockItem.save',{id:stockId,data:{name:'Coffee stock',code:'TICKET-STOCK',baseUnit:'kg',averageUnitCostMinor:1000,scanUnitQuantity:1,reorderLevel:0,purchasePackages:[]}},{[`stockItems:${stockId}`]:0});
+ await store.transaction(tx=>tx.setInventoryBalance({businessId,stockItemId:stockId,locationId,quantity:10}));
+ await ok('product.save',{id:productId,data:{name:'Coffee',code:'TICKET-COFFEE',priceMinor:90000,category:'Coffee',routeTo:'KITCHEN',taxClassId:'A_16',stockItemId:stockId,recipeIngredients:[{stockItemId:stockId,quantity:0.25,unit:'kg'}]}},{[`products:${productId}`]:0});
+ await ok('business.settings.save',{data:{businessName:'Ticket acceptance',address:'Test',contact:'',taxPin:'',footer:'Thanks',vatRateBasisPoints:1600,levyRateBasisPoints:0},reason:'Set acceptance taxes'},{[`businessSettings:${businessId}`]:0});
+ await ok('outlet.save',{id:outletId,data:{name:'Outlet',defaultStockLocationId:locationId,archived:false},reason:'Configure outlet'},{[`outlets:${outletId}`]:0,[`stockLocations:${locationId}`]:1});
+ await ok('pos.checkoutEnroll',{outletId,deviceId});
+ const ticketId=randomUUID(),otherTicket=randomUUID(),lineId=randomUUID();
+ const proposal={ticketId,outletId,name:'Guest proposal',lines:[{id:lineId,productId,quantity:1,productVersion:1,unitPriceMinor:90000,note:'Hot'}]};
+ const submissions=await Promise.all([run(waiter,'ticket.submit',proposal,{[`posTickets:${ticketId}`]:0}),run(second,'ticket.submit',{...proposal,ticketId:otherTicket,lines:[{...proposal.lines[0],id:randomUUID()}]},{[`posTickets:${otherTicket}`]:0})]);
+ assert.ok(submissions.every(out=>out.kind==='CONFIRMED'),JSON.stringify(submissions));
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_lines WHERE business_id=$1',[businessId])).rows[0].count,0);
+ assert.equal(Number((await pool.query('SELECT quantity FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity),10);
+ const snapshots=await store.catalogProjection(businessId);
+ const tickets=snapshots.filter(row=>row.collection==='posTickets');
+ assert.equal(filterRecords(waiter,tickets).length,1,'waiters see their own proposals');
+ const prohibited=await run(waiter,'payment.record',{orderId:randomUUID()});assert.equal(prohibited.error.code,'PERMISSION_DENIED');
+ const orderId=randomUUID(),approval={ticketId,orderId,expectedBalanceVersions:{[`${stockId}:${locationId}`]:1}},versions={[`posTickets:${ticketId}`]:1,[`orders:${orderId}`]:0,[`products:${productId}`]:1,[`businessSettings:${businessId}`]:1,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`stockItems:${stockId}`]:1};
+ const wrongDevice=await run({...cashier,deviceId:waiterDevice},'order.fire',{orderId});assert.equal(wrongDevice.error.code,'CHECKOUT_DEVICE_REQUIRED');
+ const approvals=await Promise.all([run(cashier,'ticket.approve',approval,versions),run(cashier,'ticket.approve',approval,versions)]);
+ const accepted=approvals.find(out=>out.kind==='CONFIRMED');assert.ok(accepted,JSON.stringify(approvals));
+ assert.equal(accepted.result.data.status,'APPROVED',JSON.stringify(accepted));
+ assert.equal(approvals.filter(out=>out.kind==='CONFIRMED').length,1);
+ const replay=await run(cashier,'ticket.approve',approval,versions,accepted.commandId);assert.deepEqual(replay,accepted);
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_lines WHERE business_id=$1 AND order_id=$2',[businessId,orderId])).rows[0].count,1);
+ assert.equal((await pool.query("SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='KOT'",[businessId,accepted.commandId])).rows[0].count,1);
+ assert.equal(Number((await pool.query('SELECT quantity FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0].quantity),9.75,'one approved line consumes stock once');
+ const subsequentVersions=Object.fromEntries(Object.entries(versions).filter(([key])=>!key.startsWith('orders:')&&!key.startsWith('posTickets:')));
+ const reviewOrder=randomUUID(),review=await run(cashier,'ticket.approve',{ticketId:otherTicket,orderId:reviewOrder,expectedBalanceVersions:{[`${stockId}:${locationId}`]:2}},{...subsequentVersions,[`posTickets:${otherTicket}`]:1,[`orders:${reviewOrder}`]:0,[`stockItems:${stockId}`]:2});
+ assert.equal(review.kind,'CONFIRMED',JSON.stringify(review));
+ // A changed reviewed price is returned as a durable review status, never a partial sale.
+ const mismatchTicket=randomUUID();
+ await run(waiter,'ticket.submit',{...proposal,ticketId:mismatchTicket,lines:[{...proposal.lines[0],id:randomUUID(),unitPriceMinor:1}]},{[`posTickets:${mismatchTicket}`]:0});
+ const mismatchOrder=randomUUID(),mismatch=await run(cashier,'ticket.approve',{ticketId:mismatchTicket,orderId:mismatchOrder,expectedBalanceVersions:{[`${stockId}:${locationId}`]:3}},{...subsequentVersions,[`posTickets:${mismatchTicket}`]:1,[`orders:${mismatchOrder}`]:0,[`stockItems:${stockId}`]:3});
+ assert.equal(mismatch.kind,'CONFIRMED',JSON.stringify(mismatch));assert.equal(mismatch.result.data.status,'NEEDS_REVIEW');
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_orders WHERE business_id=$1 AND id=$2',[businessId,mismatchOrder])).rows[0].count,0);
+});

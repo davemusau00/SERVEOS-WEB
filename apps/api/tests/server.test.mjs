@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {once} from 'node:events';
 import {authenticateSession, createApiServer} from '../src/server.mjs';
+import {migrationManifest} from '../src/migration-manifest.mjs';
 
 test('server cannot be constructed without an explicit authenticator', () => {
   assert.throws(() => createApiServer({store: {}}), /explicit session authenticator/);
@@ -28,8 +29,8 @@ test('health routes are public and command routes require session authentication
         return {rows: [{ready: true}]};
       }
       // Second query: count applied migrations
-      if (sql.includes('count(*)') && sql.includes('api_schema_migrations')) {
-        return {rows: [{applied: 72}]};
+      if (sql.includes('SELECT name,sha256 FROM api_schema_migrations')) {
+        return {rows:migrationManifest()};
       }
       return {rows: [{ready: true}]};
     }

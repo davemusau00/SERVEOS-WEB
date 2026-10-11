@@ -51,7 +51,12 @@
         "kds.update",
         "help.view",
         "records.view",
-        "devices.register"
+        "devices.register",
+        "ticket.create",
+        "ticket.view_own",
+        "ticket.view_outlet",
+        "ticket.approve",
+        "ticket.reject"
       ]
     },
     "Server": {
@@ -126,6 +131,19 @@
         "business.view",
         "records.view",
         "help.view",
+        "devices.register"
+      ]
+    },
+    "Waiter": {
+      "mode": "explicit",
+      "permissions": [
+        "business.view",
+        "catalog.view",
+        "floorplan.view",
+        "ticket.create",
+        "ticket.view_own",
+        "help.view",
+        "records.view",
         "devices.register"
       ]
     }

@@ -72,10 +72,10 @@ export async function synchronizeStore(store:BusinessStore,transport:ApiTranspor
   }catch(error){publish('SYNC_FAILED');throw error}finally{channel?.close()}
 }
 
-export function startAutomaticSync(run:()=>Promise<void>,onError:(error:unknown)=>void){
+export function startAutomaticSync(run:()=>Promise<void>,onError:(error:unknown)=>void,intervalMs=15000){
   let stopped=false;let busy=false;let failures=0;let next=0;
   const tick=async()=>{if(stopped||busy||!navigator.onLine||document.visibilityState!=='visible'||Date.now()<next)return;busy=true;
-    try{await run();failures=0;next=Date.now()+15000}catch(error){failures++;next=Date.now()+Math.min(300000,5000*2**Math.min(failures-1,6));onError(error)}finally{busy=false}
+    try{await run();failures=0;next=Date.now()+Math.max(1000,intervalMs)}catch(error){failures++;next=Date.now()+Math.min(300000,5000*2**Math.min(failures-1,6));onError(error)}finally{busy=false}
   };
   const resume=()=>{next=0;void tick()};
   const interval=window.setInterval(()=>void tick(),1000);

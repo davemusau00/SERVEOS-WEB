@@ -1,5 +1,6 @@
 # SERVEOS POS 2.0
 ## Final engineering sprint, acceptance contract and non-destructive VPS deployment runbook
+refer to document Perfomance.md and incorporate into this plan too
 
 **Prepared:** 2026-10-11
 

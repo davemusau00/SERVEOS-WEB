@@ -1,6 +1,7 @@
 const has=(actor,...permissions)=>actor.permissions?.includes('*')||permissions.some(permission=>actor.permissions?.includes(permission));
 export function visibleRecord(actor,record){
  const {collection,data}=record;
+ if(collection==='posTickets')return has(actor,'ticket.view_outlet','ticket.approve','ticket.reject')||data.createdByStaffId===actor.staffId&&has(actor,'ticket.view_own');
  if(collection==='customers')return has(actor,'customers.manage','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off','pos.sell','pos.open_tab','rooms.guests.view');
  if(collection==='tables')return has(actor,'floorplan.view','floorplan.manage','pos.sell','pos.open_tab','pos.manage_table');
  if(collection==='employees')return has(actor,'staff.view','staff.update','staff.create','staff.deactivate')||data.staffId===actor.staffId;

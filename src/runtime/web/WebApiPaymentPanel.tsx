@@ -14,9 +14,10 @@ const money=(value:number)=>(value/100).toLocaleString('en-KE',{style:'currency'
 const draft=(accountId='',amount=''):Tender=>({id:crypto.randomUUID(),accountId,amount,cashTendered:'',reference:'',receivedAmount:'',receivedAt:'',confirmed:false});
 const version=(row:BusinessRecord)=>({collection:row.collection,id:row.id,version:row.version});
 
-export function WebApiPaymentPanel({records,order,session,deviceId,disabled,command,queue}:{records:BusinessRecord[];order?:BusinessRecord;session:WebSession;deviceId:string;disabled:boolean;command:Command;queue:QueuedCommand[]}){
+export function WebApiPaymentPanel({records,order,session,deviceId,disabled,command,queue,openRequest=0,compact=false}:{records:BusinessRecord[];order?:BusinessRecord;session:WebSession;deviceId:string;disabled:boolean;command:Command;queue:QueuedCommand[];openRequest?:number;compact?:boolean}){
  const [review,setReview]=useState<Review|null>(null),[tenders,setTenders]=useState<Tender[]>([]),[busy,setBusy]=useState(false),[pendingId,setPendingId]=useState(''),[message,setMessage]=useState('');
  const inFlight=useRef(false);
+ const handledOpenRequest=useRef(0);
  const timeZone=session.propertyContext?.timeZone||'Africa/Nairobi';
  useEffect(()=>{
   if(!pendingId)return;
@@ -81,14 +82,15 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
     }
   }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
+ useEffect(()=>{if(openRequest>handledOpenRequest.current&&order?.data.state==='FIRED'&&!disabled&&!busy&&!pendingId){handledOpenRequest.current=openRequest;open();}},[openRequest,order,disabled,busy,pendingId]);
  if(!order||!allowed(session,'payment.record')&&!allowed(session,'payment.split'))return null;
  const field='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2',button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
  let allocated:number|null=null;try{allocated=tenders.reduce((sum,row)=>sum+parseMoneyToMinor(row.amount),0)}catch{ /* Incomplete tender input remains reviewable. */ }
  const balance=Number(order.data.grandTotalMinor)-Number(order.data.amountPaidMinor)-Number(order.data.amountCreditedMinor||0)-Number(order.data.roomChargeMinor||0);
  const payable=order.data.state==='FIRED'&&balance>0&&!(Array.isArray(order.data.items)&&order.data.items.some(row=>(row as Record<string,unknown>).state==='DRAFT'));
  return <section data-guide-anchor="pos.payment" className="space-y-3 rounded-xl border border-slate-700 p-3">
-  <button className={button} disabled={disabled||busy||Boolean(pendingId)||!payable||!allowed(session,'payment.record')} onClick={open}>Record payment for {String(order.data.name)}</button>
-  {review&&<form role="dialog" aria-label="Review order payment" onSubmit={event=>void save(event)} className="space-y-3">
+  {!compact&&<button className={button} disabled={disabled||busy||Boolean(pendingId)||!payable||!allowed(session,'payment.record')} onClick={open}>Record payment for {String(order.data.name)}</button>}
+  {review&&<form role="dialog" aria-label="Review order payment" onSubmit={event=>void save(event)} className={compact?'fixed inset-4 z-50 overflow-auto rounded-xl border border-slate-600 bg-slate-950 p-4 lg:inset-x-1/3 space-y-3':'space-y-3'}>
    <h3 className="font-bold">{String(review.order.data.name)} · Reviewed balance {money(Number(review.order.data.grandTotalMinor)-Number(review.order.data.amountPaidMinor)-Number(review.order.data.amountCreditedMinor||0)-Number(review.order.data.roomChargeMinor||0))}</h3>
    {tenders.map(tender=>{
     const account=review.accounts.find(row=>row.id===tender.accountId),method=String(account?.data.method||'');let change:string='—';try{change=money(parseMoneyToMinor(tender.cashTendered)-parseMoneyToMinor(tender.amount))}catch{ /* Invalid entry is explained on submit. */ }

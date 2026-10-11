@@ -1,4 +1,5 @@
 import {supplierCreditApplicationCommandRegistry} from './supplier-credit-application-commands.mjs';
+import {ticketCommandRegistry,enforceCheckoutWhenEnrolled} from './ticket-commands.mjs';
 import {supplierCreditCommandRegistry} from './supplier-credit-commands.mjs';
 import {customerCommandRegistry} from './customer-commands.mjs';
 import {customerCreditCommandRegistry} from './customer-credit-commands.mjs';
@@ -31,6 +32,7 @@ import {floorplanCommandRegistry} from './floorplan-commands.mjs';
 
 export function createApiCommandRegistry() {
   const groups = [
+    ticketCommandRegistry,
     catalogCommandRegistry, customerCommandRegistry, customerCreditCommandRegistry,
     customerCreditReconciliationCommandRegistry, staffCommandRegistry, deviceCommandRegistry,
     managerApprovalCommandRegistry, supplierCommandRegistry, purchaseOrderCommandRegistry,
@@ -60,6 +62,10 @@ export function createApiCommandRegistry() {
   const expectedOverrides = ['stay.checkIn'];
   if (JSON.stringify(overrides) !== JSON.stringify(expectedOverrides)) {
     throw new Error(`API command registry overrides changed: ${JSON.stringify(overrides)}`);
+  }
+  for(const name of ['order.create','order.quickAdd','order.addItem','order.updateItem','order.removeItem','order.fire','payment.record','payment.split','till.open','till.close','till.cashMovement']){
+    const definition=registry.get(name);if(!definition)continue;
+    registry.set(name,{...definition,handler:async context=>{await enforceCheckoutWhenEnrolled(context);return definition.handler(context);}});
   }
   return registry;
 }

@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {supplierCreditBalanceProjections,supplierCreditApplicationProjections} from './supplier-credit-application-projections.mjs';
 import {customerProjections} from './customer-commands.mjs';
+import {ticketProjections} from './ticket-commands.mjs';
 import {customerCreditAccountProjections,customerCreditEntryProjections} from './customer-credit-commands.mjs';
 import {customerCreditReconciliationProjections,customerCreditDiscrepancyProjections} from './customer-credit-reconciliation-commands.mjs';
 import {supplierCreditNoteProjections} from './supplier-credit-commands.mjs';
@@ -198,6 +199,7 @@ export class PostgresStore {
     const customerCreditReconciliations=await customerCreditReconciliationProjections(db,businessId);
     const customerCreditDiscrepancies=await customerCreditDiscrepancyProjections(db,businessId);
     return [
+      ...await ticketProjections(db,businessId),
       ...customers,
       ...hospitality,
       ...financeAssets,

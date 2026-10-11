@@ -92,7 +92,12 @@
     "devices.manage",
     "records.view",
     "payments.view",
-    "payments.manage"
+    "payments.manage",
+    "ticket.create",
+    "ticket.view_own",
+    "ticket.view_outlet",
+    "ticket.approve",
+    "ticket.reject"
   ],
   "staffAssignable": [
     "business.view",
@@ -173,6 +178,11 @@
     "data.import.execute",
     "backup.create",
     "backup.restore",
-    "help.view"
+    "help.view",
+    "ticket.create",
+    "ticket.view_own",
+    "ticket.view_outlet",
+    "ticket.approve",
+    "ticket.reject"
   ]
 }

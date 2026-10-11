@@ -1,5 +1,6 @@
 import {checkBridgeClaim} from './bridge-authorization.mjs';
 import {pos2Capabilities} from './pos2-capabilities.mjs';
+import {validateMigrationManifest} from './migration-manifest.mjs';
 import {filterRecords,filterChangePage} from './projection-access.mjs';
 import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
@@ -99,13 +100,14 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/health/live') return json(res, 200, {status: 'ok'});
       if (req.method === 'GET' && url.pathname === '/health/ready') {
-        const {rows} = await store.pool.query("SELECT to_regclass('public.api_schema_migrations') IS NOT NULL AS ready");
+        const {rows} = await store.pool.query("SELECT to_regclass('api_schema_migrations') IS NOT NULL AS ready");
         if (!rows[0]?.ready) return json(res, 503, {status: 'not_ready', reason: 'database_migrations_pending'});
-        const expectedMigrations = 72;
-        const {rows: migrationRows} = await store.pool.query('SELECT count(*)::int AS applied FROM api_schema_migrations');
-        const applied = migrationRows[0]?.applied ?? 0;
-        if (applied < expectedMigrations) return json(res, 503, {status: 'not_ready', reason: 'database_migrations_pending', expected: expectedMigrations, applied});
-        return json(res, 200, {status: 'ready', migrations: {expected: expectedMigrations, applied}});
+        const {rows: checksumColumn}=await store.pool.query("SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='api_schema_migrations' AND column_name='sha256'");
+        if(!checksumColumn.length)return json(res,503,{status:'not_ready',reason:'database_migration_checksums_pending'});
+        const {rows: migrationRows} = await store.pool.query('SELECT name,sha256 FROM api_schema_migrations');
+        const migrations=validateMigrationManifest(migrationRows);
+        if(!migrations.ready)return json(res,503,{status:'not_ready',reason:'database_migrations_pending',...migrations});
+        return json(res, 200, {status: 'ready', migrations});
       }
       if(req.method==='POST'&&url.pathname==='/v1/auth/login'){
         const input=await readJson(req);const loginName=typeof input.loginName==='string'?input.loginName.trim():'';const password=typeof input.password==='string'?input.password:'';
