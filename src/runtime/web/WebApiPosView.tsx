@@ -15,6 +15,7 @@ import {WebApiOfflinePosPanel} from './WebApiOfflinePosPanel';
 import type {BusinessStore} from './BusinessStore';
 import {CashierWorkspace} from './pos2/CashierWorkspace';
 import {TicketsInbox} from './pos2/TicketsInbox';
+import {CashManagerRecovery} from './pos2/CashManagerRecovery';
 
 type Command=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
 const obj=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
@@ -41,7 +42,7 @@ export function WebApiPosView(props:WebApiPosProps){
  const [tickets,setTickets]=useState(false);
  if(props.session.capabilities?.['pos2.waiterTickets']===true&&(tickets||!allowed(props.session,'pos.sell')))return <>{allowed(props.session,'pos.sell')&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setTickets(false)}>Back to cashier</button>}<TicketsInbox {...props}/></>;
  if(props.session.capabilities?.['pos2.simpleCashier']===true&&!advanced)return <>{props.session.capabilities?.['pos2.waiterTickets']===true&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setTickets(true)}>Tickets ({props.records.filter(row=>row.collection==='posTickets'&&['SUBMITTED','NEEDS_REVIEW'].includes(String(row.data.status))).length})</button>}<CashierWorkspace {...props} initialOrderId={selectedOrder} onOrderChange={setSelectedOrder} onMore={()=>setAdvanced(true)}/></>;
- return <>{props.session.capabilities?.['pos2.simpleCashier']===true&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setAdvanced(false)}>Back to cashier</button>}<LegacyWebApiPosView {...props} initialOrderId={selectedOrder}/></>;
+ return <>{props.session.capabilities?.['pos2.simpleCashier']===true&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setAdvanced(false)}>Back to cashier</button>}{props.session.capabilities?.['pos2.offlineCash']===true&&<CashManagerRecovery {...props}/>}<LegacyWebApiPosView {...props} initialOrderId={selectedOrder}/></>;
 }
 function LegacyWebApiPosView({records,session,disabled,command,queue,deviceId,readRecords,apiAuth,store,blockedAggregates,initialOrderId=''}:WebApiPosProps){
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived);

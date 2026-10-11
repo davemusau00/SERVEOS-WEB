@@ -36,6 +36,8 @@ test('offline V2 commits cash and preparation once and preserves conflicting cas
  await ok('business.settings.save',{data:{businessName:'Ticket acceptance',address:'Test',contact:'',taxPin:'',footer:'Thanks',vatRateBasisPoints:1600,levyRateBasisPoints:0},reason:'Set acceptance taxes'},{[`businessSettings:${businessId}`]:0});
  await ok('outlet.save',{id:outletId,data:{name:'Outlet',defaultStockLocationId:locationId,archived:false},reason:'Configure outlet'},{[`outlets:${outletId}`]:0,[`stockLocations:${locationId}`]:1});
  await ok('pos.checkoutEnroll',{outletId,deviceId});
+ const handoffPayload={deviceId:secondDevice,saleIds:[],reason:'Verified empty terminal handoff'};const firstHandoff=await ok('pos.checkoutHandoff',handoffPayload);assert.equal(firstHandoff.result.deviceId,secondDevice);
+ const restored=await run({...second,permissions:['*']},'pos.checkoutHandoff',{deviceId,saleIds:[],reason:'Return verified empty terminal'});assert.equal(restored.kind,'CONFIRMED',JSON.stringify(restored));
  const accountId=randomUUID();let tillId=randomUUID();
  await ok('paymentAccount.save',{id:accountId,reason:'Test cash account',data:{name:'Cash',code:'CASH',method:'CASH',currency:'KES',referenceRequired:false,archived:false}},{[`paymentAccounts:${accountId}`]:0});
  await ok('till.open',{id:tillId,outletId,openingFloatMinor:0},{[`tillSessions:${tillId}`]:0,[`outlets:${outletId}`]:1,[`tillPolicy:${businessId}`]:0});
@@ -47,6 +49,7 @@ test('offline V2 commits cash and preparation once and preserves conflicting cas
  const make=(sequence,price=90000)=>{const id=randomUUID(),line={id:randomUUID(),productId,name:'Kitchen product',productVersion:1,quantity:1,unitPriceMinor:price,discountBasisPoints:0,comped:false,taxSnapshot,...calculateLine(1,price,0,false,taxSnapshot)},reference='POS01-20261011-'+String(sequence).padStart(6,'0'),input={id,outletId,tillSessionId:tillId,cashAccountId:accountId,cashTenderedMinor:100000,stockMovements:[{id:randomUUID(),stockItemId:stockId,locationId,quantityFixed:'-250000',unit:'kg'}],expectedVersions:{[`businessSettings:${businessId}`]:1,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`products:${productId}`]:1,[`stockItems:${stockId}`]:1,[`paymentAccounts:${accountId}`]:1},expectedBalanceVersions:{[`${stockId}:${locationId}`]:1}};return {sale:{id,businessId,deviceId,staffId,outletId,tillSessionId:tillId,sequence,reference,currency:'KES',occurredAt:new Date().toISOString(),input,lines:[line],totalMinor:price,changeMinor:100000-price},lease};};
  console.log('offline-v2: provisioned cashier and signed capability');
  const envelope=make(1),saleId=envelope.sale.id,confirmedIds=[saleId];
+ const blockedHandoff=await run(cashier,'pos.checkoutHandoff',{deviceId:secondDevice,saleIds:[],reason:'Must refuse active shift'});assert.equal(blockedHandoff.error.code,'CHECKOUT_HANDOFF_NOT_DRAINED');
  const blockedClose=await run(cashier,'till.close',{id:tillId,countedCashMinor:0},{[`tillSessions:${tillId}`]:1});assert.equal(blockedClose.error.code,'OFFLINE_SHIFT_NOT_DRAINED');
  const committed=await run(cashier,'pos.offlineSale.commitV2',envelope,{},saleId);assert.equal(committed.kind,'CONFIRMED',JSON.stringify(committed));assert.equal(committed.result.data.status,'SERVER_CONFIRMED',JSON.stringify(committed));
  for(let i=0;i<5;i++)assert.deepEqual(await run(cashier,'pos.offlineSale.commitV2',envelope,{},saleId),committed);
@@ -78,5 +81,16 @@ test('offline V2 commits cash and preparation once and preserves conflicting cas
  const legacy=await executeCommand({db:store,command:legacyCommand,actor:cashier,registry});assert.equal(legacy.kind,'CONFIRMED',JSON.stringify(legacy));
  assert.deepEqual(await executeCommand({db:store,command:legacyCommand,actor:cashier,registry}),legacy);
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM order_payments WHERE business_id=$1 AND order_id=$2',[businessId,legacyId])).rows[0].n,1);
+ const reviewSale=make(102);reviewSale.sale.lines[0].productId=counterProduct;reviewSale.sale.input.expectedVersions['products:'+counterProduct]=1;
+ const needsReview=await run(cashier,'pos.offlineSale.commitV2',reviewSale,{},reviewSale.sale.id);assert.equal(needsReview.result.data.status,'RECONCILIATION_REQUIRED',JSON.stringify(needsReview));
+ const resolvePayload={saleId:reviewSale.sale.id,orderId:legacyId,reason:'Verified original paper and canonical cash/stock posting'},versions={['offlineCashReconciliations:'+reviewSale.sale.id]:1},resolveId=randomUUID();
+ const denied=await run(waiter,'pos.offlineCash.resolve',resolvePayload,versions);assert.equal(denied.error.code,'PERMISSION_DENIED');
+ const bad=await run(cashier,'pos.offlineCash.resolve',{...resolvePayload,saleId:conflict.sale.id},{['offlineCashReconciliations:'+conflict.sale.id]:1});assert.equal(bad.error.code,'CASH_EVIDENCE_MISMATCH');
+ const beforePaymentCount=(await pool.query('SELECT count(*)::int AS n FROM order_payments WHERE business_id=$1',[businessId])).rows[0].n;
+ const resolved=await run(cashier,'pos.offlineCash.resolve',resolvePayload,versions,resolveId);assert.equal(resolved.kind,'CONFIRMED',JSON.stringify(resolved));assert.equal(resolved.result.data.status,'SERVER_CONFIRMED');assert.equal(resolved.result.version,2);
+ assert.deepEqual(await run(cashier,'pos.offlineCash.resolve',resolvePayload,versions,resolveId),resolved);
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM order_payments WHERE business_id=$1',[businessId])).rows[0].n,beforePaymentCount);
+ assert.equal((await pool.query('SELECT local_snapshot FROM pos_offline_cash_reconciliations WHERE business_id=$1 AND sale_id=$2',[businessId,reviewSale.sale.id])).rows[0].local_snapshot.totalMinor,90000);
+
 
 });

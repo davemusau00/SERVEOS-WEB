@@ -181,6 +181,16 @@ export class BusinessStore {
     return (await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId);
   }));}
   async localCashSales(){return this.cashTransaction(['cashSales'],'readonly',async tx=>(await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId).sort((a,b)=>a.sequence-b.sequence));}
+  async recordLocalShiftCount(tillSessionId:string,countedMinor:number,reason:string){
+    if(!Number.isSafeInteger(countedMinor)||countedMinor<0||reason.trim().length<3||reason.length>500)throw Error('Enter a non-negative cash count and a review reason.');
+    const till=(await this.records()).find(row=>row.collection==='tillSessions'&&row.id===tillSessionId&&row.data.operatorId===this.actorId&&row.data.deviceId===this.deviceId);
+    if(!till||till.data.status!=='OPEN')throw Error('Count the cached open shift belonging to this cashier and terminal.');
+    return navigator.locks.request(`servos-cash:${this.scope}:${this.deviceId}`,{mode:'exclusive'},()=>this.cashTransaction(['cashSales','localShiftLedger'],'readwrite',async tx=>{
+      const sales=(await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId&&sale.tillSessionId===tillSessionId);
+      const evidence={id:`count:${crypto.randomUUID()}`,kind:'PHYSICAL_COUNT',tillSessionId,staffId:this.actorId,deviceId:this.deviceId,countedMinor,reason:reason.trim(),saleIds:sales.map(sale=>sale.id),locallyRecordedCashMinor:sales.reduce((sum,sale)=>sum+sale.totalMinor,0),pendingSaleIds:sales.filter(sale=>sale.state!=='SERVER_CONFIRMED').map(sale=>sale.id),recordedAt:new Date().toISOString(),authority:'LOCAL_PROVISIONAL'};
+      await request(tx.objectStore('localShiftLedger').add(evidence));return evidence;
+    }));
+  }
   async localCashRecoveryEvidence(saleId:string){
     const names=['cashSales','cashEntries','localStockMovements','localOrderTickets','outboxV2','syncReconciliations','localShiftLedger','localPrintEvidence'];
     return this.cashTransaction(names,'readonly',async tx=>{

@@ -108,7 +108,25 @@ async function enroll({tx,actor,command,at}){
  await tx.client.query('INSERT INTO pos_checkout_terminals(business_id,outlet_id,device_id,enrolled_by,enrolled_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(business_id) DO NOTHING',[actor.businessId,p.outletId,p.deviceId,actor.staffId,at]);
  return {value:{outletId:p.outletId,deviceId:p.deviceId},records:[]};
 }
+async function handoff({tx,actor,command,at}){
+ const p=command.payload;
+ if(!uuid(p.deviceId)||!Array.isArray(p.saleIds)||p.saleIds.some(id=>!uuid(id))||new Set(p.saleIds).size!==p.saleIds.length||typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.length>500)fail('Provide the frozen original cash IDs, new enrolled terminal and a handoff reason.');
+ await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`pos-checkout:${actor.businessId}`]);
+ const binding=(await tx.client.query('SELECT * FROM pos_checkout_terminals WHERE business_id=$1 FOR UPDATE',[actor.businessId])).rows[0];
+ if(!binding||binding.device_id!==actor.deviceId||binding.device_id===p.deviceId)fail('Perform handoff from the current checkout to a different enrolled terminal.','CHECKOUT_DEVICE_REQUIRED',403);
+ const device=await tx.client.query('SELECT 1 FROM api_enrolled_devices WHERE business_id=$1 AND id=$2 AND revoked_at IS NULL',[actor.businessId,p.deviceId]);if(!device.rows.length)fail('The receiving terminal must be enrolled online first.');
+ const pending=await tx.client.query("SELECT 1 FROM till_sessions WHERE business_id=$1 AND device_id=$2 AND status<>'CLOSED' UNION ALL SELECT 1 FROM pos_offline_capabilities WHERE business_id=$1 AND device_id=$2 AND revoked_at IS NULL",[actor.businessId,binding.device_id]);
+ if(pending.rows.length)fail('End every offline capability and close/review the old terminal shifts before handoff.','CHECKOUT_HANDOFF_NOT_DRAINED',409);
+ const unknown=await tx.client.query("SELECT 1 FROM api_commands WHERE business_id=$1 AND device_id=$2 AND command_id<>$3 AND status IN ('RECEIVED','PROCESSING') LIMIT 1",[actor.businessId,binding.device_id,command.commandId]);
+ if(unknown.rows.length)fail('Recover every unknown command on the old terminal before handoff.','CHECKOUT_HANDOFF_NOT_DRAINED',409);
+ const cash=await tx.client.query('SELECT sale_id,status FROM pos_offline_cash_reconciliations WHERE business_id=$1 AND device_id=$2',[actor.businessId,binding.device_id]);
+ if(cash.rows.length!==p.saleIds.length||cash.rows.some(row=>row.status!=='SERVER_CONFIRMED'||!p.saleIds.includes(row.sale_id)))fail('The frozen terminal ledger must exactly match confirmed original cash IDs.','CHECKOUT_HANDOFF_NOT_DRAINED',409);
+ await tx.client.query('UPDATE pos_checkout_terminals SET device_id=$2,enrolled_by=$3,enrolled_at=$4 WHERE business_id=$1',[actor.businessId,p.deviceId,actor.staffId,at]);
+ await tx.client.query('INSERT INTO pos_checkout_handoffs(business_id,command_id,previous_device_id,next_device_id,outlet_id,approved_by,reason,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[actor.businessId,command.commandId,binding.device_id,p.deviceId,binding.outlet_id,actor.staffId,p.reason.trim(),at]);
+ return {value:{outletId:binding.outlet_id,deviceId:p.deviceId,previousDeviceId:binding.device_id,status:'HANDED_OVER'},records:[]};
+}
 export const ticketCommandRegistry=new Map([
+ ['pos.checkoutHandoff',{permission:'business.configure',offlinePolicy:'ONLINE_ONLY',handler:handoff}],
  ['ticket.submit',{permission:'ticket.create',offlinePolicy:'ONLINE_ONLY',handler:submit}],
  ['ticket.revise',{permission:'ticket.create',permissionAny:['ticket.approve'],offlinePolicy:'ONLINE_ONLY',handler:revise}],
  ['ticket.cancel',{permission:'ticket.create',offlinePolicy:'ONLINE_ONLY',handler:context=>decide(context,'CANCELLED')}],

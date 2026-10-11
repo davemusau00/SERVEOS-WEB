@@ -15,7 +15,7 @@ const issue=async({tx,command,actor,at})=>{
  for(const permission of ['pos.sell','order.fire','payment.record'])if(!has(actor,permission))fail('Cashier permissions are required.','PERMISSION_DENIED',403);
  const p=command.payload;
  if(!uuid(p.outletId)||!uuid(p.tillSessionId)||!/^POS[0-9A-Z]{1,12}$/.test(p.deviceLabel)||!Number.isInteger(p.durationMinutes)||p.durationMinutes<30||p.durationMinutes>720)fail('Choose an outlet, open shift, stable terminal label and a 30 to 720 minute validity period.');
- const binding=await tx.client.query('SELECT 1 FROM pos_checkout_terminals WHERE business_id=$1 AND device_id=$2 AND outlet_id=$3',[actor.businessId,actor.deviceId,p.outletId]);if(!binding.rows.length)fail('Enroll this checkout terminal first.','CHECKOUT_REQUIRED',403);
+ const binding=await tx.client.query('SELECT 1 FROM pos_checkout_terminals WHERE business_id=$1 AND device_id=$2 AND outlet_id=$3 FOR SHARE',[actor.businessId,actor.deviceId,p.outletId]);if(!binding.rows.length)fail('Enroll this checkout terminal first.','CHECKOUT_REQUIRED',403);
  const till=await tx.client.query("SELECT 1 FROM till_sessions WHERE business_id=$1 AND id=$2 AND device_id=$3 AND operator_id=$4 AND outlet_id=$5 AND status='OPEN' FOR SHARE",[actor.businessId,p.tillSessionId,actor.deviceId,actor.staffId,p.outletId]);if(!till.rows.length)fail('A matching owned open shift is required.','TILL_UNAVAILABLE',409);
  const lease={leaseId:randomUUID(),version:2,businessId:actor.businessId,deviceId:actor.deviceId,staffId:actor.staffId,outletId:p.outletId,tillSessionId:p.tillSessionId,issuedAt:at.toISOString(),expiresAt:new Date(at.getTime()+p.durationMinutes*60000).toISOString(),deviceLabel:p.deviceLabel,permissions:['pos.offlineSale.commitV2','pos.sell','order.fire','payment.record'],keyVersion:process.env.OFFLINE_GRANT_KEY_VERSION||'offline-v2'};
  const signature=sign('sha256',Buffer.from(json(lease)),{key:signingKey(),dsaEncoding:'ieee-p1363'}).toString('base64url'),signed={...lease,signature};
@@ -32,7 +32,32 @@ const finishCapability=async({tx,command,actor,at})=>{
  await tx.client.query('UPDATE pos_offline_capabilities SET revoked_at=COALESCE(revoked_at,$3) WHERE business_id=$1 AND till_session_id=$2 AND device_id=$4 AND staff_id=$5',[actor.businessId,p.tillSessionId,at,actor.deviceId,actor.staffId]);
  return {value:{tillSessionId:p.tillSessionId,status:'ENDED',confirmedSales:p.saleIds.length},records:[]};
 };
-const reconciliation=row=>({collection:'offlineCashReconciliations',id:row.sale_id,version:1,archived:false,data:{id:row.sale_id,deviceId:row.device_id,staffId:row.staff_id,reference:row.local_reference,status:row.status,reason:row.reason,orderId:row.server_order_id,documentIds:row.server_document_ids,recordedAt:row.recorded_at.toISOString()}});
+const reconciliation=row=>({collection:'offlineCashReconciliations',id:row.sale_id,version:Number(row.revision??1),archived:false,data:{id:row.sale_id,deviceId:row.device_id,staffId:row.staff_id,reference:row.local_reference,status:row.status,reason:row.reason,orderId:row.server_order_id,documentIds:row.server_document_ids,resolvedBy:row.resolved_by,resolutionReason:row.resolution_reason,recordedAt:row.recorded_at.toISOString()}});
+const resolveCash=async({tx,command,actor,at})=>{
+ const p=command.payload;
+ if(!uuid(p.saleId)||!uuid(p.orderId)||typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.length>500)fail('Choose the original local cash sale, matching recorded sale and a review reason.');
+ const loaded=await tx.client.query('SELECT * FROM pos_offline_cash_reconciliations WHERE business_id=$1 AND sale_id=$2 FOR UPDATE',[actor.businessId,p.saleId]),row=loaded.rows[0];
+ if(!row||row.status!=='RECONCILIATION_REQUIRED')fail('This cash record is unavailable or already reconciled.','CASH_REVIEW_CONFLICT',409);
+ if(command.expectedVersions['offlineCashReconciliations:'+p.saleId]!==Number(row.revision))fail('Review the latest cash exception.','VERSION_CONFLICT',409);
+ await enforceCheckoutWhenEnrolled({tx,actor,command:{...command,payload:{orderId:p.orderId}}});
+ await tx.client.query('SELECT 1 FROM pos_orders WHERE business_id=$1 AND id=$2 FOR UPDATE',[actor.businessId,p.orderId]);
+ const order=await orderProjection(tx.client,actor.businessId,p.orderId),sale=row.local_snapshot;
+ if(!order||order.data.outletId!==sale.outletId||order.data.state!=='COMPLETED'||order.data.grandTotalMinor!==sale.totalMinor||order.data.amountPaidMinor!==sale.totalMinor||Number(order.data.refundedAmountMinor)!==0)fail('The linked sale must be paid in full for the original cash amount and outlet.','CASH_EVIDENCE_MISMATCH',409);
+ const payments=await tx.client.query('SELECT method,amount_minor,till_session_id FROM order_payments WHERE business_id=$1 AND order_id=$2',[actor.businessId,p.orderId]);
+ if(!payments.rows.length||payments.rows.some(payment=>payment.method!=='CASH'||payment.till_session_id!==sale.tillSessionId)||payments.rows.reduce((sum,payment)=>sum+Number(payment.amount_minor),0)!==sale.totalMinor)fail('Use verified cash postings in the original shift; external or claimed tenders cannot resolve received cash.','CASH_EVIDENCE_MISMATCH',409);
+ const normalize=lines=>lines.map(line=>json({productId:line.productId,quantity:line.quantity,unitPriceMinor:line.unitPriceMinor,lineTotalMinor:line.lineTotalMinor,taxSnapshot:line.taxSnapshot})).sort();
+ if(json(normalize(order.data.items.filter(line=>line.state!=='VOIDED')))!==json(normalize(sale.lines)))fail('Linked items, accepted prices and taxes must match the original immutable cash snapshot.','CASH_EVIDENCE_MISMATCH',409);
+ const stock=await tx.client.query('SELECT c.stock_item_id,c.location_id,s.base_unit,sum(c.quantity)::text AS quantity FROM pos_stock_consumptions c JOIN stock_items s ON s.business_id=c.business_id AND s.id=c.stock_item_id WHERE c.business_id=$1 AND c.order_id=$2 GROUP BY c.stock_item_id,c.location_id,s.base_unit',[actor.businessId,p.orderId]);
+ const actual=new Map(stock.rows.map(item=>[item.stock_item_id+':'+item.location_id+':'+item.base_unit,-BigInt(Number(item.quantity).toFixed(6).replace('.',''))])),claimed=new Map();
+ for(const movement of sale.input.stockMovements||[]){const key=movement.stockItemId+':'+movement.locationId+':'+movement.unit;claimed.set(key,(claimed.get(key)||0n)+BigInt(movement.quantityFixed));}
+ if(actual.size!==claimed.size||[...actual].some(([key,value])=>claimed.get(key)!==value))fail('Verified stock consumption must match the original physical sale evidence.','CASH_EVIDENCE_MISMATCH',409);
+ const duplicate=await tx.client.query('SELECT 1 FROM pos_offline_cash_reconciliations WHERE business_id=$1 AND server_order_id=$2',[actor.businessId,p.orderId]);if(duplicate.rows.length)fail('This recorded sale already reconciles another cash record.','CASH_ALREADY_LINKED',409);
+ const documents={rows:order.data.receiptDocumentId?[{id:order.data.receiptDocumentId}]:[]};
+ if(!documents.rows.length)fail('An issued sale receipt is required.','CASH_EVIDENCE_MISMATCH',409);
+ await tx.bumpEntityVersion(actor.businessId,'offlineCashReconciliations',p.saleId,Number(row.revision));
+ const saved=await tx.client.query("UPDATE pos_offline_cash_reconciliations SET status='SERVER_CONFIRMED',revision=revision+1,server_order_id=$3,server_document_ids=$4::jsonb,resolved_by=$5,resolution_command_id=$6,resolution_reason=$7,reconciled_at=$8 WHERE business_id=$1 AND sale_id=$2 RETURNING *",[actor.businessId,p.saleId,p.orderId,JSON.stringify(documents.rows.map(document=>document.id)),actor.staffId,command.commandId,p.reason.trim(),at]);
+ const record=reconciliation(saved.rows[0]);return {value:record,records:[record]};
+};
 export async function offlineCashReconciliationProjections(db,businessId){const {rows}=await db.query('SELECT * FROM pos_offline_cash_reconciliations WHERE business_id=$1 ORDER BY reconciled_at DESC LIMIT 1000',[businessId]);return rows.map(reconciliation);}
 const commit=async({tx,command,actor,at})=>{
  const {sale,lease}=command.payload;
@@ -76,10 +101,12 @@ const commit=async({tx,command,actor,at})=>{
   const merged=new Map();for(const record of [...fired.records,...paid.records])merged.set(record.collection+':'+record.id,record);records=[...merged.values()];
  }catch(error){if(!(error instanceof ApiProblem)||error.status!==409)throw error;await tx.client.query('ROLLBACK TO SAVEPOINT offline_cash_sale');status='RECONCILIATION_REQUIRED';reason=error.message;}
  await tx.client.query('RELEASE SAVEPOINT offline_cash_sale');
+ await tx.bumpEntityVersion(actor.businessId,'offlineCashReconciliations',sale.id,0);
  const saved=await tx.client.query('INSERT INTO pos_offline_cash_reconciliations(business_id,sale_id,device_id,staff_id,checkout_sequence,local_reference,local_snapshot,status,reason,server_order_id,server_document_ids,source_command_id,recorded_at,reconciled_at) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11::jsonb,$12,$13,$14) RETURNING *',[actor.businessId,sale.id,actor.deviceId,actor.staffId,sale.sequence,sale.reference,JSON.stringify(sale),status,reason,orderId,JSON.stringify(documentIds),command.commandId,new Date(occurred),at]);
  const record=reconciliation(saved.rows[0]);return {value:record,records:[...records,record]};
 };
 export const offlineCashV2Registry=new Map([
+ ['pos.offlineCash.resolve',{permission:'till.override_variance',offlinePolicy:'ONLINE_ONLY',handler:resolveCash}],
  ['pos.offlineCapability.finish',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:finishCapability}],
  ['pos.offlineCapability.issue',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:issue}],
  ['pos.offlineSale.commitV2',{permission:'pos.sell',offlinePolicy:'ONLINE_ONLY',handler:commit}],
