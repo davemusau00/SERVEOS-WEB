@@ -153,7 +153,7 @@ export class BusinessStore {
       if(Date.parse(lease.expiresAt)<=Date.now())throw Error('Checkout capability expired before local commit.');
       const meta=tx.objectStore('meta'),sequence=Number(await request(meta.get('cashSequence'))||0)+1;
       if(!Number.isSafeInteger(sequence))throw Error('Local checkout sequence exhausted.');
-      const occurredAt=new Date().toISOString(),day=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()).replace(/-/g,''),reference=`${lease.deviceLabel}-${day}-${String(sequence).padStart(6,'0')}`;
+      const occurredAt=new Date().toISOString(),parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),day=['year','month','day'].map(type=>parts.find(part=>part.type===type)?.value).join(''),reference=`${lease.deviceLabel}-${day}-${String(sequence).padStart(6,'0')}`;
       const sale={id:input.id,...identity,outletId:input.outletId,tillSessionId:input.tillSessionId,currency:'KES',sequence,reference,occurredAt,payloadHash,input,...priced,state:'RECORDED_LOCALLY'};
       await request(sales.add(sale));
       await request(tx.objectStore('cashEntries').add({id:input.id,saleId:input.id,tillSessionId:input.tillSessionId,receivedMinor:priced.totalMinor,tenderedMinor:input.cashTenderedMinor,changeMinor:priced.changeMinor,occurredAt}));

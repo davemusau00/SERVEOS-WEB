@@ -43,3 +43,5 @@ native-all.txt
 
 # Isolated real API browser acceptance bundle
 /dist-api-test/
+
+/dist-legacy-validation/

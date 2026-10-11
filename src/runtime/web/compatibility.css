@@ -1,0 +1,13 @@
+/* Explicit online-only cashier fallback; no modern color or nesting syntax. */
+html[data-servos-browser-mode="Online only"] body{background:#0f172a;color:#fff;font-family:Arial,sans-serif}
+html[data-servos-browser-mode="Online only"] .servos-cashier-workspace{display:flex;flex-direction:column;gap:12px;min-height:600px}
+html[data-servos-browser-mode="Online only"] .servos-cashier-workspace header,
+html[data-servos-browser-mode="Online only"] .servos-cashier-workspace nav{display:flex;flex-wrap:wrap;gap:8px}
+html[data-servos-browser-mode="Online only"] .servos-cashier-workspace button,
+html[data-servos-browser-mode="Online only"] .servos-cashier-workspace input,
+html[data-servos-browser-mode="Online only"] .servos-cashier-workspace select{min-height:44px;padding:8px;border:1px solid #94a3b8;border-radius:6px;color:#fff;background:#0f172a}
+html[data-servos-browser-mode="Online only"] .servos-cashier-workspace button:disabled{opacity:.5}
+html[data-servos-browser-mode="Online only"] .servos-cashier-layout{display:grid;grid-template-columns:minmax(0,1fr) 352px;gap:12px;min-height:0}
+html[data-servos-browser-mode="Online only"] .servos-cashier-products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-height:420px;overflow-y:auto}
+html[data-servos-browser-mode="Online only"] .servos-cashier-workspace aside{padding:12px;border:1px solid #94a3b8;border-radius:8px}
+@media(max-width:1023px){html[data-servos-browser-mode="Online only"] .servos-cashier-layout{grid-template-columns:minmax(0,1fr)}html[data-servos-browser-mode="Online only"] .servos-cashier-workspace aside{position:sticky;bottom:0;background:#0f172a}}

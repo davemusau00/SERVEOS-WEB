@@ -2,10 +2,12 @@ import React,{useState} from 'react';
 import type {WebApiPosProps} from '../WebApiPosView';
 import {verifyCashLease,type OfflineCashLease} from '../offlineCashLedger';
 import {operatorError} from '../operatorError';
+import {inspectBrowserCapabilities} from '../browserCapabilities';
 export function offlinePublicKey():JsonWebKey {const key=JSON.parse(String(import.meta.env.VITE_API_OFFLINE_GRANT_PUBLIC_JWK||'null'));if(!key||key.d)throw Error('The public offline verification key is not configured.');return key;}
 export function OfflineCashSetup({store,session,apiAuth,outletId,tillId,onUnlocked}:{store:WebApiPosProps['store'];session:WebApiPosProps['session'];apiAuth:WebApiPosProps['apiAuth'];outletId:string;tillId?:string;onUnlocked:(lease:OfflineCashLease)=>void}){
  const [pin,setPin]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
  const run=async(provision:boolean)=>{if(busy)return;setBusy(true);setMessage('');try{
+  if((await inspectBrowserCapabilities()).mode!=='Full')throw Error('This browser is restricted to online use. Update to a supported browser before offline checkout.');
   const publicKey=offlinePublicKey();
   if(provision){
    if(!apiAuth||!tillId)throw Error('Sign in online and open the enrolled cashier shift first.');

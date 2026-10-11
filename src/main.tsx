@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './runtime/web/compatibility.css';
 import {registerWebShell} from './runtime/web/registerShell';
 import {inspectBrowserCapabilities} from './runtime/web/browserCapabilities';
 

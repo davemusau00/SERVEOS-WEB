@@ -8,11 +8,13 @@ import type {BusinessRecord} from '../session';
 import {resumeApiDeviceSession,openApiBusinessStore,type ApiAuthenticatedDeviceSession} from '../apiAuth';
 import {findApiWebDeviceIdentity} from '../deviceIdentity';
 import {operatorError} from '../operatorError';
+import {inspectBrowserCapabilities} from '../browserCapabilities';
 export function OfflineCheckoutGate({apiOrigin,onOnline,onBack}:{apiOrigin:string;onOnline:(session:ApiAuthenticatedDeviceSession,store:BusinessStore)=>void;onBack:()=>void}){
  const [pin,setPin]=useState(''),[store,setStore]=useState<BusinessStore|null>(null),[lease,setLease]=useState<OfflineCashLease|null>(null),[records,setRecords]=useState<BusinessRecord[]>([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[activity,setActivity]=useState(false),[sales,setSales]=useState<Array<Record<string,unknown>>>([]);
  useEffect(()=>()=>store?.close(),[store]);
  useEffect(()=>{if(!store||!lease)return;let stopped=false,running=false;const reconnect=async()=>{if(stopped||running)return;running=true;try{const session=await resumeApiDeviceSession({apiOrigin});if(session){const opened=await openApiBusinessStore(session);if(stopped){opened.close();return;}onOnline(session,opened);}}catch{/* Local cash evidence stays available while the API cannot authenticate. */}finally{running=false;}};const timer=window.setInterval(()=>void reconnect(),15000);window.addEventListener('online',reconnect);return()=>{stopped=true;clearInterval(timer);window.removeEventListener('online',reconnect);};},[store,lease,apiOrigin,onOnline]);
  const unlock=async()=>{if(busy)return;setBusy(true);let opened:BusinessStore|undefined;try{
+  if((await inspectBrowserCapabilities()).mode!=='Full')throw Error('This browser cannot safely reopen offline checkout. Update it and preserve its browser profile.');
   const locator=JSON.parse(localStorage.getItem('servos:offline-checkout')||'null');if(!locator?.businessId||!locator?.staffId||!locator?.deviceId)throw Error('Provision this browser online before using offline checkout.');
   const identity=await findApiWebDeviceIdentity(locator.businessId,locator.staffId,locator.deviceId);if(!identity)throw Error('The enrolled device identity is unavailable. Reconnect without clearing browser data.');
   opened=await BusinessStore.open(locator.businessId,locator.deviceId,locator.staffId);const cached=await opened.reopenOfflineIdentity(pin,offlinePublicKey());

@@ -2,6 +2,7 @@ import React,{useCallback,useEffect,useState} from 'react';
 import appMetadata from '../../../package.json';
 import type {QueuedCommand} from './BusinessStore';
 import {ds} from '../../design-system/tokens';
+import {inspectBrowserCapabilities,type BrowserSupport} from './browserCapabilities';
 
 type HealthClient={healthReadiness:()=>Promise<{status:'ready'|'not_ready';reason?:string}>};
 type Readiness='checking'|'ready'|'not_ready'|'unknown';
@@ -12,6 +13,8 @@ export function WebSystemHealth({client,queue,online}:{client:HealthClient;queue
  const [reason,setReason]=useState('');
  const [checkedAt,setCheckedAt]=useState('');
  const [busy,setBusy]=useState(false);
+ const [browserSupport,setBrowserSupport]=useState<BrowserSupport|null>(null);
+ useEffect(()=>{void inspectBrowserCapabilities().then(setBrowserSupport);},[]);
  const pending=queue.filter(entry=>entry.state==='PENDING_SYNC').length;
  const uncertain=queue.filter(entry=>entry.state==='OUTCOME_UNKNOWN').length;
  const needsReview=queue.filter(entry=>entry.state==='CONFLICT'||entry.state==='REJECTED').length;
@@ -29,6 +32,7 @@ export function WebSystemHealth({client,queue,online}:{client:HealthClient;queue
  return <section className={`${ds.panel} space-y-4 p-4`} aria-label="System health">
   <header className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-bold">System health</h2><p className="mt-1 text-sm text-slate-400">Current status for this business and browser. This page does not expose credentials or database details.</p></div><button type="button" className={ds.button} disabled={busy||!online} onClick={()=>void check()}>Refresh health</button></header>
   <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+   <div className="rounded-xl border border-slate-800 p-3"><dt>Browser support</dt><dd>{browserSupport?.mode||'Checking'}</dd>{browserSupport?.missing.length? <p>{browserSupport.missing.join(', ')}</p>:<p>Offline cash additionally requires an accepted enrolled terminal and a valid checkout capability.</p>}</div>
    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">API and database readiness</dt><dd className="mt-2"><span className={`rounded-full border px-2 py-1 text-xs font-bold ${readinessTone==='success'?'border-emerald-700 text-emerald-200':readinessTone==='danger'?'border-rose-700 text-rose-200':'border-amber-700 text-amber-200'}`}>{readinessLabel}</span>{reason&&<p className="mt-2 text-xs text-slate-400">{reason}</p>}</dd></div>
    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Application version</dt><dd className="mt-2 font-mono text-sm">{appMetadata.version}</dd></div>
    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saved work</dt><dd className="mt-2 text-sm">{syncLabel}</dd><p className="mt-1 text-xs text-slate-500">{pending} waiting · {uncertain} uncertain · {needsReview} need review</p></div>

@@ -1,12 +1,16 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import legacy from '@vitejs/plugin-legacy';
 import path from 'path';
 import {defineConfig} from 'vite';
 import {webShellPlugin} from './scripts/web-shell-plugin.ts';
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), webShellPlugin()],
+    plugins: [
+      ...(process.env.SERVEOS_LEGACY_BUILD==='true'?[legacy({targets:['Chrome >= 100','Edge >= 100','Firefox >= 102','Safari >= 15.4'],modernTargets:['Chrome >= 100','Edge >= 100','Firefox >= 102','Safari >= 15.4'],modernPolyfills:true})]:[]),
+      react(), tailwindcss(), webShellPlugin(),
+    ],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),

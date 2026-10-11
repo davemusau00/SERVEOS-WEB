@@ -2,8 +2,10 @@ import {createHash} from 'node:crypto';
 import type {Plugin} from 'vite';
 
 export function webShellPlugin():Plugin {
+  const allAssets=new Set<string>();
   return {name:'servos-offline-shell',apply:'build',enforce:'post',generateBundle(_options,bundle){
-    const assets=Object.keys(bundle).filter(file=>/\.(js|css|woff2?|png|svg|ico)$/.test(file)).map(file=>`/${file}`);
+    for(const file of Object.keys(bundle))if(/\.(js|css|woff2?|png|svg|ico)$/.test(file))allAssets.add(`/${file}`);
+    const assets=[...allAssets].sort();
     const version=createHash('sha256').update(JSON.stringify(assets)).digest('hex').slice(0,16);
     const source=`const CACHE=${JSON.stringify(`servos-shell-${version}`)};
 const ASSETS=${JSON.stringify(['/index.html','/manifest.webmanifest',...assets])};
