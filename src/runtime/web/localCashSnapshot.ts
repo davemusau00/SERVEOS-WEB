@@ -13,7 +13,7 @@ export async function buildLocalCashInput(records:BusinessRecord[],lines:Record<
   const portion=rows(product.data.portions).find(row=>row.id===line.portionId),modifiers=rows(product.data.modifiers).filter(row=>Array.isArray(line.modifierIds)&&line.modifierIds.includes(String(row.id)));
   const ingredients=await consumptionSnapshot(catalogue,'local',{...product.data,stockItemId:product.data.stockItemId||null,portionVolume:product.data.portionVolume??null},portion,rows(product.data.recipeIngredients),modifiers.map(row=>({...row,ingredientAdjustments:rows(row.ingredientAdjustments)})));
   for(const ingredient of ingredients){const current=usage.get(ingredient.stockItemId)||{whole:0,measured:0};const amount=ingredient.quantity*Number(line.quantity);if(ingredient.wholeContainerSale)current.whole+=amount;else current.measured+=amount;usage.set(ingredient.stockItemId,current);}
-  snapshots.push({...line,id:String(line.id),productId:product.id,name:String(product.data.name),quantity:Number(line.quantity),unitPriceMinor:Number(line.unitPriceMinor),discountBasisPoints:0,comped:false,taxSnapshot:line.taxSnapshot as LocalCashLine['taxSnapshot'],ingredientSnapshot:ingredients});
+  snapshots.push({...line,id:String(line.id),productId:product.id,name:String(product.data.name),routeTo:product.data.routeTo,quantity:Number(line.quantity),unitPriceMinor:Number(line.unitPriceMinor),discountBasisPoints:0,comped:false,taxSnapshot:line.taxSnapshot as LocalCashLine['taxSnapshot'],ingredientSnapshot:ingredients});
  }
  const expectedVersions:Record<string,number>=Object.fromEntries(records.filter(row=>['outlets','stockLocations','businessSettings','products','paymentAccounts','stockItems'].includes(row.collection)).map(row=>[`${row.collection}:${row.id}`,row.version])),expectedBalanceVersions:Record<string,number>={},stockMovements:LocalCashInput['stockMovements']=[];
  for(const [stockId,amount] of usage){
@@ -25,5 +25,5 @@ export async function buildLocalCashInput(records:BusinessRecord[],lines:Record<
   expectedVersions[`stockItems:${stockId}`]=stock.version+count;expectedBalanceVersions[`${stockId}:${locationId}`]=Number((stock.data.balanceVersions as Record<string,number>)?.[locationId]||0)+count;
   stockMovements.push({id:crypto.randomUUID(),stockItemId:stockId,locationId,quantityFixed:String(-fixed),unit:String(stock.data.baseUnit),...{before,after}});
  }
- return {id:crypto.randomUUID(),outletId,tillSessionId,cashAccountId,cashTenderedMinor,lines:snapshots,stockMovements,expectedVersions,expectedBalanceVersions,serviceDestination:'COUNTER'};
+ return {id:crypto.randomUUID(),outletId,tillSessionId,cashAccountId,cashTenderedMinor,lines:snapshots,stockMovements,expectedVersions,expectedBalanceVersions,serviceDestination:'COUNTER',businessSnapshot:records.find(row=>row.collection==='businessSettings')?.data};
 }

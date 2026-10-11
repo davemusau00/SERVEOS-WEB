@@ -31,7 +31,7 @@ test('offline V2 commits cash and preparation once and preserves conflicting cas
  const locationId=randomUUID(),stockId=randomUUID(),productId=randomUUID(),outletId=randomUUID();
  await ok('stockLocation.save',{id:locationId,data:{name:'Store',code:'TICKET-STORE',type:'STORE'}},{[`stockLocations:${locationId}`]:0});
  await ok('stockItem.save',{id:stockId,data:{name:'Coffee stock',code:'TICKET-STOCK',baseUnit:'kg',averageUnitCostMinor:1000,scanUnitQuantity:1,reorderLevel:0,purchasePackages:[]}},{[`stockItems:${stockId}`]:0});
- await store.transaction(tx=>tx.setInventoryBalance({businessId,stockItemId:stockId,locationId,quantity:10}));
+ await store.transaction(tx=>tx.setInventoryBalance({businessId,stockItemId:stockId,locationId,quantity:200}));
  await ok('product.save',{id:productId,data:{name:'Coffee',code:'TICKET-COFFEE',priceMinor:90000,category:'Coffee',routeTo:'KITCHEN',taxClassId:'A_16',stockItemId:stockId,recipeIngredients:[{stockItemId:stockId,quantity:0.25,unit:'kg'}]}},{[`products:${productId}`]:0});
  await ok('business.settings.save',{data:{businessName:'Ticket acceptance',address:'Test',contact:'',taxPin:'',footer:'Thanks',vatRateBasisPoints:1600,levyRateBasisPoints:0},reason:'Set acceptance taxes'},{[`businessSettings:${businessId}`]:0});
  await ok('outlet.save',{id:outletId,data:{name:'Outlet',defaultStockLocationId:locationId,archived:false},reason:'Configure outlet'},{[`outlets:${outletId}`]:0,[`stockLocations:${locationId}`]:1});
@@ -50,8 +50,16 @@ test('offline V2 commits cash and preparation once and preserves conflicting cas
  for(let i=0;i<5;i++)assert.deepEqual(await run(cashier,'pos.offlineSale.commitV2',envelope,{},saleId),committed);
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM order_payments WHERE business_id=$1 AND order_id=$2',[businessId,saleId])).rows[0].n,1);
  assert.equal((await pool.query("SELECT count(*)::int AS n FROM business_documents WHERE business_id=$1 AND source_command_id=$2 AND document_type='KOT'",[businessId,saleId])).rows[0].n,1);
- assert.equal(Number((await pool.query('SELECT quantity FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2',[businessId,stockId])).rows[0].quantity),9.75);
- const conflict=make(2,1),review=await run(cashier,'pos.offlineSale.commitV2',conflict,{},conflict.sale.id);assert.equal(review.kind,'CONFIRMED',JSON.stringify(review));assert.equal(review.result.data.status,'RECONCILIATION_REQUIRED');
+ assert.equal(Number((await pool.query('SELECT quantity FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2',[businessId,stockId])).rows[0].quantity),199.75);
+ const conflict=make(101,1),review=await run(cashier,'pos.offlineSale.commitV2',conflict,{},conflict.sale.id);assert.equal(review.kind,'CONFIRMED',JSON.stringify(review));assert.equal(review.result.data.status,'RECONCILIATION_REQUIRED');
  assert.equal((await pool.query('SELECT count(*)::int AS n FROM pos_orders WHERE business_id=$1 AND id=$2',[businessId,conflict.sale.id])).rows[0].n,0);
  assert.equal((await pool.query('SELECT local_snapshot FROM pos_offline_cash_reconciliations WHERE business_id=$1 AND sale_id=$2',[businessId,conflict.sale.id])).rows[0].local_snapshot.totalMinor,1);
+ for(let sequence=2;sequence<=100;sequence++){
+  const next=make(sequence);next.sale.input.expectedVersions[`stockItems:${stockId}`]=sequence;next.sale.input.expectedBalanceVersions[`${stockId}:${locationId}`]=sequence;
+  const outcome=await run(cashier,'pos.offlineSale.commitV2',next,{},next.sale.id);assert.equal(outcome.kind,'CONFIRMED',JSON.stringify(outcome));assert.equal(outcome.result.data.status,'SERVER_CONFIRMED',JSON.stringify(outcome));
+  for(let replay=0;replay<5;replay++)assert.deepEqual(await run(cashier,'pos.offlineSale.commitV2',next,{},next.sale.id),outcome);
+ }
+ assert.equal((await pool.query('SELECT count(*)::int AS n FROM order_payments WHERE business_id=$1',[businessId])).rows[0].n,100);
+ assert.equal((await pool.query("SELECT count(*)::int AS n FROM business_documents WHERE business_id=$1 AND document_type='KOT'",[businessId])).rows[0].n,100);
+ assert.equal(Number((await pool.query('SELECT quantity FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2',[businessId,stockId])).rows[0].quantity),175);
 });

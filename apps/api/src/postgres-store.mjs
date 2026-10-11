@@ -1,3 +1,4 @@
+import {offlineCashReconciliationProjections} from './offline-cash-v2.mjs';
 import {randomUUID} from 'node:crypto';
 import {supplierCreditBalanceProjections,supplierCreditApplicationProjections} from './supplier-credit-application-projections.mjs';
 import {customerProjections} from './customer-commands.mjs';
@@ -200,6 +201,7 @@ export class PostgresStore {
     const customerCreditDiscrepancies=await customerCreditDiscrepancyProjections(db,businessId);
     return [
       ...await ticketProjections(db,businessId),
+      ...await offlineCashReconciliationProjections(db,businessId),
       ...customers,
       ...hospitality,
       ...financeAssets,

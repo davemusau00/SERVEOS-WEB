@@ -49,6 +49,8 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:api
+      - name: Verify API image imports and non-root contract access
+        run: node scripts/verify-api-image.mjs
       - run: npm run test:browser:api
       - if: always()
         uses: actions/upload-artifact@v4

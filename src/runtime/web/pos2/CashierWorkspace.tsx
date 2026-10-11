@@ -4,6 +4,7 @@ import {OfflineCashSetup,offlinePublicKey} from './OfflineCashSetup';
 import type {OfflineCashLease} from '../offlineCashLedger';
 import {parseMoneyToMinor} from '../../../utils/fiscal';
 import {PaySheet} from './PaySheet';
+import {LocalCashActivity} from './LocalCashActivity';
 import React,{useEffect,useRef,useState} from 'react';
 import type {WebApiPosProps} from '../WebApiPosView';
 import {allowed,type BusinessRecord} from '../session';
@@ -25,7 +26,7 @@ export function CashierWorkspace({records,session,deviceId,queue,command,disable
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[paymentRequest,setPaymentRequest]=useState(0);
  const [choice,setChoice]=useState<BusinessRecord|null>(null),[portionId,setPortion]=useState(''),[modifiers,setModifiers]=useState<string[]>([]),[note,setNote]=useState('');
  const [draftLines,setDraftLines]=useState<Record<string,unknown>[]>([]),[rejectedCreation,setRejectedCreation]=useState(false);
- const [offlineLease,setOfflineLease]=useState<OfflineCashLease|null>(initialOfflineLease),[cashOpen,setCashOpen]=useState(false),[cashTendered,setCashTendered]=useState('');
+ const [offlineLease,setOfflineLease]=useState<OfflineCashLease|null>(initialOfflineLease),[cashOpen,setCashOpen]=useState(false),[cashTendered,setCashTendered]=useState(''),[localActivity,setLocalActivity]=useState(false);
  const draftRef=useRef<Record<string,unknown>[]>([]);
  const inFlight=useRef(false);
  const saveLines=(next:Record<string,unknown>[])=>{draftRef.current=next;setDraftLines(next);void store?.saveDraft({id:'cashier-new-sale',operation:'cashier.draft',collection:'orders',targetId:'cashier-new-sale',editorKind:'Cashier basket',inputValues:{},payload:{outletId,lines:next},expectedVersions:[],validationSummary:[],requiresReview:false}).catch(error=>setMessage(operatorError(error)));};
@@ -118,6 +119,7 @@ export function CashierWorkspace({records,session,deviceId,queue,command,disable
  const visible=products.filter(product=>(!category||product.data.category===category)&&`${product.data.name} ${product.data.code||''} ${product.data.barcode||''}`.toLowerCase().includes(query.toLowerCase()));
  return <section aria-label="Cashier workspace" className="flex min-h-0 flex-col gap-3 lg:h-[calc(100dvh-12rem)]">
   <header className="flex flex-wrap items-center gap-3"><label>Outlet <select className={button} value={outletId} disabled={busy||Boolean(order)} onChange={event=>setOutlet(event.target.value)}>{outlets.map(outlet=><option key={outlet.id} value={outlet.id}>{String(outlet.data.name)}</option>)}</select></label><span>{till?'Shift open':'Start a shift in More'}</span><span role="status">{navigator.onLine?'API status checked in Activity':'Offline — online checkout only until offline capability is provisioned'}</span><button className={button} onClick={onMore}>More / Shift / Activity</button></header>
+  {session.capabilities?.['pos2.offlineCash']&&<details onToggle={event=>setLocalActivity(event.currentTarget.open)}><summary>Local cash / pending sync / recovery</summary>{localActivity&&<LocalCashActivity store={store} printingEnabled={session.capabilities?.['pos2.localKitchenTickets']===true}/>}</details>}
   <nav className="flex gap-2" aria-label="Cashier orders"><button className={button} disabled={busy||pending} onClick={()=>{setOrder('');setPaymentRequest(0);setRejectedCreation(false);setMessage('');}}>New sale</button><label>Held / History <select className={button} value={orderId} disabled={busy} onChange={event=>{setOrder(event.target.value);setPaymentRequest(0);}}><option value="">Choose sale</option>{records.filter(row=>row.collection==='orders'&&row.data.outletId===outletId).map(row=><option key={row.id} value={row.id}>{String(row.data.name)} · {String(row.data.state)}</option>)}</select></label></nav>
   <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
    <section className="flex min-h-0 flex-col gap-3"><label>Search products<input className="block min-h-11 w-full rounded border border-slate-600 bg-slate-950 p-2" value={query} onChange={event=>setQuery(event.target.value)}/></label><label>Category <select className={button} value={category} onChange={event=>setCategory(event.target.value)}><option value="">All</option>{[...new Set(products.map(product=>String(product.data.category||'')))].filter(Boolean).sort().map(value=><option key={value}>{value}</option>)}</select></label><div className="grid min-h-0 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4">{visible.map(product=><button key={product.id} className={`${button} min-h-20 text-left`} disabled={locked||!editable} onClick={()=>select(product)}><b className="block">{String(product.data.name)}</b>{money(product.data.priceMinor)}</button>)}</div></section>

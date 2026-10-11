@@ -14,6 +14,7 @@ const canonical=(value:unknown):string=>value===null||typeof value!=='object'?(J
 
 const documentState=(type:string,attempt:number)=>documentCopyStatus(attempt)==='REPRINT'?'REPRINT':type==='REFUND_RECEIPT'?'REFUND':['ORDER_VOID_NOTICE','KOT_CANCEL','BOT_CANCEL'].includes(type)?'VOIDED':'ISSUED';
 const paymentStatus=(snapshot:Record<string,unknown>)=>{
+ if(snapshot.provisional===true)return 'Cash received locally. PENDING SERVER SYNC / NOT FISCAL INVOICE.';
  if(snapshot.noPaymentRequired===true)return 'No payment required; no money received.';
  const balance=number(snapshot.balanceMinor),paid=number(snapshot.paidMinor),credited=number(snapshot.creditedMinor),roomCharged=number(snapshot.roomChargedMinor);
  const settlement=balance===0?'Settled when issued':balance!==null?`Balance due when issued: ${money(balance)}`:'Settlement balance not recorded in this document';
@@ -33,7 +34,7 @@ function DocumentIdentity({document,attempt,business,timeZone}:{document:LocalBu
    {rawText(business.taxPin)&&<p>Tax PIN: {rawText(business.taxPin)}</p>}
    {outlet&&<p>Outlet / property: {outlet}</p>}
   </div></div>
-  <div className="servos-document-title"><div><h2>{titles[document.type]||document.type}</h2><p className="servos-document-number">Document no. {displayDocumentReference(document)}</p></div><strong className={`servos-document-state servos-document-state-${documentState(document.type,attempt).toLowerCase()}`}>{documentState(document.type,attempt)}</strong></div>
+  <div className="servos-document-title"><div><h2>{titles[document.type]||document.type}</h2><p className="servos-document-number">Document no. {displayDocumentReference(document)}</p></div><strong className={`servos-document-state servos-document-state-${documentState(document.type,attempt).toLowerCase()}`}>{document.snapshot.provisional===true?`${documentCopyStatus(attempt)==='REPRINT'?'REPRINT / ':''}PROVISIONAL - PENDING SYNC`:documentState(document.type,attempt)}</strong></div>
   <dl className="servos-document-control"><div><dt>Issued (Africa/Nairobi)</dt><dd>{Number.isFinite(issued.getTime())?issued.toLocaleString('en-KE',{timeZone}):document.issuedAt}</dd></div>{(periodStart||periodEnd)&&<div><dt>Shift / report period (Africa/Nairobi)</dt><dd>{periodStart?localTime(periodStart,timeZone):'—'} – {periodEnd?localTime(periodEnd,timeZone):'—'}</dd></div>}{preparedBy&&<div><dt>Prepared / recorded by</dt><dd>{preparedBy}</dd></div>}</dl>
   {document.type==='SALES_RECEIPT'&&<p className="servos-document-payment-status">Payment status: {paymentStatus(document.snapshot)}</p>}
  </header>;
