@@ -1,3 +1,4 @@
+import {allocateDocumentNumber} from './document-numbers.mjs';
 import {queueDocumentPrint} from './print-commands.mjs';
 import {randomUUID} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
@@ -97,14 +98,14 @@ const record=split=>async({tx,command,actor,at})=>{
  await tx.client.query(`INSERT INTO pos_order_events(business_id,id,order_id,order_version,event_type,event_data,command_id,staff_id,device_id,occurred_at) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,[actor.businessId,randomUUID(),p.orderId,orderVersion,command.name,JSON.stringify({paymentIds:plans.map(plan=>plan.id),amountMinor:sum,completed:complete}),command.commandId,actor.staffId,actor.deviceId,at]);
  const value=await orderProjection(tx.client,actor.businessId,p.orderId);records.push(value,await tillSessionProjection(tx.client,actor.businessId,p.tillSessionId));
  // This document acknowledges funds received; fiscal sales documents use tax snapshots.
- const documentId=randomUUID(),documentNumber=`PAY-${command.commandId}`;
+ const documentId=randomUUID(),documentNumber=await allocateDocumentNumber(tx.client,actor.businessId,'PAYMENT_ACKNOWLEDGEMENT');
   const snapshot={business:order.data.businessSnapshot,orderId:p.orderId,orderName:order.data.name,currency:order.data.currency,amountReceivedMinor:sum,orderTotalMinor:order.data.grandTotalMinor,amountPaidMinor:paid,amountCreditedMinor:order.data.amountCreditedMinor,roomChargedMinor:order.data.roomChargeMinor,balanceMinor:order.data.grandTotalMinor-paid-order.data.amountCreditedMinor-order.data.roomChargeMinor,payments:records.filter(row=>row.collection==='payments').map(row=>row.data),issuedAt:at.toISOString()};
  const hash=documentHash(snapshot);
  await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'PAYMENT_ACKNOWLEDGEMENT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,documentId,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
  records.push({collection:'businessDocuments',id:documentId,version:1,archived:false,data:{id:documentId,type:'PAYMENT_ACKNOWLEDGEMENT',documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}});
  let printableId=documentId;
  if(complete){
-  const receiptId=randomUUID(),receiptNumber=`SALE-${command.commandId}`;
+  const receiptId=randomUUID(),receiptNumber=await allocateDocumentNumber(tx.client,actor.businessId,'SALES_RECEIPT');
   const items=value.data.items.filter(line=>line.state!=='VOIDED');
   const taxes=items.reduce((sum,line)=>({netMinor:sum.netMinor+line.netMinor,vatMinor:sum.vatMinor+line.vatMinor,levyMinor:sum.levyMinor+line.levyMinor}),{netMinor:0,vatMinor:0,levyMinor:0});
   if(Object.values(taxes).some(amount=>!Number.isSafeInteger(amount)||amount<0)||taxes.netMinor+taxes.vatMinor+taxes.levyMinor!==value.data.grandTotalMinor)throw new ApiProblem(409,'TAX_RECONCILIATION_FAILED','Order taxes do not reconcile to the sale total.');

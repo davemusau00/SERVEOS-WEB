@@ -1,3 +1,4 @@
+import {displayDocumentReference} from './documentPaperProfiles';
 import {operatorError} from './operatorError';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import type {BusinessRecord} from './session';
@@ -57,7 +58,7 @@ export function WebDocumentQueue({records,actorId,deviceId,disabled,command,read
  return <section data-guide-anchor="documents.printing" className="space-y-3 rounded-xl border border-slate-700 p-4">
   <h2 className="text-lg font-bold">Documents and printing</h2>
   <p className="text-sm text-slate-400">Review issued documents and resolve printer delivery. A browser print dialog does not prove the document printed.</p>
-  <label className="block text-sm">Print job<select className="mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2" value={selected} disabled={busy} onChange={event=>{setSelected(event.target.value);setReason('');setDuplicate(false);setConfirmed(false);setMessage('')}}><option value="">Select a document…</option>{jobs.map(row=>{const doc=issuedDocument(records.find(item=>item.collection==='businessDocuments'&&item.id===row.data.documentId));return <option key={row.id} value={row.id}>{doc?.documentNumber||'Document unavailable'} · {String(row.data.printerRole)} · {String(row.data.state)}</option>})}</select></label>
+  <label className="block text-sm">Print job<select className="mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2" value={selected} disabled={busy} onChange={event=>{setSelected(event.target.value);setReason('');setDuplicate(false);setConfirmed(false);setMessage('')}}><option value="">Select a document…</option>{jobs.map(row=>{const doc=issuedDocument(records.find(item=>item.collection==='businessDocuments'&&item.id===row.data.documentId));return <option key={row.id} value={row.id}>{doc?displayDocumentReference(doc):'Document unavailable'} · {String(row.data.printerRole)} · {String(row.data.state)}</option>})}</select></label>
   {job&&unresolvedJob(job.id)&&<p role="status">Checking the original saved print action. Synchronize before starting another attempt for this document.</p>}
   {job&&<><p className="text-sm">Attempt {Number(job.data.attempt||0)} · {state}</p>{!document&&<p role="alert">The immutable document is not available. Synchronize before printing.</p>}
     {document&&<details><summary className="cursor-pointer">Preview issued document</summary><div className="servos-document-preview mt-2 overflow-auto rounded bg-white p-3 text-black"><style>{businessDocumentPreviewStyles}</style><BusinessDocumentRenderer document={document} attempt={documentPreviewAttempt(Number(job.data.attempt||0),state)}/></div></details>}

@@ -1,3 +1,4 @@
+import {allocateDocumentNumber} from './document-numbers.mjs';
 import {selectModifiers,modifierPrice} from './product-modifiers.mjs';
 import {queueDocumentPrint,cancelUnsentOrderTickets} from './print-commands.mjs';
 import {receiptSettings,productTaxSnapshot} from './business-tax.mjs';
@@ -83,7 +84,7 @@ async function zeroReceipt(tx,command,actor,at,orderId){
  const cashier=await tx.client.query('SELECT display_name FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2',[actor.businessId,actor.staffId]);
  const discountTotalMinor=items.reduce((sum,line)=>sum+line.discountMinor,0);
  if(!Number.isSafeInteger(discountTotalMinor))fail('Discount totals exceed the supported amount.');
- const id=randomUUID(),documentNumber=`SALE-${command.commandId}`,snapshot={business:order.data.businessSnapshot,cashier:{id:actor.staffId,name:cashier.rows[0]?.display_name??actor.staffId},orderId,orderName:order.data.name,receiptNumber:documentNumber,currency:order.data.currency,tillSessionId:tills.rows[0]?.id??null,tillAttribution:tills.rows.length?'OWNED_OPEN_TILL':'NO_OWNED_OPEN_TILL',items,taxes:{netMinor:0,vatMinor:0,levyMinor:0},discountTotalMinor,totalMinor:0,balanceMinor:0,payments:[],noPaymentRequired:true,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),footer:order.data.businessSnapshot.footer};
+ const id=randomUUID(),documentNumber=await allocateDocumentNumber(tx.client,actor.businessId,'SALES_RECEIPT'),snapshot={business:order.data.businessSnapshot,cashier:{id:actor.staffId,name:cashier.rows[0]?.display_name??actor.staffId},orderId,orderName:order.data.name,receiptNumber:documentNumber,currency:order.data.currency,tillSessionId:tills.rows[0]?.id??null,tillAttribution:tills.rows.length?'OWNED_OPEN_TILL':'NO_OWNED_OPEN_TILL',items,taxes:{netMinor:0,vatMinor:0,levyMinor:0},discountTotalMinor,totalMinor:0,balanceMinor:0,payments:[],noPaymentRequired:true,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),footer:order.data.businessSnapshot.footer};
  const hash=documentHash(snapshot);
  await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'SALES_RECEIPT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,id,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
  await tx.client.query('UPDATE pos_orders SET receipt_document_id=$3 WHERE business_id=$1 AND id=$2',[actor.businessId,orderId,id]);
@@ -259,7 +260,7 @@ const fire=async({tx,command,actor,at,approvedTicket})=>{
  const documents=[];
  for(const route of ['KITCHEN','BAR']){
   const routed=lines.filter(line=>line.routeTo===route);if(!routed.length)continue;
-  const id=randomUUID(),type=route==='KITCHEN'?'KOT':'BOT',documentNumber=`${type}-${command.commandId}`;
+  const id=randomUUID(),type=route==='KITCHEN'?'KOT':'BOT',documentNumber=await allocateDocumentNumber(tx.client,actor.businessId,type);
    const snapshot={business:order.data.businessSnapshot,orderId:p.orderId,orderName:order.data.name,outletId:order.data.outletId,serviceDestination:order.data.serviceDestination,serviceReference:order.data.serviceReference,...(approvedTicket?{approvedTicket}:{}),staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),items:routed.map(line=>({...line,state:'FIRED',preparationStatus:'FIRED',stockFired:true,firedAt:at.toISOString()})),courseName:selectedCourse};
   const hash=documentHash(snapshot);
   await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,$3,$4,1,$5::jsonb,$6,$7,$8,$9)`,[actor.businessId,id,type,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
@@ -370,7 +371,7 @@ const roomCharge=async({tx,command,actor,at})=>{
  const payments=paymentsResult.rows.map(row=>({...row,amountMinor:Number(row.amountMinor),cashTenderedMinor:row.cashTenderedMinor===null?null:Number(row.cashTenderedMinor),changeMinor:row.changeMinor===null?null:Number(row.changeMinor)}));
  if(order.data.amountCreditedMinor>0)payments.push({id:`account-${p.orderId}`,tenderType:'CUSTOMER_ACCOUNT',amountMinor:order.data.amountCreditedMinor,reference:order.data.customerName??null});
  payments.push({id:posted.charge.id,tenderType:'ROOM_CHARGE',amountMinor,reference:p.folioId});
- const discountTotalMinor=items.reduce((sum,line)=>sum+line.discountMinor,0),receiptId=randomUUID(),documentNumber=`SALE-${command.commandId}`;
+ const discountTotalMinor=items.reduce((sum,line)=>sum+line.discountMinor,0),receiptId=randomUUID(),documentNumber=await allocateDocumentNumber(tx.client,actor.businessId,'SALES_RECEIPT');
  if(!Number.isSafeInteger(discountTotalMinor))throw new ApiProblem(409,'PRICE_RECONCILIATION_FAILED','Order discount totals exceed supported amounts.');
  const cashier=await tx.client.query('SELECT display_name AS name FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2',[actor.businessId,actor.staffId]);
  const receiptSnapshot={discountTotalMinor,cashier:{id:actor.staffId,name:cashier.rows[0]?.name??actor.staffId},business:order.data.businessSnapshot,orderId:p.orderId,orderName:order.data.name,receiptNumber:documentNumber,currency:order.data.currency,items,taxes,totalMinor:order.data.grandTotalMinor,paidMinor:order.data.amountPaidMinor,creditedMinor:order.data.amountCreditedMinor,roomChargedMinor:roomCharged,balanceMinor:0,payments,staffId:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),footer:order.data.businessSnapshot.footer};
@@ -444,7 +445,7 @@ const voidOrder=async({tx,command,actor,at})=>{
  const documentIds=[];
  const notices=[{type:'ORDER_VOID_NOTICE',role:'OFFICE',items:order.data.items.filter(line=>line.state!=='VOIDED')},...['KITCHEN','BAR'].map(route=>({type:route==='KITCHEN'?'KOT_CANCEL':'BOT_CANCEL',role:route,items:fired.filter(line=>line.routeTo===route)})).filter(notice=>notice.items.length)];
  for(const notice of notices){
-  const id=randomUUID(),documentNumber=`${notice.type}-${command.commandId}`,snapshot={business:order.data.businessSnapshot,orderId:p.orderId,orderName:order.data.name,serviceDestination:order.data.serviceDestination,reason,disposition,stockRestored:plans.length>0,inventoryCorrectionRequired:disposition==='MANAGER_ADJUSTMENT',originalTotalMinor:order.data.grandTotalMinor,unresolvedTicketIds:tickets.unresolvedTicketIds,items:notice.items,staffId:actor.staffId,issuedAt:at.toISOString()},hash=documentHash(snapshot);
+  const id=randomUUID(),documentNumber=await allocateDocumentNumber(tx.client,actor.businessId,notice.type),snapshot={business:order.data.businessSnapshot,orderId:p.orderId,orderName:order.data.name,serviceDestination:order.data.serviceDestination,reason,disposition,stockRestored:plans.length>0,inventoryCorrectionRequired:disposition==='MANAGER_ADJUSTMENT',originalTotalMinor:order.data.grandTotalMinor,unresolvedTicketIds:tickets.unresolvedTicketIds,items:notice.items,staffId:actor.staffId,issuedAt:at.toISOString()},hash=documentHash(snapshot);
   await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,$3,$4,1,$5::jsonb,$6,$7,$8,$9)`,[actor.businessId,id,notice.type,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);
   records.push({collection:'businessDocuments',id,version:1,archived:false,data:{id,type:notice.type,documentNumber,layoutVersion:1,hash,snapshot,issuedAt:at.toISOString()}},await queueDocumentPrint(tx,{businessId:actor.businessId,documentId:id,printerRole:notice.role,staffId:actor.staffId,at}));documentIds.push(id);
  }

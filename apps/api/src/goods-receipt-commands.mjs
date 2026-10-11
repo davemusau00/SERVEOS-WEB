@@ -1,3 +1,4 @@
+import {allocateDocumentNumber} from './document-numbers.mjs';
 import {postReceivingLiability} from './procurement-payables.mjs';
 import {randomUUID,createHash} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
@@ -56,7 +57,7 @@ const receive=async({tx,command,actor,at})=>{
   const posting=await postInventoryReceipt({tx,command,actor,at,stockItemId:plan.line.stockItemId,locationId:p.locationId,stock:plan.stock,before:plan.before,quantity:number(plan.accepted),baseQuantity:number(plan.base),totalCostMinor:Number(plan.lineCost),pack:plan.line.purchasePackageSnapshot,sourceKey,sourceDocument,sourceLineId:plan.id,physical:plan.input});
   plan.receiptId=posting.receipt.id;records.push(posting.receipt,posting.stockItem,posting.stockMovement);
  }
- const documentId=randomUUID(),documentNumber=`GRN-${p.id}`;
+ const documentId=randomUUID(),documentNumber=await allocateDocumentNumber(tx.client,actor.businessId,'GOODS_RECEIPT');
  const items=plans.map(plan=>({id:plan.id,purchaseOrderLineId:plan.line.id,stockItemId:plan.line.stockItemId,stockSnapshot:plan.line.stockSnapshot,purchasePackageSnapshot:plan.line.purchasePackageSnapshot,quantityDelivered:number(plan.delivered),quantityAccepted:number(plan.accepted),previousQuantityAccepted:number(plan.previous),cumulativeQuantityAccepted:number(plan.cumulative),quantityRejected:number(plan.rejected),baseQuantityAccepted:number(plan.base),unitPriceMinor:plan.line.unitPriceMinor,acceptedTotalMinor:Number(plan.lineCost),rejectionReason:plan.rejectionReason,inventoryReceiptId:plan.receiptId}));
  const snapshot={schemaVersion:1,business,supplier:po.data.supplierSnapshot,purchaseOrderId:po.id,purchaseOrderNumber:po.data.documentNumber,goodsReceiptId:p.id,deliveryReference:reference,locationId:p.locationId,currency:'KES',items,acceptedTotalMinor:Number(acceptedTotal),reason,receivedBy:actor.staffId,deviceId:actor.deviceId,issuedAt:at.toISOString(),overReceiveAcknowledged:p.overReceiveAcknowledged===true};const hash=documentHash(snapshot);
  await tx.client.query(`INSERT INTO business_documents(business_id,id,document_type,document_number,layout_version,snapshot,snapshot_hash,source_command_id,issued_by,issued_at) VALUES($1,$2,'GOODS_RECEIPT',$3,1,$4::jsonb,$5,$6,$7,$8)`,[actor.businessId,documentId,documentNumber,JSON.stringify(snapshot),hash,command.commandId,actor.staffId,at]);

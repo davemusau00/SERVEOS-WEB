@@ -31,6 +31,12 @@ export function documentPaperProfile(type: string): DocumentPaperProfile {
   return profiles[type];
 }
 export const THERMAL_DOCUMENT_TYPES=Object.freeze(Object.keys(profiles));
+/** Legacy aliases are display-only and are not claimed to be globally unique. */
+export function displayDocumentReference(document:{documentNumber:string;issuedAt:string}):string{
+ if(!/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i.test(document.documentNumber))return document.documentNumber;
+ const date=new Date(document.issuedAt);
+ return `Legacy document${Number.isFinite(date.getTime())?` / ${date.toLocaleString('en-KE',{timeZone:'Africa/Nairobi'})}`:''}`;
+}
 
 export function documentCopyStatus(attempt: number): DocumentCopyStatus {
   return Number.isSafeInteger(attempt) && attempt > 1 ? 'REPRINT' : 'ORIGINAL';
