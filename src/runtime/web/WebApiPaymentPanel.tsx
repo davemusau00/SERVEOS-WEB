@@ -17,7 +17,26 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
  const [review,setReview]=useState<Review|null>(null),[tenders,setTenders]=useState<Tender[]>([]),[busy,setBusy]=useState(false),[pendingId,setPendingId]=useState(''),[message,setMessage]=useState('');
  const inFlight=useRef(false);
  const timeZone=session.propertyContext?.timeZone||'Africa/Nairobi';
- useEffect(()=>{if(!pendingId)return;const saved=queue.find(row=>row.id===pendingId);if(!saved||['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(saved.state))return;setPendingId('');if(saved.state==='SYNCHRONIZED'){setReview(null);setTenders([]);setMessage('The original payment confirmed after recovery. Issued documents are in Activity.');}else setMessage(saved.result?.error?.message||'Payment did not confirm. Reopen the review using the current order balance.');},[queue,pendingId]);
+ useEffect(()=>{
+  if(!pendingId)return;
+  const saved=queue.find(row=>row.id===pendingId);
+  if(!saved||['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(saved.state))return;
+  // Also verify the order record reflects the payment
+  const currentOrder=records.find(r=>r.collection==='orders'&&r.id===order?.id);
+  const fullyPaid=currentOrder&&Number(currentOrder.data.amountPaidMinor)>=Number(currentOrder.data.grandTotalMinor);
+  if(saved.state==='SYNCHRONIZED'&&fullyPaid){
+    setPendingId('');
+    setReview(null);
+    setTenders([]);
+    setMessage('Payment confirmed. Issued documents and printing are in Activity.');
+  }else if(saved.state==='SYNCHRONIZED'&&!fullyPaid){
+    // Payment command synchronized but order not yet updated in local records
+    setMessage('Payment confirmed by server. Updating display...');
+  }else{
+    setPendingId('');
+    setMessage(saved.result?.error?.message||'Payment did not confirm. Reopen the review using the current order balance.');
+  }
+},[queue,pendingId,records,order?.id]);
  const open=()=>{
   if(!order||disabled||busy||pendingId)return;
   if(window.document.querySelector('[role="dialog"]')){setMessage('Finish the open review before recording payment.');return;}
@@ -52,8 +71,16 @@ export function WebApiPaymentPanel({records,order,session,deviceId,disabled,comm
    if(!Number.isSafeInteger(sum)||sum>balance||payments.length>1&&sum!==balance)throw new Error('Payment cannot exceed the reviewed balance; split tenders must settle it exactly.');
    const operation=payments.length===1?'payment.record':'payment.split';
    const outcome=await command(operation,'orders',review.order.id,{orderId:review.order.id,tillSessionId:review.till.id,...(payments.length===1?payments[0]:{payments}),expectedVersions:[version(review.order),version(review.till),...Array.from(used.values(),version)]});
-   if(isCommandConfirmed(outcome)){setReview(null);setTenders([]);setMessage('Payment confirmed. Issued documents and printing are in Activity.');}
-   else{if(outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN')setPendingId(outcome.commandId);setMessage('message' in outcome?outcome.message:'The original payment is saved. Recover its outcome in Activity before recording another payment.');}
+    // Do not show "Payment confirmed" until the order projection reflects the payment.
+    // The command outcome may be CONFIRMED but the change feed may not have been applied to local records yet.
+    // Set pendingId and let the useEffect below handle confirmation once queue shows SYNCHRONIZED
+    // AND the order record has the correct amountPaidMinor.
+    if(outcome.kind==='CONFIRMED'||outcome.kind==='PENDING'||outcome.kind==='OUTCOME_UNKNOWN'){
+      setPendingId(outcome.commandId);
+      setMessage('Payment recorded. Verifying server confirmation and updating display...');
+    }else{
+      setMessage('message' in outcome?outcome.message:'The original payment is saved. Recover its outcome in Activity before recording another payment.');
+    }
   }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
  if(!order||!allowed(session,'payment.record')&&!allowed(session,'payment.split'))return null;

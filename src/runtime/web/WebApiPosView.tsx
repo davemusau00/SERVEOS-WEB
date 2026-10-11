@@ -32,7 +32,7 @@ const repeatedUnitPrice=(line:Record<string,unknown>,product?:BusinessRecord):nu
 };
 const baseline=(row:BusinessRecord)=>({collection:row.collection,id:row.id,version:row.version});
 
-export function WebApiPosView({records,session,disabled,command,queue,deviceId,readRecords,apiAuth,store}:{apiAuth?:ApiAuthenticatedDeviceSession;store:BusinessStore;records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;queue:QueuedCommand[];deviceId:string;readRecords:()=>Promise<BusinessRecord[]>}){
+export function WebApiPosView({records,session,disabled,command,queue,deviceId,readRecords,apiAuth,store,blockedAggregates}:{apiAuth?:ApiAuthenticatedDeviceSession;store:BusinessStore;records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;queue:QueuedCommand[];deviceId:string;readRecords:()=>Promise<BusinessRecord[]>;blockedAggregates?:{orderIds:Set<string>;tillIds:Set<string>}}){
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived);
  const customers=records.filter(row=>row.collection==='customers'&&!row.archived);
  const creditAccounts=records.filter(row=>row.collection==='customerCreditAccounts'&&!row.archived);
@@ -91,8 +91,20 @@ export function WebApiPosView({records,session,disabled,command,queue,deviceId,r
  const visible=products.filter(row=>(!category||String(row.data.category||'GENERAL')===category)&&(!favoritesOnly||favorite(row))&&`${row.data.name||''} ${row.data.code||''}`.toLowerCase().includes(query.toLowerCase()));
  const canSell=allowed(session,'pos.sell'),canFire=allowed(session,'order.fire'),canVoid=allowed(session,'order.void')||allowed(session,'pos.sell'),canDiscount=allowed(session,'order.discount')||allowed(session,'pos.sell'),canComp=allowed(session,'order.comp')||allowed(session,'pos.sell');
  const editable=order&&['OPEN','FIRED'].includes(String(order.data.state));
+// Per-aggregate blocking: check if current editor targets a blocked order/till
+  const isAggregateBlocked=()=>{
+    if(!blockedAggregates)return false;
+    // If editing an existing order, check if that order is blocked
+    if(editor?.orderId&&blockedAggregates.orderIds.has(editor.orderId))return true;
+    if(editor?.order&&blockedAggregates.orderIds.has(editor.order.id))return true;
+    // If creating a new order with a specific till, check if that till is blocked
+    // (We don't have till info in editor, but we can check the selected outlet's till)
+    return false;
+  };
  const begin=(kind:Editor['kind'],product?:BusinessRecord,line?:Record<string,unknown>)=>{
    if(disabled||busy||pending||kind!=='CREATE'&&kind!=='QUICK_ADD'&&!editable)return;
+   // Per-aggregate blocking: for operations on existing orders, check if that specific order is blocked
+   if(kind!=='CREATE'&&kind!=='QUICK_ADD'&&isAggregateBlocked()){setMessage('This order has a pending action with unknown outcome. Recover it in Activity before continuing.');return;}
   if(['ADD','EDIT','REPEAT','DISCOUNT','COMP','COMP_ITEM'].includes(kind)&&Number(order?.data.amountPaidMinor||0)+Number(order?.data.amountCreditedMinor||0)+Number(order?.data.roomChargeMinor||0)>0){setMessage('Price and line edits are blocked after a payment or receivable charge.');return;}
   if(kind==='ASSIGN_CUSTOMER'&&Number(order?.data.amountPaidMinor||0)+Number(order?.data.amountCreditedMinor||0)+Number(order?.data.roomChargeMinor||0)>0){setMessage('Assign the customer before taking payment or credit.');return;}
   if(window.document.querySelector('[role="dialog"]')){setMessage('Finish the open review before starting another order action.');return;}

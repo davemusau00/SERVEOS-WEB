@@ -16,7 +16,7 @@ import {captureCountRecovery} from './countRecovery';
 
 
 
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useEffect,useRef,useState,useMemo} from 'react';
 import {Activity,BedDouble,Boxes,CheckCircle2,ChevronRight,ClipboardCheck,CreditCard,HelpCircle,Home,LockKeyhole,LogIn,Martini,PackageSearch,RefreshCw,Settings,ShieldCheck,Truck,Users,WalletCards,Wifi,WifiOff} from 'lucide-react';
 import {BusinessStore,redactSensitiveData,type QueuedCommand,type WorkflowDraft,type WorkflowDraftField} from './BusinessStore';
 import {resolveOperationDependencies} from './dependencies';
@@ -372,7 +372,7 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
     if(current?.state==='SYNCHRONIZED'){if(editor?.draftId)await store.current.discardDraft(editor.draftId);setEditor(null);setNotice('Saved and confirmed. The shared view is refreshing; do not submit again.');return {kind:'CONFIRMED',commandId:command.id}}
     const safeError=operatorError(e);await retainForReview([safeError],command.id,false);setEditor(currentEditor=>currentEditor?{...currentEditor,supersedes:command.id}:currentEditor);
     const resultMessage=current?.result?.error?.message;
-    const message=current?.state==='OUTCOME_UNKNOWN'?'The outcome is unknown. The original command is saved for outcome checking; synchronize it before creating another action.':resultMessage?operatorError(resultMessage):safeError||'This action is still queued. Synchronize before creating another action.';
+    const message=current?.state==='OUTCOME_UNKNOWN'?'The outcome is unknown for this action. The original command is saved for outcome checking; recover it in Activity before retrying THIS SPECIFIC ACTION. Other unrelated actions on different orders/tills may continue.':resultMessage?operatorError(resultMessage):safeError||'This action is still queued. Check Activity for status before retrying this specific action.';
     setError(message);if(current?.state==='CONFLICT')return {kind:'CONFLICT',commandId:command.id,message};if(current?.state==='REJECTED')return {kind:'REJECTED',commandId:command.id,message};return current?.state==='OUTCOME_UNKNOWN'?{kind:'OUTCOME_UNKNOWN',commandId:command.id,message}:{kind:'PENDING',commandId:command.id}
    }
    const current=(await store.current.queue()).find(q=>q.id===command.id);const result=current?.result;
@@ -393,6 +393,23 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
  const payment=(booking:BusinessRecord,deposit:boolean)=>open({title:deposit?'Record deposit':'Settle folio',operation:deposit?'folio.deposit':'folio.pay',collection:'folios',id:booking.id,fields:[select('accountId','Payment account','paymentAccounts'),{key:'amount',label:'Amount received (KES)',type:'money'},{key:'cashTendered',label:'Cash tendered (cash only)',type:'money',optional:true},{key:'reference',label:'External reference (non-cash)',optional:true},{key:'confirmation',label:'External payment confirmation',type:'select',optional:true,options:[{value:'confirmed',label:'I have manually verified receipt of funds'}]}],payload:v=>({id:booking.id,accountId:v.accountId,amountMinor:minor(v.amount),...(v.cashTendered?{cashTenderedMinor:minor(v.cashTendered)}:{}),reference:v.reference,manuallyConfirmed:v.confirmation==='confirmed'})});
   const quickAdd=(id:string)=>{if(id!=='product'){setNotice('Use the relevant workspace to create this record.');return}setNewItemRequest(true);setTab('Catalog')};
  const pendingCount=queue.filter(q=>q.state==='PENDING_SYNC'||q.state==='OUTCOME_UNKNOWN').length;const unknownCount=queue.filter(q=>q.state==='OUTCOME_UNKNOWN').length;const pending=pendingCount>0;const conflictCount=queue.filter(q=>q.state==='CONFLICT'||q.state==='REJECTED').length;const disabled=busy||!ready;
+  // Per-aggregate blocking: extract order/till IDs from pending/unknown commands
+  // Only operations targeting these specific aggregates should be blocked
+  const blockedAggregates=useMemo(()=>{
+    const orderIds=new Set<string>();
+    const tillIds=new Set<string>();
+    for(const entry of queue){
+      if(!['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(entry.state))continue;
+      const payload=entry.command.payload as Record<string,unknown>|undefined;
+      if(!payload)continue;
+      if(typeof payload.orderId==='string')orderIds.add(payload.orderId);
+      if(typeof payload.tillSessionId==='string')tillIds.add(payload.tillSessionId);
+      // Derive collection from operation name (e.g., 'order.create' -> 'orders')
+      const operation=entry.command.operation;
+      if(typeof payload.id==='string'&&operation.startsWith('order.'))orderIds.add(payload.id);
+    }
+    return {orderIds,tillIds};
+  },[queue]);
  const firstRunSetup=records.find(record=>record.collection==='businessSetup'&&record.id===session.businessId);
    const tabs=apiWorkspaces(session,businessType);
   const headerStatus=unknownCount?`${unknownCount} action${unknownCount===1?'':'s'} awaiting outcome confirmation`:pending?`${pendingCount} change${pendingCount===1?'':'s'} waiting to sync`:ready?'All changes synchronized':'Connecting to your business records';
@@ -411,7 +428,7 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
   <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-4 shadow-xl shadow-black/10 sm:p-5">
   {ready&&tab==='Home'&&<WebStartHere permissions={session.permissions} businessType={businessType} onNavigate={next=>setTab(next as WorkspaceTab)} onQuickAdd={quickAdd} onOpenHelp={query=>{const guideIds:Record<string,string>={'Getting around ServOS':'servos.core','Make your first sale':'pos.first-sale','Count stock':'stock.count','Receive a delivery':'stock.receive'};setHelpQuery(guideIds[query||'']||query||'');setTab('Help')}} onStartTour={guideId=>{setTourGuideId(guideId||'servos.core');setTourOpen(true)}}/>}
   {ready&&tab==='Help'&&<WebHelpView initialQuery={helpQuery} permissions={session.permissions} progress={guidance} onStartTour={startTour} onRestartGuide={guideId=>void saveGuidance({guideId,guideVersion:1,state:'IN_PROGRESS',currentStepId:null,completedStepIds:[]})}/>}
- {ready&&tab==='POS'&&store.current&&<WebApiPosView apiAuth={apiAuth} store={store.current} records={records} queue={queue} session={session} deviceId={store.current.deviceId} readRecords={async()=>await store.current?.records()||[]} disabled={disabled||queue.some(entry=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(entry.state)&&['order.create','order.addItem','order.quickAdd','order.updateItem','order.removeItem','order.offlineCashSale','order.repeatRound','order.fire','order.kds','order.transfer','order.void','order.discount','order.comp','order.compItem','pos.roomCharge','till.open','till.cashMovement','till.close','till.reviewVariance','payment.record','payment.split','payment.refund','payment.reverse'].includes(entry.command.operation))} command={submit}/>}
+ {ready&&tab==='POS'&&store.current&&<WebApiPosView apiAuth={apiAuth} store={store.current} records={records} queue={queue} session={session} deviceId={store.current.deviceId} readRecords={async()=>await store.current?.records()||[]} disabled={disabled} blockedAggregates={blockedAggregates} command={submit}/>}
  
   {ready&&tab==='KDS'&&<WebKDSView records={records} session={session} disabled={disabled} command={submit} onRefresh={syncNow}/>}
  {ready&&tab==='Catalog'&&<WebCatalogView records={records} session={session} disabled={disabled} command={submit} requestNewItem={newItemRequest} onNewItemRequestHandled={()=>setNewItemRequest(false)}/>}
