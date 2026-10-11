@@ -12,7 +12,7 @@ import {paymentAccountCommandRegistry} from '../src/payment-accounts.mjs';
 import {tillCommandRegistry} from '../src/till-commands.mjs';
 import {posCommandRegistry} from '../src/pos-commands.mjs';
 import {paymentCommandRegistry} from '../src/payment-commands.mjs';
-import {refundCommandRegistry} from '../src/refund-commands.mjs';
+import {refundCommandRegistry}                                         from '../src/refund-commands.mjs';
 import {salesSummary,salesRegister,stockOnHand,occupancy} from '../src/reports.mjs';
 
 const databaseUrl=process.env.TEST_DATABASE_URL;
