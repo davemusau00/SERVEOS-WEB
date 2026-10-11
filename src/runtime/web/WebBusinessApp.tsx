@@ -165,7 +165,7 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
       const profile=await apiAuth.client.authSession();
       if(profile.businessId!==opened.scope||profile.staffId!==opened.actorId||profile.mustChangePassword)throw new ApiHttpError(401,'AUTH_REQUIRED','Sign in again before continuing in this workspace.');
       if(stopped)return;
-      const latest={...sessionRef.current,permissions:profile.permissions};sessionRef.current=latest;setSession(latest);
+      const latest={...sessionRef.current,permissions:profile.permissions,capabilities:profile.capabilities};sessionRef.current=latest;setSession(latest);
       const authorizedPolicy=await apiAuthorizationPolicyVersion(profile.permissions);
       if(authorizedPolicy!==await opened.policyVersion()){
         setReady(false);setRecords([]);

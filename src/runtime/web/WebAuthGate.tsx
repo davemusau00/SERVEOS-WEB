@@ -106,6 +106,7 @@ export function WebAuthGate() {
             actorId: session.profile.staffId,
             enabled: true,
             permissions: session.profile.permissions,
+            capabilities: session.profile.capabilities,
             policyVersion: 'api-catalog-v3',
             lifecycleStage: 'LIVE',
           }}

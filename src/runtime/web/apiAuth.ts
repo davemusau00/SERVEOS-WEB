@@ -13,7 +13,7 @@ const clearSessionId=(apiOrigin:string,expected?:string)=>{try{const key=session
 export const hasSavedApiSession=(apiOrigin?:string)=>Boolean(apiOrigin&&savedSessionId(apiOrigin));
 
 type ApiLoginInfo=Omit<ApiStaffLogin,'accessToken'>;
-type ApiSessionProfile={businessId:string;staffId:string;deviceId:string;displayName:string;permissions:string[];mustChangePassword:boolean};
+type ApiSessionProfile={businessId:string;staffId:string;deviceId:string;displayName:string;permissions:string[];capabilities?:Record<string,boolean>;mustChangePassword:boolean};
 const sessionResult=(client:ReturnType<typeof createServOSApiClient>,identity:WebDeviceIdentity,login:ApiLoginInfo,profile:ApiSessionProfile,apiOrigin:string,tokenState:{token:string|undefined;sessionId:string|undefined;device:string|undefined}):ApiAuthenticatedDeviceSession=>({client,identity,login,profile,signOut:async()=>{
  try{await client.logout()}finally{clearSessionId(apiOrigin,tokenState.sessionId);tokenState.token=undefined;tokenState.sessionId=undefined;tokenState.device=undefined}
 }});

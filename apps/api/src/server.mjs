@@ -1,4 +1,5 @@
 import {checkBridgeClaim} from './bridge-authorization.mjs';
+import {pos2Capabilities} from './pos2-capabilities.mjs';
 import {filterRecords,filterChangePage} from './projection-access.mjs';
 import {createServer} from 'node:http';
 import {pathToFileURL} from 'node:url';
@@ -163,7 +164,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if(req.method==='GET'&&url.pathname==='/v1/auth/session'){
         const actor=await authenticateStaffSession(req,store);const profile=await store.staffCredential(actor.businessId,actor.staffId);
-        return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId??null,displayName:profile?.displayName,permissions:actor.permissions,mustChangePassword:profile?.mustChangePassword===true});
+        return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId??null,displayName:profile?.displayName,permissions:actor.permissions,capabilities:pos2Capabilities(actor),mustChangePassword:profile?.mustChangePassword===true});
       }
       if(req.method==='GET'&&url.pathname==='/v1/auth/sessions'){
         const actor=await authenticateStaffSession(req,store);return json(res,200,{sessions:await store.ownSessions({businessId:actor.businessId,staffId:actor.staffId,currentSessionId:actor.sessionId})});

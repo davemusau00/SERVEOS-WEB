@@ -82,7 +82,7 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
    if(!response.ok){const body=await response.json().catch(()=>({}));throw new ApiHttpError(response.status,body?.error?.code||'SETUP_FAILED',body?.error?.message||'Initial setup failed.')}return response.json() as Promise<{created:true}>;
   },
   passwordChange(currentPassword:string,newPassword:string){return request<{changed:boolean}>('/v1/auth/password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})},false)},
-  authSession(){return request<{businessId:string;staffId:string;deviceId:string|null;displayName:string;permissions:string[];mustChangePassword:boolean}>('/v1/auth/session',{},false)},
+  authSession(){return request<{businessId:string;staffId:string;deviceId:string|null;displayName:string;permissions:string[];capabilities?:Record<string,boolean>;mustChangePassword:boolean}>('/v1/auth/session',{},false)},
   staffSessions(){return request<{sessions:ApiStaffSession[]}>('/v1/auth/sessions',{},false)},
   revokeStaffSession(sessionId:string){return request<{revoked:boolean}>(`/v1/auth/sessions/${encodeURIComponent(sessionId)}/revoke`,{method:'POST'},false)},
   logout(){return request<{revoked:boolean}>('/v1/auth/logout',{method:'POST'},false)},
