@@ -10,6 +10,7 @@ import {
 import { BusinessStore } from './BusinessStore';
 import {createServOSInitialSetupClient} from './apiClient';
 import {InitialAdminStep} from './setup/InitialAdminStep';
+import {OfflineCheckoutGate} from './pos2/OfflineCheckoutGate';
 
 const WebBusinessApp=lazy(()=>import('./WebBusinessApp').then(module=>({default:module.WebBusinessApp})));
 
@@ -35,6 +36,7 @@ export function WebAuthGate() {
   const [setupChecking,setSetupChecking]=useState(Boolean(apiOrigin));
   const [setupOpen,setSetupOpen]=useState(false);
   const [setupComplete,setSetupComplete]=useState(false);
+  const [offlineCheckout,setOfflineCheckout]=useState(false);
 
   useEffect(()=>{
     if(!apiOrigin||resumePending||session){if(!apiOrigin)setSetupChecking(false);return}
@@ -97,6 +99,7 @@ export function WebAuthGate() {
     }
   };
 
+  if(offlineCheckout&&!session)return <OfflineCheckoutGate apiOrigin={apiOrigin} onOnline={(next,opened)=>{setSession(next);setStore(opened);setOfflineCheckout(false);}} onBack={()=>setOfflineCheckout(false)}/>;
   if (session && store) {
     return (
       <Suspense fallback={<main className="grid min-h-screen place-items-center bg-slate-950 p-4 text-white"><p role="status" className="rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 text-sm text-slate-300">Opening your workspace…</p></main>}>
@@ -180,6 +183,7 @@ export function WebAuthGate() {
           {resumePending ? 'Restoring session…' : busy ? 'Signing in…' : 'Sign in'}
         </button>
         {setupAvailable&&!setupChecking&&<button type="button" disabled={busy||resumePending} className="w-full rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40" onClick={()=>setSetupOpen(true)}>Set up a new business</button>}
+        <button type="button" className="min-h-11 w-full rounded border border-slate-600 px-3 py-2" disabled={busy} onClick={()=>setOfflineCheckout(true)}>Unlock previously provisioned offline checkout</button>
       </form>
     </main>
   );
