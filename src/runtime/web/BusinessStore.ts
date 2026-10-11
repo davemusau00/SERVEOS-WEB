@@ -203,12 +203,13 @@ export class BusinessStore {
   async localCashOutbox(){return this.cashTransaction(['outboxV2'],'readonly',async tx=>(await request(tx.objectStore('outboxV2').getAll())).filter(entry=>entry.sale.staffId===this.actorId).sort((a,b)=>a.sale.sequence-b.sale.sequence));}
   async claimLocalCashPrint(saleId:string,type:string,reprint=false){return this.cashTransaction(['localPrintEvidence'],'readwrite',async tx=>{
     const evidence=tx.objectStore('localPrintEvidence'),id=`${saleId}:${type}`,existing=await request(evidence.get(id));
-    if(existing?.status==='SENDING')throw Error('A print attempt is already running. Check its delivery before retrying.');
+    if(existing?.status==='SENDING'&&!reprint)throw Error('A print attempt is already running or its delivery is unknown. Check actual paper before requesting a marked reprint.');
     if(existing&&!reprint)throw Error('This document already has print evidence. Check physical output before requesting a reprint.');
-    const claim={id,saleId,type,attempt:Number(existing?.attempt||0)+1,status:'SENDING',createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};await request(evidence.put(claim));return claim;
+    const claim={id,saleId,type,attempt:Number(existing?.attempt||0)+1,status:'SENDING',createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};await request(evidence.put(claim));
+    await request(evidence.add({id:`${id}:event:${crypto.randomUUID()}`,saleId,jobId:id,attempt:claim.attempt,fromStatus:existing?.status||null,status:'SENDING',markedReprint:reprint,occurredAt:claim.updatedAt}));return claim;
   });}
   async finishLocalCashPrint(id:string,status:'DELIVERY_UNCERTAIN'|'FAILED'|'CONFIRMED'){
-    await this.cashTransaction(['localPrintEvidence'],'readwrite',async tx=>{const store=tx.objectStore('localPrintEvidence'),evidence=await request(store.get(id));if(!evidence)throw Error('Print claim unavailable.');await request(store.put({...evidence,status,updatedAt:new Date().toISOString()}));});
+    await this.cashTransaction(['localPrintEvidence'],'readwrite',async tx=>{const store=tx.objectStore('localPrintEvidence'),evidence=await request(store.get(id));if(!evidence)throw Error('Print claim unavailable.');const updatedAt=new Date().toISOString();await request(store.put({...evidence,status,updatedAt}));await request(store.add({id:`${id}:event:${crypto.randomUUID()}`,saleId:evidence.saleId,jobId:id,attempt:evidence.attempt,fromStatus:evidence.status,status,occurredAt:updatedAt}));});
   }
   async markLocalCashState(id:string,state:'SYNCING'|'OUTCOME_UNKNOWN'|'RECONCILIATION_REQUIRED',reason?:string){
     await this.cashTransaction(['cashSales','outboxV2'],'readwrite',async tx=>{
@@ -502,7 +503,7 @@ export class BusinessStore {
     });
   }
   async hasUnresolvedPrintDelivery():Promise<boolean>{
-    const cash=await this.cashTransaction(['localPrintEvidence'],'readonly',async tx=>(await request(tx.objectStore('localPrintEvidence').getAll())).some(job=>['SENDING','DELIVERY_UNCERTAIN'].includes(job.status)));
+    const cash=await this.cashTransaction(['localPrintEvidence'],'readonly',async tx=>(await request(tx.objectStore('localPrintEvidence').getAll())).some(job=>!job.jobId&&['SENDING','DELIVERY_UNCERTAIN'].includes(job.status)));
     if(cash)return true;
     return this.transaction(['printJobs','records'],'readonly',async tx=>{
       const local=await request(tx.objectStore('printJobs').getAll()) as LocalPrintJob[];

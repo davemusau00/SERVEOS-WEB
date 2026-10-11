@@ -1,7 +1,7 @@
 {
   "generatedBy": "npm run audit:ui",
   "schemaVersion": 2,
-  "sourceDigest": "f9a31fc5005e4bd71904ec77e7d7096d96b9ba4df788622e53b41e8b6455b3d8",
+  "sourceDigest": "2d6ddd4e46889b50d32e8adcae815730751f4fd598be922720e02c96b5f219d7",
   "scope": "Compact tracked summary; full static inventory is a CI artifact and findings require human review",
   "count": 1792,
   "fullArtifact": "artifacts/ui-audit/UI_INTERACTION_INVENTORY.full.json",
@@ -497,14 +497,14 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:2144",
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:2148",
       "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
       "line": 29,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:2201",
+      "id": "src/runtime/web/pos2/LocalCashActivity.tsx:29:2205",
       "file": "src/runtime/web/pos2/LocalCashActivity.tsx",
       "line": 29,
       "surface": "onClick",

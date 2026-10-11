@@ -208,3 +208,7 @@ This checkpoint supersedes the initial planning statuses above. Neither the hist
 - Production gates G0-G8, hosted CI/code review, actual printer acceptance, fiscal approval and real-device browser acceptance remain OPEN. No source flag is enabled by default and no production migration or deployment was performed.
 
 - Recovery exports now gather the selected original sale and its related cash, stock, ticket, outbox, shift, reconciliation and print evidence in one read-only transaction. Signed capabilities are excluded, actor ownership is checked, and files are explicitly evidence-only. The 100-sale browser fixture verifies related record counts and absence of the signed capability.
+
+- Full local API suite: `npm run test:api` passes all 43 tests, with zero skips, against disposable PostgreSQL 16. Full built-PWA suite: `npm run test:browser:production` passes 43 tests with one intentional duplicate mobile browser-process-restart skip; the enrolled desktop restart scenario passes. No physical printer delivery or real older-browser claim follows from these results.
+
+- Local printing recovery now retains an append-only attempt/state history alongside each current claim. Automatic duplicate requests are refused; operator-checked marked reprints remain available after a restart. The cash-ledger browser scenario verifies two attempts, four history events and cleared delivery uncertainty without a new sale or stock debit. This records software behavior, not physical printing acceptance.

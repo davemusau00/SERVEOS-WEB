@@ -250,10 +250,9 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
    cash:{openingFloatMinor:50000,salesMinor:10000,refundsMinor:10000,expectedMinor:50000,countedMinor:50000,varianceMinor:0},
   });
   const closeDayPreview=closeDay.locator('article[aria-label="Close-day report"]');
-  await expect(closeDayPreview).toHaveAttribute('data-paper-profile','a4-landscape');
+  await expect(closeDayPreview).toHaveAttribute('data-paper-profile','thermal-80mm');
   await expect(closeDayPreview).toContainText('Shift / report period');
   await expect(closeDayPreview).not.toContainText('Developed By Kingsforge');
-  await expect(closeDayPreview).toHaveAttribute('data-paper-profile','thermal-80mm');
   if(process.env.TEST_PG_CONTAINER){
    restoreDatabase=`serveos_restore_${randomUUID().replaceAll('-','')}`;
    await adminPool.query(`CREATE DATABASE "${restoreDatabase}"`);

@@ -32,7 +32,7 @@ This repository file is the canonical consolidated guide. The consolidation incl
 
 | Source | Consolidation treatment |
 |---|---|
-| Original pasted versions: attachments `70591f14-eaba-4261-adf1-7589c63b0988` and `a380b8e5-ba61-4ca0-a261-e74bd7dde668` | Byte-for-byte identical; retain their shared A–J engineering and deployment requirements once. |
+| Original pasted versions: attachments `70591f14-eaba-4261-adf1-7589c63b0988` and `a380b8e5-ba61-4ca0-a261-e74bd7dde668` | Byte-for-byte identical; retain their shared Aâ€“J engineering and deployment requirements once. |
 | Thermal revision: attachment `3790c8cb-ac4c-49e1-b56a-5b576c1b32e7` / `REV80MM` | Integrate universal 80 mm printing into architecture, implementation, acceptance and release gates. |
 | Final thermal, clean UI and browser revision: attachment `9967a098-a60d-45d8-854d-781ef5fbb497` / `FINAL_SPRINT_THERMAL_CLEAN_UI_BROWSER_COMPAT_20261011(3)` | Matches the pre-consolidation target; retain professional receipts, human references, browser tiers and Sprint 2B. |
 | Current working document and committed baseline | Preserve existing edits; collapse repeated committed document bodies into one guide and check superseded wording for lost requirements. |
@@ -434,7 +434,7 @@ Use these IDs in implementation reviews and release evidence. A mapping identifi
 | R13 | Server flags OFF by default; disable creation but retain reconciliation (?C1) | 1?5 | G1, G6, G8: cohort/role/device enforcement and kill-switch replay |
 | R14 | Safe PWA update, modern/legacy cache assets, no ledger wipe (?A6, ?H5) | 2B, 3, 5 | G5, G6, G8: waiting SW, nonempty outbox, restart and bundle rollback |
 | R15 | Root contracts in nonroot API image; target-aware deployer (?B, ?H0) | 5 before release | G1, G2, G4: full module imports, file traversal, topology rejection and staging rehearsal |
-| R16 | Current-business backup/restore, isolated staging, reversible ServOS-only switch (?F?H) | 0 baseline, 5 operations | G0?G8: off-VPS restore, exact digests, isolated ports/volume, approval and rollback |
+| R16 | Current-business backup/restore, isolated staging, reversible ServOS-only switch (?F?H) | 0 baseline, 5 operations | G0-G8: off-VPS restore, exact digests, isolated ports/volume, approval and rollback |
 | R17 | Preserve SMS/Details hosts, production records and operator workflows (?H7, ?J) | Every milestone | G0, G7, G8: before/after host checks and browser workflows; no unrelated modifications |
 | R18 | Physical printer and fiscal acceptance are separate from software success (?A4?A5) | 2B, 5 / operator acceptance | G6: model/driver, clipping, 2m+ roll, QR/cutter and approver; fiscal evidence separate |
 
@@ -690,11 +690,11 @@ All items start unchecked. Set a checkbox only when its requirement has passed w
 | [ ] | R13 flags and rollback cohort | Effective server flag values by device/role/outlet; creation disabled with existing replay still working |
 | [ ] | R14 PWA update safety | Modern/legacy asset manifest, waiting-worker test with pending cash, restart/rollback with IndexedDB retained |
 | [ ] | R15 packaging and deployment tooling | Nonroot image import logs, image digest, root contract paths, deployer allowlist and isolated rehearsal |
-| [ ] | R16 backup and deployment gates | Two restorable backup generations, off-VPS restore/totals, G0?G8 records, scoped approval and rollback targets |
+| [ ] | R16 backup and deployment gates | Two restorable backup generations, off-VPS restore/totals, G0-G8 records, scoped approval and rollback targets |
 | [ ] | R17 protected systems and data | Baseline/post-switch HTTPS and browser checks, preserved business identity/data/workflows and narrow change record |
 | [ ] | R18 physical thermal printing | Actual model/driver/preset, 80 mm roll, measured safe width, 2m+ output, QR scan, feed/cut, restart/reprint and operator sign-off |
 | [ ] | Fiscal receipt acceptance | Applicable fiscal verification evidence and approver; retain provisional/non-fiscal labels until accepted |
-| [ ] | Complete definition of done | Countryside end-to-end waiter ? cashier ? preparation ? offline cash ? reconciliation evidence, with every applicable row accepted |
+| [ ] | Complete definition of done | Countryside end-to-end waiter -> cashier -> preparation -> offline cash -> reconciliation evidence, with every applicable row accepted |
 
 Use this evidence record for each requirement and gate; keep credentials and private customer data out of artifacts:
 
