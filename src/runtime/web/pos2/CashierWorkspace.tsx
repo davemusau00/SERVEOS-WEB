@@ -1,4 +1,9 @@
 import {calculateLine} from '../../../../contracts/pos-math.mjs';
+import {buildLocalCashInput} from '../localCashSnapshot';
+import {OfflineCashSetup,offlinePublicKey} from './OfflineCashSetup';
+import type {OfflineCashLease} from '../offlineCashLedger';
+import {parseMoneyToMinor} from '../../../utils/fiscal';
+import {PaySheet} from './PaySheet';
 import React,{useEffect,useRef,useState} from 'react';
 import type {WebApiPosProps} from '../WebApiPosView';
 import {allowed,type BusinessRecord} from '../session';
@@ -13,13 +18,14 @@ const object=(value:unknown):Record<string,unknown>=>value&&typeof value==='obje
 const revision=(row:BusinessRecord)=>({collection:row.collection,id:row.id,version:row.version});
 const money=(value:unknown)=>formatDocumentMoney(Number(value||0));
 
-export function CashierWorkspace({records,session,deviceId,queue,command,disabled,readRecords,store,onMore,initialOrderId='',onOrderChange}:WebApiPosProps&{onMore:()=>void;onOrderChange?:(id:string)=>void}){
+export function CashierWorkspace({records,session,deviceId,queue,command,disabled,readRecords,store,apiAuth,onMore,initialOrderId='',onOrderChange}:WebApiPosProps&{onMore:()=>void;onOrderChange?:(id:string)=>void}){
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived);
  const [outletId,setOutlet]=useState(String(records.find(row=>row.collection==='orders'&&row.id===initialOrderId)?.data.outletId||outlets[0]?.id||'')),[orderId,setOrder]=useState(initialOrderId),[query,setQuery]=useState(''),[category,setCategory]=useState('');
  useEffect(()=>onOrderChange?.(orderId),[orderId,onOrderChange]);
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[paymentRequest,setPaymentRequest]=useState(0);
  const [choice,setChoice]=useState<BusinessRecord|null>(null),[portionId,setPortion]=useState(''),[modifiers,setModifiers]=useState<string[]>([]),[note,setNote]=useState('');
  const [draftLines,setDraftLines]=useState<Record<string,unknown>[]>([]),[rejectedCreation,setRejectedCreation]=useState(false);
+ const [offlineLease,setOfflineLease]=useState<OfflineCashLease|null>(null),[cashOpen,setCashOpen]=useState(false),[cashTendered,setCashTendered]=useState('');
  const draftRef=useRef<Record<string,unknown>[]>([]);
  const inFlight=useRef(false);
  const saveLines=(next:Record<string,unknown>[])=>{draftRef.current=next;setDraftLines(next);void store?.saveDraft({id:'cashier-new-sale',operation:'cashier.draft',collection:'orders',targetId:'cashier-new-sale',editorKind:'Cashier basket',inputValues:{},payload:{outletId,lines:next},expectedVersions:[],validationSummary:[],requiresReview:false}).catch(error=>setMessage(operatorError(error)));};
@@ -29,7 +35,8 @@ export function CashierWorkspace({records,session,deviceId,queue,command,disable
  const till=records.find(row=>row.collection==='tillSessions'&&row.data.status==='OPEN'&&row.data.operatorId===session.actorId&&row.data.deviceId===deviceId&&row.data.outletId===outletId);
  const products=records.filter(row=>row.collection==='products'&&!row.archived&&row.data.available!==false&&(!Array.isArray(row.data.outletIds)||row.data.outletIds.length===0||row.data.outletIds.includes(outletId)));
  const pending=queue.some(row=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(row.state)&&(row.command.payload.orderId===orderId&&Boolean(orderId)||row.command.payload.tillSessionId===till?.id&&Boolean(till)));
- const locked=disabled||busy||pending||!navigator.onLine;
+ const localAuthorized=Boolean(offlineLease&&Date.parse(offlineLease.expiresAt)>Date.now()&&offlineLease.outletId===outletId&&session.capabilities?.['pos2.offlineCash']);
+ const locked=busy||(disabled&&!localAuthorized)||(pending&&!localAuthorized)||(!navigator.onLine&&!localAuthorized);
  const balance=Number(orderId?order?.data.grandTotalMinor||0:draftLines.reduce((sum,line)=>sum+Number(line.lineTotalMinor),0))-Number(order?.data.amountPaidMinor||0)-Number(order?.data.amountCreditedMinor||0)-Number(order?.data.roomChargeMinor||0);
  const editable=!order||['OPEN','FIRED'].includes(String(order.data.state))&&Number(order.data.amountPaidMinor||0)+Number(order.data.amountCreditedMinor||0)+Number(order.data.roomChargeMinor||0)===0;
  const run=async(operation:string,id:string,payload:Record<string,unknown>)=>{
@@ -75,6 +82,7 @@ export function CashierWorkspace({records,session,deviceId,queue,command,disable
  }});
  const pay=async()=>{
   if(locked||inFlight.current||!till||balance<=0)return;
+  if(localAuthorized&&!orderId){setCashTendered('');setCashOpen(true);return;}
   inFlight.current=true;setBusy(true);setMessage('');
   try{
    let activeOrder=order,activeRecords=records;
@@ -115,7 +123,9 @@ export function CashierWorkspace({records,session,deviceId,queue,command,disable
    <section className="flex min-h-0 flex-col gap-3"><label>Search products<input className="block min-h-11 w-full rounded border border-slate-600 bg-slate-950 p-2" value={query} onChange={event=>setQuery(event.target.value)}/></label><label>Category <select className={button} value={category} onChange={event=>setCategory(event.target.value)}><option value="">All</option>{[...new Set(products.map(product=>String(product.data.category||'')))].filter(Boolean).sort().map(value=><option key={value}>{value}</option>)}</select></label><div className="grid min-h-0 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4">{visible.map(product=><button key={product.id} className={`${button} min-h-20 text-left`} disabled={locked||!editable} onClick={()=>select(product)}><b className="block">{String(product.data.name)}</b>{money(product.data.priceMinor)}</button>)}</div></section>
    <aside aria-label="Current bill" className="sticky bottom-0 flex min-h-48 flex-col rounded-xl border border-slate-700 bg-slate-950 p-3 lg:static lg:min-h-0"><h3 className="font-bold">{String(order?.data.name||'New sale')}</h3><div className="min-h-0 flex-1 overflow-y-auto">{lines.map(line=><div key={String(line.id)} className="border-b border-slate-800 py-2"><b>{String(line.name)}</b><p>{String(line.quantity)} × {money(line.unitPriceMinor)} = {money(line.lineTotalMinor)}</p><small>{line.state==='DRAFT'?'Held':String(line.state)}</small></div>)}</div><p>Paid {money(order?.data.amountPaidMinor)}</p><p className="text-xl font-bold">Balance {money(balance)}</p><button className={`${button} bg-amber-400 font-bold text-slate-950`} disabled={locked||!till||(!order&&!draftLines.length)||balance<=0||!allowed(session,'payment.record')} onClick={()=>void pay()}>Pay {money(balance)}</button>{!till&&<p>Open your shift in More before accepting payment.</p>}</aside>
   </div>
-  <WebApiPaymentPanel key={orderId} records={records} order={order} session={session} deviceId={deviceId} queue={queue} command={command} disabled={disabled||busy} compact openRequest={paymentRequest}/>
+  {session.capabilities?.['pos2.offlineAuthV2']&&<OfflineCashSetup store={store} session={session} apiAuth={apiAuth} outletId={outletId} tillId={till?.id} onUnlocked={setOfflineLease}/>}
+  <PaySheet key={orderId} records={records} order={order} session={session} deviceId={deviceId} queue={queue} command={command} disabled={disabled||busy} openRequest={paymentRequest}/>
+  {cashOpen&&<form role="dialog" aria-modal="true" aria-label="Cash checkout" className="fixed inset-4 z-50 rounded border bg-slate-950 p-4 lg:inset-x-1/3" onSubmit={event=>{event.preventDefault();if(inFlight.current||!offlineLease||!till)return;inFlight.current=true;setBusy(true);void (async()=>{try{const tendered=parseMoneyToMinor(cashTendered);if(tendered===null||tendered<balance)throw Error('Cash tendered must cover the total.');const account=records.find(row=>row.collection==='paymentAccounts'&&row.data.method==='CASH'&&!row.archived);if(!account)throw Error('No provisioned cash account.');const overlays=(await store.localCashSales()).filter(sale=>sale.state!=='SERVER_CONFIRMED');const input=await buildLocalCashInput(records,draftRef.current,outletId,till.id,account.id,tendered,overlays);const sale=await store.recordLocalCash(input,offlineLease,offlinePublicKey());saveLines([]);await store.discardDraft('cashier-new-sale');setCashOpen(false);setMessage(`Cash received. ${sale.reference}: recorded locally, pending server sync. Change ${money(sale.changeMinor)}.`);}catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false);}})();}}><h3>Cash total {money(balance)}</h3><label>Cash tendered<input autoFocus inputMode="decimal" value={cashTendered} onChange={event=>setCashTendered(event.target.value)}/></label><p>Change {money(Math.max(0,(parseMoneyToMinor(cashTendered)||0)-balance))}</p><p>This cash sale is recorded locally and remains provisional until the server confirms it.</p><button className={button} disabled={busy}>Record cash received</button><button type="button" className={button} disabled={busy} onClick={()=>setCashOpen(false)}>Back</button></form>}
   {choice&&<form role="dialog" aria-label="Choose product options" className="fixed inset-4 z-50 overflow-auto rounded-xl border border-slate-600 bg-slate-950 p-4 lg:inset-x-1/3" onSubmit={event=>{event.preventDefault();void add(choice,portionId,modifiers,note);}}><h3>{String(choice.data.name)}</h3><label>Portion<select className={button} value={portionId} onChange={event=>setPortion(event.target.value)}><option value="">Standard</option>{rows(choice.data.portions).map(portion=><option key={String(portion.id)} value={String(portion.id)}>{String(portion.name)} · {money(portion.priceMinor)}</option>)}</select></label>{rows(choice.data.modifiers).map(modifier=><label key={String(modifier.id)} className="block py-2"><input type="checkbox" checked={modifiers.includes(String(modifier.id))} onChange={event=>setModifiers(values=>event.target.checked?[...values,String(modifier.id)]:values.filter(id=>id!==modifier.id))}/> {String(modifier.name)} · {money(modifier.priceDeltaMinor)}</label>)}<label>Preparation note<input className={button} maxLength={500} value={note} onChange={event=>setNote(event.target.value)}/></label><button className={button} disabled={busy}>Add item</button><button type="button" className={button} disabled={busy} onClick={()=>setChoice(null)}>Close</button></form>}
   {rejectedCreation&&!order&&<button className={button} onClick={()=>{setOrder('');setRejectedCreation(false);setMessage('Rejected creation cleared. Original local draft retained for review.');}}>Return to retained draft</button>}
   {message&&<p role="status">{message}</p>}
