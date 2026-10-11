@@ -1,4 +1,6 @@
 import type {BusinessCommandV2,ChangePage,RecordVersion,TransactionResult} from '../../types/transactions';
+import {canonicalCashJson,priceLocalCash,verifyCashLease} from './offlineCashLedger';
+import type {OfflineCashLease,LocalCashInput} from './offlineCashLedger';
 
 export interface QueuedCommand {id:string; sequence:number; command:BusinessCommandV2; state:'PENDING_SYNC'|'OUTCOME_UNKNOWN'|'SYNCHRONIZED'|'CONFLICT'|'REJECTED'; result?:TransactionResult; firstAttemptAt?:string}
 export interface WorkflowDraftField {key:string;label:string;type?:'text'|'number'|'money'|'datetime-local'|'select';options?:Array<{value:string;label:string}>;value?:string;optional?:boolean}
@@ -71,7 +73,7 @@ export class BusinessStore {
   static async open(scope:string,deviceId:string,actorId:string,serverSequence=0):Promise<BusinessStore>{
     if(!scope||!deviceId||!actorId||!Number.isSafeInteger(serverSequence)||serverSequence<0)throw new Error('Valid business, device, actor and sequence are required');
     const databaseName=`servos-web-v1:${scope}:${deviceId}:${actorId}`;
-    const opening=indexedDB.open(databaseName,6);
+    const opening=indexedDB.open(databaseName,7);
     opening.onupgradeneeded=()=>{
       const db=opening.result;
       if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta');
@@ -84,6 +86,7 @@ export class BusinessStore {
       if(!db.objectStoreNames.contains('printEvents')){const events=db.createObjectStore('printEvents',{keyPath:'id'});events.createIndex('jobId','jobId',{unique:false});}
       if(!db.objectStoreNames.contains('bootstrapStage')){const stage=db.createObjectStore('bootstrapStage',{keyPath:['snapshotId','ordinal']});stage.createIndex('snapshotIdentity',['snapshotId','record.collection','record.id'],{unique:true});}
       if(!db.objectStoreNames.contains('legacyRecovery'))db.createObjectStore('legacyRecovery',{keyPath:'id'});
+      for(const name of ['cashSales','cashEntries','localStockMovements','localOrderTickets','outboxV2','syncReconciliations','localShiftLedger','localPrintEvidence','capabilityLeases'])if(!db.objectStoreNames.contains(name))db.createObjectStore(name,{keyPath:'id'});
     };
     const db=await new Promise<IDBDatabase>((resolve,reject)=>{
       let abandoned=false;
@@ -105,6 +108,32 @@ export class BusinessStore {
     });return store;}catch(error){db.close();throw error;}
   }
   close(){this.closed=true;this.db.close();}
+  /** Foundation only: UI activation additionally requires accepted offline identity and replay. */
+  async recordLocalCash(input:LocalCashInput,lease:OfflineCashLease,publicKey:JsonWebKey){
+    const identity={businessId:this.scope,deviceId:this.deviceId,staffId:this.actorId};
+    if(!(await verifyCashLease(lease,publicKey,identity)))throw Error('A valid signed checkout capability is required.');
+    if(input.outletId!==lease.outletId||input.tillSessionId!==lease.tillSessionId)throw Error('Sale does not belong to the authorized outlet and shift.');
+    if(!navigator.locks)throw Error('This browser cannot safely lock the checkout terminal.');
+    const priced=priceLocalCash(input),payloadHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonicalCashJson(input)))),value=>value.toString(16).padStart(2,'0')).join('');
+    return navigator.locks.request(`servos-cash:${this.scope}:${this.deviceId}`,{mode:'exclusive'},()=>this.transaction(['meta','cashSales','cashEntries','localStockMovements','localOrderTickets','outboxV2','localShiftLedger','localPrintEvidence','capabilityLeases'],'readwrite',async tx=>{
+      const sales=tx.objectStore('cashSales'),existing=await request(sales.get(input.id));
+      if(existing){if(existing.payloadHash!==payloadHash)throw Error('Local sale ID is already bound to another payload.');return existing;}
+      if(Date.parse(lease.expiresAt)<=Date.now())throw Error('Checkout capability expired before local commit.');
+      const meta=tx.objectStore('meta'),sequence=Number(await request(meta.get('cashSequence'))||0)+1;
+      if(!Number.isSafeInteger(sequence))throw Error('Local checkout sequence exhausted.');
+      const occurredAt=new Date().toISOString(),day=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()).replace(/-/g,''),reference=`${lease.deviceLabel}-${day}-${String(sequence).padStart(6,'0')}`;
+      const sale={id:input.id,...identity,outletId:input.outletId,tillSessionId:input.tillSessionId,currency:'KES',sequence,reference,occurredAt,payloadHash,input,...priced,state:'RECORDED_LOCALLY'};
+      await request(sales.add(sale));
+      await request(tx.objectStore('cashEntries').add({id:input.id,saleId:input.id,tillSessionId:input.tillSessionId,receivedMinor:priced.totalMinor,tenderedMinor:input.cashTenderedMinor,changeMinor:priced.changeMinor,occurredAt}));
+      for(const movement of input.stockMovements)await request(tx.objectStore('localStockMovements').add({...movement,saleId:input.id,state:'PROVISIONAL'}));
+      await request(tx.objectStore('localOrderTickets').add({id:input.id,saleId:input.id,reference,lines:priced.lines,state:'PENDING_SERVER_SYNC'}));
+      await request(tx.objectStore('localPrintEvidence').add({id:input.id,saleId:input.id,reference,status:'NOT_REQUESTED',qualification:'PENDING SERVER SYNC / NOT FISCAL INVOICE'}));
+      await request(tx.objectStore('outboxV2').add({id:input.id,operation:'pos.offlineSale.commitV2',sale,lease,state:'QUEUED'}));
+      await request(tx.objectStore('localShiftLedger').put({id:`${input.tillSessionId}:${input.id}`,saleId:input.id,amountMinor:priced.totalMinor}));
+      await request(tx.objectStore('capabilityLeases').put({id:lease.leaseId,lease}));
+      await request(meta.put(sequence,'cashSequence'));return sale;
+    }));
+  }
   private async transaction<T>(stores:string[],mode:IDBTransactionMode,run:(tx:IDBTransaction)=>Promise<T>):Promise<T>{
     if(this.closed)throw new Error('Browser storage is closed. Reopen this ServOS workspace before continuing; do not clear browser data.');
     const tx=this.db.transaction(stores,mode);

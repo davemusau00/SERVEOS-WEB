@@ -1,3 +1,4 @@
+import {allocateDocumentNumber} from './document-numbers.mjs';
 import {randomUUID} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
 import {reviewedBalance} from './inventory-review.mjs';
@@ -25,7 +26,7 @@ async function create({tx,command,actor,at}){
   const physical={sealedContainers:line.sealedContainers,openQuantity:line.openQuantity};if(stock.sealedContainerSize!==null){if(!Number.isSafeInteger(physical.sealedContainers)||physical.sealedContainers<0||typeof physical.openQuantity!=='number'||physical.openQuantity<0||physical.openQuantity>=stock.sealedContainerSize||Math.abs(physical.sealedContainers*stock.sealedContainerSize+physical.openQuantity-num(base))>0.000001)fail('Bottle return must reconcile whole sealed bottles and open liquid.');}
   planned.push({id:randomUUID(),original,line,stock,before,quantity,base,pack,condition,physical,unitCostMinor:stock.averageUnitCostMinor});
  }
- const version=await tx.bumpEntityVersion(actor.businessId,'supplierReturns',p.id,0),returnNumber=`SR-${p.id}`;
+ const version=await tx.bumpEntityVersion(actor.businessId,'supplierReturns',p.id,0),returnNumber=await allocateDocumentNumber(tx.client,actor.businessId,'SUPPLIER_RETURN_NOTE');
  await tx.client.query(`INSERT INTO procurement_supplier_returns(business_id,id,return_number,supplier_id,grn_id,status,reason,expected_credit_note,version,source_command_id,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,'DRAFT',$6,$7,$8,$9,$10,$11,$11)`,[actor.businessId,p.id,returnNumber,grn.supplier_id,grn.id,why,typeof p.expectedCreditNote==='string'?p.expectedCreditNote.trim().slice(0,100):null,version,command.commandId,actor.staffId,at]);
  for(const row of planned)await tx.client.query(`INSERT INTO procurement_supplier_return_lines(business_id,return_id,id,grn_id,grn_line_id,inventory_receipt_id,stock_item_id,location_id,stock_snapshot,package_snapshot,quantity,base_quantity,sealed_containers,open_quantity,condition,reason,unit_cost_minor) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15,$16,$17)`,[actor.businessId,p.id,row.id,grn.id,row.original.id,row.original.inventoryReceiptId,row.original.stockItemId,row.line.locationId,JSON.stringify(row.original.stockSnapshot),JSON.stringify(row.pack),num(row.quantity),num(row.base),row.physical.sealedContainers??null,row.physical.openQuantity??null,row.condition,reason(row.line.reason||why),row.unitCostMinor]);
  await writeEvent(tx,actor,command,at,p.id,version,'CREATE',why);const value=(await supplierReturnProjections(tx.client,actor.businessId)).find(row=>row.id===p.id);return {value,records:[value]};

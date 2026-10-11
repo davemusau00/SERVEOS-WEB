@@ -1,3 +1,4 @@
+import {allocateDocumentNumber} from './document-numbers.mjs';
 import {randomUUID} from 'node:crypto';
 import {documentHash} from './business-documents.mjs';
 import {receiptSettings} from './business-tax.mjs';
@@ -45,7 +46,7 @@ const saveDraft=async({tx,command,actor,at})=>{
   const total=(ordered*BigInt(line.unitPriceMinor)+500000n)/1000000n;subtotal+=total;safe(subtotal);
   items.push({id:line.id,lineNo:index+1,stockItemId:line.stockItemId,stockSnapshot:{...stock.rows[0],version:Number(stock.rows[0].version),sealedContainerSize:stock.rows[0].sealedContainerSize===null?null:Number(stock.rows[0].sealedContainerSize)},purchasePackageSnapshot:pack,quantityOrdered:decimal(ordered),baseQuantityOrdered:decimal(base/1000000n),unitPriceMinor:line.unitPriceMinor,lineTotalMinor:safe(total)});
  }
- const version=await tx.bumpEntityVersion(actor.businessId,'purchaseOrders',p.id,expected);const number=existing.rows[0]?.document_number||`PO-${p.id}`;
+ const version=await tx.bumpEntityVersion(actor.businessId,'purchaseOrders',p.id,expected);const number=existing.rows[0]?.document_number||await allocateDocumentNumber(tx.client,actor.businessId,'PURCHASE_ORDER');
  const supplierSnapshot={...supplier.rows[0],version:Number(supplier.rows[0].version)};
  await tx.client.query(`INSERT INTO procurement_purchase_orders(business_id,id,supplier_id,document_number,supplier_snapshot,subtotal_minor,expected_delivery_date,notes,version,created_by,created_at,updated_by,updated_at) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$10,$11) ON CONFLICT(business_id,id) DO UPDATE SET supplier_id=EXCLUDED.supplier_id,supplier_snapshot=EXCLUDED.supplier_snapshot,subtotal_minor=EXCLUDED.subtotal_minor,expected_delivery_date=EXCLUDED.expected_delivery_date,notes=EXCLUDED.notes,version=EXCLUDED.version,updated_by=EXCLUDED.updated_by,updated_at=EXCLUDED.updated_at`,[actor.businessId,p.id,p.supplierId,number,JSON.stringify(supplierSnapshot),safe(subtotal),delivery,notes,version,actor.staffId,at]);
  await tx.client.query('DELETE FROM procurement_purchase_order_lines WHERE business_id=$1 AND po_id=$2',[actor.businessId,p.id]);

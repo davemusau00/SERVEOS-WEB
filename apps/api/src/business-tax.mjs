@@ -1,3 +1,4 @@
+import {inclusiveTax} from '../../../contracts/pos-math.mjs';
 import {ApiProblem} from './command-kernel.mjs';
 const columns=`business_name AS "businessName",address,contact,tax_pin AS "taxPin",footer,vat_rate_basis_points AS "vatRateBasisPoints",levy_rate_basis_points AS "levyRateBasisPoints",logo_png_data_url AS "logoPngDataUrl",payment_qr_png_data_url AS "paymentQrPngDataUrl",payment_qr_enabled AS "paymentQrEnabled",version,updated_by AS "updatedBy",updated_at AS "updatedAt"`;
 const invalid=message=>{throw new ApiProblem(400,'VALIDATION_FAILED',message)};
@@ -15,12 +16,7 @@ export async function receiptSettingsProjections(db,businessId){
  const {rows}=await db.query(`SELECT ${columns} FROM business_receipt_settings WHERE business_id=$1`,[businessId]);
  return rows.map(row=>({collection:'businessSettings',id:businessId,version:Number(row.version),archived:false,data:{...row,version:Number(row.version),updatedAt:row.updatedAt.toISOString()}}));
 }
-export function splitInclusiveTax(grossMinor,snapshot){
- if(!Number.isSafeInteger(grossMinor)||grossMinor<0||!snapshot||!Number.isInteger(snapshot.vatRateBasisPoints)||!Number.isInteger(snapshot.levyRateBasisPoints)||snapshot.vatRateBasisPoints<0||snapshot.vatRateBasisPoints>10000||snapshot.levyRateBasisPoints<0||snapshot.levyRateBasisPoints>10000)invalid('Tax snapshot is invalid.');
- const vat=BigInt(snapshot.vatRateBasisPoints),levy=BigInt(snapshot.levyRateBasisPoints),denominator=10000n+vat+levy,gross=BigInt(grossMinor);
- const vatMinor=Number((gross*vat+denominator/2n)/denominator),levyMinor=Number((gross*levy+denominator/2n)/denominator),netMinor=grossMinor-vatMinor-levyMinor;
- if(netMinor<0)invalid('Tax rounding did not conserve the line total.');return {netMinor,vatMinor,levyMinor};
-}
+export function splitInclusiveTax(grossMinor,snapshot){try{return inclusiveTax(grossMinor,snapshot)}catch(error){invalid(error.message);}}
 export function productTaxSnapshot(settings,taxClassId){
  if(!['A_16','B_0','C_EXEMPT'].includes(taxClassId))throw new ApiProblem(409,'TAX_CLASS_REQUIRED','Choose a supported product tax class before selling.');
  return {settingsVersion:settings.version,taxClassId,priceMode:'INCLUSIVE',vatRateBasisPoints:['B_0','C_EXEMPT'].includes(taxClassId)?0:settings.vatRateBasisPoints,levyRateBasisPoints:settings.levyRateBasisPoints};
