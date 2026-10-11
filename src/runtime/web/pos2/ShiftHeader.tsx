@@ -1,7 +1,7 @@
 import React, {useState} from 'react';
 import {LogIn, Users, Clock, AlertCircle, ChevronDown, Wifi, WifiOff} from 'lucide-react';
 import {PosConnectivityBadge} from './PosConnectivityBadge';
-import {format} from 'date-fns';
+const format=(value:Date,_pattern:string)=>value.toLocaleTimeString('en-KE',{timeZone:'Africa/Nairobi',hour:'2-digit',minute:'2-digit'});
 
 interface ShiftHeaderProps {
   venueName: string;

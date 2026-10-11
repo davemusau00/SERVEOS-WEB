@@ -29,6 +29,7 @@
   },
   "include": [
     "src/main.tsx",
+    "src/runtime/web/pos2/**/*.tsx",
     "vite.config.ts",
     "playwright.api.config.ts",
     "playwright.production.config.ts",
