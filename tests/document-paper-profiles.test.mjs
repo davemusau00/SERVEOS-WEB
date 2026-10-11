@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { documentCopyStatus, documentPaperProfile, documentPreviewAttempt, formatDocumentMoney, DOCUMENT_DEVELOPER_FOOTER } from '../src/runtime/web/documentPaperProfiles.ts';
+import { documentCopyStatus, documentPaperProfile, documentPreviewAttempt, formatDocumentMoney, DOCUMENT_DEVELOPER_FOOTER,THERMAL_DOCUMENT_TYPES } from '../src/runtime/web/documentPaperProfiles.ts';
+import {readFileSync} from 'node:fs';
 
 test('customer receipts, refunds and kitchen tickets use the narrow thermal profile', () => {
   for (const type of ['SALES_RECEIPT', 'PAYMENT_ACKNOWLEDGEMENT', 'REFUND_RECEIPT', 'KOT', 'BOT', 'KOT_CANCEL', 'BOT_CANCEL', 'ORDER_VOID_NOTICE']) {
@@ -8,12 +9,14 @@ test('customer receipts, refunds and kitchen tickets use the narrow thermal prof
   }
 });
 
-test('reports and business documents select explicit A4 profiles', () => {
-  assert.equal(documentPaperProfile('CLOSE_DAY_REPORT'), 'a4-landscape');
-  for (const type of ['PURCHASE_ORDER', 'GOODS_RECEIPT', 'GUEST_FOLIO', 'GUEST_CHECKOUT', 'CUSTOMER_CREDIT_INVOICE', 'SUPPLIER_RETURN_NOTE']) {
-    assert.equal(documentPaperProfile(type), 'a4-portrait', type);
-  }
-  assert.equal(documentPaperProfile('FUTURE_DOCUMENT'), 'a4-portrait', 'unknown types fail safe to A4');
+test('every supported report and business document has an explicit thermal profile; unknown types fail closed', () => {
+  for(const type of THERMAL_DOCUMENT_TYPES)assert.equal(documentPaperProfile(type),'thermal-80mm',type);
+  for(const type of ['FUTURE_DOCUMENT','toString','__proto__'])assert.throws(()=>documentPaperProfile(type),/Unsupported thermal document/);
+  const renderer=readFileSync('src/runtime/web/BusinessDocumentRenderer.tsx','utf8');
+  const titleMap=renderer.match(/const titles:Record<string,string>=\{([^}]+)\}/)?.[1];
+  assert.ok(titleMap,'renderer must enumerate supported titles');
+  for(const match of titleMap.matchAll(/([A-Z][A-Z_]+):/g))assert.equal(documentPaperProfile(match[1]),'thermal-80mm',match[1]);
+  assert.doesNotMatch(renderer,/a4-portrait|a4-landscape|size:\s*A4|210mm|297mm/);
 });
 
 test('reprints are labeled from the attempt count without changing the issued document snapshot', () => {

@@ -1,10 +1,7 @@
-export type DocumentPaperProfile = 'thermal-80mm' | 'a4-portrait' | 'a4-landscape';
+export type DocumentPaperProfile = 'thermal-80mm';
 export type DocumentCopyStatus = 'ORIGINAL' | 'REPRINT';
 
-/**
- * Explicit print profiles keep narrow customer/preparation documents separate from
- * multi-section business records. Unknown future document types fail safe to A4.
- */
+/** Every supported physical document uses the same roll geometry. Unknown types fail closed. */
 const profiles: Record<string, DocumentPaperProfile> = {
   SALES_RECEIPT: 'thermal-80mm',
   PAYMENT_ACKNOWLEDGEMENT: 'thermal-80mm',
@@ -14,12 +11,26 @@ const profiles: Record<string, DocumentPaperProfile> = {
   KOT_CANCEL: 'thermal-80mm',
   BOT_CANCEL: 'thermal-80mm',
   ORDER_VOID_NOTICE: 'thermal-80mm',
-  CLOSE_DAY_REPORT: 'a4-landscape',
+  CLOSE_DAY_REPORT: 'thermal-80mm',
+  SUPPLIER_RETURN_NOTE:'thermal-80mm',
+  SUPPLIER_PAYMENT_VOUCHER:'thermal-80mm',
+  GOODS_RECEIPT:'thermal-80mm',
+  PURCHASE_ORDER:'thermal-80mm',
+  CUSTOMER_CREDIT_INVOICE:'thermal-80mm',
+  CUSTOMER_CREDIT_PAYMENT_ACKNOWLEDGEMENT:'thermal-80mm',
+  CUSTOMER_CREDIT_WRITE_OFF_NOTICE:'thermal-80mm',
+  CUSTOMER_CREDIT_REVERSAL_NOTICE:'thermal-80mm',
+  GUEST_FOLIO:'thermal-80mm',
+  GUEST_CHECKOUT:'thermal-80mm',
+  RESERVATION_CONFIRMATION:'thermal-80mm',
+  EXPENSE_PAYMENT_VOUCHER:'thermal-80mm',
 };
 
 export function documentPaperProfile(type: string): DocumentPaperProfile {
-  return profiles[type] ?? 'a4-portrait';
+  if(!Object.hasOwn(profiles,type))throw new Error(`Unsupported thermal document type: ${type}`);
+  return profiles[type];
 }
+export const THERMAL_DOCUMENT_TYPES=Object.freeze(Object.keys(profiles));
 
 export function documentCopyStatus(attempt: number): DocumentCopyStatus {
   return Number.isSafeInteger(attempt) && attempt > 1 ? 'REPRINT' : 'ORIGINAL';
