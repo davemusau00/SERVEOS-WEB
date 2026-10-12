@@ -35,7 +35,7 @@ const repeatedUnitPrice=(line:Record<string,unknown>,product?:BusinessRecord):nu
 };
 const baseline=(row:BusinessRecord)=>({collection:row.collection,id:row.id,version:row.version});
 
-export type WebApiPosProps={apiAuth?:ApiAuthenticatedDeviceSession;store:BusinessStore;records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;queue:QueuedCommand[];deviceId:string;readRecords:()=>Promise<BusinessRecord[]>;initialOrderId?:string;blockedAggregates?:{orderIds:Set<string>;tillIds:Set<string>}};
+export type WebApiPosProps={apiAuth?:ApiAuthenticatedDeviceSession;store:BusinessStore;records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;queue:QueuedCommand[];deviceId:string;readRecords:()=>Promise<BusinessRecord[]>;initialOrderId?:string;workspaceActive?:boolean;blockedAggregates?:{orderIds:Set<string>;tillIds:Set<string>}};
 export function WebApiPosView(props:WebApiPosProps){
  const [advanced,setAdvanced]=useState(false);
  const [selectedOrder,setSelectedOrder]=useState('');
@@ -46,7 +46,7 @@ export function WebApiPosView(props:WebApiPosProps){
  if(props.session.capabilities?.['pos2.simpleCashier']===true&&!advanced)return <>{props.session.capabilities?.['pos2.waiterTickets']===true&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setTickets(true)}>Tickets ({props.records.filter(row=>row.collection==='posTickets'&&['SUBMITTED','NEEDS_REVIEW'].includes(String(row.data.status))).length})</button>}<CashierWorkspace {...props} initialOrderId={selectedOrder} onOrderChange={setSelectedOrder} onMore={()=>setAdvanced(true)}/></>;
  return <>{props.session.capabilities?.['pos2.simpleCashier']===true&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setAdvanced(false)}>Back to cashier</button>}{props.session.capabilities?.['pos2.offlineCash']===true&&<CashManagerRecovery {...props}/>}<LegacyWebApiPosView {...props} initialOrderId={selectedOrder}/></>;
 }
-function LegacyWebApiPosView({records,session,disabled,command,queue,deviceId,readRecords,apiAuth,store,blockedAggregates,initialOrderId=''}:WebApiPosProps){
+function LegacyWebApiPosView({records,session,disabled,command,queue,deviceId,readRecords,apiAuth,store,blockedAggregates,workspaceActive=true,initialOrderId=''}:WebApiPosProps){
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived);
  const customers=records.filter(row=>row.collection==='customers'&&!row.archived);
  const creditAccounts=records.filter(row=>row.collection==='customerCreditAccounts'&&!row.archived);
@@ -140,7 +140,7 @@ function LegacyWebApiPosView({records,session,disabled,command,queue,deviceId,re
    const configurable=list(product.data.portions).length>0||list(product.data.modifiers).length>0;
    if(editable&&!configurable)void addProductImmediately(product);else begin(editable?'ADD':'QUICK_ADD',product);
   };
- useBarcodeScanner({enabled:canSell&&!disabled&&!editor&&!busy&&!pending,onScan:code=>{
+ useBarcodeScanner({enabled:workspaceActive&&canSell&&!disabled&&!editor&&!busy&&!pending,onScan:code=>{
   const matches=products.filter(row=>barcodeEquals(String(row.data.barcode||''),code)||barcodeEquals(String(row.data.code||''),code));
   if(matches.length!==1){setMessage(matches.length?'Resolve duplicate barcode assignments before selling.':'No product matches this barcode in the selected outlet.');return;}
    addFromCatalog(matches[0]);

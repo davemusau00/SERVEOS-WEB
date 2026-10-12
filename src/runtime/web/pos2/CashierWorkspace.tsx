@@ -20,7 +20,7 @@ const object=(value:unknown):Record<string,unknown>=>value&&typeof value==='obje
 const revision=(row:BusinessRecord)=>({collection:row.collection,id:row.id,version:row.version});
 const money=(value:unknown)=>formatDocumentMoney(Number(value||0));
 
-export function CashierWorkspace({records,session,deviceId,queue,command,disabled,readRecords,store,apiAuth,onMore,initialOrderId='',onOrderChange,initialOfflineLease=null}:WebApiPosProps&{onMore:()=>void;onOrderChange?:(id:string)=>void;initialOfflineLease?:OfflineCashLease|null}){
+export function CashierWorkspace({records,session,deviceId,queue,command,disabled,readRecords,store,apiAuth,onMore,initialOrderId='',onOrderChange,initialOfflineLease=null,workspaceActive=true}:WebApiPosProps&{onMore:()=>void;onOrderChange?:(id:string)=>void;initialOfflineLease?:OfflineCashLease|null}){
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived);
  const [outletId,setOutlet]=useState(String(records.find(row=>row.collection==='orders'&&row.id===initialOrderId)?.data.outletId||outlets[0]?.id||'')),[orderId,setOrder]=useState(initialOrderId),[query,setQuery]=useState(''),[category,setCategory]=useState('');
  useEffect(()=>{if(initialOrderId!==orderId)setOrder(initialOrderId);},[initialOrderId]);
@@ -81,7 +81,7 @@ export function CashierWorkspace({records,session,deviceId,queue,command,disable
   }catch(error){setMessage(operatorError(error));}finally{inFlight.current=false;setBusy(false);}
  };
  const select=(product:BusinessRecord)=>{if(locked)return;if(rows(product.data.portions).length||rows(product.data.modifiers).length){returnFocus.current=document.activeElement as HTMLElement;setChoice(product);setPortion('');setModifiers([]);setNote('');}else void add(product);};
- useBarcodeScanner({enabled:!locked&&!choice,onScan:code=>{
+ useBarcodeScanner({enabled:workspaceActive&&!locked&&!choice,onScan:code=>{
   const matches=products.filter(product=>barcodeEquals(String(product.data.barcode||''),code)||(Array.isArray(product.data.barcodeAliases)&&product.data.barcodeAliases.some(alias=>barcodeEquals(String(alias),code))));
   if(matches.length===1)select(matches[0]);else{setQuery(code);setMessage(matches.length?'Several products match this barcode. Choose the correct item.':'No sellable product matches this barcode.');}
  }});
