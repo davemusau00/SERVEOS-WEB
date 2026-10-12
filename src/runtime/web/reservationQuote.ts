@@ -7,7 +7,7 @@ export function reservationPolicy(records:BusinessRecord[],session:WebSession):R
   dayStayCutoffTime:String(d?.dayStayCutoffTime||session.propertyContext?.dayStayCutoffTime||'18:00'),
   roomStayRoomTypeId:typeof d?.roomStayRoomTypeId==='string'?d.roomStayRoomTypeId:session.propertyContext?.roomTypeId,
   roomStayRatePlanId:typeof d?.roomStayRatePlanId==='string'?d.roomStayRatePlanId:session.propertyContext?.ratePlanId,
-  standardRoomRateEnabled:d?.standardRoomRateEnabled===true};
+  cashUpfrontRequired:d?.cashUpfrontRequired===true,standardRoomRateEnabled:d?.standardRoomRateEnabled===true};
 }
 export function quoteRoomBooking(rate:BusinessRecord|undefined,room:BusinessRecord|undefined,policy:ReservationPolicy,stayType:'NIGHTLY'|'DAY',startsAt:string,endsAt:string){
  if(!room||!rate)throw new RangeError('Choose an available room and configured rate.');

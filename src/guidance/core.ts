@@ -4,11 +4,16 @@ export interface GuideStep {
   description: string;
   interaction?: 'inform' | 'observe' | 'practice';
   target?: string;
+  /** Equivalent controls used by the modern and legacy workspace layouts. */
+  alternateTargets?: string[];
+  permissions?: string[];
   route?: { screen: string; resourceId?: string; tab?: string; action?: string };
   articleId?: string;
   successOperations?: string[];
   /** Optional fields that must be truthy on the committed command payload. */
   successPayloadFields?: string[];
+  /** Require an exact committed payload value, for example READY rather than any KDS update. */
+  successPayloadEquals?: Record<string, string | number | boolean>;
   /** Optional workspace tab to activate before this step is shown in web. */
   webTab?: string;
 }
@@ -18,18 +23,19 @@ export interface GuideDefinition {
   version: number;
   title: string;
   description: string;
-  permissions?: Permission[];
+  permissions?: string[];
+  businessTypes?: string[];
   steps: GuideStep[];
 }
 
 export const CORE_GUIDE: GuideDefinition = {
   id: 'servos.core',
-  version: 1,
+  version: 2,
   title: 'Getting around ServOS',
   description: 'A short tour of your ServOS web workspace.',
   permissions: ['help.view'],
   steps: [
-    { id: 'workspace', title: 'Your workspace', description: 'Your available workspaces are listed here. ServOS only shows areas your staff account can access.', target: 'navigation.home', webTab: 'Home' },
+    { id: 'workspace', title: 'Your workspace', description: 'Your available workspaces are listed here. ServOS only shows areas your staff account can access. On a phone, use the bottom navigation and More.', target: 'web.start', alternateTargets: ['navigation.home'], webTab: 'Home' },
     { id: 'status', title: 'Connection and saved work', description: 'This status shows API connectivity and queued changes. Offline actions are available only when the current device has a valid grant. Recover an uncertain command before repeating it.', target: 'shell.status', webTab: 'Home' },
     { id: 'help', title: 'Help when you need it', description: 'Open searchable operating instructions and return to this tour from Help.', target: 'shell.help', articleId: '01-getting-started', webTab: 'Help' },
     { id: 'staff', title: 'Staff session', description: 'Each operator signs in with their own ServOS staff login. Sign out before handing the browser to another person.', target: 'shell.lock', articleId: '05-rbac', webTab: 'Home' },
@@ -49,8 +55,8 @@ export const GUIDES: GuideDefinition[] = [CORE_GUIDE,
   { id: 'till.start-shift', version: 1, title: 'Start a shift', description: 'Open a till for the correct outlet and record its opening float.', permissions: ['till.open'], steps: [
     { id: 'shift', title: 'Open the till shift', description: 'In POS, choose the correct outlet, review the opening float, and start the shift. Confirm the displayed shift belongs to your staff account and device.', target: 'pos.shift', webTab: 'POS', successOperations: ['till.open'] },
   ] },
-  { id: 'pos.first-sale', version: 1, title: 'Make your first sale', description: 'Open a tab, add items and record a real payment.', permissions: ['pos.sell', 'payment.record'], steps: [
-    { id: 'sell', title: 'Complete a sale', description: 'Open a tab and add the requested items. Choose Take payment and confirm the money actually received. This step finishes only after your selected tab has a committed payment.', interaction: 'practice', route: { screen: 'pos' }, target: 'pos.open-tab', webTab: 'POS', articleId: 'pos-tabs', successOperations: ['payment.record', 'payment.split'] },
+  { id: 'pos.first-sale', version: 2, title: 'Make your first sale', description: 'Add items and record a real, server-confirmed payment.', permissions: ['pos.sell', 'payment.record'], steps: [
+    { id: 'sell', title: 'Complete a sale', description: 'Add the requested items to the bill. Choose Pay and confirm only money actually received. This is a real sale, not a training transaction. A locally recorded cash sale remains provisional; this step completes only after the server confirms payment.', interaction: 'practice', route: { screen: 'pos' }, target: 'pos.counter', alternateTargets: ['pos.open-tab'], webTab: 'POS', articleId: 'pos-tabs', successOperations: ['payment.record', 'payment.split', 'pos.offlineSale.commitV2'] },
   ] },
   { id: 'payment.mpesa', version: 1, title: 'Record M-Pesa', description: 'Manually record M-Pesa funds after checking the actual receipt.', permissions: ['payment.record', 'mpesa.record'], steps: [
     { id: 'mpesa', title: 'Record a received payment', description: 'Select the order and M-Pesa account. Check the transaction reference, actual amount, and receipt time against the payment received, then confirm manually. ServOS records your confirmation; it does not verify the payment with a provider.', target: 'pos.counter', webTab: 'POS', successOperations: ['payment.record', 'payment.split'], successPayloadFields: ['reference', 'manuallyConfirmed', 'receivedAmountMinor', 'receivedAt'] },
@@ -76,6 +82,30 @@ export const GUIDES: GuideDefinition[] = [CORE_GUIDE,
   { id: 'rooms.reservation', version: 1, title: 'Make a reservation', description: 'Choose a room and rate, name the guest, and confirm the stay dates.', permissions: ['rooms.operate'], steps: [
     { id: 'reservation', title: 'Confirm a reservation', description: 'In Rooms, choose an available room, matching rate plan, named guest, guest count, arrival, and departure. Confirm only after checking the dates and quoted amount. The API rechecks availability when saving.', target: 'rooms.reservation', webTab: 'Rooms', successOperations: ['roomReservation.create', 'roomReservation.walkIn'] },
   ] },
+  { id: 'pos.ticket', version: 1, title: 'Send a ticket to the cashier', description: 'Create a waiter proposal without taking payment or releasing preparation.', permissions: ['ticket.create'], steps: [
+    { id: 'submit', title: 'Send the reviewed ticket', description: 'Choose the table or takeaway label, add products and preparation notes, then Send to cashier. A personal offline draft is not delivered. Wait for the server acknowledgement before telling the cashier it was sent; approval and payment belong to the enrolled checkout terminal.', target: 'pos.tickets', alternateTargets: ['pos.counter'], webTab: 'POS', interaction: 'practice', successOperations: ['ticket.submit'] },
+  ] },
+  { id: 'pos.fire', version: 1, title: 'Send an order to preparation', description: 'Release reviewed lines to the kitchen or bar once.', permissions: ['pos.sell', 'order.fire'], steps: [
+    { id: 'fire', title: 'Release the selected lines', description: 'Review the order, portions, modifiers and notes. Use the authorized send or checkout action to fire only the intended lines. Waiter submissions do not consume stock. Recover an uncertain command in Activity before repeating it.', target: 'pos.counter', webTab: 'POS', interaction: 'practice', successOperations: ['order.fire'] },
+  ] },
+  { id: 'kds.ready', version: 1, title: 'Mark preparation ready', description: 'Update the correct station ticket after the items are ready for collection.', permissions: ['kds.view', 'kds.update'], steps: [
+    { id: 'ready', title: 'Mark the prepared items ready', description: 'Select the station and check the table, item quantity, portions and preparation note. Mark Ready only when the food or drinks are ready for collection. This guide waits for a server-confirmed READY update, not a Preparing or Served update.', target: 'web.kds', webTab: 'KDS', interaction: 'practice', successOperations: ['order.kds'], successPayloadEquals: { status: 'READY' } },
+  ] },
+  { id: 'payment.record', version: 1, title: 'Record a payment', description: 'Record money received and check the remaining balance.', permissions: ['payment.record'], steps: [
+    { id: 'payment', title: 'Record the verified tender', description: 'Open the current bill and Pay. Cash needs the amount physically received; external tenders need actual merchant evidence. A forwarded M-Pesa reference is a claim, not settlement. Check paid amount and balance after server confirmation. An old alert must never prompt a second payment.', target: 'pos.counter', alternateTargets: ['pos.payment'], webTab: 'POS', interaction: 'practice', successOperations: ['payment.record', 'payment.split'] },
+  ] },
+  { id: 'till.close-shift', version: 1, title: 'Close a shift', description: 'Count cash, resolve pending sales, and reconcile the till.', permissions: ['till.close'], steps: [
+    { id: 'close', title: 'Count and close the till', description: 'Open Shift from the cashier header or More. Review cash movements and local sales, resolve pending or unknown money commands, and count the drawer. Close only the correct staff/device shift; a difference needs a recorded reason or authorized review. Never clear local data to close.', target: 'pos.shift', alternateTargets: ['pos.counter'], webTab: 'POS', interaction: 'practice', successOperations: ['till.close'] },
+  ] },
+  { id: 'rooms.check-in', version: 1, title: 'Check in a guest', description: 'Review the reservation, room readiness and accommodation payment policy.', permissions: ['rooms.operate'], steps: [
+    { id: 'check-in', title: 'Confirm the guest arrival', description: 'In Front Desk, find the named reservation and verify arrival time, room readiness, guest count and the standard quoted price. Follow the configured upfront settlement policy. Confirm check-in only for an actual arrival; a quote is not evidence of payment.', target: 'web.front-desk', webTab: 'Front Desk', interaction: 'practice', successOperations: ['stay.checkIn', 'roomReservation.checkIn'] },
+  ] },
+  { id: 'rooms.check-out', version: 1, title: 'Check out a guest', description: 'Verify posted charges and settle the guest account before checkout.', permissions: ['rooms.operate'], steps: [
+    { id: 'check-out', title: 'Review checkout readiness', description: 'In Front Desk, review the current stay and checkout readiness. Guest Accounts must show booked accommodation posted, balance settled and no unapplied legacy deposit. Do not force checkout or invent settlement; resolve the listed blocker with authorized staff first.', target: 'web.front-desk', alternateTargets: ['web.guest-accounts'], webTab: 'Front Desk', interaction: 'practice', successOperations: ['stay.checkOut'] },
+  ] },
+  { id: 'reports.daily', version: 1, title: 'Review daily reports', description: 'Review verified sales, tender totals and unresolved cash separately.', permissions: ['reports.view'], steps: [
+    { id: 'report', title: 'Review the reporting period', description: 'Open Finance and confirm the date range, sales and tender totals. Keep provisional local cash and unresolved reconciliation separate from server-confirmed reporting. Use Activity for immutable issued close-day reports; every physical report uses 80 mm thermal paper.', target: 'web.finance', alternateTargets: ['navigation.finance'], webTab: 'Finance' },
+  ] },
 ];
 export const GUIDE_ANCHORS = new Set([
   'navigation.home', 'navigation.pos', 'navigation.inventory', 'navigation.procurement', 'navigation.help',
@@ -83,6 +113,7 @@ export const GUIDE_ANCHORS = new Set([
   'pos.open-tab', 'pos.payment', 'pos.receipt-history', 'pos.shift', 'pos.counter', 'documents.printing', 'business.settings',
   'catalog.add-product', 'import.stock', 'stock.receive', 'procurement.receive', 'inventory.count', 'finance.close-day', 'staff.add', 'rooms.reservation',
   'rooms.add', 'property.add',
+  'pos.tickets', 'web.kds', 'web.front-desk', 'web.guest-accounts', 'web.finance',
 ]);
 
 export function validateGuides(guides: GuideDefinition[], knownAnchors: ReadonlySet<string> = GUIDE_ANCHORS): string[] {
@@ -91,11 +122,15 @@ export function validateGuides(guides: GuideDefinition[], knownAnchors: Readonly
   for (const guide of guides) {
     if (!guide.id || ids.has(guide.id)) errors.push(`Duplicate or empty guide ID: ${guide.id}`);
     ids.add(guide.id);
+    if (!Number.isSafeInteger(guide.version) || guide.version < 1) errors.push(`${guide.id}: invalid guide version`);
+    if (!guide.steps.length) errors.push(`${guide.id}: no steps`);
     const stepIds = new Set<string>();
     for (const step of guide.steps) {
       if (!step.id || stepIds.has(step.id)) errors.push(`${guide.id}: duplicate or empty step ID ${step.id}`);
       stepIds.add(step.id);
       if (step.target && !knownAnchors.has(step.target)) errors.push(`${guide.id}/${step.id}: unknown guide anchor ${step.target}`);
+      for (const anchor of step.alternateTargets || []) if (!knownAnchors.has(anchor)) errors.push(`${guide.id}/${step.id}: unknown alternate anchor ${anchor}`);
+      if (step.successPayloadEquals && !step.successOperations?.length) errors.push(`${guide.id}/${step.id}: payload requirement without a confirmed operation`);
     }
   }
   return errors;
@@ -106,4 +141,3 @@ if (developmentMode) {
   const errors = validateGuides(GUIDES);
   if (errors.length) throw new Error(`Invalid ServOS guides: ${errors.join('; ')}`);
 }
-import type { Permission } from '../types/runtime';
