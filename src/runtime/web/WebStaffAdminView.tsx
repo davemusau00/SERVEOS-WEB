@@ -214,8 +214,8 @@ export function WebStaffAdminView({ records, session, disabled, command, current
     if (!isCommandConfirmed(result)) setError('The API staff deactivation needs review.');
   };
 
-  return <section data-guide-anchor="staff.add" className="space-y-6" aria-label="Staff and device administration">
-    <header><h2 className="text-xl font-bold">Staff, approvals and devices</h2><p className="mt-1 text-sm text-slate-400">API staff sign-ins and server permissions are managed by ServOS. New staff must change their initial password at first sign-in.</p></header>
+  return <section id="devices-access" tabIndex={-1} data-guide-anchor="staff.add" className="space-y-6 focus:outline-none focus:ring-2 focus:ring-amber-400" aria-label="Staff, devices and access administration">
+    <header><h2 className="text-xl font-bold">Staff, devices &amp; access</h2><p className="mt-1 text-sm text-slate-400">Manage staff sign-ins, device requests, approved outlet and permission scope, and revocation. Sessions are managed separately from device enrollment. New staff must change their initial password at first sign-in.</p></header>
     {outcome && <p role={['OUTCOME_UNKNOWN', 'REJECTED', 'CONFLICT', 'BLOCKED'].includes(outcome.kind) ? 'alert' : 'status'} className={`rounded-lg border p-3 text-sm ${outcome.kind === 'CONFIRMED' ? 'border-emerald-800 bg-emerald-950' : 'border-amber-800 bg-amber-950'}`}>{outcomeText(outcome)}</p>}
     {error && <p role="alert" className="rounded-lg border border-rose-800 bg-rose-950 p-3 text-sm">{error}</p>}
     {notice && <p role="status" className="break-all rounded-lg border border-emerald-800 p-3 text-sm">{notice}</p>}

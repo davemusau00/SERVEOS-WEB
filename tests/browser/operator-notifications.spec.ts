@@ -22,7 +22,7 @@ test('a stock fire conflict maps once to specific recovery and the confirmed ret
  await mount(page);const rejected={kind:'CONFLICT',commandId:'fire-command-1',message:'Not enough stock to prepare this order.',error:{code:'INSUFFICIENT_STOCK',message:'Not enough stock to prepare this order.',retryable:false,details:{orderId:'order-1'}}};
  await page.evaluate(outcome=>{for(let i=0;i<6;i++)(window as any).commandNotice('order.fire',{orderId:'order-1'},outcome)},rejected);
  await expect(page.getByRole('alert')).toHaveCount(1);await expect(page.getByRole('alert')).toContainText('Cannot fire: not enough stock');await expect(page.getByRole('region',{name:'Needs attention'}).getByRole('button',{name:'Review stock'})).toBeVisible();await expect(page.getByRole('alert')).not.toContainText('stale version');
- await page.evaluate(()=>{const outcome={kind:'CONFIRMED',commandId:'fire-command-2'};(window as any).commandNotice('order.fire',{orderId:'order-1'},outcome)});await expect(page.getByRole('status').filter({hasText:'Items fired'})).toHaveCount(1);await expect(page.getByRole('region',{name:'Needs attention'})).toContainText('Cannot fire');
+ await page.evaluate(()=>{const outcome={kind:'CONFIRMED',commandId:'fire-command-2'};(window as any).commandNotice('order.fire',{orderId:'order-1'},outcome)});await expect(page.getByRole('status').filter({hasText:'Items fired'})).toHaveCount(1);await expect(page.getByRole('region',{name:'Needs attention'})).toHaveCount(0);
 });
 
 test('a reported M-Pesa reference and uncertain print never claim payment or paper success',async({page})=>{

@@ -50,7 +50,7 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
   await page.getByLabel('Administrator password',{exact:true}).fill(password);
   await page.getByLabel('Confirm administrator password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Create administrator',exact:true}).click();
-  await expect(page.getByRole('status')).toContainText('The initial administrator was created.');
+  await expect(page.getByRole('status',{name:'Setup status'})).toContainText('The initial administrator was created.');
   expect(process.env.INITIAL_ADMIN_SETUP_SECRET).toBeUndefined();
   expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain(setupSecret);
   businessId=(await pool.query('SELECT id FROM businesses WHERE name=$1',['Disposable Cafe Setup'])).rows[0].id;
@@ -76,7 +76,7 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
   await page.getByRole('button',{name:'Save and review',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Finish',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Save business defaults',exact:true}).click();
-  await expect(page.getByRole('status')).toContainText('Business settings, outlet, storage, and selected payment accounts are saved.');
+  await expect(page.getByRole('status',{name:'Setup status'})).toContainText('Business settings, outlet, storage, and selected payment accounts are saved.');
   await expect(page.getByRole('button',{name:'Finish and open workspace',exact:true})).toBeEnabled();
 
   const beforeFinish=(await pool.query(`SELECT s.status,s.current_step,s.configuration->>'businessType' AS business_type,
@@ -308,7 +308,7 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await page.getByLabel('Administrator password',{exact:true}).fill(password);
   await page.getByLabel('Confirm administrator password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Create administrator',exact:true}).click();
-  await expect(page.getByRole('status')).toContainText('The initial administrator was created.');
+  await expect(page.getByRole('status',{name:'Setup status'})).toContainText('The initial administrator was created.');
   businessId=(await pool.query('SELECT id FROM businesses WHERE name=$1',['Disposable Hotel Setup'])).rows[0].id;
 
   await page.getByLabel('Staff login',{exact:true}).fill(loginName);
@@ -329,7 +329,7 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await expect(page.getByRole('heading',{name:'Outlets and payments',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Save and review',exact:true}).click();
   await page.getByRole('button',{name:'Save business defaults',exact:true}).click();
-  await expect(page.getByRole('status')).toHaveText('Business settings, outlet, storage, and selected payment accounts are saved. Review the checklist, then finish setup.',{timeout:30_000});
+  await expect(page.getByRole('status',{name:'Setup status'})).toHaveText('Business settings, outlet, storage, and selected payment accounts are saved. Review the checklist, then finish setup.',{timeout:30_000});
   await expect(page.getByRole('button',{name:'Finish and open workspace',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Finish and open workspace',exact:true}).click();
   await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();

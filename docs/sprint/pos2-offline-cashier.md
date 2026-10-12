@@ -246,3 +246,27 @@ Deployment status: DEPLOYED at `ce59c2b2caeb5aeab5734b605a43086799812801`. See [
 - Three encrypted off-VPS backup generations are restore-verified. Existing KES 900 payment/order totals, catalogue counts and stock fingerprint are unchanged; server unresolved count is zero. Protected origins remain 200/307/307 with valid TLS.
 - Physical printing was waived as a deployment gate by the user and remains unverified. Fiscal approval, exact older-browser support, full operator acceptance and provisional inventory presentation across all screens remain open. The entire guide is not declared complete.
 - Retain the V2 decoder for outstanding local cash even when creation/UI is disabled. Old API schema compatibility alone does not make a rollback to its legacy protocol safe for V2 queues.
+
+## 2026-10-12 POS 2.0 completion and notification update
+
+The authoritative UX addendum is [`SERVEOS_POS2_DEVICE_STOCK_ERROR_UI_PATCH_V2_20261012.md`](../../SERVEOS_POS2_DEVICE_STOCK_ERROR_UI_PATCH_V2_20261012.md). It replaces the earlier POS 2.0 UX patch for current implementation scope. The approved local work also includes the previously agreed all-web/setup UX triage and Procurement workflow sub-tabs. Generated audit findings remain candidates until manually verified.
+
+**Local implementation status:**
+
+- [x] `INSUFFICIENT_STOCK` errors retain outlet-scoped stock/line facts; order fire remains atomic and a regression verifies an audited count correction followed by a fresh-ID fire exactly once.
+- [x] Shared stock recovery card shows confirmed order state and permission-gated actions in POS and Activity.
+- [x] Administrator device request, approval/denial, expiry, signed key binding, permission ceiling, outlet scope and enrolled-device projection reuse the existing staff/device/session authority.
+- [x] The legacy one-sale/30-minute panel is absent from reachable POS routes; the separate POS 2.0 signed local-cash ledger remains available to its authorized cohort.
+- [x] Procurement is grouped into workflow tabs with prerequisite and empty-state guidance.
+- [x] A shared typed shell notice center is connected to command results, queue synchronization transitions, local cash ledger transitions, device authorization, stock, procurement, payment, room and print actions. Deduplication uses command/resource plus outcome stage; unknown and failed outcomes remain actionable. M-Pesa references and uncertain print delivery do not claim payment or paper success.
+- [x] Focused browser acceptance covers stock-error notification/persistent recovery, sync-stage dedupe, pending cash, unknown outcomes, M-Pesa/print wording, a maximum of three notices, keyboard focus, legacy route reachability and responsive component widths.
+
+**Verification recorded so far:** focused PostgreSQL device and POS recovery integrations passed against the disposable local database. Focused Playwright cases are being rerun after aligning the test with the expected behavior that a confirmed fresh fire clears the resolved shortage alert. The complete release gate is not recorded as passed yet.
+
+**Still open:** full `npm run verify:release`, full API/browser suites and UI audit; complete device cross-business/outlet-scope and signed-lease matrix; human review of confirmed web/setup audit findings; physical XP-80T acceptance; production backup/restore, staged rehearsal, live operator approval and all Deployment.md gates. No production VPS resources, routes, writers or databases were changed. Do not mark this sprint or deployment accepted until the remaining gates have evidence.
+
+
+## Settings and configuration audit
+
+See [the settings and configuration surface audit](pos2-settings-configuration-audit-20261012.md) for the confirmed workspace map, deliberate configuration boundaries, and the fixed Settings permission metadata mismatch. No live resources or business data were changed.
+

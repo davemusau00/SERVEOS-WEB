@@ -200,3 +200,17 @@ Produce a concise evidence-backed handover containing:
 Use **one truthful status**: `BLOCKED_PRECHECK`, `LOCAL_RELEASE_VERIFIED`, `STAGED_ISOLATED`, `READY_FOR_APPROVED_CUTOVER`, `CUTOVER_VERIFIED`, or `ROLLED_BACK_WITH_EVIDENCE`. Never say “deployed” based on a successful local test, `docker build`, or `curl /health/ready` alone.
 
 **First action now:** confirm local `npm run verify:release` succeeds, inspect `git status --short` and current candidate migration manifest, then run the corrected read-only VPS preflight again. If those pass, prepare a reviewed exact-source artifact plan and a non-mutating VPS change manifest. Do not switch public routes until the backup/data/terminal and operator-approval gates pass.
+
+## Feature-branch completion and notification work — 2026-10-12
+
+The current implementation work follows [`SERVEOS_POS2_DEVICE_STOCK_ERROR_UI_PATCH_V2_20261012.md`](SERVEOS_POS2_DEVICE_STOCK_ERROR_UI_PATCH_V2_20261012.md), which replaces the earlier POS 2.0 UX patch. It includes P0 stock-fire recovery, administrator-controlled device access, Section 5A shared notifications and persistent alerts, legacy cashier UI retirement, operator error handling, the previously agreed web/setup UX review and Procurement workflow tabs.
+
+This is development and disposable-local-test scope only. A passing local gate is necessary but does not imply that production backups, staging, live data reconciliation, approval, or rollback readiness are complete. No VPS resources, public routes, production writers, databases, signing grants or offline evidence may be changed under this checkpoint. Preserve the historical deployment evidence above as history; do not rewrite it to imply this branch is deployed.
+
+**Current release status:** local implementation in progress; `npm run verify:release` and final audit evidence must be recorded before proposing a release candidate. The independent production approval, backup/restore and cutover gates in Sections 7–9 remain mandatory. Stop before every live traffic or production-data change until the separate production approval process is complete.
+
+
+## Settings and configuration audit
+
+See [the settings and configuration surface audit](docs/sprint/pos2-settings-configuration-audit-20261012.md) for the confirmed workspace map, deliberate configuration boundaries, and the fixed Settings permission metadata mismatch. No live resources or business data were changed.
+

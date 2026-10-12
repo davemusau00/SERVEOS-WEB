@@ -4,6 +4,7 @@ import {BusinessStore} from './BusinessStore';
 import {apiAuthorizationPolicyVersion,loadApiCatalogSnapshot} from './session';
 import {createApiTransport,synchronizeStore} from './sync';
 import {ApiHttpError} from './apiClient';
+import {publishOperatorNotice} from './operatorNotifications';
 
 const sessionStorageKey=(apiOrigin:string)=>`servos-api-session:${new URL(apiOrigin).origin}`;
 const sessionIdPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -27,7 +28,7 @@ export interface ApiAuthenticatedDeviceSession {
 }
 
 /** Complete the API-native web sign-in lifecycle without placing the bearer in persistent web storage. */
-export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName:string;password:string;newPassword?:string;fetcher?:typeof fetch}):Promise<ApiAuthenticatedDeviceSession>{
+export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName:string;password:string;newPassword?:string;fetcher?:typeof fetch;onDeviceAccessRequest?:(scope:{businessId:string;deviceId:string})=>void}):Promise<ApiAuthenticatedDeviceSession>{
   const state:{token:string|undefined;sessionId:string|undefined;device:string|undefined}={token:undefined,sessionId:undefined,device:undefined};
   const client=createServOSApiClient({baseUrl:input.apiOrigin,accessToken:()=>state.token,setAccessToken:value=>{state.token=value},sessionId:()=>state.sessionId,deviceId:()=>state.device,fetcher:input.fetcher});
   const response=await client.login(input.loginName,input.password);state.token=response.accessToken;state.sessionId=response.sessionId;saveSessionId(input.apiOrigin,state.sessionId);
@@ -44,15 +45,17 @@ export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName
     const mayEnroll=profile.permissions.includes('*')||profile.permissions.includes('devices.register')||profile.permissions.includes('devices.manage');
     if(!mayEnroll){
       const previous=await client.myDeviceAccessRequest(identity.deviceId);
-      if(previous.request?.status==='DENIED')throw new Error(`Device access was denied: ${previous.request.decisionReason||'contact your administrator before requesting again.'}`);
+      if(previous.request?.status==='DENIED'){input.onDeviceAccessRequest?.({businessId:profile.businessId,deviceId:identity.deviceId});publishOperatorNotice({id:previous.request.id,dedupeKey:`device-request:${previous.request.id}:denied`,stage:'rejected',severity:'error',title:'Device request was denied',message:previous.request.decisionReason||'Contact your administrator before requesting access again.',scope:{businessId:profile.businessId,deviceId:identity.deviceId},persistent:true});throw new Error(`Device access was denied: ${previous.request.decisionReason||'contact your administrator before requesting again.'}`);}
       if(previous.request?.status==='PENDING'&&Date.parse(previous.request.expiresAt)>Date.now())throw new Error('This device needs administrator approval. Ask an administrator to review the request, then sign in again.');
-      if(previous.request?.status==='APPROVED'&&Date.parse(previous.request.expiresAt)>Date.now())await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity,true);
+      if(previous.request?.status==='APPROVED'&&Date.parse(previous.request.expiresAt)>Date.now()){await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity,true);input.onDeviceAccessRequest?.({businessId:profile.businessId,deviceId:identity.deviceId});publishOperatorNotice({id:previous.request.id,dedupeKey:`device-request:${previous.request.id}:enrolled`,stage:'confirmed',severity:'success',title:'This device is approved and enrolled',message:'Online access is ready. Offline cashier access still requires separate administrator authorization and a signed shift capability.',scope:{businessId:profile.businessId,deviceId:identity.deviceId},durationMs:4000});}
       else if(previous.request?.status==='APPROVED'){
         const request=await client.requestDeviceAccess({deviceId:identity.deviceId,publicKey:identity.publicKey,deviceName:'ServOS browser device',deviceClass:'BROWSER',capabilities:[],reason:'Request access to the ServOS web workspace.'});
+        input.onDeviceAccessRequest?.({businessId:profile.businessId,deviceId:identity.deviceId});publishOperatorNotice({id:request.id,dedupeKey:`device-request:${request.id}:pending`,stage:'pending',severity:'info',title:'Device approval requested',message:'Your administrator must review this signed browser device before access is available.',scope:{businessId:profile.businessId,deviceId:identity.deviceId},persistent:true});
         throw new Error(request.status==='PENDING'?'Device approval expired. A new request is pending; contact your administrator.':'This device needs administrator approval. Ask an administrator to review the request, then sign in again.');
       }
       else{
         const request=await client.requestDeviceAccess({deviceId:identity.deviceId,publicKey:identity.publicKey,deviceName:'ServOS browser device',deviceClass:'BROWSER',capabilities:[],reason:'Request access to the ServOS web workspace.'});
+        input.onDeviceAccessRequest?.({businessId:profile.businessId,deviceId:identity.deviceId});publishOperatorNotice({id:request.id,dedupeKey:`device-request:${request.id}:pending`,stage:'pending',severity:'info',title:'Device approval requested',message:'Your administrator must review this signed browser device before access is available.',scope:{businessId:profile.businessId,deviceId:identity.deviceId},persistent:true});
         if(request.status!=='APPROVED')throw new Error('This device needs administrator approval. Ask an administrator to review the request, then sign in again.');
         await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity,true);
       }

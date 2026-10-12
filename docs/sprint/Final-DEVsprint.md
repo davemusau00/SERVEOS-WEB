@@ -2318,3 +2318,25 @@ Every financial number should be traceable.
 Every operational workflow should be usable by the staff member responsible for it.
 
 **Final release objective:** A polished, dependable and coherent SERVEOS experience that Countryside staff can operate confidently during real hospitality service, without sacrificing financial correctness, data integrity or deployment safety.
+
+## POS 2.0 completion scope update — 2026-10-12
+
+The authoritative patch for this work is [`SERVEOS_POS2_DEVICE_STOCK_ERROR_UI_PATCH_V2_20261012.md`](../../SERVEOS_POS2_DEVICE_STOCK_ERROR_UI_PATCH_V2_20261012.md), replacing the earlier patch. This P0/P1 slice includes insufficient-stock fire recovery, administrator device request/approval, legacy offline screen retirement, actionable operator error handling, and the new P0 Section 5A shared toast/persistent-alert system. Also included from the prior discussion: manual review of web/setup UX candidates and Procurement workflow sub-tabs. Generated UX audit findings are hypotheses to verify, not automatic changes.
+
+### Implemented locally
+
+- Typed stock shortage evidence and POS/Activity recovery card; database regression covers no debit/document/payment on failed fire and an audited count followed by a fresh-ID fire exactly once.
+- Device access request/decision/enrollment contracts, additive schema, signed-key proof, expiry, audit reason, permission ceiling and device management UI.
+- Legacy one-sale/30-minute cashier panel removed from the reachable POS route; signed V2 local cash and historic evidence remain supported.
+- Procurement organized by task tabs with prerequisite guidance.
+- One shared accessible notification viewport with per-command/outcome dedupe, up to three transient notices and persistent actionable alerts. It is wired to authoritative command results, sync transitions, local cash state transitions, stock/procurement/payment/room/print actions, device decisions and network transitions. No payment or paper success is claimed from an unverified reference/dialog.
+
+### Acceptance and release status
+
+Focused PostgreSQL device and stock-recovery tests passed on the disposable local database. Focused browser tests cover notice timing/dedupe, recovery actions, non-premature payment/print language and responsive layouts; the final rerun and full `npm run verify:release` result are pending. Cross-business/outlet/device-lease edge cases, manual web/setup UX triage, complete API/browser/audit gates and physical printer evidence remain unresolved. No production VPS or business data was changed. This implementation checkpoint does not complete the sprint or authorize a deployment.
+
+
+## Settings and configuration audit
+
+See [the settings and configuration surface audit](pos2-settings-configuration-audit-20261012.md) for the confirmed workspace map, deliberate configuration boundaries, and the fixed Settings permission metadata mismatch. No live resources or business data were changed.
+

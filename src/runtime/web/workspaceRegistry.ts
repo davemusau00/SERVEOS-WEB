@@ -26,8 +26,8 @@ export const workspaces: WorkspaceDefinition[] = [
   { id: 'Refunds', label: 'Refunds', description: 'Review paid transactions and record refunds.', permission: ['order.refund', 'payment.reverse'], icon: CreditCard, group: 'Management' },
   { id: 'Finance Controls', label: 'Finance controls', description: 'Review credit, reconciliation, and exceptions.', permission: ['credit.view', 'credit.manage', 'credit.settle', 'credit.reconcile', 'mpesa.reconcile'], icon: WalletCards, group: 'Management' },
   { id: 'Finance', label: 'Finance', description: 'Review till activity, reports, and financial records.', permission: ['reports.view', 'till.view'], icon: CreditCard, group: 'Management' },
-  { id: 'Settings', label: 'Settings', description: 'Manage business master records and policy.', permission: ['customers.manage', 'roomTypes.manage', 'assetCategories.manage'], icon: Settings, group: 'System' },
-  { id: 'Staff', label: 'Staff & devices', description: 'Manage staff access, roles, and registered devices.', permission: ['staff.view', 'devices.manage'], icon: Users, group: 'System' },
+  { id: 'Settings', label: 'Settings', description: 'Manage business identity, outlets, taxes, payment accounts, and operating policies.', permission: ['business.configure'], icon: Settings, group: 'System' },
+  { id: 'Staff', label: 'Staff, devices & access', description: 'Manage staff access, device requests and approvals, assignments, revocation, and registered devices.', permission: ['staff.view', 'staff.create', 'staff.update', 'staff.change_role', 'staff.deactivate', 'devices.manage'], icon: Users, group: 'System' },
   { id: 'Administration', label: 'Administration', description: 'Manage imports, exports, readiness, and backup requests.', permission: ['business.configure', 'data.import.view', 'reports.view', 'staff.create', 'backup.create'], icon: ShieldCheck, group: 'System' },
   { id: 'Activity', label: 'Activity & sync', description: 'Review saved, waiting, rejected, and conflicting changes.', permission: ['records.view'], icon: Activity, group: 'System' },
 ];

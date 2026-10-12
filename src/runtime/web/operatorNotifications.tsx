@@ -5,7 +5,7 @@ import type {CommandOutcome} from '../../types/transactions';
 export type NoticeSeverity='success'|'info'|'warning'|'error';
 export type NoticeStage='local'|'pending'|'confirmed'|'rejected'|'conflict'|'unknown';
 export type NoticeAction={label:string;destination:'activity'|'stock'|'procurement'|'pos'|'devices'|'printing';detail?:Record<string,string>};
-export type OperatorNotice={id:string;severity:NoticeSeverity;stage?:NoticeStage;title:string;message?:string;scope?:{businessId:string;deviceId?:string};dedupeKey?:string;action?:NoticeAction;persistent?:boolean;durationMs?:number};
+export type OperatorNotice={id:string;severity:NoticeSeverity;stage?:NoticeStage;title:string;message?:string;scope?:{businessId:string;deviceId?:string};dedupeKey?:string;action?:NoticeAction;persistent?:boolean;durationMs?:number;relatedKey?:string};
 type StoredNotice=OperatorNotice&{key:string;scopeKey:string};
 type State={scopeKey:string;toasts:StoredNotice[];alerts:StoredNotice[]};
 const empty:State={scopeKey:'',toasts:[],alerts:[]};let state=empty;const listeners=new Set<()=>void>(),seen=new Set<string>(),timers=new Map<string,ReturnType<typeof setTimeout>>();
@@ -24,7 +24,7 @@ export function publishOperatorNotice(notice:OperatorNotice){
  const ownScope=scopeKey(notice.scope);if(state.scopeKey&&ownScope&&state.scopeKey!==ownScope)return;
  const key=`${ownScope||state.scopeKey}:${notice.dedupeKey||notice.id}:${notice.stage||'event'}`;if(isDuplicate(key))return;
  const entry:StoredNotice={...notice,key,scopeKey:ownScope||state.scopeKey};
- const priorAlerts=notice.stage==='confirmed'?state.alerts.filter(item=>item.id!==notice.id):state.alerts;
+ const priorAlerts=notice.stage==='confirmed'?state.alerts.filter(item=>item.id!==notice.id&&(!notice.relatedKey||item.relatedKey!==notice.relatedKey)):state.alerts;
  state={...state,toasts:[...state.toasts,entry].slice(-3),alerts:notice.persistent?[...priorAlerts.filter(item=>item.key!==key),entry].slice(-40):priorAlerts};publish();
  if(notice.severity==='success')return;
  const duration=notice.durationMs??(notice.severity==='error'?6500:5500);timers.set(key,setTimeout(()=>removeToast(key),duration));
@@ -46,19 +46,19 @@ export function publishCommandOutcomeNotice(operation:string,payload:Record<stri
  else if(outcome.kind==='PENDING'){title=operation==='order.offlineCashSale'?'Cash recorded on this device. Pending server sync.':'Saved on this device; waiting to synchronize.';severity='warning';stage='pending';message=undefined;critical=/payment|offlineCash|order\.fire/.test(operation);}
  else if(outcome.kind==='OUTCOME_UNKNOWN'){title='Still checking whether this was saved';message='Open Activity and recover the original command before trying again.';severity='warning';stage='unknown';critical=true;}
  else if(outcome.kind==='CONFLICT'||outcome.kind==='REJECTED'){
-  severity=outcome.kind==='CONFLICT'?'warning':'error';stage=outcome.kind==='CONFLICT'?'conflict':'rejected';critical=true;
+  severity=code==='INSUFFICIENT_STOCK'||outcome.kind==='REJECTED'?'error':'warning';stage=outcome.kind==='CONFLICT'?'conflict':'rejected';critical=true;
   title=code==='INSUFFICIENT_STOCK'?'Cannot fire: not enough stock for this order':code==='VERSION_CONFLICT'?'This record changed elsewhere':code==='PERMISSION_DENIED'?'This device or role is not authorized':operation==='mpesaReference.submit'?'Reference needs correction or review':'Action needs review';message=outcome.message;
   if(code==='INSUFFICIENT_STOCK'&&canViewStock)Object.assign(action,{label:'Review stock',destination:'stock',...(orderId?{detail:{orderId}}:{})});
  }else return;
- publishOperatorNotice({id:commandId,stage,severity,title,message,scope,dedupeKey:`${commandId}:${stage}`,action,persistent:critical,durationMs:severity==='success'?3600:6000});
+ publishOperatorNotice({id:commandId,stage,severity,title,message,scope,dedupeKey:`${commandId}:${stage}`,action,persistent:critical,durationMs:severity==='success'?3600:6000,relatedKey:orderId?`order:${orderId}`:typeof payload.jobId==='string'?`print:${payload.jobId}`:undefined});
 }
 
 const icon=(severity:NoticeSeverity)=>severity==='success'?CheckCircle2:severity==='error'||severity==='warning'?AlertTriangle:Info;
 const color:Record<NoticeSeverity,string>={success:'border-emerald-700 bg-emerald-950/95',info:'border-sky-700 bg-slate-900/95',warning:'border-amber-700 bg-amber-950/95',error:'border-rose-700 bg-rose-950/95'};
-export function OperatorNotificationViewport({scope}:{scope:{businessId:string;deviceId?:string}}){
+export function OperatorNotificationViewport({scope}:{scope?:{businessId:string;deviceId?:string}}){
  const snapshot=useSyncExternalStore(subscribeOperatorNotices,getOperatorNoticeSnapshot,getOperatorNoticeSnapshot);
- useEffect(()=>{setOperatorNoticeScope(scope)},[scope.businessId,scope.deviceId]);
- const currentToasts=snapshot.toasts.filter(item=>item.scopeKey===scopeKey(scope)),currentAlerts=snapshot.alerts.filter(item=>item.scopeKey===scopeKey(scope));
+ useEffect(()=>{setOperatorNoticeScope(scope)},[scope?.businessId,scope?.deviceId]);
+ const currentToasts=scope?snapshot.toasts.filter(item=>item.scopeKey===scopeKey(scope)):snapshot.toasts,currentAlerts=scope?snapshot.alerts.filter(item=>item.scopeKey===scopeKey(scope)):snapshot.alerts;
  const act=(item:StoredNotice)=>{if(item.action)window.dispatchEvent(new CustomEvent('servos:operator-notice-action',{detail:item.action}));};
  return <div className="pointer-events-none mb-3 flex justify-end" aria-label="Operator notifications">
   <div className="pointer-events-auto w-full max-w-xl space-y-2">

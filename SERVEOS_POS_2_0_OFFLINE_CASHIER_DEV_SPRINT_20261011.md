@@ -721,3 +721,19 @@ approval_scope=<accepted capabilities; deployment approval recorded separately>
 ```
 
 This checklist records future implementation and acceptance. The consolidation itself completes documentation only; it does not check any business-release item.
+
+## 2026-10-12 V2 patch implementation checkpoint
+
+[`SERVEOS_POS2_DEVICE_STOCK_ERROR_UI_PATCH_V2_20261012.md`](SERVEOS_POS2_DEVICE_STOCK_ERROR_UI_PATCH_V2_20261012.md) is the authoritative replacement for the earlier POS 2.0 UX patch. Its P0 scope includes Section 5A, the shared SERVEOS toast and persistent-alert system. The local scope also retains the earlier agreed manual UX review across web/setup and the Procurement workflow-tab redesign. Candidate audit output is not treated as a defect list.
+
+**Implemented locally:** typed insufficient-stock details and Activity/POS resolution UI; audited count recovery and a fresh-ID fire regression; administrator device request/decision/enrollment with signed key binding, expiry, permissions ceiling and audit; removal of the reachable legacy single-sale panel; Procurement workflow tabs; and a shared notification viewport with command/outcome-stage dedupe, persistent recovery, authoritative payment wording, local-cash state transitions, connectivity transitions, device decisions, stock/room/procurement and print-status messages. The viewport is accessible, capped at three transient messages, pauses while focused/hovered, and stays in normal document flow.
+
+**Verification recorded so far:** focused PostgreSQL device lifecycle and POS shortage-recovery tests passed against the documented disposable database. Focused responsive Playwright acceptance is being rerun after updating its assertion for the resolved alert behavior. Full `npm run verify:release`, complete browser/API suites and final UI audit remain open until recorded against the final source state.
+
+**Acceptance remaining:** verify the complete notification integration against app command/ledger transitions, cross-business/outlet/lease device cases, setup/login device request feedback, full web/setup UX triage and historical offline reconciliation. Printer hardware evidence remains separate. No VPS, production database, route, signing grant or deployment workflow was changed. Production release requires the separate documented approval and backup/restore gates.
+
+
+## Settings and configuration audit
+
+See [the settings and configuration surface audit](docs/sprint/pos2-settings-configuration-audit-20261012.md) for the confirmed workspace map, deliberate configuration boundaries, and the fixed Settings permission metadata mismatch. No live resources or business data were changed.
+

@@ -11,6 +11,7 @@ import { BusinessStore } from './BusinessStore';
 import {createServOSInitialSetupClient} from './apiClient';
 import {InitialAdminStep} from './setup/InitialAdminStep';
 import {OfflineCheckoutGate} from './pos2/OfflineCheckoutGate';
+import {OperatorNotificationViewport} from './operatorNotifications';
 
 const WebBusinessApp=lazy(()=>import('./WebBusinessApp').then(module=>({default:module.WebBusinessApp})));
 
@@ -37,6 +38,7 @@ export function WebAuthGate() {
   const [setupOpen,setSetupOpen]=useState(false);
   const [setupComplete,setSetupComplete]=useState(false);
   const [offlineCheckout,setOfflineCheckout]=useState(false);
+  const [noticeScope,setNoticeScope]=useState<{businessId:string;deviceId?:string}>();
 
   useEffect(()=>{
     if(!apiOrigin||resumePending||session){if(!apiOrigin)setSetupChecking(false);return}
@@ -136,6 +138,7 @@ export function WebAuthGate() {
         loginName: loginName.trim(),
         password,
         newPassword: newPassword || undefined,
+        onDeviceAccessRequest:setNoticeScope,
       });
       try {
         const opened = await openApiBusinessStore(authenticated);
@@ -158,6 +161,7 @@ export function WebAuthGate() {
 
   return (
     <main className="grid min-h-screen place-items-center bg-slate-950 p-4 text-white">
+      <OperatorNotificationViewport scope={noticeScope}/>
       <form className="w-full max-w-md space-y-4 rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl sm:p-8" onSubmit={submit}>
         <header>
           <div className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-400">ServOS Web</div>
