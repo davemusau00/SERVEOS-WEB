@@ -13,7 +13,7 @@ const canUse=(permissions:readonly string[],required:readonly string[]=[])=>requ
 const screenTabs:Record<string,string>={pos:'POS',inventory:'Inventory',catalog:'Catalog',procurement:'Procurement',rooms:'Rooms',frontdesk:'Front Desk',guestaccounts:'Guest Accounts',housekeeping:'Housekeeping',maintenance:'Maintenance',kds:'KDS',finance:'Finance',help:'Help',settings:'Settings',staff:'Staff',administration:'Administration',activity:'Activity'};
 const workspaceFor=(screen:string)=>screenTabs[screen.toLowerCase().replace(/[^a-z]/g,'')];
 const guideFor=(query:string)=>GUIDES.find(guide=>guide.id===query.trim()||guide.title.toLowerCase()===query.trim().toLowerCase());
-const initialArticle=(query:string)=>articles.find(article=>article.guideId===guideFor(query)?.id)||articles.find(article=>article.title.toLowerCase().includes(query.toLowerCase()));
+const initialArticle=(query:string)=>{const guide=guideFor(query);return (guide?articles.find(article=>article.guideId===guide.id):undefined)||(!guide?articles.find(article=>article.title.toLowerCase().includes(query.toLowerCase())):undefined);};
 const associatedGuide=(article:Article|undefined)=>{
  if(!article)return undefined;
  if(article.guideId)return GUIDES.find(guide=>guide.id===article.guideId);
@@ -25,17 +25,18 @@ const cleanStep=(value:string)=>value.replace(/^#{1,6}\s*/gm,'').replace(/\*\*/g
 
 export function WebHelpView({initialQuery='',permissions=[],availableWorkspaces,progress=[],onStartTour,onRestartGuide,onNavigate}:Props){
  const [query,setQuery]=useState(()=>guideFor(initialQuery)?'':initialQuery);
- const [selectedId,setSelectedId]=useState(()=>initialArticle(initialQuery)?.id||articles[0]?.id||'');
- useEffect(()=>{setQuery(guideFor(initialQuery)?'':initialQuery);setSelectedId(initialArticle(initialQuery)?.id||articles[0]?.id||'');},[initialQuery]);
+ const selectedInitially=(value:string)=>initialArticle(value)?.id||(guideFor(value)?`guide:${guideFor(value)!.id}`:articles[0]?.id)||'';
+ const [selectedId,setSelectedId]=useState(()=>selectedInitially(initialQuery));
+ useEffect(()=>{setQuery(guideFor(initialQuery)?'':initialQuery);setSelectedId(selectedInitially(initialQuery));},[initialQuery]);
  const results=useMemo(()=>{const value=query.trim().toLowerCase();return value?articles.filter(article=>[article.title,article.section,article.summary,article.guideId,...article.keywords].join(' ').toLowerCase().includes(value)):articles;},[query]);
- const selected=results.find(article=>article.id===selectedId)||results[0];
+ const selected=selectedId.startsWith('guide:')&&!query?undefined:results.find(article=>article.id===selectedId)||results[0];
  const selectedGuide=associatedGuide(selected);
  const guideAvailable=(guide:GuideDefinition)=>canUse(permissions,guide.permissions)&&(!availableWorkspaces||guide.steps.every(step=>!step.webTab||availableWorkspaces.includes(step.webTab)));
  const guideProgress=selectedGuide?progress.find(row=>row.guideId===selectedGuide.id&&row.guideVersion===selectedGuide.version):undefined;
  const selectedTab=selected?workspaceFor(selected.screen):undefined;
  const canShow=Boolean(selectedTab&&canUse(permissions,selected?.permissions)&&(!availableWorkspaces||availableWorkspaces.includes(selectedTab)));
  const selectedGuideAllowed=Boolean(selectedGuide&&guideAvailable(selectedGuide));
- const guides=GUIDES.filter(guide=>guideAvailable(guide)&&(!query.trim()||`${guide.title} ${guide.description}`.toLowerCase().includes(query.trim().toLowerCase())));
+ const guides=GUIDES.filter(guide=>guideAvailable(guide)&&(!query.trim()||`${guide.title} ${guide.description}`.toLowerCase().includes(query.trim().toLowerCase()))).sort((left,right)=>Number(`guide:${right.id}`===selectedId)-Number(`guide:${left.id}`===selectedId));
  const navigate=(tab:string)=>onNavigate?onNavigate(tab):window.dispatchEvent(new CustomEvent('servos:web-navigate',{detail:{tab}}));
  const showArticle=(id:string)=>{setQuery('');setSelectedId(id);};
  return <div className="grid grid-cols-1 gap-4 text-white lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]" data-guide-anchor="web.help">
