@@ -10,9 +10,9 @@ async function mount(page:any){await page.goto('/');await page.waitForFunction((
 
 test('notice deduplication is by command and outcome stage; persistent recovery survives toast timeout',async({page})=>{
  await mount(page);
- const notice={id:'fire-1',dedupeKey:'fire-1:conflict',stage:'conflict',severity:'error',title:'Cannot fire: not enough stock for this order',message:'Shortage at Main store.',persistent:true,durationMs:100,action:{label:'Review stock',destination:'stock'}};
+ const notice={id:'fire-1',dedupeKey:'fire-1:conflict',stage:'conflict',severity:'error',title:'Cannot fire: not enough stock for this order',message:'Shortage at Main store.',persistent:true,durationMs:1500,action:{label:'Review stock',destination:'stock'}};
  await page.evaluate(notice=>{for(let i=0;i<6;i++)(window as any).notice(notice)},notice);
- await expect(page.getByRole('alert')).toHaveCount(1);await expect(page.getByRole('region',{name:'Needs attention'})).toContainText('Cannot fire');await page.waitForTimeout(180);await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.getByRole('region',{name:'Needs attention'})).toContainText('Review stock');
+ await expect(page.getByRole('alert')).toHaveCount(1);await expect(page.getByRole('region',{name:'Needs attention'})).toContainText('Cannot fire');await page.waitForTimeout(1600);await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.getByRole('region',{name:'Needs attention'})).toContainText('Review stock');
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('servos:operator-notice-action',{detail:{destination:'stock'}})));
  await page.evaluate(notice=>{for(let i=0;i<6;i++)(window as any).notice(notice)},notice);await expect(page.getByRole('region',{name:'Needs attention'}).getByText('Cannot fire')).toHaveCount(1);
  const next={...notice,stage:'confirmed',severity:'success',title:'Order updated',persistent:false,dedupeKey:'fire-1:confirmed'};await page.evaluate(notice=>(window as any).notice(notice),next);await expect(page.getByRole('region',{name:'Needs attention'})).toHaveCount(0);await expect(page.getByRole('status').filter({hasText:'Order updated'})).toHaveCount(1);

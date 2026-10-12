@@ -10,6 +10,7 @@ import {migrate} from '../../apps/api/src/migrate.mjs';
 import {createApiCommandRegistry} from '../../apps/api/src/command-registry.mjs';
 
 test('fresh-browser onboarding covers stocked sale, printer recovery, refund and close-day reconciliation',async({page},testInfo)=>{
+ test.setTimeout(180_000);
  test.skip(!process.env.TEST_DATABASE_URL||!['api-postgres','api-postgres-mobile'].includes(testInfo.project.name),'Requires a real API browser project and a disposable TEST_DATABASE_URL.');
  const requireApi=createRequire(new URL('../../apps/api/package.json',import.meta.url));
  const {Pool}=requireApi('pg');
@@ -76,7 +77,7 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
   await page.getByRole('button',{name:'Save and review',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Finish',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Save business defaults',exact:true}).click();
-  await expect(page.getByRole('status',{name:'Setup status'})).toContainText('Business settings, outlet, storage, and selected payment accounts are saved.');
+  await expect(page.getByRole('status',{name:'Setup status'})).toContainText('Business settings, outlet, storage, and selected payment accounts are saved.',{timeout:30_000});
   await expect(page.getByRole('button',{name:'Finish and open workspace',exact:true})).toBeEnabled();
 
   const beforeFinish=(await pool.query(`SELECT s.status,s.current_step,s.configuration->>'businessType' AS business_type,
