@@ -108,7 +108,7 @@ export const GUIDES: GuideDefinition[] = [CORE_GUIDE,
   ] },
 ];
 export const GUIDE_ANCHORS = new Set([
-  'navigation.home', 'navigation.pos', 'navigation.inventory', 'navigation.procurement', 'navigation.help',
+  'navigation.home', 'navigation.pos', 'navigation.inventory', 'navigation.procurement', 'navigation.help', 'navigation.finance',
   'shell.status', 'shell.help', 'shell.lock', 'quick-add.open', 'web.start', 'web.quick-add', 'web.help', 'web.status', 'web.help-button',
   'pos.open-tab', 'pos.payment', 'pos.receipt-history', 'pos.shift', 'pos.counter', 'documents.printing', 'business.settings',
   'catalog.add-product', 'import.stock', 'stock.receive', 'procurement.receive', 'inventory.count', 'finance.close-day', 'staff.add', 'rooms.reservation',

@@ -167,6 +167,8 @@ export function resolveOperationDependencies(operation: string, collection: stri
     const reservation = reservationId ? byKey.get(key('roomReservations', reservationId)) : undefined;
     add('roomReservations', reservationId);
     if (operation.startsWith('stay.') || payload.stayId) add('stays', payload.stayId || reservationId);
+    if(operation==='stay.checkIn'||operation==='roomReservation.walkIn')add('folios',reservationId);
+    if(payload.payment&&typeof payload.payment==='object')add('tillSessions',(payload.payment as Record<string,unknown>).tillSessionId);
     if (operation.startsWith('folio.') || payload.folioId) add('folios', payload.folioId || reservationId);
     add('rooms', payload.sourceRoomId); add('rooms', payload.roomId || payload.destinationRoomId || payload.targetRoomId);
     add('rooms', reservation?.data.roomId); add('ratePlans', payload.ratePlanId || reservation?.data.ratePlanId);
