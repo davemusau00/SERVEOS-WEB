@@ -6,7 +6,7 @@ const sha256=(value:unknown)=>createHash('sha256').update(stableJson(value)).dig
 
 for(const role of ['waiter','cashier','preparation','manager'] as const){
  test(`role mobile navigation and alerts: ${role}`,async({page})=>{
- const permissions=role==='manager'?['*']:role==='cashier'?['pos.sell','payment.record','ticket.approve','ticket.view_outlet','mpesa.record']:role==='waiter'?['ticket.create','ticket.view_own','floorplan.view']:['kds.view','kds.update'];
+ const permissions=role==='manager'?['*']:role==='cashier'?['pos.sell','payment.record','ticket.approve','ticket.view_outlet','mpesa.record','catalog.view']:role==='waiter'?['ticket.create','ticket.view_own','floorplan.view']:['kds.view','kds.update'];
  permissions.push('devices.register');
  const capabilities={'operations.checkout':role==='cashier'||role==='manager','operations.inbox':true,'operations.references':true,'operations.push':false,'pos2.simpleCashier':true,'pos2.waiterTickets':true};
  const outletId='a1000000-0000-4000-8000-000000000011',ticketId='a1000000-0000-4000-8000-000000000012',orderId='a1000000-0000-4000-8000-000000000013',productId='a1000000-0000-4000-8000-000000000014',alertId='a1000000-0000-4000-8000-000000000015';

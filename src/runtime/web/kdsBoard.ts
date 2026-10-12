@@ -43,12 +43,12 @@ export function kdsBoard(records:BusinessRecord[]):{lines:PrepLine[];issues:Prep
    if(!Number.isFinite(firedAt))problems.push('Preparation start time is unavailable.');
    const portion=humanText(object(item.portionSnapshot).name);
    const modifiers=Array.isArray(item.modifierSnapshots)?item.modifierSnapshots.map(m=>humanText(object(m).name)).filter(Boolean):[];
-   const waiterId=typeof d.createdByStaffId==='string'?d.createdByStaffId:typeof d.staffId==='string'?d.staffId:'';
-   const staff=records.find(r=>r.collection==='staff'&&r.id===waiterId);
+   const waiterId=typeof d.createdByStaffId==='string'?d.createdByStaffId:typeof d.createdBy==='string'?d.createdBy:typeof d.staffId==='string'?d.staffId:'';
+   const staff=records.find(r=>(r.collection==='staff'||r.collection==='employees')&&r.id===waiterId);
    lines.push({order,id,name:name||'Name unavailable',quantity,station,status:state as PrepState,reference,
     location:humanText(d.serviceReference)||humanText(d.tableName)||humanText(d.tabName)||(d.serviceDestination==='TAKEAWAY'?'Takeaway':humanText(d.name)||'Counter'),
     note:humanText(item.notes)||humanText(item.note),choices:[portion,...modifiers].filter(Boolean),course:humanText(item.courseName),
-    waiter:humanText(d.waiterName)||humanText(staff?.data.displayName)||humanText(staff?.data.name),
+    waiter:humanText(object(object(document?.data.snapshot).approvedTicket).waiterName)||humanText(d.waiterName)||humanText(staff?.data.displayName)||humanText(staff?.data.name),
     firedAt:Number.isFinite(firedAt)?firedAt:null,updatedAt:typeof item.preparationUpdatedAt==='string'&&Number.isFinite(Date.parse(item.preparationUpdatedAt))?Date.parse(item.preparationUpdatedAt):null,problems});
   }
  }

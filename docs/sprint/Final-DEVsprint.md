@@ -114,10 +114,10 @@ Repository baseline inspected for this update: `34e6043`, plus current working c
 | Docker / OPS-02 | `apps/api/Dockerfile` uses repository-root context, copies root contracts and runs as `node`; prior release records nonroot image acceptance | Rebuild each candidate with its current dependency lockfile and verify module graph/image digest; never reuse stale staged context |
 | Thermal / PRINT-01 | Source has explicit thermal-only profiles and fail-closed unknown types, readable reference helpers and immutable issued snapshots | Real printer/driver/cutter/QR/fiscal evidence remains unverified; physical acceptance was waived for the prior update, not passed |
 | Navigation / NAV-01, NAV-02 | Source still offers all permitted desktop workspaces; the current alert cohort adds compact role-specific mobile tasks and More | Recorded Chromium regressions passed; actual device acceptance, wider desktop grouping/collapse and broader responsive polish remain open |
-| KDS / KDS-01 through KDS-04 | Inspection found older `productName`/`courseStatus` reads against canonical `name`/`preparationStatus`; this slice corrects mapping and uses readable order labels | Full dense-board redesign, queue timing, malformed-snapshot recovery and supervised kitchen/bar acceptance |
-| Rooms / ROOM-01, ROOM-02 | Rooms passes an explicit `ratePlanId`; Quick Reservation uses configured property context and a different command payload | Prove shared day/night price parity, capacity/concurrency and upfront-payment/checkout behavior under the newly selected business policy |
+| KDS / KDS-01 through KDS-04 | Inspection found older `productName`/`courseStatus` reads against canonical `name`/`preparationStatus`; this slice corrects mapping and uses readable order labels | Candidate dense-board/queue/exception development is present (section 2.6); deferred regression and supervised kitchen/bar acceptance remain open |
+| Rooms / ROOM-01, ROOM-02 | Candidate shared quote/rate-selection implementation now connects both entry points (section 2.6) | Prove shared day/night price parity, capacity/concurrency and upfront-payment/checkout behavior under the newly selected business policy |
 | Finance / FIN-01 through FIN-03 | `financeSummary` uses journaled `REVENUE_SALES`, posted expenses and payable/payment summaries; it is not a full P&L | Historical sale-time cost/COGS reconciliation, defined accounting coverage, approved valuation policy, reporting drill-down and fixtures |
-| Import / IMP-01, IMP-02 | Apply button remains conditional on execution permission; prior release reports 73 products / 72 stock masters | Permission explanation, pack/unit cost validation and authorized new catalogue setup; historical migration is out of scope for the new-install policy |
+| Import / IMP-01, IMP-02 | Candidate keeps Apply visible with permission explanation and plan acknowledgement; prior release reports 73 products / 72 stock masters | Permission explanation, pack/unit cost validation and authorized new catalogue setup; historical migration is out of scope for the new-install policy |
 | Help / HELP-01 | Guided tours, anchor lookup and progress infrastructure exist | Prove published tours across loading, permission changes, navigation and mobile; an existing component is not acceptance |
 | QR / QR-01 | No end-to-end ordering acceptance established in this review | Deferred future version; staff acceptance before fire is the selected policy |
 | Alerts / ALERT-01 through ALERT-05 | Current source adds durable events/inbox, manual reference proposals/review, push outbox/worker and role-specific mobile tasks | Local acceptance results below, then isolated staging; real-device background delivery and activation remain separate gates |
@@ -127,7 +127,7 @@ Repository baseline inspected for this update: `34e6043`, plus current working c
 
 These choices narrow the corresponding future work; they do not silently change existing stored data or switch production features:
 
-- **Rooms:** one easily configured standard rate across day and night stays; receptionist pricing overrides are not allowed. The current separate booking/rate paths must be reconciled and tested before this is marked implemented.
+- **Rooms:** one easily configured standard rate across day and night stays; receptionist pricing overrides are not allowed. A shared quote and default-off standard-rate policy now exist in source; their deferred checks and cash-upfront workflow must be completed before the full selected version is accepted.
 - **Payments:** cash upfront for the selected room workflow; new guest-deposit functionality is outside this version. Preserve existing authorized folio/deposit records and API compatibility until an explicit tested replacement exists.
 - **Historical migration:** no historical data migration for a new installation. This never authorizes erasing the already active `serveos-next` business, its storage or financial evidence.
 - **Taxes:** defer new tax/fiscal integration work for this slice. Preserve existing configured rates, issued snapshots and legal identifiers; this is not evidence that transactions are tax-exempt or fiscal-compliant.
@@ -135,6 +135,26 @@ These choices narrow the corresponding future work; they do not silently change 
 - **Printing:** retain existing browser/OS 80 mm printing and relevant bridge code. No new bridge/hardware activation; physical acceptance remains open rather than recorded as passed.
 - **QR:** defer customer QR ordering; a future implementation must require staff acceptance before stock/fire.
 - **Inventory valuation:** retain the existing moving weighted-average inventory cost infrastructure and sale-time consumption cost evidence as the implementation starting point. Prove COGS/valuation reconciliation before presenting a full P&L; do not value historical sales using today's product cost.
+
+---
+
+### 2.6 Development-first execution checkpoint
+
+**Direction:** Execute the full guide, prioritizing features and development. Further test runs are deferred at the user's request on 12 October 2026. This changes the work order, not the eventual release/acceptance requirements. New source below is **implemented, verification deferred**; prior green results are not evidence for these new changes. No production change or capability activation occurred.
+
+| Backlog | Development now present | Remaining scope and evidence |
+|---|---|---|
+| ALERT-03 | Append-only migration `079_operational_push_attempts.sql`; every worker claim has a timestamped attempt outcome, including abandoned sends after process failure; stale worker responses cannot overwrite a newer outbox attempt | Review/retention tooling, real-device push, in-flight revocation and delivery fault acceptance. An already-running focused integration test completed before the defer-testing direction; no general acceptance claim |
+| KDS-01 through KDS-04 | New `kdsBoard.ts` snapshot model; dense responsive board; independent station/status controls, counts, wrapped product names, portions/modifiers/notes, elapsed and overdue indicators, persisted filters, actionable exceptions and original-command recovery | Deferred layout/concurrency/reconnect/large-queue checks; supervised kitchen/bar pilot; service threshold configuration UI and cancellation presentation |
+| ROOM-01 | Shared `contracts/reservation-quote.mjs` used by create/modify and both booking screens; Quick Reservation supplies the selected rate and reviewed revisions; integer money and timezone/cutoff validation | Deferred parity/race/DST checks; upfront cash/check-in workflow and full room/calendar workspace split remain open |
+| Standard room policy | Additive migration `080_standard_room_rate_policy.sql`; property manager can explicitly select shared day/night pricing; default false preserves existing properties; server rejects alternative rates when enabled; historical issued snapshots stay immutable | Not enabled in production. Confirm booking/modification/extension semantics before activation; full selected cash-upfront version is not yet complete |
+| HOTEL readiness | Front Desk/Housekeeping now use API states `DIRTY`, `CLEANING`, `INSPECTED`, `READY` and maintenance `OUT_OF_SERVICE`; maintenance uses audited open/return commands | Deferred housekeeping/front-desk/room-move/maintenance regressions; assignment/history and occupancy board remain open |
+| IMP-01 / IMP-02 | Apply remains visible with permission explanation; reviewed-plan acknowledgement covers full source, prices, configured tax classes, packages and costs; preview failures offer retry | Deferred permission, stale-plan, mapping and partial-application checks; no historical data correction or migration performed |
+| NAV-01 / NAV-02 / DS-01 | Grouped Start/Operations/Management/System sidebar with persistent collapse and accessible icon labels; staff display name replaces routine UUID; shared operational sizing/typography tokens extended | Deferred keyboard/role/deep-link/guide-anchor and responsive checks; wider screen-by-screen polish remains open |
+
+Current candidate schema head is 080 in source. This is not the live database head. Applied migration files were not rewritten. API readiness must use the complete candidate manifest; do not switch a live API before migration compatibility and restore gates pass.
+
+The remaining full-guide work includes upfront accommodation settlement, reservation calendar/workspace separation, accounting/COGS/P&L and management dashboards, stock/receiving/supplier reconciliation polish, resilient guides and onboarding, broader accessibility/performance work, and staged deployment/pilot acceptance. QR and new tax integrations remain deferred under the business decisions in section 2.5.
 
 ---
 
@@ -187,7 +207,7 @@ These choices narrow the corresponding future work; they do not silently change 
 **Priority:** P1  
 **Owner:** Frontend lead and product designer  
 **Dependencies:** None  
-**Estimated effort:** 12â€“18 engineering days, distributed across all modules
+**Estimated effort:** 12–18 engineering days, distributed across all modules
 
 ### 4.1 Problem
 
@@ -363,7 +383,7 @@ Test on real or representative low-end Android devices, tablets and desktop brow
 
 **Priority:** P1  
 **Owner:** Frontend lead and product owner  
-**Estimated effort:** 5â€“8 engineering days
+**Estimated effort:** 5–8 engineering days
 
 ### 5.1 Current problem
 
@@ -433,7 +453,7 @@ Backend permissions remain authoritative. Hiding a navigation item does not repl
 
 **Priority:** P1  
 **Owner:** Frontend lead and POS/backend engineer  
-**Estimated effort:** 8â€“12 engineering days
+**Estimated effort:** 8–12 engineering days
 
 ### 6.1 Current-state findings
 
@@ -484,9 +504,9 @@ Every card must prioritize:
 
 Example:
 
-**KOT-0048 Â· Table 7**  
-**2 Ã— Chicken Wings**  
-No chilli Â· Extra sauce  
+**KOT-0048 · Table 7**  
+**2 × Chicken Wings**  
+No chilli · Extra sauce  
 Waiting 6 min  
 **Start preparing**
 
@@ -503,11 +523,11 @@ Use actual stored data. The example reference format is illustrative and must no
 
 ### 6.5 Product-name correctness
 
-The source currently falls back to `Item` when `productName` is absent.
+Historical source fell back to `Item` when `productName` was absent. The candidate now reads the durable product snapshot, preserves portions/modifiers/notes, and surfaces missing-name exceptions; verification is deferred.
 
 Investigate the complete ticket pipeline:
 
-POS item selection â†’ order snapshot â†’ fire command â†’ persisted order â†’ synchronization â†’ KDS rendering.
+POS item selection → order snapshot → fire command → persisted order → synchronization → KDS rendering.
 
 Requirements:
 
@@ -522,7 +542,7 @@ Requirements:
 
 Retain backend transition safety:
 
-`FIRED â†’ PREPARING â†’ READY â†’ SERVED`
+`FIRED → PREPARING → READY → SERVED`
 
 Present staff-friendly labels:
 
@@ -545,7 +565,7 @@ Example:
 
 **1 ticket needs attention**  
 Ticket KOT-0048 could not be updated because another device changed it.  
-**Refresh ticket** Â· **View activity**
+**Refresh ticket** · **View activity**
 
 Rules:
 
@@ -592,7 +612,7 @@ Rules:
 
 **Priority:** P0  
 **Owner:** Hospitality backend engineer and frontend lead  
-**Estimated effort:** 10â€“16 engineering days
+**Estimated effort:** 10–16 engineering days
 
 ### 7.1 Verified architectural inconsistency
 
@@ -741,7 +761,7 @@ Split the current combined Rooms experience into:
 
 **Priority:** P1  
 **Owner:** Hospitality frontend/backend engineers  
-**Estimated effort:** 6â€“10 engineering days
+**Estimated effort:** 6–10 engineering days
 
 ### Deliverables
 
@@ -771,7 +791,7 @@ Split the current combined Rooms experience into:
 
 **Priority:** P0  
 **Owner:** POS/backend engineer and QA lead  
-**Estimated effort:** 10â€“15 engineering days
+**Estimated effort:** 10–15 engineering days
 
 ### 9.1 Scope
 
@@ -889,7 +909,9 @@ Derive access from API permissions and enrolled-device authority, not role-name 
 - Upgrade/rollback: keep pending financial IndexedDB evidence, safe SW activation and old release assets. Never clear local storage to fix notification behavior.
 - Local source/test results are recorded below after execution; isolated staging, real devices and external code review remain open. No production deployment or new capability activation is authorized by this implementation slice.
 
-### 9.11 Current local verification record
+### 9.11 Earlier alerts-slice verification record
+
+These recorded results precede the development-first changes in section 2.6. New development is unverified until the deferred checks are resumed.
 
 | Evidence | Result / artifact |
 |---|---|
@@ -906,7 +928,7 @@ Derive access from API permissions and enrolled-device authority, not role-name 
 | Actual Windows/Android/iOS push delivery | Not tested; no VAPID production activation |
 | Production mutation | None in this implementation turn |
 
-**Remaining ALERT scope before release:** preserve individual delivery-attempt history beyond the current retry count/latest HTTP result; prove browser Back/deep-link recovery and scroll/filter retention across each supported workspace; exercise denied permission and real multi-tab sound behavior; rehearse checkout handoff/staff revocation while a delivery is in flight; run isolated staging and record actual Windows/Android/iOS push evidence. Local assertions and a provider mock do not close those device gates. Pending local cash warnings are terminal-local; remote manager visibility begins only when central reconciliation evidence exists.
+**Remaining ALERT scope before release:** verify the new per-attempt delivery history and interrupted-worker recovery; prove browser Back/deep-link recovery and scroll/filter retention across each supported workspace; exercise denied permission and real multi-tab sound behavior; rehearse checkout handoff/staff revocation while a delivery is in flight; run isolated staging and record actual Windows/Android/iOS push evidence. Local assertions and a provider mock do not close those device gates. Pending local cash warnings are terminal-local; remote manager visibility begins only when central reconciliation evidence exists.
 
 ---
 
@@ -914,7 +936,7 @@ Derive access from API permissions and enrolled-device authority, not role-name 
 
 **Priority:** P2, elevated to P1 if required for the pilot  
 **Owner:** POS engineer and frontend lead  
-**Estimated effort:** 6â€“12 engineering days after architecture review
+**Estimated effort:** 6–12 engineering days after architecture review
 
 ### 10.1 Verification requirement
 
@@ -965,7 +987,7 @@ Where enabled:
 
 **Priority:** P0  
 **Owner:** Backend/accounting engineer, with accountant sign-off  
-**Estimated effort:** 15â€“25 engineering days, depending on ledger gaps
+**Estimated effort:** 15–25 engineering days, depending on ledger gaps
 
 ### 11.1 Verified current limitation
 
@@ -1111,7 +1133,7 @@ Implement or complete:
 
 **Priority:** P1  
 **Owner:** Frontend lead and reporting backend engineer  
-**Estimated effort:** 10â€“15 engineering days
+**Estimated effort:** 10–15 engineering days
 
 ### 12.1 Target dashboards
 
@@ -1222,7 +1244,7 @@ Do not squeeze a desktop chart or A4 report onto an 80mm receipt.
 
 **Priority:** P0 for data correctness, P1 for UX  
 **Owner:** Data/backend engineer and frontend lead  
-**Estimated effort:** 7â€“12 engineering days
+**Estimated effort:** 7–12 engineering days
 
 ### 13.1 Previously identified Countryside import
 
@@ -1328,7 +1350,7 @@ Each requires a separate, documented migration and reconciliation process.
 
 **Priority:** P1  
 **Owner:** Inventory/backend engineer  
-**Estimated effort:** 8â€“12 engineering days
+**Estimated effort:** 8–12 engineering days
 
 ### Deliverables
 
@@ -1361,7 +1383,7 @@ Each requires a separate, documented migration and reconciliation process.
 
 **Priority:** P1  
 **Owner:** Frontend lead and QA engineer  
-**Estimated effort:** 6â€“10 engineering days
+**Estimated effort:** 6–10 engineering days
 
 ### 15.1 Current state
 
@@ -1398,7 +1420,7 @@ Example:
 
 The control may be hidden by your permissions or the workspace may still be loading.
 
-**Retry** Â· **Skip step** Â· **Open Help**
+**Retry** · **Skip step** · **Open Help**
 
 ### 15.4 Required guides
 
@@ -1520,7 +1542,7 @@ A workflow that works only on a powerful desktop with perfect connectivity is no
 
 **Priority:** P1  
 **Owner:** Frontend/backend document engineer and QA lead  
-**Estimated effort:** 5â€“8 engineering days
+**Estimated effort:** 5–8 engineering days
 
 ### 17.1 Existing foundation
 
@@ -1630,13 +1652,13 @@ Cover:
 
 Required operator journeys:
 
-1. Waiter submits ticket, enrolled cashier approves it â†’ kitchen receives it â†’ cashier settles â†’ receipt prints.
-2. Offline cashier records eligible cash transaction â†’ reconnects â†’ no duplicate payment.
-3. Receptionist checks availability â†’ books room â†’ checks guest in â†’ posts accommodation â†’ checks out.
-4. Housekeeper updates room status â†’ Front Desk sees the change.
-5. Stock controller receives inventory â†’ stock valuation and availability update.
-6. Accountant reviews expenses â†’ posts adjustments â†’ checks report totals.
-7. Administrator stages catalog import â†’ reviews validation â†’ authorized user applies it.
+1. Waiter submits ticket, enrolled cashier approves it → kitchen receives it → cashier settles → receipt prints.
+2. Offline cashier records eligible cash transaction → reconnects → no duplicate payment.
+3. Receptionist checks availability → books room → checks guest in → posts accommodation → checks out.
+4. Housekeeper updates room status → Front Desk sees the change.
+5. Stock controller receives inventory → stock valuation and availability update.
+6. Accountant reviews expenses → posts adjustments → checks report totals.
+7. Administrator stages catalog import → reviews validation → authorized user applies it.
 8. New staff member follows an interactive guide through a permitted task.
 9. Guest submits a QR-origin order, if QR ordering is enabled.
 
@@ -1703,7 +1725,7 @@ Do not optimize only for empty databases.
 
 **Priority:** P0  
 **Owner:** DevOps/backend lead  
-**Estimated effort:** 5â€“8 engineering days plus staged observation
+**Estimated effort:** 5–8 engineering days plus staged observation
 
 ### 19.1 Previously identified environments
 

@@ -12,6 +12,8 @@ export const servosTokens = {
     page: 'p-4 sm:p-6',
     section: 'space-y-5',
     control: 'px-3 py-2',
+    compact: 'gap-2 p-3',
+    operational: 'gap-3 p-4',
   },
 } as const;
 
@@ -23,6 +25,11 @@ export const ds = {
   mutedPanel: 'rounded-xl border border-border bg-canvas/60',
   pageTitle: 'text-xl font-black tracking-tight text-fg sm:text-2xl',
   eyebrow: 'text-[10px] font-black uppercase tracking-[.18em] text-amber-300',
+  operationalButton: 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-semibold text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40',
+  sectionTitle: 'text-lg font-bold leading-snug text-fg',
+  cardTitle: 'text-base font-bold leading-snug text-fg',
+  helperText: 'text-sm leading-5 text-fg-muted',
+  tableHeading: 'text-left text-xs font-semibold text-fg-muted',
   // Semantic color utilities for components
   fg: 'text-fg',
   fgMuted: 'text-fg-muted',
