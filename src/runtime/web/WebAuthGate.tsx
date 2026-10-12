@@ -168,7 +168,7 @@ export function WebAuthGate() {
           <h1 className="mt-2 text-3xl font-black">Sign in</h1>
           <p className="mt-2 text-sm text-slate-400">Sign in to your business workspace.</p>
         </header>
-        {setupComplete&&<p role="status" className="rounded-xl border border-emerald-700/50 bg-emerald-500/5 p-3 text-sm text-emerald-100">The initial administrator was created. Sign in with the login and password you chose to continue configuring the workspace.</p>}
+        {setupComplete&&<p role="status" aria-label="Initial administrator setup" className="rounded-xl border border-emerald-700/50 bg-emerald-500/5 p-3 text-sm text-emerald-100">The initial administrator was created. Sign in with the login and password you chose to continue configuring the workspace.</p>}
         <label className="block text-sm">
           Staff login
           <input aria-label="Staff login" required autoComplete="username" className={field} value={loginName} onChange={event => setLoginName(event.target.value)} />

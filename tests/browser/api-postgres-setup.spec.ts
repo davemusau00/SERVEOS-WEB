@@ -50,7 +50,7 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
   await page.getByLabel('Administrator password',{exact:true}).fill(password);
   await page.getByLabel('Confirm administrator password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Create administrator',exact:true}).click();
-  await expect(page.getByRole('status',{name:'Setup status'})).toContainText('The initial administrator was created.');
+  await expect(page.getByRole('status',{name:'Initial administrator setup'})).toContainText('The initial administrator was created.');
   expect(process.env.INITIAL_ADMIN_SETUP_SECRET).toBeUndefined();
   expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain(setupSecret);
   businessId=(await pool.query('SELECT id FROM businesses WHERE name=$1',['Disposable Cafe Setup'])).rows[0].id;
@@ -308,7 +308,7 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await page.getByLabel('Administrator password',{exact:true}).fill(password);
   await page.getByLabel('Confirm administrator password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Create administrator',exact:true}).click();
-  await expect(page.getByRole('status',{name:'Setup status'})).toContainText('The initial administrator was created.');
+  await expect(page.getByRole('status',{name:'Initial administrator setup'})).toContainText('The initial administrator was created.');
   businessId=(await pool.query('SELECT id FROM businesses WHERE name=$1',['Disposable Hotel Setup'])).rows[0].id;
 
   await page.getByLabel('Staff login',{exact:true}).fill(loginName);
