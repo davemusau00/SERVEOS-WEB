@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
+import {guardAccountingPosting} from './accounting-periods.mjs';
 
 const conflict=message=>{throw new ApiProblem(409,'JOURNAL_RECONCILIATION_REQUIRED',message)};
 const integer=value=>Number.isSafeInteger(value)&&value>=0;
@@ -81,6 +82,7 @@ export async function originalPaymentJournal(db,businessId,payment){
 }
 
 export async function postFinancialJournal(tx,{actor,command,at,paymentId,refundId=null,originalJournalId=null,accountId,currency,allocation,basisSnapshot}){
+ await guardAccountingPosting(tx.client,actor.businessId,at);
  const {grossMinor,netMinor,vatMinor,levyMinor}=allocation;
  cumulativeAllocation(allocation,grossMinor);
  const id=randomUUID(),reversing=refundId!==null;
@@ -94,6 +96,7 @@ export async function postFinancialJournal(tx,{actor,command,at,paymentId,refund
 }
 
 export async function postCustomerCreditJournal(tx,{actor,command,at,entry,sourceType,originalJournalId=null,lines,basisSnapshot}){
+ await guardAccountingPosting(tx.client,actor.businessId,at);
  if(!['CUSTOMER_CREDIT_CHARGE','CUSTOMER_CREDIT_SETTLEMENT','CUSTOMER_CREDIT_WRITE_OFF','CUSTOMER_CREDIT_REVERSAL'].includes(sourceType)||!Array.isArray(lines)||!lines.length||lines.length>4)throw new ApiProblem(500,'INVALID_CREDIT_JOURNAL','Customer credit journal configuration is invalid.');
  const amount=entry.amountMinor;if(!Number.isSafeInteger(amount)||amount<=0)throw new ApiProblem(409,'CREDIT_JOURNAL_AMOUNT_INVALID','Customer credit journal amount needs reconciliation.');
  const id=randomUUID();

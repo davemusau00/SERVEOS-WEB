@@ -1,6 +1,7 @@
 import {ApiProblem} from './command-kernel.mjs';
 
-const requireReportAccess=actor=>{if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('reports.view'))throw new ApiProblem(403,'PERMISSION_DENIED','The reports.view permission is required to read business reports.');};
+const requireReportAccess=actor=>{if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('reports.view')&&!actor.permissions?.includes('accounting.view'))throw new ApiProblem(403,'PERMISSION_DENIED','Business report permission is required.');};
+const reportMoney=value=>{const minor=Number(value);if(!Number.isSafeInteger(minor))throw new ApiProblem(409,'REPORT_AMOUNT_REQUIRES_REVIEW','This report range exceeds the supported exact money range. Narrow the dates before displaying totals.');return minor;};
 
 const day=value=>{if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/u.test(value)||!Number.isFinite(Date.parse(`${value}T00:00:00Z`))||new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)!==value)throw new ApiProblem(400,'VALIDATION_FAILED','Report dates must use the YYYY-MM-DD format.');return value};
 const zone=value=>{if(value===undefined||value===null)return 'Africa/Nairobi';if(typeof value!=='string'||value.length>100)throw new ApiProblem(400,'VALIDATION_FAILED','The report time zone is invalid.');try{new Intl.DateTimeFormat('en',{timeZone:value})}catch{throw new ApiProblem(400,'VALIDATION_FAILED','The report time zone is invalid.')}return value};
@@ -47,6 +48,13 @@ export async function salesSummary(pool,actor,{start,end,outletId=null,timeZone}
   const categories=(await client.query(`${salesCte(outletFilter)}
     SELECT COALESCE(l.product_snapshot->>'category','UNSPECIFIED') AS category,COALESCE(sum(l.line_total_minor),0)::bigint AS gross_minor
     FROM pos_order_lines l JOIN sales ON sales.id=l.order_id WHERE l.state<>'VOIDED' GROUP BY 1 ORDER BY gross_minor DESC`,params)).rows;
+  const daily=(await client.query(`${salesCte(outletFilter)}
+    SELECT (d.issued_at AT TIME ZONE $2)::date::text AS day,count(*)::int AS sales_count,
+      COALESCE(sum(sales.grand_total_minor),0)::bigint AS gross_minor,
+      COALESCE(sum(sales.grand_total_minor-sales.refunded_amount_minor),0)::bigint AS net_sales_minor
+    FROM sales JOIN pos_orders o ON o.business_id=sales.business_id AND o.id=sales.id
+    JOIN business_documents d ON d.business_id=o.business_id AND d.id=o.receipt_document_id
+    GROUP BY (d.issued_at AT TIME ZONE $2)::date ORDER BY day`,params)).rows;
   const refunds=(await client.query(`SELECT count(*)::int AS refund_count,COALESCE(sum(amount_minor),0)::bigint AS refund_minor
     FROM payment_refunds r WHERE r.business_id=$1 AND (r.occurred_at AT TIME ZONE $2)::date BETWEEN $3::date AND $4::date
       AND ($5::uuid IS NULL OR r.order_id IN (SELECT o.id FROM pos_orders o WHERE o.business_id=$1 AND o.outlet_id=$5))`,params)).rows[0];
@@ -56,10 +64,11 @@ export async function salesSummary(pool,actor,{start,end,outletId=null,timeZone}
     FROM order_payments WHERE business_id=$1 AND (recorded_at AT TIME ZONE $2)::date BETWEEN $3::date AND $4::date
       AND ($5::uuid IS NULL OR order_id IN (SELECT o.id FROM pos_orders o WHERE o.business_id=$1 AND o.outlet_id=$5))`,params)).rows[0];
   const result={report:'SALES_SUMMARY',periodStart:from,periodEnd:to,timeZone:tz,outletId,generatedAt:new Date().toISOString(),totals:{
-    salesCount:Number(totals.sales_count),grossMinor:Number(totals.gross_minor),discountMinor:Number(totals.discount_minor),
-    netMinor:Number(totals.net_minor),vatMinor:Number(totals.vat_minor),levyMinor:Number(totals.levy_minor),
-    refundsMinor:Number(totals.refunds_minor),netSalesMinor:Number(totals.net_sales_minor)
-  },payments:payments.map(r=>({method:r.method,paymentCount:r.payment_count,amountMinor:Number(r.amount_minor)})),outlets:outlets.map(r=>({outletId:r.outlet_id,grossMinor:Number(r.gross_minor),salesCount:r.sales_count})),operators:operators.map(r=>({staffId:r.staff_id,grossMinor:Number(r.gross_minor),salesCount:r.sales_count})),categories:categories.map(r=>({category:r.category,grossMinor:Number(r.gross_minor)})),refunds:{refundCount:refunds.refund_count,refundMinor:Number(refunds.refund_minor)},collections:{collectedMinor:Number(collections.collected_minor),cashCollectedMinor:Number(collections.cash_collected_minor),mpesaCollectedMinor:Number(collections.mpesa_collected_minor)}};
+    salesCount:reportMoney(totals.sales_count),grossMinor:reportMoney(totals.gross_minor),discountMinor:reportMoney(totals.discount_minor),
+    netMinor:reportMoney(totals.net_minor),vatMinor:reportMoney(totals.vat_minor),levyMinor:reportMoney(totals.levy_minor),
+    refundsMinor:reportMoney(totals.refunds_minor),netSalesMinor:reportMoney(totals.net_sales_minor)
+  },payments:payments.map(r=>({method:r.method,paymentCount:r.payment_count,amountMinor:reportMoney(r.amount_minor)})),outlets:outlets.map(r=>({outletId:r.outlet_id,grossMinor:reportMoney(r.gross_minor),salesCount:r.sales_count})),operators:operators.map(r=>({staffId:r.staff_id,grossMinor:reportMoney(r.gross_minor),salesCount:r.sales_count})),categories:categories.map(r=>({category:r.category,grossMinor:reportMoney(r.gross_minor)})),refunds:{refundCount:refunds.refund_count,refundMinor:reportMoney(refunds.refund_minor)},collections:{collectedMinor:reportMoney(collections.collected_minor),cashCollectedMinor:reportMoney(collections.cash_collected_minor),mpesaCollectedMinor:reportMoney(collections.mpesa_collected_minor)}};
+  result.daily=daily.map(row=>({date:row.day,salesCount:Number(row.sales_count),grossMinor:reportMoney(row.gross_minor),netSalesMinor:reportMoney(row.net_sales_minor)}));
   return result;
  });
 }
@@ -122,14 +131,14 @@ export async function occupancy(pool,actor,{start,end,timeZone}={}){
    WITH nights AS (SELECT generate_series($2::date,$3::date,'1 day')::date AS night),
    stays AS (
      SELECT st.id,st.room_id,(st.checked_in_at AT TIME ZONE $4)::date AS check_in,
-       (COALESCE(st.checked_out_at,now()) AT TIME ZONE $4)::date AS check_out
+       CASE WHEN st.checked_out_at IS NULL THEN (now() AT TIME ZONE $4)::date+1 ELSE (st.checked_out_at AT TIME ZONE $4)::date END AS check_out
      FROM business_stays st WHERE st.business_id=$1 AND st.checked_in_at IS NOT NULL
    )
    SELECT n.night::text AS night,
-     (SELECT count(*)::int FROM stays WHERE check_in<=n.night AND check_out>n.night) AS occupied_rooms,
-     (SELECT count(*)::int FROM business_rooms r WHERE r.business_id=$1 AND r.archived_at IS NULL AND r.maintenance_state<>'OUT_OF_SERVICE') AS available_rooms
+     (SELECT count(DISTINCT room_id)::int FROM stays WHERE check_in<=n.night AND check_out>n.night) AS occupied_rooms
    FROM nights n ORDER BY n.night`,[actor.businessId,from,to,tz]);
  const roomNights=rows.reduce((sum,row)=>sum+row.occupied_rooms,0);
- const availableRoomNights=rows.reduce((sum,row)=>sum+row.available_rooms,0);
- return {report:'OCCUPANCY',periodStart:from,periodEnd:to,timeZone:tz,generatedAt:new Date().toISOString(),definition:'A night counts a stay that checked in on or before the night and had not checked out when the night started, in the property time zone. Rooms out of order are excluded from available rooms.',roomNights,availableRoomNights,occupancyPercent:availableRoomNights?Math.round(roomNights*1000/availableRoomNights)/10:0,nights:rows.map(r=>({night:r.night,occupiedRooms:r.occupied_rooms,availableRooms:r.available_rooms}))};
+ // Current serviceability cannot establish which rooms were sellable on every
+ // historical night. Preserve recorded occupancy; never invent that denominator.
+ return {report:'OCCUPANCY',periodStart:from,periodEnd:to,timeZone:tz,generatedAt:new Date().toISOString(),definition:'Distinct occupied rooms per property-local date, from recorded check-in to the checkout date (excluded). Active stays include the current date; current-night activity is provisional. This is not ADR or recognized accommodation revenue.',roomNights,availableRoomNights:null,occupancyPercent:null,denominatorBasis:'HISTORICAL_SERVICEABILITY_NOT_VERIFIED',coverage:[{code:'HISTORICAL_SELLABLE_ROOMS_UNKNOWN',message:'Historical sellable room-night evidence is incomplete. Occupancy percentage is unavailable; current room serviceability is not substituted for history.'}],nights:rows.map(r=>({night:r.night,occupiedRooms:r.occupied_rooms,availableRooms:null}))};
 }

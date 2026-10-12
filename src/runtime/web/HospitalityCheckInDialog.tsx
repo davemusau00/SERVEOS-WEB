@@ -1,3 +1,4 @@
+import {formatFinancialMoney} from '../../utils/financialMoney';
 import React,{useEffect,useRef,useState} from 'react';
 import {Dialog,FormField} from '../../design-system/controls';
 import {ds} from '../../design-system/tokens';
@@ -5,10 +6,18 @@ import {parseMoneyToMinor} from '../../utils/fiscal';
 import type {CommandOutcome} from '../../types/transactions';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import type {QueuedCommand} from './BusinessStore';
+import {localReservationTime} from './reservationWorkspace';
 
-const money=(minor:number)=>new Intl.NumberFormat('en-KE',{style:'currency',currency:'KES'}).format(minor/100);
+const money=(minor:number)=>formatFinancialMoney(minor);
 const active=(records:BusinessRecord[],collection:string)=>records.filter(r=>r.collection===collection&&!r.archived);
 const safeName=(value:unknown,fallback:string)=>typeof value==='string'&&value.trim()&&!/[0-9a-f]{8}-[0-9a-f-]{27}/i.test(value)?value:fallback;
+const checkInWindowBlocker=(reservation:BusinessRecord,now:number,timeZone:string)=>{
+ const arrival=Date.parse(String(reservation.data.startsAt||'')),departure=Date.parse(String(reservation.data.endsAt||''));
+ if(!Number.isFinite(arrival)||!Number.isFinite(departure)||departure<=arrival)return 'The booked arrival and departure need review before check-in. Do not receive accommodation cash.';
+ if(departure<=now)return 'The booked departure time has passed. Review or modify this reservation before check-in; do not receive accommodation cash.';
+ if(arrival>now+5*60_000)return `Check-in is outside the booked arrival window. Arrival is ${localReservationTime(reservation.data.startsAt,timeZone)}. Do not receive accommodation cash before the arrival window opens.`;
+ return '';
+};
 
 /** Display quote only. The server rechecks the snapshot, folio and drawer together. */
 export function remainingCheckInCash(records:BusinessRecord[],reservation:BusinessRecord){
@@ -29,15 +38,20 @@ export function HospitalityCheckInDialog({reservation,records,session,deviceId,q
  const room=active(records,'rooms').find(r=>r.id===current.data.roomId),guest=active(records,'customers').find(r=>r.id===current.data.customerId);
  const folio=active(records,'folios').find(r=>r.id===current.id),stay=active(records,'stays').find(r=>r.id===current.id);
  const accounts=active(records,'paymentAccounts').filter(r=>r.data.method==='CASH'&&r.data.currency==='KES');
+ const timeZone=String(active(records,'hospitalitySettings')[0]?.data.timeZone||session.propertyContext?.timeZone||'Africa/Nairobi');
  const till=active(records,'tillSessions').find(r=>r.data.status==='OPEN'&&r.data.operatorId===session.actorId&&r.data.deviceId===deviceId);
  const [accountId,setAccountId]=useState(accounts[0]?.id||''),[cash,setCash]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[held,setHeld]=useState(false),[awaitingId,setAwaitingId]=useState('');
+ const [now,setNow]=useState(()=>Date.now());
+ useEffect(()=>{const refresh=()=>setNow(Date.now()),timer=window.setInterval(refresh,15_000);const visible=()=>{if(document.visibilityState==='visible')refresh();};document.addEventListener('visibilitychange',visible);return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',visible);};},[]);
  const inFlight=useRef(false),submitted=useRef(false);
  useEffect(()=>{if(!awaitingId)return;const original=queue.find(r=>r.id===awaitingId);if(!original)return;if(original.state==='SYNCHRONIZED'){setNotice('The original check-in was confirmed by the server. Review the current guest state; do not collect cash again.');}else if(original.state==='REJECTED'||original.state==='CONFLICT'){setHeld(false);submitted.current=false;setAwaitingId('');setNotice(original.result?.error?.message||'The original check-in was rejected. Review the current booking and balance before trying again.');}},[queue,awaitingId]);
  const account=accounts.find(r=>r.id===accountId);
  const pending=queue.find(r=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(r.state)&&r.command.operation==='stay.checkIn'&&r.command.payload.id===current.id);
  let due=0,tender:number|null=null,blocker='';
+ const arrivalBlocker=checkInWindowBlocker(current,now,timeZone);
  try{due=upfront?remainingCheckInCash(records,current):0;tender=cash?parseMoneyToMinor(cash):null;}catch(error){blocker=error instanceof Error?error.message:'Review the guest quote.';}
  if(!blocker&&current.data.status!=='RESERVED')blocker='This guest is already checked in or the booking changed. Review its current state.';
+ if(!blocker&&arrivalBlocker)blocker=arrivalBlocker;
  if(!blocker&&(!room||room.data.housekeepingState!=='READY'||room.data.maintenanceState!=='AVAILABLE'))blocker='The room must be ready and in service.';
  if(!blocker&&upfront&&due>0&&(!allowed(session,'payment.record')||session.capabilities?.['operations.checkout']!==true))blocker='Use the enrolled cashier terminal with payment permission to receive accommodation cash.';
  if(!blocker&&upfront&&due>0&&!till)blocker='Open your cashier shift before receiving accommodation cash.';
@@ -45,6 +59,7 @@ export function HospitalityCheckInDialog({reservation,records,session,deviceId,q
  if(!blocker&&Number(folio?.data.depositMinor||0)>0&&upfront)blocker='An existing deposit requires review in Guest Accounts.';
  const confirm=async(event:React.FormEvent)=>{
   event.preventDefault();if(disabled||busy||inFlight.current||submitted.current||held||pending||blocker)return;
+  const currentWindow=checkInWindowBlocker(current,Date.now(),timeZone);if(currentWindow){setNow(Date.now());setNotice(currentWindow);return;}
   if(upfront&&due>0&&(tender===null||tender<due)){setNotice('Cash received must cover the full remaining accommodation amount.');return;}
   inFlight.current=true;submitted.current=true;setBusy(true);setNotice('');
   try{
@@ -59,7 +74,7 @@ export function HospitalityCheckInDialog({reservation,records,session,deviceId,q
  };
  return <Dialog title={upfront?'Cash upfront and check in':'Check in guest'} onClose={()=>{if(!busy)onClose();}}><form onSubmit={event=>void confirm(event)} className="space-y-4" data-guide-anchor="hospitality.check-in">
   <p className="text-sm">{safeName(guest?.data.name,'Guest')} · Room {safeName(room?.data.number,'Not available')}</p>
-  {upfront?<><p className="rounded-xl border border-slate-700 p-3 text-sm">Remaining booked accommodation <strong className="block text-xl">{money(due)}</strong>{due===0?'Existing cash evidence will be checked. Do not receive the same money again.':'Cash settlement and room check-in are committed together after the server validates the booking and your drawer.'}</p>{due>0&&<><FormField label="Cash account"><select className={ds.input} value={accountId} disabled={busy||held||Boolean(pending)} onChange={event=>setAccountId(event.target.value)}><option value="">Choose account</option>{accounts.map(r=><option key={r.id} value={r.id}>{safeName(r.data.name,'Cash account')}</option>)}</select></FormField><FormField label="Cash received (KES)" hint="Count the physical cash before confirming."><input className={ds.input} inputMode="decimal" value={cash} disabled={busy||held||Boolean(pending)} onChange={event=>setCash(event.target.value)} autoComplete="off"/></FormField><p>Change <strong>{money(tender===null?0:Math.max(0,tender-due))}</strong></p></>}</>:<p className="text-sm text-slate-400">This booking retains its existing folio workflow. Payment is recorded separately in Guest Accounts.</p>}
+  {upfront?<><p className="rounded-xl border border-slate-700 p-3 text-sm">Remaining booked accommodation <strong className="block text-xl">{money(due)}</strong>{due===0?'Existing cash evidence will be checked. Do not receive the same money again.':'Cash settlement and room check-in are committed together after the server validates the booking and your drawer.'}</p>{due>0&&!arrivalBlocker&&current.data.status==='RESERVED'&&<><FormField label="Cash account"><select className={ds.input} value={accountId} disabled={busy||held||Boolean(pending)} onChange={event=>setAccountId(event.target.value)}><option value="">Choose account</option>{accounts.map(r=><option key={r.id} value={r.id}>{safeName(r.data.name,'Cash account')}</option>)}</select></FormField><FormField label="Cash received (KES)" hint="Count the physical cash before confirming."><input className={ds.input} inputMode="decimal" value={cash} disabled={busy||held||Boolean(pending)||Boolean(blocker)} onChange={event=>setCash(event.target.value)} autoComplete="off"/></FormField><p>Change <strong>{money(tender===null?0:Math.max(0,tender-due))}</strong></p></>}</>:<p className="text-sm text-slate-400">This booking retains its existing folio workflow. Payment is recorded separately in Guest Accounts.</p>}
   {(blocker||notice||pending)&&<p role="alert" className="rounded-lg border border-amber-500/40 p-3 text-sm">{pending?'The original check-in command is still awaiting confirmation. Use Activity to recover it.':notice||blocker}</p>}
   {(held||pending)&&onActivity&&<button className={ds.button} type="button" onClick={onActivity}>Open Activity and recover</button>}
   <button className={ds.primaryButton} aria-busy={busy} disabled={disabled||busy||held||Boolean(pending)||Boolean(blocker)||upfront&&due>0&&(tender===null||tender<due)}>{busy?'Awaiting server…':upfront&&due>0?`Receive ${money(due)} and check in`:'Confirm check-in'}</button>

@@ -160,7 +160,9 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
     return outcome;
     });
   } catch (error) {
-    const normalized=error?.code==='23505'?new ApiProblem(409,'DUPLICATE_REFERENCE','A record with one of these identifiers already exists.'):error;
+    const normalized=error?.code==='23514'&&error.constraint==='servos_accounting_period_closed'
+      ?new ApiProblem(409,'ACCOUNTING_PERIOD_CLOSED','This posting date belongs to a closed accounting period. Preserve the original cash evidence and command identity; request authorized reopening.')
+      :error?.code==='23505'?new ApiProblem(409,'DUPLICATE_REFERENCE','A record with one of these identifiers already exists.'):error;
     return terminalFailure(normalized);
   }
 }

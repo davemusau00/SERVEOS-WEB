@@ -105,17 +105,23 @@ receipt_items AS (
 const integer=value=>{const number=Number(value);if(!Number.isSafeInteger(number))throw new ApiProblem(409,'REPORT_AMOUNT_REQUIRES_REVIEW','The statement contains an unsupported amount. Review the source ledger before reporting it.');return number};
 const add=(a,b)=>integer(BigInt(a)+BigInt(b));
 const date=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/u.test(value)&&Number.isFinite(Date.parse(`${value}T00:00:00Z`))&&new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;
-const parameters=async(db,businessId,from,to)=>{
+const parameters=async(db,businessId,from,to,timeZone=null)=>{
  if(!date(from)||!date(to)||from>to||(Date.parse(to)-Date.parse(from))/86400000>366)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid statement range of at most 367 calendar days.');
  const business=await db.query('SELECT time_zone FROM businesses WHERE id=$1',[businessId]);
  if(!business.rows.length)throw new ApiProblem(404,'RESOURCE_NOT_FOUND','The business is unavailable.');
- return [businessId,from,to,business.rows[0].time_zone||'Africa/Nairobi'];
+ if(timeZone!==null){const valid=await db.query('SELECT 1 FROM pg_timezone_names WHERE name=$1',[timeZone]);if(!valid.rows.length)throw new ApiProblem(409,'REPORT_TIME_ZONE_REQUIRES_REVIEW','The recorded period time zone is unavailable. Preserve its original evidence for accounting review.');}
+ return [businessId,from,to,timeZone??business.rows[0].time_zone??'Africa/Nairobi'];
 };
 const read=async(pool,work)=>{const db=await pool.connect();try{await db.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');const result=await work(db);await db.query('COMMIT');return result}catch(error){await db.query('ROLLBACK');throw error}finally{db.release()}};
 
 export async function profitAndLoss(pool,businessId,from,to){
- return read(pool,async db=>{
-  const params=await parameters(db,businessId,from,to);
+ return read(pool,db=>profitAndLossOnConnection(db,businessId,from,to));
+}
+
+// Period reviews use their own serialized command transaction and preserve this
+// exact statement as immutable evidence instead of opening a second connection.
+export async function profitAndLossOnConnection(db,businessId,from,to,{timeZone=null}={}){
+  const params=await parameters(db,businessId,from,to,timeZone);
   const totals=await db.query(`${statementCte} SELECT section,account_code,department,category,count(*)::text AS source_count,count(*) FILTER(WHERE amount_minor IS NULL)::text AS unknown_count,COALESCE(sum(amount_minor),0)::text AS amount_minor FROM source_lines GROUP BY section,account_code,department,category ORDER BY section,account_code,department,category`,params);
   const controls=await db.query(`${statementCte}
    SELECT
@@ -123,10 +129,13 @@ export async function profitAndLoss(pool,businessId,from,to){
    (SELECT count(*) FROM receipt_items r WHERE ${period('r.issued_at')} AND (COALESCE(r.item->>'id','') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' OR (SELECT count(*) FROM receipt_items duplicate WHERE duplicate.document_id=r.document_id AND duplicate.item->>'id'=r.item->>'id')<>1))::text AS invalid_item_identity,
    (SELECT count(*) FROM receipts d WHERE ${period('d.issued_at')} AND (d.snapshot->>'currency' IS DISTINCT FROM 'KES' OR ${moneySql("d.snapshot->'taxes'->>'netMinor'")} IS NULL OR NOT EXISTS(SELECT 1 FROM receipt_items i WHERE i.document_id=d.id) OR ${moneySql("d.snapshot->'taxes'->>'netMinor'")} IS DISTINCT FROM (SELECT sum(i.net_minor) FROM receipt_items i WHERE i.document_id=d.id)))::text AS invalid_receipts,
    (SELECT count(*) FROM receipt_candidates d WHERE issuance>1 AND ${period('d.issued_at')})::text AS subsequent_receipts,
+   (SELECT count(*) FROM business_documents d WHERE d.business_id=$1 AND d.document_type='CUSTOMER_CREDIT_INVOICE' AND ${period('d.issued_at')} AND NOT EXISTS(SELECT 1 FROM receipts r WHERE r.order_key=d.snapshot->>'orderId' AND r.issued_at<=d.issued_at))::text AS credit_bills_outside_receipt_basis,
+   (SELECT count(*) FROM receipts d JOIN pos_offline_cash_reconciliations r ON r.business_id=d.business_id AND r.server_order_id::text=d.order_key WHERE ${period('d.issued_at')} AND r.status='SERVER_CONFIRMED')::text AS offline_cost_valuation,
    (SELECT count(*) FROM receipt_items r WHERE ${period('r.issued_at')} AND jsonb_typeof(COALESCE(r.item->'ingredientSnapshot',r.item->'productSnapshot'->'ingredientSnapshot')) IS DISTINCT FROM 'array')::text AS unknown_recipes,
    (SELECT count(*) FROM receipt_items r CROSS JOIN LATERAL jsonb_array_elements(${listSql("COALESCE(r.item->'ingredientSnapshot',r.item->'productSnapshot'->'ingredientSnapshot')")}) ingredient WHERE ${period('r.issued_at')} AND NOT EXISTS(SELECT 1 FROM pos_stock_consumptions c WHERE c.business_id=$1 AND c.order_id::text=r.order_key AND c.line_id::text=r.item->>'id' AND c.stock_item_id::text=ingredient->>'stockItemId'))::text AS missing_consumptions,
    (SELECT count(*) FROM receipt_items r CROSS JOIN LATERAL jsonb_array_elements(${listSql("COALESCE(r.item->'ingredientSnapshot',r.item->'productSnapshot'->'ingredientSnapshot')")}) ingredient JOIN pos_stock_consumptions c ON c.business_id=$1 AND c.order_id::text=r.order_key AND c.line_id::text=r.item->>'id' AND c.stock_item_id::text=ingredient->>'stockItemId' WHERE ${period('r.issued_at')} AND (c.quantity IS DISTINCT FROM ${quantitySql("ingredient->>'quantity'")}*${quantitySql("r.item->>'quantity'")} OR c.cost_minor<>round(c.quantity*c.unit_cost_minor)))::text AS cost_reconciliation_exceptions,
    (SELECT count(*) FROM receipt_items r JOIN pos_stock_consumptions c ON c.business_id=$1 AND c.order_id::text=r.order_key AND c.line_id::text=r.item->>'id' WHERE ${period('r.issued_at')} AND c.unit_cost_minor=0)::text AS zero_cost_consumptions,
+   (SELECT count(*) FROM inventory_movements m JOIN inventory_movement_states s ON s.business_id=m.business_id AND s.movement_id=m.id WHERE m.business_id=$1 AND m.movement_type='WASTE' AND ${period('m.occurred_at')} AND s.average_unit_cost_minor=0)::text AS zero_cost_waste,
    (SELECT count(*) FROM business_expenses e WHERE e.business_id=$1 AND e.status='DRAFT' AND ${period('e.occurred_at')})::text AS draft_expenses,
    (SELECT count(*) FROM pos_orders o WHERE o.business_id=$1 AND o.state IN ('OPEN','FIRED') AND o.created_at<(($3::date+1) AT TIME ZONE $4) AND EXISTS(SELECT 1 FROM pos_stock_consumptions c WHERE c.business_id=o.business_id AND c.order_id=o.id))::text AS unissued_preparation,
    (SELECT count(*) FROM business_expenses e LEFT JOIN business_expense_journals j ON j.business_id=e.business_id AND j.expense_id=e.id WHERE e.business_id=$1 AND e.status='POSTED' AND ${period('e.occurred_at')} AND (j.id IS NULL OR j.amount_minor<>e.amount_minor))::text AS expense_journal_exceptions,
@@ -145,15 +154,19 @@ export async function profitAndLoss(pool,businessId,from,to){
   const warn=(code,count,message,blocksPosMargin=false)=>{if(count)coverage.push({code,count,message,blocksPosMargin})};
   warn('RECEIPT_ALLOCATION',control.invalid_items+control.invalid_receipts+control.invalid_item_identity,'Issued item identities, amounts or tax allocations need reconciliation.',true);
   warn('REISSUED_BILLS',control.subsequent_receipts,'An order has additional issued receipts. Only its original bill is recognised; review later changes.',true);
+  warn('CUSTOMER_CREDIT_BILL_BASIS',control.credit_bills_outside_receipt_basis,'Customer-account invoices are outside the current sales-receipt recognition basis. Reconcile their revenue, original cost and later settlement timing before relying on POS margin.',true);
+  warn('OFFLINE_COST_VALUATION',control.offline_cost_valuation,'Some offline bills were valued by canonical fire at server reconciliation. Frozen local sale-time unit costs and business-period allocation still require verification.',true);
   warn('UNKNOWN_RECIPE',control.unknown_recipes,'Historical recipe evidence is missing; inventory costs cannot be assumed to be zero.',true);
   warn('MISSING_CONSUMPTION',control.missing_consumptions,'Issued ingredient snapshots lack matching sale-time consumption evidence.',true);
   warn('COST_RECONCILIATION',control.cost_reconciliation_exceptions,'Issued quantities, ingredient usage and immutable sale-time costs require reconciliation.',true);
   warn('ZERO_COST_REVIEW',control.zero_cost_consumptions,'Zero sale-time inventory costs require review before a supported margin is shown.',true);
+  warn('ZERO_WASTE_COST_REVIEW',control.zero_cost_waste,'Some stock waste has zero original valuation. Review it before treating the recorded operating expense as complete.');
   warn('UNPRICED_COST',lines.reduce((n,line)=>n+line.unknownCount,0),'Some inventory costs lack historical valuation evidence. Their amounts are excluded, not treated as zero.');
   warn('DRAFT_EXPENSES',control.draft_expenses,'Expense drafts are excluded until authorised posting.');
   warn('UNISSUED_PREPARATION',control.unissued_preparation,'Prepared open orders are excluded from issued-sales revenue and COGS; review their period allocation.',true);
   warn('EXPENSE_JOURNAL_EXCEPTION',control.expense_journal_exceptions,'Posted expense sources and journals do not reconcile.');
   coverage.push({code:'ACCOUNTING_COVERAGE',count:null,message:'Hotel direct costs, depreciation, financing, payroll/accrual completeness and closing adjustments are not certified. Whole-business profit and tax remain unavailable.',blocksPosMargin:false});
+  coverage.push({code:'COGS_JOURNAL_UNAVAILABLE',count:null,message:'Recorded inventory costs support this read-only management view. Accountant-approved COGS recognition and balanced general-ledger posting remain unavailable; cost-source reviews do not post financial adjustments.',blocksPosMargin:false});
   coverage.push({code:'HOTEL_SERVICE_PERIOD',count:null,message:'Accommodation follows existing folio charge journals, including booked periods charged upfront. Deferred revenue and service-period allocation require an approved policy; this is not a certified accrual statement.',blocksPosMargin:false});
   const posGrossProfitMinor=coverage.some(issue=>issue.blocksPosMargin)?null:add(posNetRevenueMinor,-cogsMinor);
   return {reportVersion:1,from,to,timeZone:params[3],currency:'KES',generatedAt:controls.rows[0].generated_at.toISOString(),status:'INCOMPLETE',periodStatus:'NOT_CLOSED',basis:'ISSUED_POS_BILLS_AND_FOLIO_ACCRUAL',
@@ -169,7 +182,6 @@ export async function profitAndLoss(pool,businessId,from,to){
     {key:'EXPENSE_STOCK_WASTE',label:'Stock waste',basis:'Waste quantity valued at its immutable movement-state cost; missing historical cost is a coverage exception.'},
    ],
   };
- });
 }
 
 export async function profitAndLossSources(pool,businessId,from,to,{section='ALL',before=null,limit=50}={}){

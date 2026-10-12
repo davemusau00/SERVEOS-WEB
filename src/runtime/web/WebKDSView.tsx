@@ -24,8 +24,8 @@ export function WebKDSView({records,session,disabled,command,onRefresh,onActivit
  const inFlight=useRef(false);const refreshedAfterFailure=useRef(false);
  const board=useMemo(()=>kdsBoard(records),[records]);
  const canUpdate=allowed(session,'kds.update');
- const settings=records.find(r=>r.collection==='businessSettings'&&!r.archived);
- const configuredThreshold=Number(settings?.data.preparationOverdueMinutes);
+ const settings=records.find(r=>r.collection==='preparationSettings'&&r.id===session.businessId&&!r.archived);
+ const configuredThreshold=Number((settings?.data.overdueMinutes as Record<string,unknown>|undefined)?.[filters.station]);
  const overdueMinutes=Number.isFinite(configuredThreshold)&&configuredThreshold>=1&&configuredThreshold<=240?configuredThreshold:15;
  useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
  useEffect(()=>{try{sessionStorage.setItem(key,JSON.stringify(filters));}catch{/* Filters are optional, never financial storage. */}},[key,filters]);
@@ -33,18 +33,19 @@ export function WebKDSView({records,session,disabled,command,onRefresh,onActivit
  useEffect(()=>{
   if(!failure?.commandId)return;
   const entry=queue.find(q=>q.id===failure.commandId);
-  if(entry?.state==='SYNCHRONIZED'){setFailure(null);setAwaiting(current=>{const next={...current};delete next[failure.orderId];return next;});}
+  if(entry?.state==='SYNCHRONIZED'){const order=records.find(row=>row.collection==='orders'&&row.id===failure.orderId),baseline=awaiting[failure.orderId]?.version;if(baseline!==undefined&&(!order||order.version<=baseline))return;setFailure(null);setAwaiting(current=>{const next={...current};delete next[failure.orderId];return next;});}
   else if(failure.unknown&&(entry?.state==='CONFLICT'||entry?.state==='REJECTED')){
    setAwaiting(current=>{const next={...current};delete next[failure.orderId];return next;});
    setFailure({...failure,unknown:false,message:'The server did not apply this update. Refresh and review the current ticket before trying again.'});refreshedAfterFailure.current=false;
   }
- },[queue,failure]);
+ },[queue,failure,records,awaiting]);
  const unresolved=(id:string)=>queue.some(q=>q.state!=='SYNCHRONIZED'&&q.state!=='REJECTED'&&q.state!=='CONFLICT'&&q.command.operation==='order.kds'&&q.command.payload.orderId===id);
- const configuredStations=prepStations.filter(station=>board.lines.some(line=>line.station===station)||records.some(r=>r.collection==='products'&&!r.archived&&r.data.routeTo===station));
+ const configuredStations=prepStations.filter(station=>board.lines.some(line=>line.station===station)||board.cancellations.some(notice=>notice.station===station)||records.some(r=>r.collection==='products'&&!r.archived&&r.data.routeTo===station));
  const stations=configuredStations.length?configuredStations:prepStations;
  useEffect(()=>{if(!stations.includes(filters.station))setFilters(current=>({...current,station:stations[0]}));},[stations.join('|'),filters.station]);
  const stationLines=board.lines.filter(line=>line.station===filters.station);
  const visible=stationLines.filter(line=>(filters.status==='ALL'||line.status===filters.status)&&`${line.reference} ${line.location} ${line.name} ${line.note} ${line.choices.join(' ')} ${line.waiter}`.toLowerCase().includes(filters.query.trim().toLowerCase()));
+ const cancellations=board.cancellations.filter(notice=>notice.station===filters.station&&(notice.issuedAt===null||notice.issuedAt>=now-24*60*60_000)&&`${notice.reference} ${notice.location} ${notice.reason} ${notice.items.map(item=>item.name).join(' ')}`.toLowerCase().includes(filters.query.trim().toLowerCase()));
  const elapsed=(line:PrepLine)=>line.firedAt===null?null:Math.max(0,Math.floor((now-line.firedAt)/60000));
  const overdue=stationLines.filter(line=>line.status!=='READY'&&(elapsed(line)??0)>=overdueMinutes).length;
  const refresh=async()=>{
@@ -82,6 +83,7 @@ export function WebKDSView({records,session,disabled,command,onRefresh,onActivit
   {notice&&<Notice>{notice}</Notice>}
   {failure&&<Notice tone="warning"><strong>{failure.reference} needs attention.</strong> {failure.message}<div className="mt-2 flex flex-wrap gap-2"><button className={`${ds.button} min-h-11`} disabled={refreshing||disabled} onClick={()=>void refresh()}>Refresh ticket</button>{onActivity&&<button className={`${ds.button} min-h-11`} onClick={onActivity}>View activity</button>}</div></Notice>}
   {board.issues.length>0&&<Notice tone="warning"><details><summary className="cursor-pointer">{board.issues.length} preparation snapshot{board.issues.length===1?'':'s'} need attention</summary><ul className="mt-2 space-y-2">{board.issues.map(issue=><li key={issue.key}><b>{issue.reference}</b>: {issue.message}</li>)}</ul><button className={`${ds.button} mt-2 min-h-11`} disabled={refreshing||disabled} onClick={()=>void refresh()}>Refresh affected orders</button>{onActivity&&<button className={`${ds.button} ml-2 min-h-11`} onClick={onActivity}>View activity</button>}</details></Notice>}
+  {cancellations.length>0&&<section aria-label="Cancelled preparation" className="space-y-2 rounded-xl border border-red-700/60 bg-red-950/20 p-3"><h3 className="font-bold text-red-200">Stop preparation: {cancellations.length} cancellation{cancellations.length===1?'':'s'}</h3><p className="text-xs text-slate-300">Server-issued notices loaded for the last 24 hours. Confirm with the responsible staff; this board does not prove that a cancellation ticket physically printed.</p><div className="grid items-start gap-2 md:grid-cols-2 xl:grid-cols-3">{cancellations.map(notice=><article key={notice.id} className="min-w-0 rounded-lg border border-red-800 bg-slate-950/70 p-3"><div className="flex items-start justify-between gap-2"><h4 className="break-words font-bold">{notice.reference}</h4><StatusBadge tone="danger">Cancelled</StatusBadge></div><p className="mt-1 break-words text-sm">{notice.location}</p><p className="mt-1 break-words text-sm text-red-200">{notice.reason}</p>{notice.items.map((item,index)=><div key={index} className="mt-2 border-t border-slate-700 pt-2 text-sm"><p className="break-words font-semibold">{item.quantity??'?'} x {item.name}</p>{item.choices.length>0&&<p className="break-words text-slate-300">{item.choices.join(' / ')}</p>}{item.note&&<p className="break-words text-slate-300">{item.note}</p>}</div>)}{notice.issuedAt===null?<p className="mt-2 text-xs text-amber-200">Issue time unavailable; ask a supervisor to review.</p>:<time className="mt-2 block text-xs text-slate-400" dateTime={new Date(notice.issuedAt).toISOString()}>{new Intl.DateTimeFormat('en-KE',{timeZone:session.propertyContext?.timeZone||'Africa/Nairobi',dateStyle:'medium',timeStyle:'short'}).format(notice.issuedAt)}</time>}{allowed(session,'audit.view')&&<details className="mt-2 text-xs text-slate-400"><summary>Technical details</summary><p className="break-all">Document: {notice.id}</p></details>}</article>)}</div></section>}
   <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{visible.map(line=>{
    const age=elapsed(line),late=line.status!=='READY'&&age!==null&&age>=overdueMinutes;
    const invalid=line.problems.some(p=>p.includes('Product name')||p.includes('quantity'));

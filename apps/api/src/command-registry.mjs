@@ -1,4 +1,10 @@
 import {operationalCommandRegistry,addOperationalEvent} from './operational-alerts.mjs';
+import {captureMaintenanceRoomEvent} from './hospitality-room-events.mjs';
+import {stockOperationalAlertCommandRegistry,captureStockOperationalAlerts} from './stock-operational-alerts.mjs';
+import {accountingPeriodCommandRegistry,acquireAccountingPeriodLock} from './accounting-periods.mjs';
+import {historicalCostCommandRegistry,captureHistoricalCosts} from './historical-cost-reviews.mjs';
+import {preparationSettingsCommandRegistry} from './preparation-settings.mjs';
+import {roomBlockCommandRegistry} from './room-blocks.mjs';
 import {offlineCashV2Registry} from './offline-cash-v2.mjs';
 import {supplierCreditApplicationCommandRegistry} from './supplier-credit-application-commands.mjs';
 import {ticketCommandRegistry,enforceCheckoutWhenEnrolled} from './ticket-commands.mjs';
@@ -34,7 +40,7 @@ import {floorplanCommandRegistry} from './floorplan-commands.mjs';
 
 export function createApiCommandRegistry() {
   const groups = [
-    operationalCommandRegistry, ticketCommandRegistry,
+    operationalCommandRegistry, stockOperationalAlertCommandRegistry, ticketCommandRegistry, accountingPeriodCommandRegistry, historicalCostCommandRegistry, preparationSettingsCommandRegistry, roomBlockCommandRegistry,
     catalogCommandRegistry, customerCommandRegistry, customerCreditCommandRegistry,
     customerCreditReconciliationCommandRegistry, staffCommandRegistry, deviceCommandRegistry,
     managerApprovalCommandRegistry, supplierCommandRegistry, purchaseOrderCommandRegistry,
@@ -69,6 +75,13 @@ export function createApiCommandRegistry() {
     const definition=registry.get(name);if(!definition)continue;
     registry.set(name,{...definition,handler:async context=>{await enforceCheckoutWhenEnrolled(context);return definition.handler(context);}});
   }
-  for(const [name,definition] of registry)registry.set(name,{...definition,handler:async context=>{const handled=await definition.handler(context);await addOperationalEvent(context,handled);return handled;}});
+  for(const [name,definition] of registry)registry.set(name,{...definition,handler:async context=>{const handled=await captureStockOperationalAlerts(context,await captureHistoricalCosts(context,await definition.handler(context)));await captureMaintenanceRoomEvent(context,handled);await addOperationalEvent(context,handled);return handled;}});
+  // Shared access preserves concurrent business commands while a review obtains
+  // an exclusive snapshot boundary. Period handlers take only their own period
+  // resource locks and never upgrade a shared lock to exclusive.
+  for(const [name,definition] of registry){
+    if(name.startsWith('accountingPeriod.'))continue;
+    registry.set(name,{...definition,handler:async context=>{await acquireAccountingPeriodLock(context.tx.client,context.actor.businessId);return definition.handler(context);}});
+  }
   return registry;
 }

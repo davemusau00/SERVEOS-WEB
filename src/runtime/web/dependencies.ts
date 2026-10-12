@@ -178,9 +178,17 @@ export function resolveOperationDependencies(operation: string, collection: stri
   }
   if (operation === 'hospitality.settings.save') add('hospitalitySettings', id);
   if (operation === 'hotelService.save') add('hotelServices', id);
+  if (operation === 'room.block' || operation === 'room.unblock') {
+    add('roomBlocks', id); add('rooms', payload.roomId);
+  }
+  if (operation === 'stockAlertPolicy.save') {
+    add('stockItems', payload.stockItemId); add('stockLocations', payload.locationId); add('outlets', payload.outletId);
+  }
   if (operation.startsWith('maintenance.')) {
     const workOrderId = String(payload.id || id || '');
-    add('maintenanceWorkOrders', workOrderId); add('rooms', payload.roomId || workOrderId);
+    const workOrder=byKey.get(key('maintenanceWorkOrders',workOrderId));
+    if(operation==='maintenance.returnToService')add('rooms',workOrderId);
+    else {add('maintenanceWorkOrders',workOrderId);add('rooms',payload.roomId||workOrder?.data.roomId);add('roomBlocks',workOrder?.data.blockId);}
   }
   return [...dependencies.values()].sort((left, right) => left.collection.localeCompare(right.collection) || left.id.localeCompare(right.id));
 }

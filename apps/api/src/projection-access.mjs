@@ -1,6 +1,10 @@
 const has=(actor,...permissions)=>actor.permissions?.includes('*')||permissions.some(permission=>actor.permissions?.includes(permission));
+import {canReceiveStockOperationalAlerts,stockOperationalAlertCapability} from './stock-operational-alerts.mjs';
 export function visibleRecord(actor,record){
  const {collection,data}=record;
+ if(collection==='stockAlertPolicies')return stockOperationalAlertCapability(actor)&&has(actor,'business.configure');
+ if(collection==='stockAlertEpisodes')return canReceiveStockOperationalAlerts(actor);
+ if(collection==='preparationSettings')return has(actor,'business.configure','kds.view','kds.update','pos.sell','order.fire');
  if(collection==='posTickets')return has(actor,'ticket.view_outlet','ticket.approve','ticket.reject')||data.createdByStaffId===actor.staffId&&has(actor,'ticket.view_own');
  if(collection==='customers')return has(actor,'customers.manage','credit.view','credit.manage','credit.charge','credit.settle','credit.reconcile','credit.write_off','pos.sell','pos.open_tab','rooms.guests.view');
  if(collection==='tables')return has(actor,'floorplan.view','floorplan.manage','pos.sell','pos.open_tab','pos.manage_table');
@@ -26,6 +30,8 @@ export function visibleRecord(actor,record){
  if(['purchaseOrders','goodsReceipts','supplierPayables','supplierPayments','supplierReturns','supplierCreditNotes','supplierCredits','supplierCreditApplications'].includes(collection))return has(actor,'procurement.view','procurement.manage','procurement.receive','procurement.pay');
  if(collection==='suppliers')return has(actor,'suppliers.manage','procurement.view','procurement.manage','procurement.receive','procurement.pay');
  if(collection==='journalEntries')return has(actor,'accounting.view','audit.view','reports.view');
+ if(['accountingPeriodPolicy','accountingPeriods','accountingPeriodReviews','accountingPeriodEvents'].includes(collection))return has(actor,'accounting.view','accounting.manage','reports.view','audit.view');
+ if(['historicalCostPolicy','historicalCostSources','historicalCostReviews'].includes(collection))return has(actor,'accounting.view','accounting.manage','reports.view','audit.view');
  if(collection==='closeDayReports')return has(actor,'reports.view','accounting.view','audit.view');
  if(collection==='orders')return has(actor,'pos.sell','pos.open_tab','order.fire','order.void','order.discount','order.comp','payment.record','order.refund','payment.reverse','credit.view','credit.charge','credit.settle','credit.write_off','payments.view','reports.view','kds.view','kds.update');
  if(collection==='tillSessions')return has(actor,'till.view','till.override_variance','accounting.view','reports.view','audit.view')||data.operatorId===actor.staffId&&has(actor,'till.open','till.close','payment.record','order.refund','payment.reverse','till.cashMovement','credit.settle','credit.write_off');

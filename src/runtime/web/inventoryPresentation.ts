@@ -1,5 +1,6 @@
 import type {BusinessRecord} from './session';
 import type {QueuedCommand} from './BusinessStore';
+import {parseQuantity} from '../../utils/fiscal';
 
 const object=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -9,6 +10,7 @@ export const inventoryName=(records:BusinessRecord[],collection:string,id:unknow
 };
 export const inventoryQuantity=(value:unknown):string=>{const number=Number(value);return value!==null&&value!==undefined&&Number.isFinite(number)?number.toLocaleString('en-KE',{maximumFractionDigits:6}):'Unavailable';};
 export function scopedStockQuantity(stock:BusinessRecord,location='ALL'):number|null {
+ if(!stock.data.currentStock||typeof stock.data.currentStock!=='object'||Array.isArray(stock.data.currentStock))return null;
  const balances=object(stock.data.currentStock);
  const values=location==='ALL'?Object.values(balances):[balances[location]??0];
  if(values.some(value=>value===null||!Number.isFinite(Number(value))))return null;
@@ -25,7 +27,7 @@ export function stockValuationMinor(stocks:BusinessRecord[],location='ALL'):numb
  let scaledTotal=0n;
  for(const stock of stocks){
   const quantity=scopedStockQuantity(stock,location),rate=Number(stock.data.averageUnitCostMinor);
-  if(quantity===null||!Number.isFinite(rate)||rate<0||Math.abs(quantity)>1e9||rate>1e12)return null;
+  if(quantity===null||stock.data.averageUnitCostMinor===undefined||stock.data.averageUnitCostMinor===null||!Number.isFinite(rate)||rate<0||Math.abs(quantity)>1e9||rate>1e12)return null;
   const quantityUnits=BigInt(quantity.toFixed(6).replace('.',''));
   const costUnits=BigInt(rate.toFixed(12).replace('.',''));
   scaledTotal+=quantityUnits*costUnits;
@@ -33,6 +35,32 @@ export function stockValuationMinor(stocks:BusinessRecord[],location='ALL'):numb
  const scale=1_000_000_000_000_000_000n;
  const rounded=scaledTotal<0n?-((-scaledTotal+scale/2n)/scale):(scaledTotal+scale/2n)/scale;
  return rounded>BigInt(Number.MAX_SAFE_INTEGER)||rounded<BigInt(Number.MIN_SAFE_INTEGER)?null:Number(rounded);
+}
+
+export function inventoryWhen(value:unknown,timeZone='Africa/Nairobi'):string {
+ if(typeof value!=='string'||!value.trim())return 'Time unavailable';
+ const date=new Date(value);if(!Number.isFinite(date.getTime()))return 'Time unavailable';
+ try{return new Intl.DateTimeFormat('en-KE',{dateStyle:'medium',timeStyle:'short',timeZone}).format(date);}catch{return date.toISOString();}
+}
+
+export function inventoryBaseQuantity(value:unknown,conversion:unknown):number {
+ const quantity=parseQuantity(value,{max:1e9,maxDecimals:6}),factor=parseQuantity(conversion,{min:Number.MIN_VALUE,max:1e9,maxDecimals:6});
+ const multiplied=BigInt(quantity.toFixed(6).replace('.',''))*BigInt(factor.toFixed(6).replace('.',''));
+ if(multiplied%1_000_000n!==0n||multiplied>1_000_000_000_000_000_000_000n)throw new Error('Converted stock quantity exceeds six-decimal precision or the supported range.');
+ return Number(multiplied/1_000_000n)/1_000_000;
+}
+
+/** PO display preview follows cumulative receiving rounding; authoritative amounts are issued by the API. */
+export function receivingCostPreviewMinor(previous:unknown,accepted:unknown,unitPriceMinor:unknown):number {
+ const before=parseQuantity(previous,{max:1e9,maxDecimals:6}),addition=parseQuantity(accepted,{max:1e9,maxDecimals:6}),price=Number(unitPriceMinor);
+ if(!Number.isSafeInteger(price)||price<0)throw new Error('The purchase unit cost is unavailable.');
+ const micros=(value:number)=>BigInt(value.toFixed(6).replace('.',''));
+ const oldUnits=micros(before),newUnits=oldUnits+micros(addition);
+ if(newUnits>1_000_000_000_000_000n)throw new Error('Cumulative receiving quantity exceeds the supported range.');
+ const rounded=(value:bigint)=>(value*BigInt(price)+500_000n)/1_000_000n;
+ const total=rounded(newUnits)-rounded(oldUnits);
+ if(total>BigInt(Number.MAX_SAFE_INTEGER))throw new Error('The purchase value exceeds the supported range.');
+ return Number(total);
 }
 
 export function inventoryCommandInFlight(queue:QueuedCommand[],stockIds:readonly string[]):QueuedCommand|undefined {

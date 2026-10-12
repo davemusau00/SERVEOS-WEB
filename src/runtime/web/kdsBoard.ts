@@ -14,8 +14,16 @@ export interface PrepLine {
  firedAt:number|null; updatedAt:number|null; problems:string[];
 }
 export interface PrepIssue {key:string;order:BusinessRecord;reference:string;message:string}
-export function kdsBoard(records:BusinessRecord[]):{lines:PrepLine[];issues:PrepIssue[]}{
+export interface PrepCancellation {id:string;station:PrepStation;reference:string;location:string;reason:string;issuedAt:number|null;items:{name:string;quantity:number|null;choices:string[];note:string}[]}
+export function kdsBoard(records:BusinessRecord[]):{lines:PrepLine[];issues:PrepIssue[];cancellations:PrepCancellation[]}{
  const lines:PrepLine[]=[],issues:PrepIssue[]=[];
+ const cancellations=records.filter(record=>record.collection==='businessDocuments'&&!record.archived&&['KOT_CANCEL','BOT_CANCEL'].includes(String(record.data.type))).map<PrepCancellation>(document=>{
+  const snapshot=object(document.data.snapshot),order=records.find(record=>record.collection==='orders'&&record.id===snapshot.orderId),d=order?.data||{};
+  const issued=Date.parse(String(document.data.issuedAt||snapshot.issuedAt||''));
+  return {id:document.id,station:document.data.type==='BOT_CANCEL'?'BAR':'KITCHEN',reference:humanText(document.data.documentNumber)||humanText(snapshot.orderName)||'Cancellation reference unavailable',
+   location:humanText(d.serviceReference)||humanText(snapshot.serviceReference)||humanText(d.tableName)||humanText(snapshot.orderName)||'Order',reason:humanText(snapshot.reason)||'Reason unavailable',issuedAt:Number.isFinite(issued)?issued:null,
+   items:(Array.isArray(snapshot.items)?snapshot.items:[]).map(raw=>{const item=object(raw),quantity=Number(item.quantity),portion=humanText(object(item.portionSnapshot).name);return {name:humanText(object(item.productSnapshot).name)||humanText(item.name)||humanText(item.productName)||'Name unavailable',quantity:Number.isFinite(quantity)&&quantity>0?quantity:null,choices:[portion,...(Array.isArray(item.modifierSnapshots)?item.modifierSnapshots.map(modifier=>humanText(object(modifier).name)):[])].filter(Boolean),note:humanText(item.notes)||humanText(item.note)};})};
+ }).sort((a,b)=>(b.issuedAt??0)-(a.issuedAt??0));
  const documents=records.filter(r=>r.collection==='businessDocuments'&&!r.archived&&['KOT','BOT'].includes(String(r.data.type)));
  for(const order of records.filter(r=>r.collection==='orders'&&!r.archived&&r.data.state!=='VOIDED')){
   const d=order.data,items=Array.isArray(d.items)?d.items:[];
@@ -53,5 +61,5 @@ export function kdsBoard(records:BusinessRecord[]):{lines:PrepLine[];issues:Prep
   }
  }
  lines.sort((a,b)=>(a.firedAt??Infinity)-(b.firedAt??Infinity)||a.reference.localeCompare(b.reference));
- return {lines,issues};
+ return {lines,issues,cancellations};
 }

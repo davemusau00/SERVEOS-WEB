@@ -1,6 +1,11 @@
 import {offlineCashReconciliationProjections} from './offline-cash-v2.mjs';
+import {preparationSettingsProjections} from './preparation-settings.mjs';
+import {historicalCostProjections,historicalCostState,historicalCostSource} from './historical-cost-reviews.mjs';
+import {stockAlertPolicyProjections,stockAlertEpisodeProjections} from './stock-operational-alerts.mjs';
+import {accountingPeriodProjections,accountingPeriodState,accountingPeriodReview} from './accounting-periods.mjs';
 import {profitAndLoss,profitAndLossSources,profitAndLossSource} from './management-profit-and-loss.mjs';
 import {randomUUID} from 'node:crypto';
+import {ApiProblem} from './command-kernel.mjs';
 import {supplierCreditBalanceProjections,supplierCreditApplicationProjections} from './supplier-credit-application-projections.mjs';
 import {customerProjections} from './customer-commands.mjs';
 import {ticketProjections} from './ticket-commands.mjs';
@@ -140,23 +145,42 @@ export class PostgresStore {
   }
 
   async financeSummary(businessId,from,to){
-    const business=await this.pool.query('SELECT time_zone AS "timeZone" FROM businesses WHERE id=$1',[businessId]);
+    const db=await this.pool.connect();
+    const reportMinor=value=>{let exact;try{if(typeof value==='number'&&!Number.isSafeInteger(value))throw new Error();exact=BigInt(value)}catch{throw new ApiProblem(409,'REPORT_AMOUNT_REQUIRES_REVIEW','Financial evidence exceeds the supported exact reporting range.');}if(exact>BigInt(Number.MAX_SAFE_INTEGER)||exact<BigInt(Number.MIN_SAFE_INTEGER))throw new ApiProblem(409,'REPORT_AMOUNT_REQUIRES_REVIEW','Financial evidence exceeds the supported exact reporting range.');return Number(exact)};
+    try{
+    await db.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    await db.query("SET LOCAL statement_timeout='15000ms'");
+    const stamp=await db.query('SELECT transaction_timestamp() AS at');
+    const business=await db.query('SELECT time_zone AS "timeZone" FROM businesses WHERE id=$1',[businessId]);
     const timeZone=business.rows[0]?.timeZone||'Africa/Nairobi';
     const [revenue,expenses,expenseCategories,payables,supplierPayments]=await Promise.all([
-      this.pool.query(`SELECT COALESCE(sum(l.credit_minor-l.debit_minor),0)::text AS amount FROM financial_journals j JOIN financial_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id WHERE j.business_id=$1 AND j.occurred_at AT TIME ZONE $4 >= $2::date AND j.occurred_at AT TIME ZONE $4 < ($3::date+1) AND l.account_code='REVENUE_SALES'`,[businessId,from,to,timeZone]),
-      this.pool.query(`SELECT COALESCE(sum(amount_minor),0)::text AS amount,COALESCE(sum(amount_minor) FILTER(WHERE kind='CASH'),0)::text AS cash,COALESCE(sum(amount_minor) FILTER(WHERE kind='EXTERNAL'),0)::text AS external FROM business_expenses WHERE business_id=$1 AND status='POSTED' AND occurred_at AT TIME ZONE $4 >= $2::date AND occurred_at AT TIME ZONE $4 < ($3::date+1)`,[businessId,from,to,timeZone]),
-      this.pool.query(`SELECT c.id,c.name,COALESCE(sum(e.amount_minor),0)::text AS amount FROM business_expense_categories c LEFT JOIN business_expenses e ON e.business_id=c.business_id AND e.category_id=c.id AND e.status='POSTED' AND e.occurred_at AT TIME ZONE $4 >= $2::date AND e.occurred_at AT TIME ZONE $4 < ($3::date+1) WHERE c.business_id=$1 GROUP BY c.id,c.name ORDER BY lower(c.name),c.id`,[businessId,from,to,timeZone]),
-      this.pool.query(`WITH outstanding AS (SELECT GREATEST(0,p.amount_minor-p.paid_minor-p.credited_minor)::numeric AS amount,p.due_date,(statement_timestamp() AT TIME ZONE $2)::date AS today FROM procurement_payables p WHERE p.business_id=$1 AND p.status NOT IN ('PAID','SETTLED','REVERSED') AND p.amount_minor>p.paid_minor+p.credited_minor) SELECT COALESCE(sum(amount) FILTER(WHERE due_date IS NULL),0)::text AS "undatedMinor",COALESCE(sum(amount) FILTER(WHERE due_date IS NOT NULL AND due_date >= today),0)::text AS "currentMinor",COALESCE(sum(amount) FILTER(WHERE today-due_date BETWEEN 1 AND 30),0)::text AS "days1To30Minor",COALESCE(sum(amount) FILTER(WHERE today-due_date BETWEEN 31 AND 60),0)::text AS "days31To60Minor",COALESCE(sum(amount) FILTER(WHERE today-due_date BETWEEN 61 AND 90),0)::text AS "days61To90Minor",COALESCE(sum(amount) FILTER(WHERE today-due_date>90),0)::text AS "over90DaysMinor",COALESCE(sum(amount),0)::text AS "totalMinor" FROM outstanding`,[businessId,timeZone]),
-      this.pool.query(`SELECT count(*)::text AS count,COALESCE(sum(amount_minor),0)::text AS amount FROM procurement_supplier_payments WHERE business_id=$1 AND recorded_at AT TIME ZONE $4 >= $2::date AND recorded_at AT TIME ZONE $4 < ($3::date+1)`,[businessId,from,to,timeZone]),
+      db.query(`SELECT COALESCE(sum(l.credit_minor-l.debit_minor),0)::text AS amount FROM financial_journals j JOIN financial_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id WHERE j.business_id=$1 AND j.occurred_at AT TIME ZONE $4 >= $2::date AND j.occurred_at AT TIME ZONE $4 < ($3::date+1) AND l.account_code='REVENUE_SALES'`,[businessId,from,to,timeZone]),
+      db.query(`SELECT COALESCE(sum(amount_minor),0)::text AS amount,COALESCE(sum(amount_minor) FILTER(WHERE kind='CASH'),0)::text AS cash,COALESCE(sum(amount_minor) FILTER(WHERE kind='EXTERNAL'),0)::text AS external FROM business_expenses WHERE business_id=$1 AND status='POSTED' AND occurred_at AT TIME ZONE $4 >= $2::date AND occurred_at AT TIME ZONE $4 < ($3::date+1)`,[businessId,from,to,timeZone]),
+      db.query(`SELECT c.id,c.name,COALESCE(sum(e.amount_minor),0)::text AS amount FROM business_expense_categories c LEFT JOIN business_expenses e ON e.business_id=c.business_id AND e.category_id=c.id AND e.status='POSTED' AND e.occurred_at AT TIME ZONE $4 >= $2::date AND e.occurred_at AT TIME ZONE $4 < ($3::date+1) WHERE c.business_id=$1 GROUP BY c.id,c.name ORDER BY lower(c.name),c.id`,[businessId,from,to,timeZone]),
+      db.query(`WITH outstanding AS (SELECT GREATEST(0,p.amount_minor-p.paid_minor-p.credited_minor)::numeric AS amount,p.due_date,(transaction_timestamp() AT TIME ZONE $2)::date AS today FROM procurement_payables p WHERE p.business_id=$1 AND p.status NOT IN ('PAID','SETTLED','REVERSED') AND p.amount_minor>p.paid_minor+p.credited_minor) SELECT COALESCE(sum(amount) FILTER(WHERE due_date IS NULL),0)::text AS "undatedMinor",COALESCE(sum(amount) FILTER(WHERE due_date IS NOT NULL AND due_date >= today),0)::text AS "currentMinor",COALESCE(sum(amount) FILTER(WHERE today-due_date BETWEEN 1 AND 30),0)::text AS "days1To30Minor",COALESCE(sum(amount) FILTER(WHERE today-due_date BETWEEN 31 AND 60),0)::text AS "days31To60Minor",COALESCE(sum(amount) FILTER(WHERE today-due_date BETWEEN 61 AND 90),0)::text AS "days61To90Minor",COALESCE(sum(amount) FILTER(WHERE today-due_date>90),0)::text AS "over90DaysMinor",COALESCE(sum(amount),0)::text AS "totalMinor" FROM outstanding`,[businessId,timeZone]),
+      db.query(`SELECT count(*)::text AS count,COALESCE(sum(amount_minor),0)::text AS amount FROM procurement_supplier_payments WHERE business_id=$1 AND recorded_at AT TIME ZONE $4 >= $2::date AND recorded_at AT TIME ZONE $4 < ($3::date+1)`,[businessId,from,to,timeZone]),
     ]);
-    const revenueMinor=Number(revenue.rows[0].amount),expenseMinor=Number(expenses.rows[0].amount),numberObject=row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key,key==='totalMinor'||key.endsWith('Minor')?Number(value):value]));
+    const revenueMinor=reportMinor(revenue.rows[0].amount),expenseMinor=reportMinor(expenses.rows[0].amount),numberObject=row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key,key==='totalMinor'||key.endsWith('Minor')?reportMinor(value):value]));
     const debtorAging={currentMinor:0,days1To30Minor:0,days31To60Minor:0,days61To90Minor:0,over90DaysMinor:0};
-    for(const account of await customerCreditAccountProjections(this.pool,businessId))for(const key of Object.keys(debtorAging))debtorAging[key]+=Number(account.data.aging?.[key]||0);
-    return {from,to,timeZone,currency:'KES',salesRevenueMinor:revenueMinor,postedExpensesMinor:expenseMinor,operatingResultBeforeTaxMinor:revenueMinor-expenseMinor,expensesByTender:{cashMinor:Number(expenses.rows[0].cash),externalMinor:Number(expenses.rows[0].external)},expensesByCategory:expenseCategories.rows.map(row=>({categoryId:row.id,name:row.name,amountMinor:Number(row.amount)})),debtorAging,payableAging:numberObject(payables.rows[0]||{}),supplierPayments:{count:Number(supplierPayments.rows[0].count),amountMinor:Number(supplierPayments.rows[0].amount)}};
+    let debtorSourceBalance=0n,exceptionAccounts=0;
+    for(const account of await customerCreditAccountProjections(db,businessId,null,stamp.rows[0].at)){
+      debtorSourceBalance+=BigInt(reportMinor(account.data.balanceMinor));
+      if(account.data.aging?.reconciled!==true)exceptionAccounts++;
+      for(const key of Object.keys(debtorAging))debtorAging[key]=reportMinor(BigInt(debtorAging[key])+BigInt(reportMinor(account.data.aging?.[key]||0)));
+    }
+    const agingTotal=Object.values(debtorAging).reduce((sum,value)=>sum+BigInt(value),0n);
+    const debtorReconciliation={sourceBalanceMinor:reportMinor(debtorSourceBalance),agingTotalMinor:reportMinor(agingTotal),differenceMinor:reportMinor(debtorSourceBalance-agingTotal),exceptionAccounts,reconciled:exceptionAccounts===0&&debtorSourceBalance===agingTotal};
+    const result={from,to,timeZone,generatedAt:stamp.rows[0].at.toISOString(),currency:'KES',salesRevenueMinor:revenueMinor,postedExpensesMinor:expenseMinor,operatingResultBeforeTaxMinor:reportMinor(BigInt(revenueMinor)-BigInt(expenseMinor)),expensesByTender:{cashMinor:reportMinor(expenses.rows[0].cash),externalMinor:reportMinor(expenses.rows[0].external)},expensesByCategory:expenseCategories.rows.map(row=>({categoryId:row.id,name:row.name,amountMinor:reportMinor(row.amount)})),debtorAging,debtorReconciliation,payableAging:numberObject(payables.rows[0]||{}),supplierPayments:{count:reportMinor(supplierPayments.rows[0].count),amountMinor:reportMinor(supplierPayments.rows[0].amount)}};
+    await db.query('COMMIT');return result;
+    }catch(error){await db.query('ROLLBACK');throw error}finally{db.release()}
   }
-
-  async roomAvailability(businessId,startsAt,endsAt,guests){
-    const {rows}=await this.pool.query(`SELECT r.id,r.number,r.room_type_id AS "roomTypeId",r.capacity,r.housekeeping_state AS "housekeepingState",r.maintenance_state AS "maintenanceState" FROM business_rooms r WHERE r.business_id=$1 AND r.archived_at IS NULL AND r.capacity >= $4 AND r.housekeeping_state='READY' AND r.maintenance_state='AVAILABLE' AND NOT EXISTS(SELECT 1 FROM business_room_reservations x WHERE x.business_id=r.business_id AND x.room_id=r.id AND x.archived_at IS NULL AND x.status IN ('RESERVED','CHECKED_IN') AND x.starts_at < ($3::timestamptz + make_interval(mins=>r.turnaround_minutes)) AND x.blocked_until > $2::timestamptz) AND NOT EXISTS(SELECT 1 FROM business_room_blocks b WHERE b.business_id=r.business_id AND b.room_id=r.id AND b.status='ACTIVE' AND b.starts_at < ($3::timestamptz + make_interval(mins=>r.turnaround_minutes)) AND (b.ends_at IS NULL OR b.ends_at > $2::timestamptz)) ORDER BY r.number,r.id`,[businessId,startsAt,endsAt,guests]);
+  async accountingPeriodState(businessId){return accountingPeriodState(this.pool,businessId);}
+  async historicalCosts(businessId,options){return historicalCostState(this.pool,businessId,options);}
+  async historicalCostSource(businessId,id){return historicalCostSource(this.pool,businessId,id);}
+  async accountingPeriodReview(businessId,reviewId){return accountingPeriodReview(this.pool,businessId,reviewId);}
+  async roomAvailability(businessId,startsAt,endsAt,guests,excludeReservationId=null){
+    if(excludeReservationId){const existing=await this.pool.query("SELECT 1 FROM business_room_reservations WHERE business_id=$1 AND id=$2 AND archived_at IS NULL AND status='RESERVED'",[businessId,excludeReservationId]);if(!existing.rows.length)throw new ApiProblem(409,'RESERVATION_NOT_MODIFIABLE','Refresh the existing reservation before searching replacement dates.');}
+    const {rows}=await this.pool.query(`SELECT r.id,r.number,r.room_type_id AS "roomTypeId",r.capacity,r.housekeeping_state AS "housekeepingState",r.maintenance_state AS "maintenanceState" FROM business_rooms r WHERE r.business_id=$1 AND r.archived_at IS NULL AND r.capacity >= $4 AND r.housekeeping_state='READY' AND r.maintenance_state='AVAILABLE' AND NOT EXISTS(SELECT 1 FROM business_room_reservations x WHERE x.business_id=r.business_id AND x.room_id=r.id AND x.archived_at IS NULL AND x.status IN ('RESERVED','CHECKED_IN') AND ($5::uuid IS NULL OR x.id<>$5) AND x.starts_at < ($3::timestamptz + make_interval(mins=>r.turnaround_minutes)) AND x.blocked_until > $2::timestamptz) AND NOT EXISTS(SELECT 1 FROM business_room_blocks b WHERE b.business_id=r.business_id AND b.room_id=r.id AND b.status='ACTIVE' AND b.starts_at < ($3::timestamptz + make_interval(mins=>r.turnaround_minutes)) AND (b.ends_at IS NULL OR b.ends_at > $2::timestamptz)) ORDER BY r.number,r.id`,[businessId,startsAt,endsAt,guests,excludeReservationId]);
     return rows.map(row=>({id:row.id,number:row.number,roomTypeId:row.roomTypeId,capacity:Number(row.capacity),housekeepingState:row.housekeepingState,maintenanceState:row.maintenanceState}));
   }
 
@@ -183,6 +207,7 @@ export class PostgresStore {
     const paymentAccounts=await paymentAccountProjections(db,businessId);
     const payments=await paymentProjections(db,businessId);
     const settings=await receiptSettingsProjections(db,businessId);
+    const preparationSettings=await preparationSettingsProjections(db,businessId);
     const setup=await businessSetupProjections(db,businessId);
     const refunds=await refundProjections(db,businessId);
     const journals=await journalProjections(db,businessId);
@@ -199,6 +224,9 @@ export class PostgresStore {
     const customers=await customerProjections(db,businessId);
     const hospitality=[...await roomProjections(db,businessId),...await hospitalityProjections(db,businessId)];
     const financeAssets=await financeAssetProjections(db,businessId);
+    const accountingPeriods=await accountingPeriodProjections(db,businessId);
+    const historicalCosts=await historicalCostProjections(db,businessId);
+    const stockAlerts=[...await stockAlertPolicyProjections(db,businessId),...await stockAlertEpisodeProjections(db,businessId)];
     const tables=await floorplanProjections(db,businessId);
     const customerCreditAccounts=await customerCreditAccountProjections(db,businessId);
     const customerCreditEntries=await customerCreditEntryProjections(db,businessId);
@@ -210,6 +238,9 @@ export class PostgresStore {
       ...customers,
       ...hospitality,
       ...financeAssets,
+      ...accountingPeriods,
+      ...historicalCosts,
+      ...stockAlerts,
       ...tables,
       ...customerCreditAccounts,
       ...customerCreditEntries,
@@ -230,6 +261,7 @@ export class PostgresStore {
       ...paymentAccounts,
       ...payments,
       ...settings,
+      ...preparationSettings,
       ...setup,
       ...refunds,
       ...journals,

@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
 import {pos2Capabilities} from './pos2-capabilities.mjs';
+import {canReceiveStockOperationalAlerts} from './stock-operational-alerts.mjs';
 import {assertUniqueExternalPaymentReference} from './external-payment-references.mjs';
 const uuid=v=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const has=(a,p)=>a.permissions.includes('*')||a.permissions.includes(p);
@@ -80,10 +81,19 @@ export const operationalCommandRegistry=new Map([
  ['mpesaReference.submit',{permission:'ticket.create',offlinePolicy:'ONLINE_ONLY',handler:referenceSubmit}],
  ['mpesaReference.review',{permission:'mpesa.record',offlinePolicy:'ONLINE_ONLY',handler:referenceReview}],
 ]);
+const inboxScopeSql=`i.business_id=$1 AND i.staff_id=$2 AND (i.device_id IS NULL OR i.device_id=$3)
+ AND ((e.kind IN ('stock.low','stock.out') AND $6::boolean AND i.device_id=$3)
+ OR (e.kind NOT IN ('stock.low','stock.out') AND (($4::boolean AND i.device_id IS NOT NULL) OR ($5::boolean AND i.device_id IS NULL))
+ AND (i.device_id IS NULL OR EXISTS(SELECT 1 FROM pos_checkout_terminals t WHERE t.business_id=i.business_id AND t.device_id=$3 AND t.outlet_id=e.outlet_id))))`;
+function inboxScope(actor){
+ const stock=canReceiveStockOperationalAlerts(actor),checkout=has(actor,'ticket.approve'),general=['ticket.create','till.override_variance','kds.view','pos.sell'].some(permission=>has(actor,permission));
+ if(!stock&&!checkout&&!general)throw new ApiProblem(403,'PERMISSION_DENIED','Your current role cannot read this operational inbox.');
+ return [actor.businessId,actor.staffId,actor.deviceId,checkout,general,stock];
+}
 export async function operationalInbox(db,actor){
  requireFlag(actor,'operations.inbox');
- if(!['ticket.create','ticket.approve','till.override_variance','kds.view','pos.sell'].some(p=>has(actor,p)))throw new ApiProblem(403,'PERMISSION_DENIED','Your current role cannot read this operational inbox.');
- const {rows}=await db.query(`SELECT e.id,e.kind,e.target_type AS "targetType",e.target_id AS "targetId",e.summary,e.created_at AS "createdAt",e.resolved_at AS "resolvedAt",i.read_at AS "readAt" FROM operational_inbox i JOIN operational_events e ON e.business_id=i.business_id AND e.id=i.event_id WHERE i.business_id=$1 AND i.staff_id=$2 AND (i.device_id IS NULL OR i.device_id=$3) AND (($4 AND i.device_id IS NOT NULL) OR ($5 AND i.device_id IS NULL)) AND (i.device_id IS NULL OR EXISTS(SELECT 1 FROM pos_checkout_terminals t WHERE t.business_id=i.business_id AND t.device_id=$3 AND t.outlet_id=e.outlet_id)) ORDER BY e.created_at DESC,e.id DESC LIMIT 200`,[actor.businessId,actor.staffId,actor.deviceId,has(actor,'ticket.approve'),has(actor,'ticket.create')||has(actor,'till.override_variance')||has(actor,'kds.view')||has(actor,'pos.sell')]);
+ const scope=inboxScope(actor);
+ const {rows}=await db.query(`SELECT e.id,e.kind,e.target_type AS "targetType",e.target_id AS "targetId",e.summary,e.created_at AS "createdAt",e.resolved_at AS "resolvedAt",i.read_at AS "readAt" FROM operational_inbox i JOIN operational_events e ON e.business_id=i.business_id AND e.id=i.event_id WHERE ${inboxScopeSql} ORDER BY e.created_at DESC,e.id DESC LIMIT 200`,scope);
  const refs=pos2Capabilities(actor)['operations.references']?await db.query(`SELECT m.id,m.ticket_id AS "ticketId",m.order_id AS "orderId",m.code,m.amount_minor AS "amountMinor",m.received_at AS "receivedAt",m.note,m.status,m.duplicate,m.version,m.reason,f.display_name AS "submittedBy",t.ticket_payload->>'name' AS "orderLabel" FROM mpesa_reference_submissions m JOIN pos_ticket_submissions t ON t.business_id=m.business_id AND t.ticket_id=m.ticket_id JOIN api_staff_profiles f ON f.business_id=m.business_id AND f.staff_id=m.submitted_by WHERE m.business_id=$1 AND (m.submitted_by=$2 OR ($4 AND EXISTS(SELECT 1 FROM pos_checkout_terminals c WHERE c.business_id=m.business_id AND c.outlet_id=m.outlet_id AND c.device_id=$3))) ORDER BY m.created_at DESC LIMIT 200`,[actor.businessId,actor.staffId,actor.deviceId,has(actor,'mpesa.record')]):{rows:[]};
  return {items:rows,references:refs.rows,publicKey:pos2Capabilities(actor)['operations.push']?process.env.WEB_PUSH_PUBLIC_KEY??null:null};
 }
@@ -91,10 +101,10 @@ export async function operationalRoute(db,actor,method,path,input){
  requireFlag(actor,'operations.inbox');
  if(method==='GET'&&path==='/v1/operations/inbox')return operationalInbox(db,actor);
  if(method==='POST'&&path==='/v1/operations/read'){
- if(!uuid(input.id))throw new ApiProblem(400,'VALIDATION_FAILED','Choose an alert.');await db.query('UPDATE operational_inbox SET read_at=COALESCE(read_at,now()) WHERE business_id=$1 AND staff_id=$2 AND event_id=$3 AND (device_id IS NULL OR device_id=$4)',[actor.businessId,actor.staffId,input.id,actor.deviceId]);return {read:true};}
+ if(!uuid(input.id))throw new ApiProblem(400,'VALIDATION_FAILED','Choose an alert.');const scope=inboxScope(actor);const changed=await db.query(`UPDATE operational_inbox i SET read_at=COALESCE(i.read_at,now()) FROM operational_events e WHERE e.business_id=i.business_id AND e.id=i.event_id AND ${inboxScopeSql} AND i.event_id=$7`,[...scope,input.id]);if(!changed.rowCount)throw new ApiProblem(404,'ALERT_UNAVAILABLE','This alert is unavailable for your current role and device.');return {read:true};}
  if(path==='/v1/operations/push'&&method==='DELETE'){await db.query('UPDATE operational_push_subscriptions SET revoked_at=now() WHERE business_id=$1 AND staff_id=$2 AND device_id=$3',[actor.businessId,actor.staffId,actor.deviceId]);return {removed:true};}
  if(path==='/v1/operations/push'&&method==='POST'){
- requireFlag(actor,'operations.push');const s=input.subscription;validatePushSubscription(s);
+ requireFlag(actor,'operations.push');inboxScope(actor);const s=input.subscription;validatePushSubscription(s);
  const registered=await db.query(`INSERT INTO operational_push_subscriptions(id,business_id,staff_id,device_id,session_id,endpoint,subscription) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(endpoint) DO UPDATE SET subscription=EXCLUDED.subscription,session_id=EXCLUDED.session_id,revoked_at=NULL WHERE operational_push_subscriptions.business_id=EXCLUDED.business_id AND operational_push_subscriptions.staff_id=EXCLUDED.staff_id AND operational_push_subscriptions.device_id=EXCLUDED.device_id`,[randomUUID(),actor.businessId,actor.staffId,actor.deviceId,actor.sessionId,s.endpoint,JSON.stringify(s)]);if(registered.rowCount!==1)throw new ApiProblem(403,'SUBSCRIPTION_OWNER_MISMATCH','This subscription belongs to a different enrolled session.');return {registered:true};}
  throw new ApiProblem(404,'NOT_FOUND','Operational route unavailable.');
 }

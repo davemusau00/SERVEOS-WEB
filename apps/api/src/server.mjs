@@ -1,3 +1,8 @@
+import {reservationHistory,roomHistory} from './hospitality-history.mjs';
+import {housekeepingAssignees} from './housekeeping-assignments.mjs';
+import {accountingPeriodCapability} from './accounting-periods.mjs';
+import {historicalCostCapability} from './historical-cost-reviews.mjs';
+import {stockOperationalAlertCapability,stockOperationalAlertEvidence} from './stock-operational-alerts.mjs';
 import {startOperationalWorker} from './operational-push-worker.mjs';
 import {operationalRoute,operationalCheckoutCapability} from './operational-alerts.mjs';
 import {checkBridgeClaim} from './bridge-authorization.mjs';
@@ -169,7 +174,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if(req.method==='GET'&&url.pathname==='/v1/auth/session'){
         const actor=await authenticateStaffSession(req,store);const profile=await store.staffCredential(actor.businessId,actor.staffId);
-        return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId??null,displayName:profile?.displayName,permissions:actor.permissions,capabilities:{...pos2Capabilities(actor),'operations.checkout':await operationalCheckoutCapability(store.pool,actor)},mustChangePassword:profile?.mustChangePassword===true});
+        return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId??null,displayName:profile?.displayName,permissions:actor.permissions,capabilities:{...pos2Capabilities(actor),'accounting.periods':accountingPeriodCapability(actor),'accounting.costReview':historicalCostCapability(actor),'operations.stockAlerts':stockOperationalAlertCapability(actor),'operations.checkout':await operationalCheckoutCapability(store.pool,actor)},mustChangePassword:profile?.mustChangePassword===true});
       }
       if(req.method==='GET'&&url.pathname==='/v1/auth/sessions'){
         const actor=await authenticateStaffSession(req,store);return json(res,200,{sessions:await store.ownSessions({businessId:actor.businessId,staffId:actor.staffId,currentSessionId:actor.sessionId})});
@@ -310,6 +315,29 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         if (search.length > 100) throw new ApiProblem(400, 'VALIDATION_FAILED', 'Search text is too long.');
         return json(res, 200, {items: await store.listCatalogItems(actor.businessId, search)});
       }
+      const stockAlertMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/operations\/stock\/([0-9a-f-]{36})$/i);
+      if(stockAlertMatch){const actor=await authenticate(req);return json(res,200,await stockOperationalAlertEvidence(store.pool,actor,stockAlertMatch[1]));}
+      if(req.method==='GET'&&url.pathname==='/v1/accounting/cost-sources'){
+        const actor=await authenticate(req);if(!['*','accounting.view','accounting.manage','reports.view','audit.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view historical cost evidence.');
+        const limitRaw=url.searchParams.get('limit')??'50';if(!/^\d+$/.test(limitRaw)||Number(limitRaw)<1||Number(limitRaw)>100)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a cost-source page size from 1 to 100.');
+        return json(res,200,await store.historicalCosts(actor.businessId,{kind:url.searchParams.get('kind')||'ALL',before:url.searchParams.get('before'),limit:Number(limitRaw)}));
+      }
+      const historicalCostMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/accounting\/cost-sources\/([0-9a-f-]{36})$/i);
+      if(historicalCostMatch){
+        const actor=await authenticate(req);if(!['*','accounting.view','accounting.manage','reports.view','audit.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to review historical cost evidence.');
+        if(!uuidPattern.test(historicalCostMatch[1]))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid cost source.');
+        return json(res,200,await store.historicalCostSource(actor.businessId,historicalCostMatch[1]));
+      }
+      if(req.method==='GET'&&url.pathname==='/v1/accounting/periods'){
+        const actor=await authenticate(req);if(!['*','accounting.view','accounting.manage','reports.view','audit.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to review accounting periods.');
+        return json(res,200,await store.accountingPeriodState(actor.businessId));
+      }
+      const periodReviewMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/accounting\/periods\/reviews\/([0-9a-f-]{36})$/i);
+      if(periodReviewMatch){
+        const actor=await authenticate(req);if(!['*','accounting.view','accounting.manage','reports.view','audit.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view accounting review evidence.');
+        if(!uuidPattern.test(periodReviewMatch[1]))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid accounting review.');
+        return json(res,200,await store.accountingPeriodReview(actor.businessId,periodReviewMatch[1]));
+      }
       if(req.method==='GET'&&url.pathname==='/v1/finance/summary'){
         const actor=await authenticate(req);if(!['*','accounting.view','reports.view','finance.expense.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view Finance reports.');
         const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';if(!calendarDate(from)||!calendarDate(to)||from>to||(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000>366)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid Finance report range of at most 367 calendar days.');
@@ -350,11 +378,27 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';reportRangeCheck(from,to);
         return json(res,200,await occupancy(store.pool,actor,{start:from,end:to,timeZone:url.searchParams.get('timeZone')??undefined}));
       }
+      if(req.method==='GET'&&url.pathname==='/v1/hospitality/housekeeping/assignees'){
+        const actor=await authenticate(req);return json(res,200,await housekeepingAssignees(store.pool,actor));
+      }
+      const reservationHistoryMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/hospitality\/reservations\/([0-9a-f-]{36})\/history$/i);
+      const roomHistoryMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/hospitality\/rooms\/([0-9a-f-]{36})\/history$/i);
+      if(roomHistoryMatch){
+        const actor=await authenticate(req),limitRaw=url.searchParams.get('limit')??'50';
+        if(!/^\d+$/.test(limitRaw)||Number(limitRaw)<1||Number(limitRaw)>100)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a history page size from 1 to 100.');
+        return json(res,200,await roomHistory(store.pool,actor,roomHistoryMatch[1],{cursor:url.searchParams.get('cursor'),limit:Number(limitRaw)}));
+      }
+      if(reservationHistoryMatch){
+        const actor=await authenticate(req),limitRaw=url.searchParams.get('limit')??'50';
+        if(!/^\d+$/.test(limitRaw))throw new ApiProblem(400,'VALIDATION_FAILED','History page size must be a whole number.');
+        return json(res,200,await reservationHistory(store.pool,actor,reservationHistoryMatch[1],{cursor:url.searchParams.get('cursor'),limit:Number(limitRaw)}));
+      }
       if(req.method==='GET'&&url.pathname==='/v1/hospitality/availability'){
         const actor=await authenticate(req);if(!['*','rooms.view','rooms.manage','rooms.operate'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to search room availability.');
         const startsAt=url.searchParams.get('startsAt')||'',endsAt=url.searchParams.get('endsAt')||'',guestsRaw=url.searchParams.get('guests')||'';const starts=new Date(startsAt),ends=new Date(endsAt),guests=Number(guestsRaw);
         if(!/(Z|[+-]\d{2}:\d{2})$/u.test(startsAt)||!/(Z|[+-]\d{2}:\d{2})$/u.test(endsAt)||!Number.isFinite(starts.getTime())||!Number.isFinite(ends.getTime())||ends<=starts||ends.getTime()-starts.getTime()>366*24*60*60_000||!/^[1-9]\d{0,3}$/.test(guestsRaw)||!Number.isSafeInteger(guests)||guests>1000)throw new ApiProblem(400,'VALIDATION_FAILED','Enter a valid stay interval of up to 366 days and a guest count from 1 to 1,000.');
-        return json(res,200,{rooms:await store.roomAvailability(actor.businessId,starts.toISOString(),ends.toISOString(),guests)});
+        const excluded=url.searchParams.get('excludeReservationId')||null;if(excluded&&!uuidPattern.test(excluded))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid existing reservation for modification.');
+        return json(res,200,{rooms:await store.roomAvailability(actor.businessId,starts.toISOString(),ends.toISOString(),guests,excluded)});
       }
       const creditStatementMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/customer-credit\/accounts\/([0-9a-f-]{36})\/statement$/i);
       if(creditStatementMatch){

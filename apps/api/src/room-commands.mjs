@@ -1,3 +1,4 @@
+import {allocateReservationReference} from './document-numbers.mjs';
 import {quoteReservation} from '../../../contracts/reservation-quote.mjs';
 import {randomUUID} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
@@ -12,13 +13,13 @@ const parsedDate=value=>typeof value==='string'&&/(Z|[+-]\d{2}:\d{2})$/u.test(va
 const localDayNumber=value=>{const [year,month,day]=String(value).split('-').map(Number);return Math.floor(Date.UTC(year,month-1,day)/86400000)};
 const advisoryRoomLock=(tx,businessId,roomId)=>tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`room-booking:${businessId}:${roomId}`]);
 const typeColumns=`id,code,name,max_guests AS "maxGuests",version,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt",archived_at AS "archivedAt"`;
-const roomColumns=`id,number,room_type_id AS "roomTypeId",capacity,turnaround_minutes AS "turnaroundMinutes",floor,amenities,notes,housekeeping_state AS "housekeepingState",maintenance_state AS "maintenanceState",housekeeping_at AS "housekeepingAt",housekeeping_by AS "housekeepingBy",version,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt",archived_at AS "archivedAt"`;
+const roomColumns=`id,number,room_type_id AS "roomTypeId",capacity,turnaround_minutes AS "turnaroundMinutes",floor,amenities,notes,housekeeping_state AS "housekeepingState",maintenance_state AS "maintenanceState",housekeeping_at AS "housekeepingAt",housekeeping_by AS "housekeepingBy",housekeeping_assigned_staff_id AS "housekeepingAssignedStaffId",housekeeping_assigned_name AS "housekeepingAssignedName",housekeeping_assigned_at AS "housekeepingAssignedAt",housekeeping_assigned_by AS "housekeepingAssignedBy",version,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt",archived_at AS "archivedAt"`;
 const rateColumns=`id,name,room_type_id AS "roomTypeId",mode,price_minor AS "priceMinor",currency,tax_basis_points AS "taxBasisPoints",duration_minutes AS "durationMinutes",notes,version,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt",archived_at AS "archivedAt"`;
-const reservationColumns=`id,room_id AS "roomId",rate_plan_id AS "ratePlanId",customer_id AS "customerId",guests,stay_type AS "stayType",starts_at AS "startsAt",ends_at AS "endsAt",blocked_until AS "blockedUntil",occupancy_starts_at AS "occupancyStartsAt",turnaround_minutes AS "turnaroundMinutes",status,rate_snapshot AS "rateSnapshot",units,quoted_amount_minor AS "quotedAmountMinor",checked_in_at AS "checkedInAt",checked_out_at AS "checkedOutAt",cancelled_at AS "cancelledAt",cancellation_reason AS "cancellationReason",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt",archived_at AS "archivedAt"`;
+const reservationColumns=`id,reservation_number AS "reservationNumber",room_id AS "roomId",rate_plan_id AS "ratePlanId",customer_id AS "customerId",guests,stay_type AS "stayType",starts_at AS "startsAt",ends_at AS "endsAt",blocked_until AS "blockedUntil",occupancy_starts_at AS "occupancyStartsAt",turnaround_minutes AS "turnaroundMinutes",status,rate_snapshot AS "rateSnapshot",units,quoted_amount_minor AS "quotedAmountMinor",checked_in_at AS "checkedInAt",checked_out_at AS "checkedOutAt",cancelled_at AS "cancelledAt",cancellation_reason AS "cancellationReason",version,created_by AS "createdBy",device_id AS "deviceId",created_at AS "createdAt",updated_at AS "updatedAt",archived_at AS "archivedAt"`;
 const record=(collection,row)=>{
  const {version,archivedAt,...data}=row;
  for(const key of ['maxGuests','capacity','turnaroundMinutes','priceMinor','taxBasisPoints','durationMinutes','guests','units','quotedAmountMinor'])if(data[key]!==undefined&&data[key]!==null)data[key]=Number(data[key]);
- for(const key of ['createdAt','updatedAt','housekeepingAt','startsAt','endsAt','blockedUntil','occupancyStartsAt','checkedInAt','checkedOutAt','cancelledAt'])if(data[key] instanceof Date)data[key]=data[key].toISOString();
+ for(const key of ['createdAt','updatedAt','housekeepingAt','housekeepingAssignedAt','startsAt','endsAt','blockedUntil','occupancyStartsAt','checkedInAt','checkedOutAt','cancelledAt'])if(data[key] instanceof Date)data[key]=data[key].toISOString();
  return {collection,id:row.id,version:Number(version),archived:archivedAt!==null,data:{...data,version:Number(version)}};
 };
 
@@ -121,8 +122,8 @@ const reservationCreate=({walkIn=false}={})=>async({tx,command,actor,at})=>{
  if(overlaps.rows.length)throw new ApiProblem(409,'ROOM_UNAVAILABLE','Another reservation or occupied stay overlaps this room and its turnaround window.');
  const maintenance=await tx.client.query(`SELECT 1 FROM business_room_blocks WHERE business_id=$1 AND room_id=$2 AND status='ACTIVE' AND starts_at<$4 AND (ends_at IS NULL OR ends_at>$3) LIMIT 1`,[actor.businessId,p.roomId,startsAt,blockedUntil]);if(maintenance.rows.length)throw new ApiProblem(409,'ROOM_MAINTENANCE_BLOCK','This room has an active maintenance block during the selected dates.');
  const version=await tx.bumpEntityVersion(actor.businessId,'roomReservations',p.id,0),status=walkIn?'CHECKED_IN':'RESERVED';
- const rateSnapshot={...quote.rateSnapshot,cashUpfrontRequired:settings.cashUpfrontRequired===true};
- await tx.client.query(`INSERT INTO business_room_reservations(business_id,id,room_id,rate_plan_id,customer_id,guests,stay_type,starts_at,ends_at,blocked_until,turnaround_minutes,status,rate_snapshot,units,quoted_amount_minor,checked_in_at,version,created_by,device_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18,$19,$20,$20)`,[actor.businessId,p.id,p.roomId,p.ratePlanId,p.customerId,guests,stayType,startsAt,endsAt,blockedUntil,turnaround,status,JSON.stringify(rateSnapshot),units,Number(quotedBig),walkIn?at:null,version,actor.staffId,actor.deviceId,at]);
+ const reservationNumber=await allocateReservationReference(tx.client,actor.businessId);const rateSnapshot={...quote.rateSnapshot,cashUpfrontRequired:settings.cashUpfrontRequired===true};
+ await tx.client.query(`INSERT INTO business_room_reservations(business_id,id,room_id,rate_plan_id,customer_id,guests,stay_type,starts_at,ends_at,blocked_until,turnaround_minutes,status,rate_snapshot,units,quoted_amount_minor,checked_in_at,version,created_by,device_id,created_at,updated_at,reservation_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18,$19,$20,$20,$21)`,[actor.businessId,p.id,p.roomId,p.ratePlanId,p.customerId,guests,stayType,startsAt,endsAt,blockedUntil,turnaround,status,JSON.stringify(rateSnapshot),units,Number(quotedBig),walkIn?at:null,version,actor.staffId,actor.deviceId,at,reservationNumber]);
  await entityEvent(tx,{actor,command,at,entityType:'RESERVATION',entityId:p.id,reservationId:p.id,roomId:p.roomId,version,eventType:walkIn?'WALK_IN':'RESERVE',eventData:{roomId:p.roomId,customerId:p.customerId,startsAt:startsAt.toISOString(),endsAt:endsAt.toISOString(),blockedUntil:blockedUntil.toISOString(),quotedAmountMinor:Number(quotedBig)}});
  return result(tx,actor,'roomReservations','business_room_reservations',reservationColumns,p.id);
 };
@@ -163,6 +164,29 @@ const housekeeping=async({tx,command,actor,at})=>{
  return result(tx,actor,'rooms','business_rooms',roomColumns,id);
 };
 
+const assignHousekeeping=async({tx,command,actor,at})=>{
+ requirePermission(actor,'rooms.manage');const p=command.payload,id=p.id,staffId=p.staffId??null;
+ if(!uuid(id)||staffId!==null&&!uuid(staffId))fail('Choose a room and an authorized housekeeping staff member.');
+ const reason=text(p.reason,'Assignment reason',{min:3,max:500}),reviewed=expected(command,'rooms',id,1);
+ await advisoryRoomLock(tx,actor.businessId,id);
+ const found=await tx.client.query(`SELECT ${roomColumns} FROM business_rooms WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR UPDATE`,[actor.businessId,id]);const room=found.rows[0];
+ if(!room||Number(room.version)!==reviewed)throw new ApiProblem(409,'VERSION_CONFLICT','Room changed. Review its latest assignment before saving.');
+ let name=null;
+ if(staffId){
+  const staff=await tx.client.query(`SELECT display_name AS name FROM api_staff_profiles s WHERE business_id=$1 AND staff_id=$2 AND active
+   AND EXISTS(SELECT 1 FROM api_staff_permissions p WHERE p.business_id=s.business_id AND p.staff_id=s.staff_id AND p.permission IN ('*','rooms.operate')) FOR SHARE`,[actor.businessId,staffId]);
+  if(!staff.rows.length)throw new ApiProblem(409,'ASSIGNEE_UNAVAILABLE','Choose an active staff member authorized for room operations.');
+  const staffRevision=await tx.client.query("SELECT version FROM business_entity_versions WHERE business_id=$1 AND entity_type='employees' AND entity_id=$2",[actor.businessId,staffId]);
+  if(expected(command,'employees',staffId,0)!==Number(staffRevision.rows[0]?.version??0))throw new ApiProblem(409,'VERSION_CONFLICT','Staff permissions changed. Refresh the assignment choices.');
+  name=staff.rows[0].name;
+ }
+ const version=await tx.bumpEntityVersion(actor.businessId,'rooms',id,reviewed);
+ await tx.client.query(`UPDATE business_rooms SET housekeeping_assigned_staff_id=$3,housekeeping_assigned_name=$4,
+  housekeeping_assigned_at=$5,housekeeping_assigned_by=$6,version=$7,updated_by=$8,updated_at=$9 WHERE business_id=$1 AND id=$2`,[actor.businessId,id,staffId,name,staffId?at:null,staffId?actor.staffId:null,version,actor.staffId,at]);
+ await entityEvent(tx,{actor,command,at,entityType:'ROOM',entityId:id,roomId:id,version,eventType:'HOUSEKEEPING_ASSIGNMENT',eventData:{fromStaffId:room.housekeepingAssignedStaffId??null,fromName:room.housekeepingAssignedName??null,toStaffId:staffId,toName:name,reason}});
+ return result(tx,actor,'rooms','business_rooms',roomColumns,id);
+};
+
 export const roomCommandRegistry=new Map([
  ['roomType.save',{permission:'roomTypes.manage',offlinePolicy:'ONLINE_ONLY',handler:saveRoomType}],
  ['room.save',{permission:'rooms.manage',offlinePolicy:'ONLINE_ONLY',handler:saveRoom}],
@@ -173,4 +197,5 @@ export const roomCommandRegistry=new Map([
  ['roomReservation.noShow',{permission:'rooms.manage',offlinePolicy:'ONLINE_ONLY',handler:reservationTransition('noShow')}],
  ['stay.checkIn',{permission:'rooms.operate',offlinePolicy:'ONLINE_ONLY',handler:reservationTransition('checkIn')}],
  ['room.housekeeping',{permission:'rooms.operate',offlinePolicy:'ONLINE_ONLY',handler:housekeeping}],
+ ['room.housekeeping.assign',{permission:'rooms.manage',offlinePolicy:'ONLINE_ONLY',handler:assignHousekeeping}],
 ]);

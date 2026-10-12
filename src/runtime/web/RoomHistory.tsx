@@ -1,0 +1,19 @@
+import React,{useCallback,useEffect,useRef,useState} from 'react';
+import type {ApiClient,ApiRoomHistory} from './apiClient';
+import {allowed,type WebSession} from './session';
+import {localReservationTime,operationalText} from './reservationWorkspace';
+
+export function RoomHistory({roomId,client,session,timeZone}:{roomId:string;client:ApiClient;session:WebSession;timeZone:string}){
+ const [page,setPage]=useState<ApiRoomHistory|null>(null),[items,setItems]=useState<ApiRoomHistory['items']>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const generation=useRef(0),inFlight=useRef(false),cursor=useRef<string|null>(null);
+ const load=useCallback(async(append=false)=>{
+  if(inFlight.current)return;inFlight.current=true;const request=++generation.current;setBusy(true);setError('');
+  try{const result=await client.roomHistory(roomId,append?cursor.current||undefined:undefined);if(request!==generation.current)return;
+   cursor.current=result.nextCursor;setPage(result);setItems(previous=>append?Array.from(new Map([...previous,...result.items].map(item=>[`${item.kind}:${item.id}`,item])).values()):result.items);
+  }catch{if(request===generation.current)setError('Room history could not be loaded. Reconnect and retry; room state is unchanged.');}
+  finally{if(request===generation.current){inFlight.current=false;setBusy(false);}}
+ },[client,roomId]);
+ useEffect(()=>{setPage(null);setItems([]);cursor.current=null;inFlight.current=false;void load();return()=>{generation.current++;inFlight.current=false;};},[load,session.businessId,session.actorId,session.permissions.join('|')]);
+ const button='min-h-11 rounded-lg border border-slate-700 px-3 py-2 text-sm disabled:opacity-50';
+ return <section className="space-y-3 rounded-xl border border-slate-700 bg-slate-950/50 p-4" aria-label="Room operational history"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold">Room {operationalText(page?.roomNumber,'')} history</h3><button className={button} disabled={busy} onClick={()=>void load()}>Refresh history</button></div>{busy&&<p role="status" className="text-sm text-slate-400">Loading recorded room history…</p>}{error&&<p role="alert" className="text-sm text-amber-200">{error}</p>}{page&&<p className="text-xs text-slate-400">{page.coverageNote} Fetched {localReservationTime(page.generatedAt,timeZone)}.</p>}<ol className="space-y-3 border-l border-slate-700 pl-3">{items.map(item=><li key={`${item.kind}:${item.id}`} className="text-sm"><p className="font-medium">{operationalText(item.title.replace(/_/g,' '),'Recorded update')}{item.reservationNumber?` · ${operationalText(item.reservationNumber,'Booking')}`:''}</p><p className="mt-1 text-xs text-slate-400">{localReservationTime(item.occurredAt,timeZone)} · {operationalText(item.staffName,'Staff name unavailable')}</p>{(item.fromState||item.toState)&&<p className="mt-1 text-slate-300">{operationalText(item.fromState,'Previous state unavailable')} → {operationalText(item.toState,'State unavailable')}</p>}{item.assignedName&&<p className="mt-1">Assigned: {operationalText(item.assignedName,'Unassigned')}</p>}{item.note&&<p className="mt-1 break-words text-slate-300">{operationalText(item.note,'Recorded in secured history')}</p>}{allowed(session,'audit.view')&&item.sourceCommandId&&<details className="mt-1 text-xs text-slate-400"><summary className="min-h-11 cursor-pointer py-2">Technical details</summary><p className="break-all">Original command: {item.sourceCommandId}</p></details>}</li>)}</ol>{!busy&&!error&&page&&!items.length&&<p className="text-sm text-slate-400">No captured updates are available for this room.</p>}{page?.hasMore&&<button className={button} disabled={busy} onClick={()=>void load(true)}>Load earlier room history</button>}</section>;
+}

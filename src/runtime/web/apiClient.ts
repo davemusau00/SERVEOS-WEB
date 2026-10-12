@@ -1,3 +1,5 @@
+import type {ApiAccountingPeriodState,AccountingPeriodReviewRecord} from './accountingPeriodTypes';
+import type {ApiHistoricalCostState,ApiHistoricalCostSource,HistoricalCostKind} from './historicalCostTypes';
 import type {BootstrapManifest,OfflineGrantEnvelope} from './BusinessStore';
 
 export interface ApiCommandEnvelope {commandId:string;name:string;payload:Record<string,unknown>;expectedVersions:Record<string,number>;offlineGrantId?:string}
@@ -9,7 +11,7 @@ export interface ApiCatalogBootstrapPage {protocolVersion:2;snapshotId:string;af
 export interface ApiCustomerCreditStatementPage {protocolVersion:1;customerId:string;items:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>;hasMore:boolean;nextCursor:string|null}
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
 export interface ApiStaffSession {sessionId:string;deviceId:string|null;createdAt:string;expiresAt:string;revokedAt:string|null;current:boolean;deviceRevoked:boolean;expired:boolean}
-export interface ApiFinanceSummary {from:string;to:string;timeZone:string;currency:'KES';salesRevenueMinor:number;postedExpensesMinor:number;operatingResultBeforeTaxMinor:number;expensesByTender:{cashMinor:number;externalMinor:number};expensesByCategory:Array<{categoryId:string;name:string;amountMinor:number}>;debtorAging:Record<string,number>;payableAging:Record<string,number>;supplierPayments:{count:number;amountMinor:number}}
+export interface ApiFinanceSummary {from:string;to:string;timeZone:string;generatedAt?:string;currency:'KES';salesRevenueMinor:number;postedExpensesMinor:number;operatingResultBeforeTaxMinor:number;expensesByTender:{cashMinor:number;externalMinor:number};expensesByCategory:Array<{categoryId:string;name:string;amountMinor:number}>;debtorAging:Record<string,number>;debtorReconciliation?:{sourceBalanceMinor:number;agingTotalMinor:number;differenceMinor:number;exceptionAccounts:number;reconciled:boolean};payableAging:Record<string,number>;supplierPayments:{count:number;amountMinor:number}}
 export type ApiStatementSection='REVENUE'|'RETURNS'|'COGS'|'OPERATING_EXPENSES';
 export interface ApiProfitAndLoss {
  reportVersion:1;from:string;to:string;timeZone:string;currency:'KES';generatedAt:string;status:'INCOMPLETE';periodStatus:'NOT_CLOSED';basis:'ISSUED_POS_BILLS_AND_FOLIO_ACCRUAL';
@@ -116,16 +118,26 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   },
   changes(after:number,limit=200){return request<ApiChangePage>(`/v1/sync/changes?after=${encodeURIComponent(after)}&limit=${encodeURIComponent(limit)}`)},
   operationalInbox(){return request<{items:OperationalAlert[];references:MpesaReference[];publicKey:string|null}>('/v1/operations/inbox')},
+  stockAlertEvidence(id:string){return request<ApiStockAlertEvidence>(`/v1/operations/stock/${encodeURIComponent(id)}`)},
   readOperationalAlert(id:string){return request('/v1/operations/read',{method:'POST',body:JSON.stringify({id})})},
   registerPush(subscription:PushSubscription){return request('/v1/operations/push',{method:'POST',body:JSON.stringify({subscription:subscription.toJSON()})})},
   removePush(){return request('/v1/operations/push',{method:'DELETE'})},
   catalogItems(search=''){return request<{items:ApiCatalogItem[]}>(`/v1/catalog/items?search=${encodeURIComponent(search)}`)},
   customerCreditStatement(customerId:string,cursor?:string,limit=100){const query=new URLSearchParams({limit:String(limit)});if(cursor)query.set('cursor',cursor);return request<ApiCustomerCreditStatementPage>(`/v1/customer-credit/accounts/${encodeURIComponent(customerId)}/statement?${query}`)},
+  accountingPeriods(){return request<ApiAccountingPeriodState>('/v1/accounting/periods')},
+  historicalCosts({kind='ALL',before=null,limit=50}:{kind?:HistoricalCostKind|'ALL';before?:string|null;limit?:number}={}){const query=new URLSearchParams({kind,limit:String(limit)});if(before)query.set('before',before);return request<ApiHistoricalCostState>(`/v1/accounting/cost-sources?${query}`)},
+  historicalCostSource(id:string){return request<ApiHistoricalCostSource>(`/v1/accounting/cost-sources/${encodeURIComponent(id)}`)},
+  accountingPeriodReview(id:string){return request<AccountingPeriodReviewRecord>(`/v1/accounting/periods/reviews/${encodeURIComponent(id)}`)},
   financeSummary(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiFinanceSummary>(`/v1/finance/summary?${query}`)},
+  salesSummary(from:string,to:string,{timeZone,outletId}:{timeZone?:string;outletId?:string}={}){const query=new URLSearchParams({from,to});if(timeZone)query.set('timeZone',timeZone);if(outletId)query.set('outletId',outletId);return request<ApiSalesSummary>(`/v1/reports/sales-summary?${query}`)},
+  occupancyReport(from:string,to:string,{timeZone}:{timeZone?:string}={}){const query=new URLSearchParams({from,to});if(timeZone)query.set('timeZone',timeZone);return request<ApiOccupancyReport>(`/v1/reports/occupancy?${query}`)},
   profitAndLoss(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiProfitAndLoss>(`/v1/finance/profit-and-loss?${query}`)},
   profitAndLossSources(from:string,to:string,{section='ALL',before,limit=50}:{section?:ApiStatementSection|'ALL';before?:string|null;limit?:number}={}){const query=new URLSearchParams({from,to,section,limit:String(limit)});if(before)query.set('before',before);return request<ApiStatementSourcePage>(`/v1/finance/profit-and-loss/sources?${query}`)},
   profitAndLossSource(from:string,to:string,key:string){const query=new URLSearchParams({from,to,key});return request<ApiStatementSourceDetail>(`/v1/finance/profit-and-loss/source?${query}`)},
-  roomAvailability(startsAt:string,endsAt:string,guests:number){const query=new URLSearchParams({startsAt,endsAt,guests:String(guests)});return request<{rooms:Array<{id:string;number:string;roomTypeId:string;capacity:number;housekeepingState:string;maintenanceState:string}>}>(`/v1/hospitality/availability?${query}`)},
+  roomAvailability(startsAt:string,endsAt:string,guests:number,excludeReservationId?:string){const query=new URLSearchParams({startsAt,endsAt,guests:String(guests)});if(excludeReservationId)query.set('excludeReservationId',excludeReservationId);return request<{rooms:Array<{id:string;number:string;roomTypeId:string;capacity:number;housekeepingState:string;maintenanceState:string}>}>(`/v1/hospitality/availability?${query}`)},
+  reservationHistory(reservationId:string,cursor?:string,limit=50){const query=new URLSearchParams({limit:String(limit)});if(cursor)query.set('cursor',cursor);return request<ApiReservationHistory>(`/v1/hospitality/reservations/${encodeURIComponent(reservationId)}/history?${query}`)},
+  roomHistory(roomId:string,cursor?:string,limit=50){const query=new URLSearchParams({limit:String(limit)});if(cursor)query.set('cursor',cursor);return request<ApiRoomHistory>(`/v1/hospitality/rooms/${encodeURIComponent(roomId)}/history?${query}`)},
+  housekeepingAssignees(){return request<{items:Array<{id:string;name:string;version:number}>;generatedAt:string}>('/v1/hospitality/housekeeping/assignees')},
   bootstrapCatalog(snapshotId?:string){return request<ApiCatalogBootstrapManifest>(snapshotId?`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}`:'/v1/bootstrap/catalog')},
   bootstrapCatalogPage(snapshotId:string,after:number){return request<ApiCatalogBootstrapPage>(`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}/pages?after=${encodeURIComponent(after)}`)},
   enrollmentChallenge(){return request<{challengeId:string;challenge:string;issuedAt:string;expiresAt:string}>('/v1/devices/enrollment-challenges',{method:'POST'},false)},
@@ -142,5 +154,37 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
  };
 }
 
-export type OperationalAlert={id:string;kind:string;targetType:'ticket'|'order'|'reference'|'print'|'cashRecovery';targetId:string;summary:string;createdAt:string;resolvedAt:string|null;readAt:string|null};
+export type OperationalAlert={id:string;kind:string;targetType:'ticket'|'order'|'reference'|'print'|'cashRecovery'|'stock';targetId:string;summary:string;createdAt:string;resolvedAt:string|null;readAt:string|null};
+export interface ApiStockAlertEvidence {
+ episode:{id:string;policyId:string;stockItemId:string;locationId:string;outletId:string|null;stockName:string;stockCode:string;locationName:string;baseUnit:string;minimumQuantity:string;status:'OPEN'|'RESOLVED';severity:'LOW'|'OUT';currentCondition:'LOW'|'OUT'|'ABOVE_THRESHOLD'|'EVIDENCE_REQUIRED';openedQuantity:string;openedAt:string;currentQuantity:string;lastObservedAt:string;resolvedAt:string|null;resolvedQuantity:string|null;basis:'SERVER_CONFIRMED_ON_HAND'};
+ canonical:{basis:'SERVER_CONFIRMED_ON_HAND';quantity:string|null;balanceVersion:string|null;baseUnit:string|null;stockName:string;stockCode:string;locationName:string;archived:boolean|null;unitMatches:boolean;reservedQuantity:null;availableQuantity:null};
+ events:Array<{id:string;kind:'stock.low'|'stock.out';createdAt:string;resolvedAt:string|null;readAt:string|null}>;
+ transitions:Array<{kind:'LOW'|'OUT'|'RESOLVED';sourceCommandId:string;eventId:string|null;quantity:string;balanceVersion:string;movementIds:string[];evidence:Record<string,unknown>;occurredAt:string}>;generatedAt:string;
+}
 export type MpesaReference={id:string;ticketId:string;orderId:string;code:string;amountMinor:number|string;receivedAt:string;note:string;status:string;duplicate:boolean;version:number|string;reason:string|null;submittedBy:string;orderLabel:string};
+export interface ApiReservationHistory {
+ reservationId:string;reservationNumber:string|null;createdAt:string;status:string;generatedAt:string;financialEntriesIncluded:boolean;
+ items:Array<{id:string;kind:'EVENT'|'FOLIO'|'ROOM_EVENT';title:string;note:string;amountMinor:number|null;staffName:string|null;roomNumber:string|null;occurredAt:string;sourceCommandId?:string}>;
+ nextCursor:string|null;hasMore:boolean;
+}
+export type ApiClient=ReturnType<typeof createServOSApiClient>;
+export interface ApiRoomHistory {
+ roomId:string;roomNumber:string;createdAt:string;generatedAt:string;coverageNote:string;
+ items:Array<{id:string;kind:'ROOM_EVENT'|'STAY_EVENT'|'MAINTENANCE_OPEN'|'MAINTENANCE_RESOLVED';title:string;note:string;fromState:string|null;toState:string|null;assignedName:string|null;staffName:string|null;reservationNumber:string|null;occurredAt:string;sourceCommandId?:string}>;
+ nextCursor:string|null;hasMore:boolean;
+}
+export interface ApiSalesSummary {
+ report:'SALES_SUMMARY';periodStart:string;periodEnd:string;timeZone:string;outletId:string|null;generatedAt:string;
+ totals:{salesCount:number;grossMinor:number;discountMinor:number;netMinor:number;vatMinor:number;levyMinor:number;refundsMinor:number;netSalesMinor:number};
+ payments:Array<{method:string;paymentCount:number;amountMinor:number}>;
+ outlets:Array<{outletId:string;grossMinor:number;salesCount:number}>;
+ operators:Array<{staffId:string;grossMinor:number;salesCount:number}>;
+ categories:Array<{category:string;grossMinor:number}>;
+ daily:Array<{date:string;salesCount:number;grossMinor:number;netSalesMinor:number}>;
+ refunds:{refundCount:number;refundMinor:number};collections:{collectedMinor:number;cashCollectedMinor:number;mpesaCollectedMinor:number};
+}
+export interface ApiOccupancyReport {
+ report:'OCCUPANCY';periodStart:string;periodEnd:string;timeZone:string;generatedAt:string;definition:string;
+ roomNights:number;availableRoomNights:number|null;occupancyPercent:number|null;denominatorBasis:string;
+ coverage:Array<{code:string;message:string}>;nights:Array<{night:string;occupiedRooms:number;availableRooms:number|null}>;
+}

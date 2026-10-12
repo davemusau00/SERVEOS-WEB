@@ -1,5 +1,6 @@
 import webPush from 'web-push';
 import {pos2Capabilities} from './pos2-capabilities.mjs';
+import {canReceiveStockOperationalAlerts} from './stock-operational-alerts.mjs';
 import {enqueuePush} from './operational-alerts.mjs';
 export async function escalateOperationalTasks(pool){
  const threshold=Math.max(1,Math.min(1440,Number(process.env.OPERATIONS_ESCALATION_MINUTES)||5));
@@ -27,13 +28,13 @@ export async function deliverOperationalPush(pool,send=webPush.sendNotification.
  let status='CANCELLED',http=null;const s=subs[0];
  if(s&&pos2Capabilities(s)['operations.push']&&pos2Capabilities(s)['operations.inbox']){
   const checkout=await pool.query('SELECT 1 FROM pos_checkout_terminals WHERE business_id=$1 AND device_id=$2 AND outlet_id=$3',[s.businessId,s.deviceId,s.outlet_id]);
-  const authorized=s.inboxDevice?checkout.rows.length&&s.permissions.some(p=>p==='*'||p==='ticket.approve'):s.permissions.some(p=>p==='*'||p==='ticket.create'||p==='till.override_variance'||p==='kds.view'||p==='pos.sell');
-  const stale=Date.now()-new Date(s.createdAt).getTime()>86400000||s.resolved_at&&['ticket.submit','ticket.revise','mpesaReference.submit'].includes(s.kind);
+  const authorized=['stock.low','stock.out'].includes(s.kind)?canReceiveStockOperationalAlerts(s):s.inboxDevice?checkout.rows.length&&s.permissions.some(p=>p==='*'||p==='ticket.approve'):s.permissions.some(p=>p==='*'||p==='ticket.create'||p==='till.override_variance'||p==='kds.view'||p==='pos.sell');
+  const stale=Date.now()-new Date(s.createdAt).getTime()>86400000||s.resolved_at&&['ticket.submit','ticket.revise','mpesaReference.submit','stock.low','stock.out'].includes(s.kind);
   if(authorized&&!stale){try{await send(s.subscription,JSON.stringify({eventId:d.event_id,title:'ServOS operational alert',body:'Open ServOS to review an operational update.'}),{TTL:300,timeout:5000});status='ACCEPTED';http=201;}catch(e){http=e.statusCode??null;status=[404,410].includes(http)?'EXPIRED':d.attempts>=6||http&&http>=400&&http<500&&http!==429?'FAILED':'QUEUED';if(status==='EXPIRED')await pool.query('UPDATE operational_push_subscriptions SET revoked_at=now() WHERE id=$1',[d.subscription_id]);}}
  }
  const evidence=await pool.connect();try{await evidence.query('BEGIN');
  // A late response must not overwrite a newer worker's claim/outcome.
- await evidence.query(`UPDATE operational_push_deliveries SET status=$4,last_status=$5,next_attempt_at=now()+($6::int*interval '1 second') WHERE business_id=$1 AND event_id=$2 AND subscription_id=$3 AND attempts=$7`,[d.business_id,d.event_id,d.subscription_id,status,http,Math.min(3600,15*2**d.attempts)+Math.floor(Math.random()*10),d.attempts]);
+ await evidence.query(`UPDATE operational_push_deliveries SET status=$4,last_status=$5,next_attempt_at=now()+($6::int*interval '1 second') WHERE business_id=$1 AND event_id=$2 AND subscription_id=$3 AND attempts=$7 AND status='QUEUED'`,[d.business_id,d.event_id,d.subscription_id,status,http,Math.min(3600,15*2**d.attempts)+Math.floor(Math.random()*10),d.attempts]);
  await evidence.query(`UPDATE operational_push_attempts SET outcome=$5,provider_status=$6,finished_at=now() WHERE business_id=$1 AND event_id=$2 AND subscription_id=$3 AND attempt=$4 AND outcome='STARTED'`,[d.business_id,d.event_id,d.subscription_id,d.attempts,status,http]);
  await evidence.query('COMMIT');}catch(error){await evidence.query('ROLLBACK');throw error;}finally{evidence.release();}
  }
