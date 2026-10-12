@@ -1,43 +1,97 @@
-import React,{useMemo,useState} from 'react';
-import {CheckCircle2,Clock3,Flame,RefreshCw,Search,Utensils} from 'lucide-react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import {Clock3,Flame,RefreshCw,Search} from 'lucide-react';
+import {Notice,StatusBadge,EmptyState} from '../../design-system/components';
+import {ds} from '../../design-system/tokens';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import type {CommandOutcome} from '../../types/transactions';
+import type {QueuedCommand} from './BusinessStore';
+import {kdsBoard,prepLabel,prepStates,prepStations,type PrepLine,type PrepState,type PrepStation} from './kdsBoard';
 
 type CommandFn=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
-type Station='BAR'|'KITCHEN'|'ROOMS';
-type Status='FIRED'|'PREPARING'|'READY'|'SERVED';
-const stations:Station[]=['BAR','KITCHEN','ROOMS'];
-const statuses:Status[]=['FIRED','PREPARING','READY','SERVED'];
-const data=(record?:BusinessRecord)=>record?.data as Record<string,any>|undefined;
-const active=(records:BusinessRecord[],collection:string)=>records.filter(r=>r.collection===collection&&!r.archived);
-const nextStatus=(status:Status):Status=>status==='FIRED'?'PREPARING':status==='PREPARING'?'READY':'SERVED';
-const actionLabel=(status:Status)=>status==='FIRED'?'Start preparing':status==='PREPARING'?'Mark ready':'Mark served';
-const statusTone=(status:Status)=>status==='READY'?'border-emerald-500/30 bg-emerald-500/10 text-emerald-200':status==='PREPARING'?'border-amber-500/30 bg-amber-500/10 text-amber-200':'border-sky-500/30 bg-sky-500/10 text-sky-200';
-const outcomeText=(outcome:CommandOutcome)=>{switch(outcome.kind){case'CONFIRMED':return 'Kitchen ticket status confirmed and synchronized.';case'DRAFT_SAVED':return 'Ticket update saved as a draft; it has not taken effect.';case'PENDING':return 'Ticket update is waiting to synchronize. Do not submit it again.';case'OUTCOME_UNKNOWN':case'REJECTED':case'CONFLICT':case'BLOCKED':return outcome.message}};
+type Filters={station:PrepStation;status:'ALL'|PrepState;query:string};
+const stationLabel:Record<PrepStation,string>={BAR:'Bar',KITCHEN:'Kitchen',ROOMS:'Rooms'};
+const nextStatus=(status:PrepState)=>status==='FIRED'?'PREPARING':status==='PREPARING'?'READY':'SERVED';
+const actionLabel=(status:PrepState)=>status==='FIRED'?'Start preparing':status==='PREPARING'?'Mark ready':'Mark served';
+const defaultFilters:Filters={station:'BAR',status:'ALL',query:''};
+const readFilters=(key:string):Filters=>{try{const saved=JSON.parse(sessionStorage.getItem(key)||'null');return saved&&prepStations.includes(saved.station)&&['ALL',...prepStates].includes(saved.status)&&typeof saved.query==='string'?saved:defaultFilters;}catch{return defaultFilters;}};
 
-export function WebKDSView({records,session,disabled,command,onRefresh}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:CommandFn;onRefresh:()=>Promise<void>}){
- const orders=active(records,'orders');
- const [station,setStation]=useState<Station>('BAR');
- const [status,setStatus]=useState<'ALL'|Status>('ALL');
- const [query,setQuery]=useState('');
- const [outcome,setOutcome]=useState<CommandOutcome|null>(null);const [notice,setNotice]=useState('');const [busy,setBusy]=useState(false);const [refreshing,setRefreshing]=useState(false);
+export function WebKDSView({records,session,disabled,command,onRefresh,onActivity,queue=[]}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:CommandFn;onRefresh:()=>Promise<void>;onActivity?:()=>void;queue?:QueuedCommand[]}){
+ const key=`servos-kds-filters:${session.businessId}:${session.actorId}`;
+ const [filters,setFilters]=useState(()=>readFilters(key));
+ const [now,setNow]=useState(Date.now),[refreshing,setRefreshing]=useState(false),[saving,setSaving]=useState('');
+ const [notice,setNotice]=useState(''),[failure,setFailure]=useState<{orderId:string;reference:string;message:string;unknown:boolean}|null>(null);
+ const [awaiting,setAwaiting]=useState<Record<string,{version:number;unknown:boolean;commandId?:string}>>({});
+ const inFlight=useRef(false);const refreshedAfterFailure=useRef(false);
+ const board=useMemo(()=>kdsBoard(records),[records]);
  const canUpdate=allowed(session,'kds.update');
- const tickets=useMemo(()=>orders.flatMap(order=>(Array.isArray(data(order)?.items)?data(order)!.items:[]).filter((item:any)=>{
-   const route=String(item.productSnapshot?.routeTo||item.routeTo||'BAR').toUpperCase();
-   const itemStatus=String(item.preparationStatus||item.courseStatus||'FIRED').toUpperCase() as Status;
-   const text=[data(order)?.orderNumber,data(order)?.tabName,data(order)?.tableName,item.name||item.productSnapshot?.name||item.productName,item.notes||item.note].join(' ').toLowerCase();
-   return (item.state?item.state==='FIRED':item.stockFired===true)&&route===station&&itemStatus!=='SERVED'&&(status==='ALL'||itemStatus===status)&&(!query.trim()||text.includes(query.trim().toLowerCase()));
- }).map((item:any)=>({order,item,status:String(item.preparationStatus||item.courseStatus||'FIRED').toUpperCase() as Status}))),[orders,station,status,query]);
- const advance=async(ticket:{order:BusinessRecord;item:any;status:Status})=>{
-   if(disabled||busy||refreshing)return;setBusy(true);setOutcome(null);
-   try{setOutcome(await command('order.kds','orders',ticket.order.id,{orderId:ticket.order.id,itemId:ticket.item.id,station,status:nextStatus(ticket.status)}))}catch{setOutcome({kind:'BLOCKED',message:'The ticket update could not be confirmed. Refresh the view and review Activity before retrying.'})}finally{setBusy(false)}
+ const settings=records.find(r=>r.collection==='businessSettings'&&!r.archived);
+ const configuredThreshold=Number(settings?.data.preparationOverdueMinutes);
+ const overdueMinutes=Number.isFinite(configuredThreshold)&&configuredThreshold>=1&&configuredThreshold<=240?configuredThreshold:15;
+ useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
+ useEffect(()=>{try{sessionStorage.setItem(key,JSON.stringify(filters));}catch{/* Filters are optional, never financial storage. */}},[key,filters]);
+ useEffect(()=>{setAwaiting(current=>Object.fromEntries(Object.entries(current).filter(([id,pending])=>{const row=records.find(r=>r.collection==='orders'&&r.id===id);const entry=pending.commandId?queue.find(q=>q.id===pending.commandId):undefined;const unresolved=pending.unknown&&entry?.state!=='SYNCHRONIZED';return unresolved||!row||row.version<=pending.version;})));},[records,queue]);
+ const unresolved=(id:string)=>queue.some(q=>q.state!=='SYNCHRONIZED'&&q.state!=='REJECTED'&&q.state!=='CONFLICT'&&q.command.operation==='order.kds'&&q.command.payload.orderId===id);
+ const configuredStations=prepStations.filter(station=>board.lines.some(line=>line.station===station)||records.some(r=>r.collection==='products'&&!r.archived&&r.data.routeTo===station));
+ const stations=configuredStations.length?configuredStations:prepStations;
+ useEffect(()=>{if(!stations.includes(filters.station))setFilters(current=>({...current,station:stations[0]}));},[stations.join('|'),filters.station]);
+ const stationLines=board.lines.filter(line=>line.station===filters.station);
+ const visible=stationLines.filter(line=>(filters.status==='ALL'||line.status===filters.status)&&`${line.reference} ${line.location} ${line.name} ${line.note} ${line.choices.join(' ')} ${line.waiter}`.toLowerCase().includes(filters.query.trim().toLowerCase()));
+ const elapsed=(line:PrepLine)=>line.firedAt===null?null:Math.max(0,Math.floor((now-line.firedAt)/60000));
+ const overdue=stationLines.filter(line=>line.status!=='READY'&&(elapsed(line)??0)>=overdueMinutes).length;
+ const refresh=async()=>{
+  if(inFlight.current||refreshing)return;setRefreshing(true);setNotice('');
+  try{await onRefresh();setNow(Date.now());refreshedAfterFailure.current=true;setNotice('Preparation list refreshed. Review the current items before continuing.');}
+  catch{setNotice('Could not refresh. Check your connection and open Activity for unresolved updates.');}
+  finally{setRefreshing(false);}
  };
- const refreshTickets=async()=>{if(refreshing||busy)return;setRefreshing(true);setNotice('Refreshing ticket list…');try{await onRefresh();setNotice('Ticket list synchronized.')}catch{setNotice('');setOutcome({kind:'BLOCKED',message:'The ticket list could not be refreshed. Check connectivity and try again.'})}finally{setRefreshing(false)}};
- return <section className="space-y-5" aria-label="Kitchen and bar pass">
-   <header className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="flex items-center gap-2 text-xl font-bold"><Flame className="h-5 w-5 text-amber-300"/>Bar / Kitchen Pass</h2><p className="mt-1 text-sm text-slate-400">Advance fired items through preparation states. Stock is already depleted by the committed fire command.</p></div><div className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-400"><Clock3 className="h-4 w-4"/>{tickets.length} active ticket{tickets.length===1?'':'s'}</div></header>
-   {busy&&<p role="status" className="rounded-xl border border-slate-700 bg-slate-900 p-3 text-sm">Saving kitchen ticket status…</p>}{outcome&&<p role={['OUTCOME_UNKNOWN','REJECTED','CONFLICT','BLOCKED'].includes(outcome.kind)?'alert':'status'} className={`rounded-xl border p-3 text-sm ${outcome.kind==='CONFIRMED'?'border-emerald-800 bg-emerald-950/30 text-emerald-200':'border-amber-800 bg-amber-950/30 text-amber-100'}`}>{outcome.kind==='CONFIRMED'&&<CheckCircle2 className="mr-2 inline h-4 w-4"/>}{outcomeText(outcome)}</p>}{notice&&<p role="status" className="rounded-xl border border-slate-700 bg-slate-900 p-3 text-sm">{notice}</p>}
-   <div className="grid gap-3 lg:grid-cols-[1fr_auto]"><label className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500"/><input className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-amber-400" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search order, table, tab, or item"/></label><button disabled={disabled||refreshing||busy} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold disabled:opacity-40" onClick={()=>void refreshTickets()}><RefreshCw className={`h-4 w-4 ${refreshing?'animate-spin':''}`}/>{refreshing?'Refreshing…':'Refresh view'}</button></div>
-   <div className="flex flex-wrap gap-2"><div className="flex gap-2 overflow-x-auto">{stations.map(value=><button key={value} className={`rounded-xl px-4 py-2 text-sm font-bold ${station===value?'bg-amber-400 text-slate-950':'border border-slate-700 bg-slate-900 text-slate-300'}`} onClick={()=>setStation(value)}>{value==='ROOMS'?'Rooms':value}</button>)}</div><div className="flex gap-2 overflow-x-auto">{(['ALL',...statuses] as const).map(value=><button key={value} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${status===value?'border-amber-400 bg-amber-400/10 text-amber-200':'border-slate-700 text-slate-400'}`} onClick={()=>setStatus(value)}>{value}</button>)}</div></div>
-   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{tickets.map(ticket=>{const orderData=data(ticket.order)!;return <article key={`${ticket.order.id}-${ticket.item.id}`} className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-lg shadow-black/10"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="font-mono text-xs text-amber-400">{String(orderData.orderNumber||orderData.name||orderData.tableName||'Order')}</div><h3 className="mt-1 truncate text-lg font-bold">{Number(ticket.item.quantity||1)} × {String(ticket.item.name||ticket.item.productSnapshot?.name||ticket.item.productName||'Product name unavailable - review ticket')}</h3><p className="text-sm text-slate-400">{String(orderData.tabName||orderData.tableName||'Walk-in')}</p></div><span className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-bold ${statusTone(ticket.status)}`}>{ticket.status==='FIRED'?'New':ticket.status==='PREPARING'?'Preparing':'Ready'}</span></div>{ticket.item.courseName&&<p className="mt-3 text-xs text-slate-500">Course: {String(ticket.item.courseName)}{ticket.item.seatLabel?` · Seat ${String(ticket.item.seatLabel)}`:''}</p>}{(ticket.item.notes||ticket.item.note)&&<p className="mt-3 rounded-xl bg-slate-950 p-3 text-sm text-slate-300">Note: {String(ticket.item.notes||ticket.item.note)}</p>}<button disabled={disabled||!canUpdate} className="mt-4 w-full rounded-xl bg-amber-400 px-4 py-3 font-bold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40" onClick={()=>void advance(ticket)}>{actionLabel(ticket.status)}</button></article>})}{tickets.length===0&&<div className="col-span-full rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 px-6 py-14 text-center"><Utensils className="mx-auto h-8 w-8 text-slate-600"/><h3 className="mt-3 font-bold">No active {station.toLowerCase()} items</h3><p className="mt-1 text-sm text-slate-500">Fired orders will appear here after a POS operator sends items to the pass.</p></div>}</div>
+ const advance=async(line:PrepLine)=>{
+  if(disabled||!canUpdate||inFlight.current||refreshing||awaiting[line.order.id]||unresolved(line.order.id)||!line.name||line.problems.some(p=>p.includes('Product name')||p.includes('quantity')))return;
+  if(failure?.orderId===line.order.id&&(failure.unknown||!refreshedAfterFailure.current))return;
+  inFlight.current=true;setSaving(line.id);setNotice('');setFailure(null);refreshedAfterFailure.current=false;
+  try{
+   const out=await command('order.kds','orders',line.order.id,{orderId:line.order.id,itemId:line.id,station:line.station,status:nextStatus(line.status),expectedVersions:[{collection:'orders',id:line.order.id,version:line.order.version}]});
+   if(out.kind==='CONFIRMED'){
+    setAwaiting(current=>({...current,[line.order.id]:{version:line.order.version,unknown:false}}));setNotice(`${line.reference}: update recorded by server; refreshing the board.`);
+    try{await onRefresh();}catch{setNotice(`${line.reference}: update recorded. Refresh the board to see its current state.`);}
+   }else if(out.kind==='PENDING'||out.kind==='OUTCOME_UNKNOWN'){
+    setAwaiting(current=>({...current,[line.order.id]:{version:line.order.version,unknown:out.kind==='OUTCOME_UNKNOWN',commandId:out.commandId}}));setFailure({orderId:line.order.id,reference:line.reference,message:'This update is awaiting confirmation. Recover the original update in Activity; do not submit another.',unknown:true});
+   }else setFailure({orderId:line.order.id,reference:line.reference,message:out.kind==='DRAFT_SAVED'?'This update is only a draft and has not reached preparation. Refresh before continuing.':out.message,unknown:false});
+  }catch{setFailure({orderId:line.order.id,reference:line.reference,message:'The update outcome is uncertain. Open Activity to recover the original update before continuing.',unknown:true});}
+  finally{inFlight.current=false;setSaving('');}
+ };
+ return <section className="space-y-3" aria-label="Kitchen and bar pass" data-guide-anchor="web.kds">
+  <header className="flex flex-wrap items-center justify-between gap-3">
+   <div><h2 className={`${ds.pageTitle} flex items-center gap-2`}><Flame aria-hidden="true" className="h-5 w-5 text-amber-300"/>{stationLabel[filters.station]} preparation</h2><p className={`${ds.fgMuted} mt-1 text-sm`}>{stationLines.length} active items{overdue>0?` / ${overdue} waiting over ${overdueMinutes} min`:''}</p></div>
+   <div className="flex flex-wrap items-center gap-2"><StatusBadge tone={disabled?'warning':'neutral'}>{disabled?'Updates unavailable':'Server updates'}</StatusBadge><button className={`${ds.button} min-h-11`} disabled={refreshing||Boolean(saving)||disabled} onClick={()=>void refresh()}><RefreshCw aria-hidden="true" className={`h-4 w-4 ${refreshing?'animate-spin':''}`}/>{refreshing?'Refreshing':'Refresh'}</button></div>
+  </header>
+  <nav aria-label="Preparation station" className="flex flex-wrap gap-2">{stations.map(station=><button key={station} aria-pressed={filters.station===station} className={`${filters.station===station?ds.primaryButton:ds.button} min-h-11`} onClick={()=>setFilters(current=>({...current,station}))}>{stationLabel[station]} <span className="tabular-nums">{board.lines.filter(line=>line.station===station).length}</span></button>)}</nav>
+  <div className="flex flex-wrap items-end justify-between gap-3">
+   <nav className="flex flex-wrap gap-1" aria-label="Preparation status">{(['ALL',...prepStates] as const).map(status=><button key={status} aria-pressed={filters.status===status} className={`${ds.button} min-h-11 ${filters.status===status?'border-amber-400 text-amber-300':''}`} onClick={()=>setFilters(current=>({...current,status}))}>{status==='ALL'?'All active':prepLabel[status]} <span className="tabular-nums">{stationLines.filter(line=>status==='ALL'||line.status===status).length}</span></button>)}</nav>
+   <label className="block w-full sm:max-w-sm"><span className="sr-only">Search preparation</span><div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-500"/><input className={`${ds.input} min-h-11 pl-10`} value={filters.query} onChange={e=>setFilters(current=>({...current,query:e.target.value}))} placeholder="Order, table, item or note"/></div></label>
+  </div>
+  {!canUpdate&&<Notice>You can view preparation. Ask an authorized preparation operator to update items.</Notice>}
+  {notice&&<Notice>{notice}</Notice>}
+  {failure&&<Notice tone="warning"><strong>{failure.reference} needs attention.</strong> {failure.message}<div className="mt-2 flex flex-wrap gap-2"><button className={`${ds.button} min-h-11`} disabled={refreshing||disabled} onClick={()=>void refresh()}>Refresh ticket</button>{onActivity&&<button className={`${ds.button} min-h-11`} onClick={onActivity}>View activity</button>}</div></Notice>}
+  {board.issues.length>0&&<Notice tone="warning"><details><summary className="cursor-pointer">{board.issues.length} preparation snapshot{board.issues.length===1?'':'s'} need attention</summary><ul className="mt-2 space-y-2">{board.issues.map(issue=><li key={issue.key}><b>{issue.reference}</b>: {issue.message}</li>)}</ul><button className={`${ds.button} mt-2 min-h-11`} disabled={refreshing||disabled} onClick={()=>void refresh()}>Refresh affected orders</button>{onActivity&&<button className={`${ds.button} ml-2 min-h-11`} onClick={onActivity}>View activity</button>}</details></Notice>}
+  <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{visible.map(line=>{
+   const age=elapsed(line),late=line.status!=='READY'&&age!==null&&age>=overdueMinutes;
+   const invalid=line.problems.some(p=>p.includes('Product name')||p.includes('quantity'));
+   const pending=Boolean(awaiting[line.order.id])||unresolved(line.order.id);
+   const blocked=disabled||!canUpdate||Boolean(saving)||refreshing||pending||invalid||failure?.orderId===line.order.id&&(failure.unknown||!refreshedAfterFailure.current);
+   const explanation=invalid?'Ask a supervisor to review the incomplete item.':pending?'Waiting for the original update. Open Activity for recovery.':disabled?'Connect to the server to update preparation.':!canUpdate?'Your account can view but cannot update preparation.':blocked?'Finish or refresh the current update before continuing.':undefined;
+   return <article key={`${line.order.id}:${line.id}`} className={`${ds.panel} min-w-0 p-3 ${late?'border-amber-500/70':''}`}>
+    <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="break-words font-bold text-amber-300">{line.reference}</h3><p className="break-words text-sm text-slate-300">{line.location}</p></div><StatusBadge tone={line.status==='READY'?'success':line.status==='PREPARING'?'warning':'info'}>{prepLabel[line.status]}</StatusBadge></div>
+    <p className="mt-3 break-words text-lg font-bold leading-snug"><span className="tabular-nums">{Number.isFinite(line.quantity)?line.quantity:'?'} x </span>{line.name}</p>
+    {line.choices.length>0&&<p className="mt-1 break-words text-sm text-slate-300">{line.choices.join(' / ')}</p>}
+    {line.note&&<p className="mt-2 break-words rounded-lg bg-slate-950 p-2 text-sm text-white">{line.note}</p>}
+    {(line.course||line.waiter)&&<p className="mt-2 break-words text-xs text-slate-400">{[line.course,line.waiter].filter(Boolean).join(' / ')}</p>}
+    <p className={`mt-2 flex items-center gap-1 text-sm ${late?'font-bold text-amber-300':'text-slate-400'}`}><Clock3 aria-hidden="true" className="h-4 w-4"/>{age===null?'Start time unavailable':`${age} min since sent`}</p>
+    {line.problems.map(problem=><p className="mt-2 text-sm text-amber-200" key={problem}>{problem}</p>)}
+    {explanation&&<p className="mt-2 text-xs text-slate-400">{explanation}</p>}
+    <button className={`${ds.primaryButton} mt-3 min-h-11 w-full`} title={explanation} disabled={Boolean(blocked)} aria-busy={saving===line.id} onClick={()=>void advance(line)}>{saving===line.id?'Recording update':actionLabel(line.status)}</button>
+    {allowed(session,'audit.view')&&<details className="mt-2 text-xs text-slate-500"><summary className="cursor-pointer">Technical details</summary><p className="break-all">Order: {line.order.id}</p><p className="break-all">Item: {line.id}</p><p>Order version: {line.order.version}</p></details>}
+   </article>;
+  })}</div>
+  {!visible.length&&<EmptyState title={filters.query||filters.status!=='ALL'?'No matching preparation items':`No active ${stationLabel[filters.station].toLowerCase()} tickets`} description={filters.query||filters.status!=='ALL'?'Try another filter or clear the search.':'Approved items appear here when they are sent for preparation.'} action={filters.query||filters.status!=='ALL'?<button className={`${ds.button} min-h-11`} onClick={()=>setFilters(current=>({...current,status:'ALL',query:''}))}>Clear filters</button>:undefined}/>}
  </section>;
 }

@@ -1,0 +1,3 @@
+export interface ReservationRate {id:string;name?:string;roomTypeId:string;mode:string;priceMinor:number|string;currency:string;taxBasisPoints:number|string;durationMinutes?:number|string|null}
+export interface ReservationPolicy {timeZone?:string;nightlyCheckoutTime?:string;dayStayCutoffTime?:string;standardRoomRateEnabled?:boolean;roomStayRatePlanId?:string|null;roomStayRoomTypeId?:string|null}
+export function quoteReservation(input:{rate:ReservationRate;policy?:ReservationPolicy;roomTypeId:string;stayType:'NIGHTLY'|'DAY';startsAt:string|Date;endsAt:string|Date}):{units:number;totalMinor:number;currency:string;standardRoomRate:boolean;rateSnapshot:Record<string,unknown>};

@@ -1,3 +1,4 @@
+import {quoteReservation} from '../../../contracts/reservation-quote.mjs';
 import {randomUUID} from 'node:crypto';
 import {ApiProblem} from './command-kernel.mjs';
 
@@ -110,24 +111,17 @@ const reservationCreate=({walkIn=false}={})=>async({tx,command,actor,at})=>{
  if(guests>Number(room.capacity))throw new ApiProblem(409,'ROOM_CAPACITY_EXCEEDED','Guest count exceeds this room capacity.');
  const rateResult=await tx.client.query(`SELECT ${rateColumns} FROM business_room_rate_plans WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.ratePlanId]);const rate=rateResult.rows[0];
  if(!rate||rate.roomTypeId!==room.roomTypeId)throw new ApiProblem(409,'RATE_ROOM_TYPE_MISMATCH','The selected rate is not active for this room type.');if(Number(rate.version)!==expectedRate)throw new ApiProblem(409,'VERSION_CONFLICT','The selected rate changed. Review the current price.');
- if((stayType==='NIGHTLY'&&rate.mode!=='NIGHTLY')||(stayType==='DAY'&&rate.mode!=='DAY_USE'))throw new ApiProblem(409,'RATE_STAY_TYPE_MISMATCH','The selected rate does not match the requested stay type.');
+ 
  const guest=await tx.client.query(`SELECT name,version FROM business_customers WHERE business_id=$1 AND id=$2 AND archived_at IS NULL FOR SHARE`,[actor.businessId,p.customerId]);if(!guest.rows[0])throw new ApiProblem(409,'RESOURCE_CONFLICT','The selected guest is missing or archived.');if(Number(guest.rows[0].version)!==expectedCustomer)throw new ApiProblem(409,'VERSION_CONFLICT','Guest details changed. Review the selected profile.');
- const settingsResult=await tx.client.query(`SELECT time_zone AS "timeZone",to_char(nightly_checkout_time,'HH24:MI') AS "nightlyCheckoutTime",to_char(day_stay_cutoff_time,'HH24:MI') AS "dayStayCutoffTime" FROM business_hospitality_settings WHERE business_id=$1`,[actor.businessId]);const settings=settingsResult.rows[0]??{timeZone:'Africa/Nairobi',nightlyCheckoutTime:'10:00',dayStayCutoffTime:'18:00'};
- const localTimes=await tx.client.query(`SELECT to_char($1::timestamptz AT TIME ZONE $3,'YYYY-MM-DD') AS "startDay",to_char($2::timestamptz AT TIME ZONE $3,'YYYY-MM-DD') AS "endDay",to_char($2::timestamptz AT TIME ZONE $3,'HH24:MI') AS "endTime"`,[startsAt,endsAt,settings.timeZone]);const local=localTimes.rows[0],span=endsAt.getTime()-startsAt.getTime(),duration=rate.durationMinutes===null?null:Number(rate.durationMinutes);let units;
- if(stayType==='NIGHTLY'){
-  units=localDayNumber(local.endDay)-localDayNumber(local.startDay);
-  if(local.endTime!==settings.nightlyCheckoutTime||units<1||units>366)fail(`Nightly departure must use the property checkout time ${settings.nightlyCheckoutTime}, within 366 nights.`);
- }else{
-  if(local.startDay!==local.endDay||local.endTime>settings.dayStayCutoffTime)fail(`Day-use departure must be the same property-local date and no later than ${settings.dayStayCutoffTime}.`);
-  units=Math.max(1,Math.ceil(span/(duration*60000)));
- }
- if(!Number.isSafeInteger(units)||units>366)fail('Stay duration exceeds supported billing periods.');const quotedBig=BigInt(units)*BigInt(rate.priceMinor);if(quotedBig>BigInt(Number.MAX_SAFE_INTEGER))fail('Quoted stay price exceeds the supported amount.');
+ const settingsResult=await tx.client.query(`SELECT standard_room_rate_enabled AS "standardRoomRateEnabled",room_stay_rate_plan_id AS "roomStayRatePlanId",room_stay_room_type_id AS "roomStayRoomTypeId",time_zone AS "timeZone",to_char(nightly_checkout_time,'HH24:MI') AS "nightlyCheckoutTime",to_char(day_stay_cutoff_time,'HH24:MI') AS "dayStayCutoffTime" FROM business_hospitality_settings WHERE business_id=$1`,[actor.businessId]);const settings=settingsResult.rows[0]??{timeZone:'Africa/Nairobi',nightlyCheckoutTime:'10:00',dayStayCutoffTime:'18:00'};
+ let quote;try{quote=quoteReservation({rate,policy:settings,roomTypeId:room.roomTypeId,stayType,startsAt,endsAt});}catch(error){fail(error.message);}
+ const units=quote.units,quotedBig=BigInt(quote.totalMinor);
  const turnaround=Number(room.turnaroundMinutes),blockedUntil=new Date(endsAt.getTime()+turnaround*60000);
  const overlaps=await tx.client.query(`SELECT id FROM business_room_reservations WHERE business_id=$1 AND room_id=$2 AND archived_at IS NULL AND status IN ('RESERVED','CHECKED_IN') AND starts_at<$4 AND blocked_until>$3 LIMIT 1 FOR UPDATE`,[actor.businessId,p.roomId,startsAt,blockedUntil]);
  if(overlaps.rows.length)throw new ApiProblem(409,'ROOM_UNAVAILABLE','Another reservation or occupied stay overlaps this room and its turnaround window.');
  const maintenance=await tx.client.query(`SELECT 1 FROM business_room_blocks WHERE business_id=$1 AND room_id=$2 AND status='ACTIVE' AND starts_at<$4 AND (ends_at IS NULL OR ends_at>$3) LIMIT 1`,[actor.businessId,p.roomId,startsAt,blockedUntil]);if(maintenance.rows.length)throw new ApiProblem(409,'ROOM_MAINTENANCE_BLOCK','This room has an active maintenance block during the selected dates.');
  const version=await tx.bumpEntityVersion(actor.businessId,'roomReservations',p.id,0),status=walkIn?'CHECKED_IN':'RESERVED';
- const rateSnapshot={id:rate.id,name:rate.name,roomTypeId:rate.roomTypeId,mode:rate.mode,priceMinor:Number(rate.priceMinor),currency:rate.currency,taxBasisPoints:Number(rate.taxBasisPoints),durationMinutes:rate.durationMinutes===null?null:Number(rate.durationMinutes),quotedUnits:units,quotedAmountMinor:Number(quotedBig)};
+ const rateSnapshot=quote.rateSnapshot;
  await tx.client.query(`INSERT INTO business_room_reservations(business_id,id,room_id,rate_plan_id,customer_id,guests,stay_type,starts_at,ends_at,blocked_until,turnaround_minutes,status,rate_snapshot,units,quoted_amount_minor,checked_in_at,version,created_by,device_id,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18,$19,$20,$20)`,[actor.businessId,p.id,p.roomId,p.ratePlanId,p.customerId,guests,stayType,startsAt,endsAt,blockedUntil,turnaround,status,JSON.stringify(rateSnapshot),units,Number(quotedBig),walkIn?at:null,version,actor.staffId,actor.deviceId,at]);
  await entityEvent(tx,{actor,command,at,entityType:'RESERVATION',entityId:p.id,reservationId:p.id,roomId:p.roomId,version,eventType:walkIn?'WALK_IN':'RESERVE',eventData:{roomId:p.roomId,customerId:p.customerId,startsAt:startsAt.toISOString(),endsAt:endsAt.toISOString(),blockedUntil:blockedUntil.toISOString(),quotedAmountMinor:Number(quotedBig)}});
  return result(tx,actor,'roomReservations','business_room_reservations',reservationColumns,p.id);
