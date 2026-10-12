@@ -35,6 +35,8 @@ export const useBarcodeScanner = ({
 }: BarcodeScannerOptions) => {
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
 
   useEffect(() => {
     if (!enabled) return;
@@ -50,6 +52,7 @@ export const useBarcodeScanner = ({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (!enabledRef.current) { reset(); return; }
       if (event.isComposing || event.repeat || event.ctrlKey || event.metaKey || event.altKey) {
         reset();
         return;
