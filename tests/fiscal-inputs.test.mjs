@@ -41,7 +41,7 @@ test('active web product editors require an explicit tax class',()=>{
 test('API physical stock count validates precise quantities and preserves sealed/open balance',()=>{
   const countDialog=readFileSync('src/runtime/web/WebPhysicalCountDialog.tsx','utf8');
   const apiCommands=readFileSync('apps/api/src/catalog-commands.mjs','utf8');
-  assert.match(countDialog,/parseQuantity\(value\.quantity\)/);
+  assert.match(countDialog,/parseQuantity\(value\.quantity,\{maxDecimals:6\}\)/);
   assert.match(countDialog,/countedSealedContainers = sealed/);
   assert.match(countDialog,/countedOpenQuantity = open/);
   assert.match(apiCommands,/Counted liquid must equal whole sealed containers plus open quantity below one container/);

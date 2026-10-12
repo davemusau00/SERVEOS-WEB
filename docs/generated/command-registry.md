@@ -166,6 +166,7 @@ For each operation the registry declares: the permission that gates it, any alte
 |---|---|---|---|---|
 | `ratePlan.save` | `rooms.manage` | — | — | ONLINE_ONLY |
 | `room.housekeeping` | `rooms.operate` | — | — | ONLINE_ONLY |
+| `room.housekeeping.assign` | `rooms.manage` | — | — | ONLINE_ONLY |
 | `room.save` | `rooms.manage` | — | — | ONLINE_ONLY |
 | `roomReservation.cancel` | `rooms.operate` | — | — | ONLINE_ONLY |
 | `roomReservation.create` | `rooms.operate` | — | — | ONLINE_ONLY |
@@ -277,4 +278,4 @@ For each operation the registry declares: the permission that gates it, any alte
 |---|---|---|---|---|
 | `managerApproval.issue` | `staff.update` | — | — | ONLINE_ONLY |
 
-Total registered operations: 123.
+Total registered operations: 124.
