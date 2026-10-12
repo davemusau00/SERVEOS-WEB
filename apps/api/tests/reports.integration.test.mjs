@@ -119,6 +119,6 @@ test('Report layer reconciles recognized sales, collections, and refunds from th
  const stays=await occupancy(pool,manager,{start:'2026-01-01',end:'2026-01-03'});
  assert.equal(stays.report,'OCCUPANCY');
  assert.equal(stays.nights.length,3);
- assert.ok(stays.nights.every(night=>night.occupiedRooms===0&&night.availableRooms===0));
- assert.ok(stays.definition.includes('time zone'));
+ assert.ok(stays.nights.every(night=>night.occupiedRooms===0&&night.availableRooms===null));
+ assert.ok(stays.definition.includes('property-local date'));
 });
