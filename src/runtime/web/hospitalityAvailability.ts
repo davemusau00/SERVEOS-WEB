@@ -46,8 +46,8 @@ export function roomMoveBlocker({
   if (!destinationRoomId) return 'Choose a destination room.';
   if (destinationRoomId === currentRoomId) return "Choose a different room from the guest's current room.";
   if (!Number.isFinite(guestCount) || guestCount < 1 || guestCount > capacity) return 'This room does not have enough guest capacity.';
-  if (maintenanceState === 'OUT_OF_ORDER') return 'This room is out of service. Choose another room.';
-  if (housekeepingState !== 'CLEAN') return 'This room must be inspected and clean before a guest can move in.';
+  if (maintenanceState === 'OUT_OF_SERVICE' || maintenanceState === 'OUT_OF_ORDER') return 'This room is out of service. Choose another room.';
+  if (housekeepingState !== 'READY') return 'This room must be inspected and ready before a guest can move in.';
   const start = Date.parse(startsAt), end = Date.parse(endsAt);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 'The stay dates are unavailable; refresh Front Desk and retry.';
   const overlaps = (left: string, right: string) => {
@@ -82,7 +82,7 @@ export function roomReservationBlocker({
   const start = Date.parse(startsAt), end = Date.parse(endsAt);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 'Enter a valid arrival and departure interval.';
   if (configuredRoomTypeId && roomTypeId !== configuredRoomTypeId) return 'This room does not match the configured room-stay type.';
-  if (maintenanceState === 'OUT_OF_ORDER') return 'This room is out of service.';
+  if (maintenanceState === 'OUT_OF_SERVICE' || maintenanceState === 'OUT_OF_ORDER') return 'This room is out of service.';
   const overlaps = (interval: HospitalityInterval, occupiedUntil = interval.endsAt) => {
     const intervalStart = Date.parse(interval.startsAt || ''), intervalEnd = Date.parse(occupiedUntil || '');
     return Number.isFinite(intervalStart) && Number.isFinite(intervalEnd) && start < intervalEnd && end > intervalStart;
