@@ -15,6 +15,7 @@ import {ApiProblem, executeCommand, normalizeActor} from './command-kernel.mjs';
 import {PostgresStore} from './postgres-store.mjs';
 import {createHash, createHmac, createPrivateKey, createPublicKey, randomBytes, randomUUID, scrypt as scryptCallback, sign as signBytes, timingSafeEqual, verify as verifySignature} from 'node:crypto';
 import {promisify} from 'node:util';
+import {readFileSync} from 'node:fs';
 import {readConfig} from './config.mjs';
 import {createApiCommandRegistry} from './command-registry.mjs';
 import {applyImport,cancelImport,getImportBatch,getImportPlan,importTemplates,listImportBatches,planImport,stageImport} from './csv-import.mjs';
@@ -28,6 +29,7 @@ const json = (res, status, value) => {
 };
 const scrypt=promisify(scryptCallback);
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const knownPermissions=new Set(JSON.parse(readFileSync(new URL('../../contracts/permissions.json',import.meta.url),'utf8')).permissions);
 const calendarDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(`${value}T00:00:00Z`))&&new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;
 const ACCESS_TOKEN_TTL=15*60_000,REFRESH_TOKEN_TTL=30*24*60*60_000,REFRESH_FAMILY_TTL=90*24*60*60_000,REFRESH_COOKIE_PREFIX='servos_refresh_';
 const refreshCookieName=sessionId=>`${REFRESH_COOKIE_PREFIX}${sessionId}`;
@@ -206,7 +208,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       const deviceDecisionPath=url.pathname.match(/^\/v1\/devices\/access-requests\/([0-9a-f-]{36})\/(approve|deny)$/i);
       if(req.method==='POST'&&deviceDecisionPath){
         const actor=await authenticate(req);if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('devices.manage'))throw new ApiProblem(403,'PERMISSION_DENIED','Device management permission is required.');const [,requestId,decisionText]=deviceDecisionPath;if(!uuidPattern.test(requestId))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid device request.');const input=await readJson(req),reason=typeof input.reason==='string'?input.reason.trim():'';if(reason.length<3||reason.length>300)throw new ApiProblem(400,'VALIDATION_FAILED','Enter a reason for this device decision.');
-        const decision=decisionText.toLowerCase()==='approve'?'APPROVED':'DENIED',permissions=Array.isArray(input.permissions)?input.permissions:[];if(permissions.length>200||permissions.some(value=>typeof value!=='string')||new Set(permissions).size!==permissions.length)throw new ApiProblem(400,'VALIDATION_FAILED','Approved device permissions are invalid.');const outletId=input.outletId||null;if(outletId&&!uuidPattern.test(outletId))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid assigned outlet.');
+        const decision=decisionText.toLowerCase()==='approve'?'APPROVED':'DENIED',permissions=Array.isArray(input.permissions)?input.permissions:[];if(permissions.length>200||permissions.some(value=>typeof value!=='string'||!knownPermissions.has(value))||new Set(permissions).size!==permissions.length||permissions.includes('*')||decision==='APPROVED'&&!permissions.includes('business.view'))throw new ApiProblem(400,'VALIDATION_FAILED','Choose known device permissions, including business.view; wildcard grants are not allowed.');const outletId=input.outletId||null;if(outletId&&!uuidPattern.test(outletId))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid assigned outlet.');
         return json(res,200,await store.decideDeviceAccessRequest({businessId:actor.businessId,requestId,actor,decision,reason,outletId,permissions,at:new Date()}));
       }
       if (req.method === 'POST' && url.pathname === '/v1/devices/enrollment-challenges') {

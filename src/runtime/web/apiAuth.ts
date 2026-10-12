@@ -39,14 +39,30 @@ export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName
     }
     const profile=await client.authSession();
     if(profile.mustChangePassword)throw new Error('Change the initial password before enrolling this device.');
-    if(!profile.permissions.includes('*')&&!profile.permissions.includes('devices.register')&&!profile.permissions.includes('devices.manage'))throw new Error('This staff account needs device registration approval before sign-in can continue.');
     const enrollmentToken=state.token;if(!enrollmentToken)throw new Error('The API sign-in token is unavailable. Sign in again.');
     let identity=await getOrCreateApiWebDeviceIdentity(profile.businessId,profile.staffId);state.device=identity.deviceId;
-    try{await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity)}
-    catch(error){
-      if(!(error instanceof WebDeviceEnrollmentError)||error.code!=='DEVICE_ID_OWNED_BY_ANOTHER_STAFF')throw error;
-      identity=await createStaffScopedApiWebDeviceIdentity(profile.businessId,profile.staffId);state.device=identity.deviceId;
-      await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity);
+    const mayEnroll=profile.permissions.includes('*')||profile.permissions.includes('devices.register')||profile.permissions.includes('devices.manage');
+    if(!mayEnroll){
+      const previous=await client.myDeviceAccessRequest(identity.deviceId);
+      if(previous.request?.status==='DENIED')throw new Error(`Device access was denied: ${previous.request.decisionReason||'contact your administrator before requesting again.'}`);
+      if(previous.request?.status==='PENDING')throw new Error('This device needs administrator approval. Ask an administrator to review the request, then sign in again.');
+      if(previous.request?.status==='APPROVED'&&Date.parse(previous.request.expiresAt)>Date.now())await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity,true);
+      else if(previous.request?.status==='APPROVED'){
+        const request=await client.requestDeviceAccess({deviceId:identity.deviceId,publicKey:identity.publicKey,deviceName:'ServOS browser device',deviceClass:'BROWSER',capabilities:[],reason:'Request access to the ServOS web workspace.'});
+        throw new Error(request.status==='PENDING'?'Device approval expired. A new request is pending; contact your administrator.':'This device needs administrator approval. Ask an administrator to review the request, then sign in again.');
+      }
+      else{
+        const request=await client.requestDeviceAccess({deviceId:identity.deviceId,publicKey:identity.publicKey,deviceName:'ServOS browser device',deviceClass:'BROWSER',capabilities:[],reason:'Request access to the ServOS web workspace.'});
+        if(request.status!=='APPROVED')throw new Error('This device needs administrator approval. Ask an administrator to review the request, then sign in again.');
+        await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity,true);
+      }
+    }else{
+      try{await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity)}
+      catch(error){
+        if(!(error instanceof WebDeviceEnrollmentError)||error.code!=='DEVICE_ID_OWNED_BY_ANOTHER_STAFF')throw error;
+        identity=await createStaffScopedApiWebDeviceIdentity(profile.businessId,profile.staffId);state.device=identity.deviceId;
+        await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity);
+      }
     }
     await rememberApiWebDeviceIdentity(profile.businessId,profile.staffId,identity);
     const login:ApiLoginInfo={sessionId:response.sessionId,businessId:response.businessId,staffId:response.staffId,displayName:response.displayName,permissions:response.permissions,expiresAt:response.expiresAt,mustChangePassword};

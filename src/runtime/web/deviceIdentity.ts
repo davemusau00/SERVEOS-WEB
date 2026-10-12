@@ -104,11 +104,11 @@ export class WebDeviceEnrollmentError extends Error{
  constructor(readonly status:number,readonly code:string,message:string){super(message);this.name='WebDeviceEnrollmentError'}
 }
 
-export async function enrollWebDeviceWithApi(apiOrigin:string,accessToken:string,businessId:string,staffId:string,identity:WebDeviceIdentity):Promise<void>{
+export async function enrollWebDeviceWithApi(apiOrigin:string,accessToken:string,businessId:string,staffId:string,identity:WebDeviceIdentity,approvedRequest=false):Promise<void>{
  const origin=new URL(apiOrigin);if(origin.protocol!=='https:'&&origin.hostname!=='localhost'&&origin.hostname!=='127.0.0.1')throw new Error('Device enrollment requires HTTPS');
  if(!accessToken||!businessId||!staffId)throw new Error('An authenticated staff session is required for device enrollment');
  const headers={'content-type':'application/json',authorization:`Bearer ${accessToken}`};
- const challengeResponse=await fetch(`${origin.origin}/v1/devices/enrollment-challenges`,{method:'POST',headers,signal:AbortSignal.timeout(15000)});
+ const challengeResponse=await fetch(`${origin.origin}/v1/devices/enrollment-challenges`,{method:'POST',headers,body:JSON.stringify(approvedRequest?{deviceId:identity.deviceId}:{}),signal:AbortSignal.timeout(15000)});
  if(!challengeResponse.ok){const body=await challengeResponse.json().catch(()=>({}));throw new WebDeviceEnrollmentError(challengeResponse.status,body?.error?.code||'ENROLLMENT_CHALLENGE_FAILED',body?.error?.message||`Device enrollment challenge failed (${challengeResponse.status})`)}
  const challenge=await challengeResponse.json() as {challengeId:string;challenge:string};
  const signed=`${challenge.challengeId}\n${businessId}\n${staffId}\n${identity.deviceId}\n${challenge.challenge}`;

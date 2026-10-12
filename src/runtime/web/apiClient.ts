@@ -3,7 +3,8 @@ import type {ApiHistoricalCostState,ApiHistoricalCostSource,HistoricalCostKind} 
 import type {BootstrapManifest,OfflineGrantEnvelope} from './BusinessStore';
 
 export interface ApiCommandEnvelope {commandId:string;name:string;payload:Record<string,unknown>;expectedVersions:Record<string,number>;offlineGrantId?:string}
-export interface ApiCommandOutcome {kind:'CONFIRMED'|'REJECTED'|'CONFLICT';commandId:string;cursor?:number;result?:unknown;error?:{code:string;message:string;retryable:boolean}}
+export interface ApiCommandOutcome {kind:'CONFIRMED'|'REJECTED'|'CONFLICT';commandId:string;cursor?:number;result?:unknown;error?:{code:string;message:string;retryable:boolean;details?:Record<string,unknown>}}
+export interface ApiDeviceAccessRequest {id:string;staffId?:string;deviceId?:string;deviceName:string;deviceClass:string;outletId:string|null;capabilities:string[];reason:string;status:'PENDING'|'APPROVED'|'DENIED'|'ENROLLED'|'EXPIRED';requestedAt?:string;expiresAt:string;decisionReason?:string|null;approvedPermissions?:string[]|null;approvedOutletId?:string|null}
 export interface ApiChangePage {protocolVersion:1;cursor:number;highWater:number;hasMore:boolean;changes:Array<{sequence:number;commandId:string;actorId?:string;deviceId?:string;occurredAt:string;records:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>}>}
 export interface ApiCatalogItem {id:string;categoryId:string|null;name:string;sku:string|null;basePriceMinor:number;currency:string;trackInventory:boolean;version:number;createdAt:string}
 export interface ApiCatalogBootstrapManifest {protocolVersion:2;snapshotId:string;expiresAt:string;cursor:number;manifest:BootstrapManifest}
@@ -155,8 +156,12 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   housekeepingAssignees(){return request<{items:Array<{id:string;name:string;version:number}>;generatedAt:string}>('/v1/hospitality/housekeeping/assignees')},
   bootstrapCatalog(snapshotId?:string){return request<ApiCatalogBootstrapManifest>(snapshotId?`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}`:'/v1/bootstrap/catalog')},
   bootstrapCatalogPage(snapshotId:string,after:number){return request<ApiCatalogBootstrapPage>(`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}/pages?after=${encodeURIComponent(after)}`)},
-  enrollmentChallenge(){return request<{challengeId:string;challenge:string;issuedAt:string;expiresAt:string}>('/v1/devices/enrollment-challenges',{method:'POST'},false)},
+  enrollmentChallenge(deviceId?:string){return request<{challengeId:string;challenge:string;issuedAt:string;expiresAt:string}>('/v1/devices/enrollment-challenges',{method:'POST',body:JSON.stringify(deviceId?{deviceId}:{})},false)},
   enrollDevice(body:{challengeId:string;deviceId:string;publicKey:JsonWebKey;signature:string}){return request<{deviceId:string;businessId:string;createdAt:string}>('/v1/devices/enroll',{method:'POST',body:JSON.stringify(body)},false)},
+  requestDeviceAccess(body:{deviceId:string;publicKey:JsonWebKey;deviceName:string;deviceClass:string;outletId?:string|null;capabilities:string[];reason:string}){return request<{id:string;status:ApiDeviceAccessRequest['status'];expiresAt:string}>('/v1/devices/access-requests',{method:'POST',body:JSON.stringify(body)},false)},
+  myDeviceAccessRequest(deviceId:string){return request<{request:ApiDeviceAccessRequest|null}>(`/v1/devices/access-requests/mine?deviceId=${encodeURIComponent(deviceId)}`,{},false)},
+  deviceAccessRequests(){return request<{requests:ApiDeviceAccessRequest[]}>('/v1/devices/access-requests')},
+  decideDeviceAccessRequest(id:string,decision:'approve'|'deny',body:{reason:string;permissions?:string[];outletId?:string|null}){return request<{requestId:string;status:string;decidedAt:string;reason:string}>(`/v1/devices/access-requests/${encodeURIComponent(id)}/${decision}`,{method:'POST',body:JSON.stringify(body)})},
   issueOfflineGrant(input:{allowedCommands?:string[];maxCommands?:number;durationMinutes?:number}){return request<OfflineGrantEnvelope>('/v1/offline-grants',{method:'POST',body:JSON.stringify(input)})},
   importTemplates(){return request<{templates:ApiImportTemplate[];limits:{maxBytes:number;maxRows:number;previewRows:number};excluded:Array<{key:string;reason:string}>}>('/v1/import/templates')},
   importBatches(){return request<{batches:ApiImportBatch[]}>('/v1/import/batches')},
