@@ -32,7 +32,7 @@ receipt_items AS (
  FROM receipt_items r WHERE ${period('r.issued_at')}
  GROUP BY r.document_id,r.department,r.issued_at,r.document_number
  UNION ALL
- SELECT 'sales-return:'||j.id::text,j.occurred_at,'RETURNS','REVENUE_SALES_RETURN','OTHER_POS',
+ SELECT 'sales-return:'||j.id::text,j.occurred_at,'RETURNS','REVENUE_SALES_RETURN','UNALLOCATED_POS_RETURNS',
    COALESCE(d.document_number,'Sales return'),j.source_type,-sum(l.debit_minor-l.credit_minor),
    'journalEntries',j.id,d.id,NULL
  FROM financial_journals j JOIN financial_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id AND l.account_code='REVENUE_SALES'
@@ -43,7 +43,7 @@ receipt_items AS (
  WHERE j.business_id=$1 AND ${period('j.occurred_at')} AND l.debit_minor>0 AND d.issued_at<=j.occurred_at
  GROUP BY j.id,j.occurred_at,j.source_type,d.document_number,d.id
  UNION ALL
- SELECT 'room-return:'||r.id::text,r.occurred_at,'RETURNS','REVENUE_SALES_RETURN','OTHER_POS',
+ SELECT 'room-return:'||r.id::text,r.occurred_at,'RETURNS','REVENUE_SALES_RETURN','UNALLOCATED_POS_RETURNS',
    COALESCE(d.document_number,'Room charge reversal'),r.reason,-r.net_minor,'roomChargeReversals',r.id,d.id,NULL
  FROM pos_order_room_charge_reversals r JOIN receipts d ON d.order_key=r.order_id::text AND d.issued_at<=r.occurred_at
  WHERE r.business_id=$1 AND ${period('r.occurred_at')}
@@ -120,6 +120,7 @@ export async function profitAndLoss(pool,businessId,from,to){
   const controls=await db.query(`${statementCte}
    SELECT
    (SELECT count(*) FROM receipt_items r WHERE ${period('r.issued_at')} AND (r.net_minor IS NULL OR r.tax_minor IS NULL OR r.gross_minor IS NULL OR r.gross_minor<>r.net_minor+r.tax_minor))::text AS invalid_items,
+   (SELECT count(*) FROM receipt_items r WHERE ${period('r.issued_at')} AND (COALESCE(r.item->>'id','') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' OR (SELECT count(*) FROM receipt_items duplicate WHERE duplicate.document_id=r.document_id AND duplicate.item->>'id'=r.item->>'id')<>1))::text AS invalid_item_identity,
    (SELECT count(*) FROM receipts d WHERE ${period('d.issued_at')} AND (d.snapshot->>'currency' IS DISTINCT FROM 'KES' OR ${moneySql("d.snapshot->'taxes'->>'netMinor'")} IS NULL OR NOT EXISTS(SELECT 1 FROM receipt_items i WHERE i.document_id=d.id) OR ${moneySql("d.snapshot->'taxes'->>'netMinor'")} IS DISTINCT FROM (SELECT sum(i.net_minor) FROM receipt_items i WHERE i.document_id=d.id)))::text AS invalid_receipts,
    (SELECT count(*) FROM receipt_candidates d WHERE issuance>1 AND ${period('d.issued_at')})::text AS subsequent_receipts,
    (SELECT count(*) FROM receipt_items r WHERE ${period('r.issued_at')} AND jsonb_typeof(COALESCE(r.item->'ingredientSnapshot',r.item->'productSnapshot'->'ingredientSnapshot')) IS DISTINCT FROM 'array')::text AS unknown_recipes,
@@ -142,7 +143,7 @@ export async function profitAndLoss(pool,businessId,from,to){
   const cogsMinor=sum(line=>line.section==='COGS'),operatingExpensesMinor=sum(line=>line.section==='OPERATING_EXPENSES');
   const coverage=[];
   const warn=(code,count,message,blocksPosMargin=false)=>{if(count)coverage.push({code,count,message,blocksPosMargin})};
-  warn('RECEIPT_ALLOCATION',control.invalid_items+control.invalid_receipts,'Issued item amounts or tax allocations need reconciliation.',true);
+  warn('RECEIPT_ALLOCATION',control.invalid_items+control.invalid_receipts+control.invalid_item_identity,'Issued item identities, amounts or tax allocations need reconciliation.',true);
   warn('REISSUED_BILLS',control.subsequent_receipts,'An order has additional issued receipts. Only its original bill is recognised; review later changes.',true);
   warn('UNKNOWN_RECIPE',control.unknown_recipes,'Historical recipe evidence is missing; inventory costs cannot be assumed to be zero.',true);
   warn('MISSING_CONSUMPTION',control.missing_consumptions,'Issued ingredient snapshots lack matching sale-time consumption evidence.',true);
@@ -202,12 +203,30 @@ export async function profitAndLossSource(pool,businessId,from,to,key){
   }else if(row.collection==='expenses'){
    const lines=await db.query('SELECT l.account_code,l.debit_minor::text,l.credit_minor::text FROM business_expense_journals j JOIN business_expense_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id WHERE j.business_id=$1 AND j.expense_id=$2 ORDER BY l.line_number',[businessId,row.record_id]);journalLines.push(...lines.rows);
   }else if(row.collection==='businessDocuments'){
-   const lines=await db.query(`SELECT l.account_code,sum(l.debit_minor)::text AS debit_minor,sum(l.credit_minor)::text AS credit_minor FROM financial_journals j JOIN financial_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id LEFT JOIN order_payments p ON p.business_id=j.business_id AND p.id=j.payment_id LEFT JOIN customer_credit_entries c ON c.business_id=j.business_id AND c.id=j.customer_credit_entry_id WHERE j.business_id=$1 AND COALESCE(p.order_id,c.order_id)::text=(SELECT snapshot->>'orderId' FROM business_documents WHERE business_id=$1 AND id=$2) GROUP BY l.account_code ORDER BY l.account_code`,[businessId,row.record_id]);journalLines.push(...lines.rows);
+   const lines=await db.query(`WITH postings AS (
+    SELECT l.account_code,l.debit_minor,l.credit_minor FROM financial_journals j JOIN financial_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id
+    LEFT JOIN order_payments p ON p.business_id=j.business_id AND p.id=j.payment_id
+    LEFT JOIN customer_credit_entries c ON c.business_id=j.business_id AND c.id=j.customer_credit_entry_id
+    LEFT JOIN customer_credit_entries original_credit ON original_credit.business_id=c.business_id AND original_credit.id=c.reverses_entry_id
+    WHERE j.business_id=$1 AND COALESCE(p.order_id,c.order_id,original_credit.order_id)::text=(SELECT snapshot->>'orderId' FROM business_documents WHERE business_id=$1 AND id=$2)
+    UNION ALL
+    SELECT l.account_code,l.debit_minor,l.credit_minor FROM business_hospitality_journals j JOIN business_hospitality_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id
+    JOIN business_folio_entries e ON e.business_id=j.business_id AND e.folio_id=j.folio_id AND e.source_key=j.source_key
+    WHERE j.business_id=$1 AND e.details->>'orderId'=(SELECT snapshot->>'orderId' FROM business_documents WHERE business_id=$1 AND id=$2)
+   ) SELECT account_code,sum(debit_minor)::text AS debit_minor,sum(credit_minor)::text AS credit_minor FROM postings GROUP BY account_code ORDER BY account_code`,[businessId,row.record_id]);journalLines.push(...lines.rows);
   }
   let inventory=null;
   if(row.collection==='stockMovements'){
    const movements=await db.query(`SELECT m.movement_type,m.quantity_delta::text,m.reason,s.name,s.base_unit,e.average_unit_cost_minor::text AS unit_cost_minor,e.before_state,e.after_state FROM inventory_movements m JOIN stock_items s ON s.business_id=m.business_id AND s.id=m.stock_item_id LEFT JOIN inventory_movement_states e ON e.business_id=m.business_id AND e.movement_id=m.id WHERE m.business_id=$1 AND m.id=$2`,[businessId,row.record_id]);
-   const m=movements.rows[0];if(m)inventory={itemName:m.name,baseUnit:m.base_unit,movementType:m.movement_type,quantityDelta:m.quantity_delta,unitCostMinor:m.unit_cost_minor??null,reason:m.reason,before:m.before_state??null,after:m.after_state??null};
+   const m=movements.rows[0];if(m)inventory={itemName:m.name,baseUnit:m.base_unit,movementType:m.movement_type,quantityDelta:m.quantity_delta,statementQuantity:null,unitCostMinor:m.unit_cost_minor??null,reason:m.reason,before:m.before_state??null,after:m.after_state??null};
+   if(inventory&&/^consumption:|^void-loss:/u.test(row.source_key)){
+    const keyParts=row.source_key.split(':');
+    const cost=await db.query('SELECT quantity::text,unit_cost_minor::text FROM pos_stock_consumptions WHERE business_id=$1 AND movement_id=$2 AND line_id=$3 AND stock_item_id=$4',[businessId,row.record_id,keyParts[2],keyParts[3]]);
+    if(cost.rows[0]){inventory.statementQuantity=cost.rows[0].quantity;inventory.unitCostMinor=cost.rows[0].unit_cost_minor;}
+   }
+  }else if(row.collection==='movementCorrections'){
+   const movements=await db.query(`SELECT m.movement_type,m.quantity_delta::text,m.reason,s.name,s.base_unit,e.average_unit_cost_minor::text AS unit_cost_minor,e.before_state,e.after_state FROM inventory_reversals r JOIN inventory_movements m ON m.business_id=r.business_id AND m.source_command_id=r.reversal_command_id AND m.movement_type='RECORDING_REVERSAL' JOIN stock_items s ON s.business_id=m.business_id AND s.id=m.stock_item_id LEFT JOIN inventory_movement_states e ON e.business_id=m.business_id AND e.movement_id=m.id WHERE r.business_id=$1 AND r.reversal_command_id=$2`,[businessId,row.record_id]);
+   const m=movements.rows[0];if(m)inventory={itemName:m.name,baseUnit:m.base_unit,movementType:m.movement_type,quantityDelta:m.quantity_delta,statementQuantity:null,unitCostMinor:m.unit_cost_minor??null,reason:m.reason,before:m.before_state??null,after:m.after_state??null};
   }
   return {source,document,inventory,journalLines:journalLines.map(line=>({accountCode:line.account_code,debitMinor:integer(line.debit_minor),creditMinor:integer(line.credit_minor)})),generatedAt:new Date().toISOString(),journalScope:row.collection==='businessDocuments'?'ALL_POSTINGS_FOR_ORDER':'SOURCE_JOURNAL'};
  });

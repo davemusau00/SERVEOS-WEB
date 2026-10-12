@@ -8,6 +8,16 @@ export function costRate(value){
  return Number(value.toFixed(12));
 }
 
+/** Final posted money rounds once, after six-decimal quantity × rate. */
+export function lineCostMinor(quantity,unitCostMinor){
+ costRate(unitCostMinor);
+ if(typeof quantity!=='number'||!Number.isFinite(quantity)||quantity<0||quantity>Number.MAX_SAFE_INTEGER)throw new ApiProblem(400,'VALIDATION_FAILED','Valuation quantity is invalid.');
+ const quantityScaled=scaled(quantity,6),rateScaled=scaled(unitCostMinor,12),denominator=1_000_000n*SCALE;
+ const value=(quantityScaled*rateScaled+denominator/2n)/denominator;
+ if(value>BigInt(Number.MAX_SAFE_INTEGER))throw new ApiProblem(400,'VALIDATION_FAILED','Inventory line value exceeds supported posted money.');
+ return Number(value);
+}
+
 /** Quantities use six decimals; unit valuation uses twelve. Posted money stays integer. */
 export function weightedCostRate(existingQuantity,existingRate,receivedQuantity,totalCostMinor){
  costRate(existingRate);
