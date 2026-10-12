@@ -122,7 +122,10 @@ test('fresh-browser onboarding covers stocked sale, printer recovery, refund and
   const stockCount=page.getByRole('dialog',{name:'Count stock at a location',exact:true});
   await stockCount.getByLabel('Physical quantity (g)',{exact:true}).fill('500');
   await stockCount.getByLabel('Count note',{exact:true}).fill('Initial disposable acceptance stock count');
-  await stockCount.getByRole('button',{name:'Review and record count',exact:true}).click();
+  await stockCount.getByRole('button',{name:'Review count variances',exact:true}).click();
+  await expect(stockCount.getByText(/Review \d+ item-by-item variances above/)).toBeVisible();
+  await stockCount.getByRole('checkbox',{name:'I reviewed the item quantities, units and variances.',exact:true}).check();
+  await stockCount.getByRole('button',{name:'Record reviewed count',exact:true}).click();
   await expect(stockCount).toBeHidden();
   const startingStock=(await pool.query('SELECT quantity::text AS quantity FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2',[businessId,stock.id])).rows[0];
   expect(startingStock.quantity).toBe('500.000000');
@@ -330,6 +333,7 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await expect(page.getByRole('button',{name:'Finish and open workspace',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Finish and open workspace',exact:true}).click();
   await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();
+  await page.getByRole('button',{name:'Property Settings',exact:true}).click();
 
   const typeForm=page.getByRole('heading',{name:'Room types',exact:true}).locator('xpath=..');
   await typeForm.getByLabel('Name',{exact:true}).fill('Standard Room');
@@ -347,7 +351,9 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await roomForm.getByLabel('Guest capacity',{exact:true}).fill('2');
   await roomForm.getByLabel('Turnaround minutes',{exact:true}).fill('30');
   await roomForm.getByRole('button',{name:'Add room',exact:true}).click();
+  await page.getByRole('button',{name:'Room Status',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Room 101',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Property Settings',exact:true}).click();
 
   const rateForm=page.getByRole('heading',{name:'Add rate plan',exact:true}).locator('xpath=..');
   await rateForm.getByLabel('Name',{exact:true}).fill('Standard nightly');
@@ -370,17 +376,18 @@ test('hotel first use creates a room, checks in a guest and settles the first st
   await customerForm.getByRole('button',{name:'Save customer',exact:true}).click();
   await expect(customersView.getByText('Customer saved and confirmed.',{exact:true})).toBeVisible({timeout:15_000});
 
-  await page.getByRole('button',{name:'Rooms & rates',exact:true}).click();
-  const reservationForm=page.locator('[data-guide-anchor="rooms.reservation"]');
-  await expect(reservationForm.getByRole('status')).toContainText('1 room(s) available');
-  const reservationSelects=reservationForm.locator('select');
-  await reservationSelects.nth(0).selectOption({label:'Room 101'});
-  const reservationRateOption=reservationSelects.nth(1).locator('option').filter({hasText:'Standard nightly'});
-  await expect(reservationRateOption).toHaveCount(1);
-  await reservationSelects.nth(1).selectOption(await reservationRateOption.getAttribute('value')||'');
-  await reservationSelects.nth(2).selectOption({label:'Amina Hotel Guest'});
-  await reservationForm.getByRole('button',{name:'Walk in and check in',exact:true}).click();
-  await expect(page.getByText('Walk-in checked in.',{exact:true})).toBeVisible();
+  // Actual current operator journey: Front Desk owns walk-in check-in.
+  await page.getByRole('button',{name:'Front Desk',exact:true}).click();
+  await page.getByRole('button',{name:'Walk-in',exact:true}).click();
+  const walkIn=page.getByRole('dialog',{name:'Walk-in check-in',exact:true});
+  const walkInRoom=walkIn.getByRole('combobox',{name:'Room',exact:true});
+  const walkInRoomOption=walkInRoom.locator('option').filter({hasText:'101'});
+  await expect(walkInRoomOption).toHaveCount(1);
+  await walkInRoom.selectOption(await walkInRoomOption.getAttribute('value')||'');
+  await walkIn.getByRole('combobox',{name:'Guest',exact:true}).selectOption({label:'Amina Hotel Guest'});
+  await expect(walkIn.getByText('No committed room or block overlap found; the server rechecks before saving.')).toBeVisible();
+  await walkIn.getByRole('button',{name:'Create reservation',exact:true}).click();
+  await expect(walkIn).toBeHidden({timeout:30_000});
   const stay=(await pool.query(`SELECT r.id,r.status AS reservation_status,s.status AS stay_status,r.quoted_amount_minor
     FROM business_room_reservations r JOIN business_stays s ON s.business_id=r.business_id AND s.id=r.id
     WHERE r.business_id=$1`,[businessId])).rows[0];

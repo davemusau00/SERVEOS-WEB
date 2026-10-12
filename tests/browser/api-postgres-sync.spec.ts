@@ -237,7 +237,10 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   await count.getByRole('combobox',{name:'Location',exact:true}).selectOption(locationId);
   await count.getByLabel('Physical quantity (kg)',{exact:true}).fill('12');
   await count.getByLabel('Count note',{exact:true}).fill('Browser acceptance physical count');
-  await count.getByRole('button',{name:'Review and record count',exact:true}).click();
+  await count.getByRole('button',{name:'Review count variances',exact:true}).click();
+  await expect(count.getByText(/Review \d+ item-by-item variances above/)).toBeVisible();
+  await count.getByRole('checkbox',{name:'I reviewed the item quantities, units and variances.',exact:true}).check();
+  await count.getByRole('button',{name:'Record reviewed count',exact:true}).click();
   await expect(count).toHaveCount(0);
   expect((await pool.query('SELECT quantity::text,version::text FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId])).rows[0]).toMatchObject({quantity:'12.000000',version:'1'});
   expect((await pool.query(`SELECT c.scope,c.item_count,c.reason,a.status
@@ -251,7 +254,10 @@ test('real API catalog confirmation, IndexedDB reload and missed change recovery
   await quickCount.getByRole('checkbox',{name:/Real remote change/}).check();
   await quickCount.getByLabel('Physical quantity (kg)',{exact:true}).fill('12');
   await quickCount.getByLabel('Count note',{exact:true}).fill('Browser acceptance selected count');
-  await quickCount.getByRole('button',{name:'Review and record count',exact:true}).click();
+  await quickCount.getByRole('button',{name:'Review count variances',exact:true}).click();
+  await expect(quickCount.getByText(/Review \d+ item-by-item variances above/)).toBeVisible();
+  await quickCount.getByRole('checkbox',{name:'I reviewed the item quantities, units and variances.',exact:true}).check();
+  await quickCount.getByRole('button',{name:'Record reviewed count',exact:true}).click();
   await expect(quickCount).toHaveCount(0);
   expect((await pool.query("SELECT scope,item_count,reason FROM inventory_stock_counts WHERE business_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1",[businessId])).rows[0]).toMatchObject({scope:'SELECTED',item_count:1,reason:'Browser acceptance selected count'});
   const persisted=await page.evaluate(async()=>{
