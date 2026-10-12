@@ -184,7 +184,7 @@ These choices narrow the corresponding future work; they do not silently change 
 **Priority:** P1  
 **Owner:** Frontend lead and product designer  
 **Dependencies:** None  
-**Estimated effort:** 12–18 engineering days, distributed across all modules
+**Estimated effort:** 12â€“18 engineering days, distributed across all modules
 
 ### 4.1 Problem
 
@@ -360,7 +360,7 @@ Test on real or representative low-end Android devices, tablets and desktop brow
 
 **Priority:** P1  
 **Owner:** Frontend lead and product owner  
-**Estimated effort:** 5–8 engineering days
+**Estimated effort:** 5â€“8 engineering days
 
 ### 5.1 Current problem
 
@@ -430,7 +430,7 @@ Backend permissions remain authoritative. Hiding a navigation item does not repl
 
 **Priority:** P1  
 **Owner:** Frontend lead and POS/backend engineer  
-**Estimated effort:** 8–12 engineering days
+**Estimated effort:** 8â€“12 engineering days
 
 ### 6.1 Current-state findings
 
@@ -481,9 +481,9 @@ Every card must prioritize:
 
 Example:
 
-**KOT-0048 · Table 7**  
-**2 × Chicken Wings**  
-No chilli · Extra sauce  
+**KOT-0048 Â· Table 7**  
+**2 Ã— Chicken Wings**  
+No chilli Â· Extra sauce  
 Waiting 6 min  
 **Start preparing**
 
@@ -504,7 +504,7 @@ The source currently falls back to `Item` when `productName` is absent.
 
 Investigate the complete ticket pipeline:
 
-POS item selection → order snapshot → fire command → persisted order → synchronization → KDS rendering.
+POS item selection â†’ order snapshot â†’ fire command â†’ persisted order â†’ synchronization â†’ KDS rendering.
 
 Requirements:
 
@@ -519,7 +519,7 @@ Requirements:
 
 Retain backend transition safety:
 
-`FIRED → PREPARING → READY → SERVED`
+`FIRED â†’ PREPARING â†’ READY â†’ SERVED`
 
 Present staff-friendly labels:
 
@@ -542,7 +542,7 @@ Example:
 
 **1 ticket needs attention**  
 Ticket KOT-0048 could not be updated because another device changed it.  
-**Refresh ticket** · **View activity**
+**Refresh ticket** Â· **View activity**
 
 Rules:
 
@@ -589,7 +589,7 @@ Rules:
 
 **Priority:** P0  
 **Owner:** Hospitality backend engineer and frontend lead  
-**Estimated effort:** 10–16 engineering days
+**Estimated effort:** 10â€“16 engineering days
 
 ### 7.1 Verified architectural inconsistency
 
@@ -738,7 +738,7 @@ Split the current combined Rooms experience into:
 
 **Priority:** P1  
 **Owner:** Hospitality frontend/backend engineers  
-**Estimated effort:** 6–10 engineering days
+**Estimated effort:** 6â€“10 engineering days
 
 ### Deliverables
 
@@ -768,7 +768,7 @@ Split the current combined Rooms experience into:
 
 **Priority:** P0  
 **Owner:** POS/backend engineer and QA lead  
-**Estimated effort:** 10–15 engineering days
+**Estimated effort:** 10â€“15 engineering days
 
 ### 9.1 Scope
 
@@ -906,7 +906,7 @@ Derive access from API permissions and enrolled-device authority, not role-name 
 
 **Priority:** P2, elevated to P1 if required for the pilot  
 **Owner:** POS engineer and frontend lead  
-**Estimated effort:** 6–12 engineering days after architecture review
+**Estimated effort:** 6â€“12 engineering days after architecture review
 
 ### 10.1 Verification requirement
 
@@ -957,7 +957,7 @@ Where enabled:
 
 **Priority:** P0  
 **Owner:** Backend/accounting engineer, with accountant sign-off  
-**Estimated effort:** 15–25 engineering days, depending on ledger gaps
+**Estimated effort:** 15â€“25 engineering days, depending on ledger gaps
 
 ### 11.1 Verified current limitation
 
@@ -1103,7 +1103,7 @@ Implement or complete:
 
 **Priority:** P1  
 **Owner:** Frontend lead and reporting backend engineer  
-**Estimated effort:** 10–15 engineering days
+**Estimated effort:** 10â€“15 engineering days
 
 ### 12.1 Target dashboards
 
@@ -1214,7 +1214,7 @@ Do not squeeze a desktop chart or A4 report onto an 80mm receipt.
 
 **Priority:** P0 for data correctness, P1 for UX  
 **Owner:** Data/backend engineer and frontend lead  
-**Estimated effort:** 7–12 engineering days
+**Estimated effort:** 7â€“12 engineering days
 
 ### 13.1 Previously identified Countryside import
 
@@ -1320,7 +1320,7 @@ Each requires a separate, documented migration and reconciliation process.
 
 **Priority:** P1  
 **Owner:** Inventory/backend engineer  
-**Estimated effort:** 8–12 engineering days
+**Estimated effort:** 8â€“12 engineering days
 
 ### Deliverables
 
@@ -1353,7 +1353,7 @@ Each requires a separate, documented migration and reconciliation process.
 
 **Priority:** P1  
 **Owner:** Frontend lead and QA engineer  
-**Estimated effort:** 6–10 engineering days
+**Estimated effort:** 6â€“10 engineering days
 
 ### 15.1 Current state
 
@@ -1390,7 +1390,7 @@ Example:
 
 The control may be hidden by your permissions or the workspace may still be loading.
 
-**Retry** · **Skip step** · **Open Help**
+**Retry** Â· **Skip step** Â· **Open Help**
 
 ### 15.4 Required guides
 
@@ -1512,7 +1512,7 @@ A workflow that works only on a powerful desktop with perfect connectivity is no
 
 **Priority:** P1  
 **Owner:** Frontend/backend document engineer and QA lead  
-**Estimated effort:** 5–8 engineering days
+**Estimated effort:** 5â€“8 engineering days
 
 ### 17.1 Existing foundation
 
@@ -1622,13 +1622,13 @@ Cover:
 
 Required operator journeys:
 
-1. Waiter submits ticket, enrolled cashier approves it → kitchen receives it → cashier settles → receipt prints.
-2. Offline cashier records eligible cash transaction → reconnects → no duplicate payment.
-3. Receptionist checks availability → books room → checks guest in → posts accommodation → checks out.
-4. Housekeeper updates room status → Front Desk sees the change.
-5. Stock controller receives inventory → stock valuation and availability update.
-6. Accountant reviews expenses → posts adjustments → checks report totals.
-7. Administrator stages catalog import → reviews validation → authorized user applies it.
+1. Waiter submits ticket, enrolled cashier approves it â†’ kitchen receives it â†’ cashier settles â†’ receipt prints.
+2. Offline cashier records eligible cash transaction â†’ reconnects â†’ no duplicate payment.
+3. Receptionist checks availability â†’ books room â†’ checks guest in â†’ posts accommodation â†’ checks out.
+4. Housekeeper updates room status â†’ Front Desk sees the change.
+5. Stock controller receives inventory â†’ stock valuation and availability update.
+6. Accountant reviews expenses â†’ posts adjustments â†’ checks report totals.
+7. Administrator stages catalog import â†’ reviews validation â†’ authorized user applies it.
 8. New staff member follows an interactive guide through a permitted task.
 9. Guest submits a QR-origin order, if QR ordering is enabled.
 
@@ -1695,7 +1695,7 @@ Do not optimize only for empty databases.
 
 **Priority:** P0  
 **Owner:** DevOps/backend lead  
-**Estimated effort:** 5–8 engineering days plus staged observation
+**Estimated effort:** 5â€“8 engineering days plus staged observation
 
 ### 19.1 Previously identified environments
 
@@ -1882,7 +1882,7 @@ Estimates are planning ranges, not verified implementation commitments. Re-estim
 - Product-name snapshot investigation.
 - Actionable conflict states.
 - Search and icon overlap fixes.
-- Role-specific mobile task bar, safe-area/focus/state preservation and inbox access (?9.9).
+- Role-specific mobile task bar, safe-area/focus/state preservation and inbox access (section 9.9).
 - Correct canonical KDS names/status fields before preparation-ready alert acceptance.
 
 **Exit criteria:**
@@ -1916,7 +1916,7 @@ Estimates are planning ranges, not verified implementation commitments. Re-estim
 - POS2 pilot tests.
 - Offline replay and uncertain-outcome handling.
 - Till reconciliation.
-- Durable operational inbox and waiter M-Pesa evidence/review without settlement (?9.6-9.8).
+- Durable operational inbox and waiter M-Pesa evidence/review without settlement (section 9.6-9.8).
 - Background push after actual device acceptance; safe subscription revocation and escalation.
 - KOT/BOT printing.
 - 80mm document physical testing.
@@ -2210,7 +2210,7 @@ For financial or reservation changes, the appropriate specialist must additional
 
 ## 28. Business Choices and Remaining Decisions
 
-The explicit choices supplied in this file are consolidated in ?2.5 and take precedence over broader optional capabilities listed in the backlog. They are requirements, not evidence that the corresponding code has been changed.
+The explicit choices supplied in this file are consolidated in section 2.5 and take precedence over broader optional capabilities listed in the backlog. They are requirements, not evidence that the corresponding code has been changed.
 
 | Question | Selected policy / remaining evidence |
 |---|---|

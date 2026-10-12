@@ -8,7 +8,7 @@ for(const role of ['waiter','cashier','preparation','manager'] as const){
  test(`role mobile navigation and alerts: ${role}`,async({page})=>{
  const permissions=role==='manager'?['*']:role==='cashier'?['pos.sell','payment.record','ticket.approve','ticket.view_outlet','mpesa.record']:role==='waiter'?['ticket.create','ticket.view_own','floorplan.view']:['kds.view','kds.update'];
  permissions.push('devices.register');
- const capabilities={'operations.inbox':true,'operations.references':true,'operations.push':false,'pos2.simpleCashier':true,'pos2.waiterTickets':true};
+ const capabilities={'operations.checkout':role==='cashier'||role==='manager','operations.inbox':true,'operations.references':true,'operations.push':false,'pos2.simpleCashier':true,'pos2.waiterTickets':true};
  const outletId='a1000000-0000-4000-8000-000000000011',ticketId='a1000000-0000-4000-8000-000000000012',orderId='a1000000-0000-4000-8000-000000000013',productId='a1000000-0000-4000-8000-000000000014',alertId='a1000000-0000-4000-8000-000000000015';
  let read=false;const calls:any[]=[];
  const businessId='a1000000-0000-4000-8000-000000000001';
@@ -60,7 +60,7 @@ for(const role of ['waiter','cashier','preparation','manager'] as const){
  await page.setViewportSize({width:390,height:844});const nav=page.getByRole('navigation',{name:'Mobile tasks'});await expect(nav).toBeVisible();
  const expected=role==='waiter'?'Orders':role==='cashier'?'Sale':role==='preparation'?'Preparation':'Overview';await expect(nav.getByRole('button',{name:expected,exact:true})).toBeVisible();
  await nav.getByRole('button',{name:'Alerts (1)'}).click();const inbox=page.getByRole('dialog',{name:'Operational alerts'});await expect(inbox).toBeVisible();await expect(inbox).toContainText('Reading an alert does not approve');await expect(inbox.getByRole('button',{name:'Enable alerts',exact:true})).toBeDisabled();await inbox.getByRole('button',{name:'Close',exact:true}).click();
- await nav.getByRole('button',{name:'More',exact:true}).click();const more=page.getByRole('dialog',{name:'All permitted workspaces'});await expect(more.getByRole('button',{name:'Activity',exact:true})).toBeVisible();await more.getByRole('button',{name:'Close More'}).click();
+ await nav.getByRole('button',{name:'More',exact:true}).click();const more=page.getByRole('dialog',{name:'All permitted workspaces'});await expect(more.getByRole('button',{name:'Activity & sync',exact:true})).toBeVisible();await more.getByRole('button',{name:'Close More'}).click();
  if(role==='waiter'){
   await nav.getByRole('button',{name:'Orders',exact:true}).click();await page.getByText('Send M-Pesa reference',{exact:true}).click();await page.getByLabel('Transaction code',{exact:true}).fill('QAZ1234567');await page.getByLabel('Claimed amount (KES)',{exact:true}).fill('900.25');await page.getByLabel('Received time (Nairobi)',{exact:true}).fill('2026-10-12T12:30');
   const form=page.locator('details form');await form.getByRole('button',{name:'Send to cashier',exact:true}).click();await expect(page.getByText('Sent to cashier for verification. Payment is not confirmed.',{exact:true})).toBeVisible();expect(calls).toHaveLength(1);expect(calls[0].name).toBe('mpesaReference.submit');expect(calls[0].payload.amountMinor).toBe(90025);expect(calls[0].payload.receivedAt).toBe('2026-10-12T09:30:00.000Z');

@@ -1,5 +1,5 @@
 import {startOperationalWorker} from './operational-push-worker.mjs';
-import {operationalRoute} from './operational-alerts.mjs';
+import {operationalRoute,operationalCheckoutCapability} from './operational-alerts.mjs';
 import {checkBridgeClaim} from './bridge-authorization.mjs';
 import {pos2Capabilities} from './pos2-capabilities.mjs';
 import {validateMigrationManifest} from './migration-manifest.mjs';
@@ -93,7 +93,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
     try {
       if (req.method === 'OPTIONS') {
         if (!origin || req.headers.origin !== origin) return json(res, 403, {error: {code: 'ORIGIN_DENIED', message: 'Origin is not allowed.'}});
-        res.writeHead(204, {'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type, authorization, x-serveos-device-id, x-serveos-setup-secret', 'access-control-allow-credentials': 'true', vary: 'Origin'});
+        res.writeHead(204, {'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS', 'access-control-allow-headers': 'content-type, authorization, x-serveos-device-id, x-serveos-setup-secret', 'access-control-allow-credentials': 'true', vary: 'Origin'});
         return res.end();
       }
       if (req.headers.origin && origin && req.headers.origin !== origin) return json(res, 403, {error: {code: 'ORIGIN_DENIED', message: 'Origin is not allowed.'}});
@@ -169,7 +169,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       }
       if(req.method==='GET'&&url.pathname==='/v1/auth/session'){
         const actor=await authenticateStaffSession(req,store);const profile=await store.staffCredential(actor.businessId,actor.staffId);
-        return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId??null,displayName:profile?.displayName,permissions:actor.permissions,capabilities:pos2Capabilities(actor),mustChangePassword:profile?.mustChangePassword===true});
+        return json(res,200,{businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId??null,displayName:profile?.displayName,permissions:actor.permissions,capabilities:{...pos2Capabilities(actor),'operations.checkout':await operationalCheckoutCapability(store.pool,actor)},mustChangePassword:profile?.mustChangePassword===true});
       }
       if(req.method==='GET'&&url.pathname==='/v1/auth/sessions'){
         const actor=await authenticateStaffSession(req,store);return json(res,200,{sessions:await store.ownSessions({businessId:actor.businessId,staffId:actor.staffId,currentSessionId:actor.sessionId})});
