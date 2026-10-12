@@ -9,10 +9,11 @@ const stableJson = value => value === null || typeof value !== 'object'
     : `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
 
 export class ApiProblem extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, details) {
     super(message);
     this.status = status;
     this.code = code;
+    if (details !== undefined) this.details = details;
   }
 }
 
@@ -89,7 +90,7 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
       }
     }
     const status=error.status===409||error.code==='VERSION_CONFLICT'?'CONFLICT':'REJECTED';
-    const safe={code:error.code||'COMMAND_REJECTED',message:retryable?'The request could not be completed.':error.message,retryable};
+    const safe={code:error.code||'COMMAND_REJECTED',message:retryable?'The request could not be completed.':error.message,retryable,...(error.details&&typeof error.details==='object'?{details:error.details}:{})};
     if(typeof db.finalizeCommandFailure==='function')return db.finalizeCommandFailure({businessId:actor.businessId,commandId:command.commandId,name:command.name,actor,status,error:safe,at:now()});
     throw error;
   };
@@ -114,6 +115,19 @@ export async function executeCommand({db, command: input, actor: actorInput, reg
     if (afterLock) {
       if (afterLock.payloadHash !== hash) throw new ApiProblem(409, 'COMMAND_ID_REUSED', 'This command ID was already used with a different payload.');
       if(afterLock.outcome)return afterLock.outcome;
+    }
+
+    if(actor.allowedOutletId){
+      const scopePayload=command.payload;
+      if(typeof scopePayload.outletId==='string'&&scopePayload.outletId!==actor.allowedOutletId)throw new ApiProblem(403,'DEVICE_OUTLET_SCOPE','This device is approved for a different outlet.');
+      if(typeof scopePayload.orderId==='string'){
+        const scopedOrder=await tx.client.query('SELECT outlet_id AS "outletId" FROM pos_orders WHERE business_id=$1 AND id=$2',[actor.businessId,scopePayload.orderId]);
+        if(scopedOrder.rows[0]&&scopedOrder.rows[0].outletId!==actor.allowedOutletId)throw new ApiProblem(403,'DEVICE_OUTLET_SCOPE','This device is approved for a different outlet.');
+      }
+      if(typeof scopePayload.locationId==='string'){
+        const scopedLocation=await tx.client.query('SELECT 1 FROM business_outlets WHERE business_id=$1 AND id=$2 AND default_stock_location_id=$3 AND archived_at IS NULL',[actor.businessId,actor.allowedOutletId,scopePayload.locationId]);
+        if(!scopedLocation.rows.length)throw new ApiProblem(403,'DEVICE_OUTLET_SCOPE','This device is approved for a different outlet.');
+      }
     }
 
     if (Object.keys(command.expectedVersions).length) {

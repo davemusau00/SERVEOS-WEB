@@ -11,7 +11,6 @@ import {allowed,type BusinessRecord,type WebSession} from './session';
 import {isCommandConfirmed,type CommandOutcome} from '../../types/transactions';
 import {inventoryRevisions} from './inventoryRevisions';
 import {useBarcodeScanner,barcodeEquals} from '../../hooks/useBarcodeScanner';
-import {WebApiOfflinePosPanel} from './WebApiOfflinePosPanel';
 import type {BusinessStore} from './BusinessStore';
 import {CashierWorkspace} from './pos2/CashierWorkspace';
 import {TicketsInbox} from './pos2/TicketsInbox';
@@ -247,7 +246,6 @@ function LegacyWebApiPosView({records,session,disabled,command,queue,deviceId,re
  const field='mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2';
  const button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
  return <section data-guide-anchor="pos.counter" className="space-y-4">
-  {apiAuth&&<WebApiOfflinePosPanel apiAuth={apiAuth} store={store} records={records} queue={queue} session={session} deviceId={deviceId} disabled={disabled} command={command} onConfirmedOrder={id=>setOrderId(id)}/>}
    <div className="flex flex-wrap items-end gap-3"><label className="min-w-48 text-sm">Outlet<select className={field} value={outletId} disabled={busy||Boolean(editor)} onChange={event=>{setOutletId(event.target.value);setOrderId('');setCategory('')}}><option value="">Select outlet…</option>{outlets.map(row=><option key={row.id} value={row.id}>{String(row.data.name)}</option>)}</select></label><button data-guide-anchor="pos.open-tab" disabled={disabled||busy||pending||!canSell||!outletId} className={button} onClick={()=>begin('CREATE')}>Open order</button></div>
   <WebApiTillPanel records={records} session={session} deviceId={deviceId} outletId={outletId} disabled={disabled||busy||pending||Boolean(editor)} command={command} queue={queue}/>
   <WebApiPaymentPanel records={records} order={order} session={session} deviceId={deviceId} disabled={disabled||busy||pending||Boolean(editor)} command={command} queue={queue}/>

@@ -240,7 +240,14 @@ const fire=async({tx,command,actor,at,approvedTicket},{deferEvent=false}={})=>{
   const before=await tx.stockBalance(actor.businessId,stockId,locationId),balanceVersion=p.expectedBalanceVersions?.[`${stockId}:${locationId}`];
   if(!Number.isSafeInteger(balanceVersion)||balanceVersion<0)fail('Reviewed stock balance revisions are required to fire.');
   if(before.version!==balanceVersion)throw new ApiProblem(409,'VERSION_CONFLICT','Stock moved after this fire was reviewed. Refresh before firing.');
-  const after=consumePhysical(stock,before,Number(group.whole.toFixed(6)),Number(group.measured.toFixed(6)));
+  let after;
+  try { after=consumePhysical(stock,before,Number(group.whole.toFixed(6)),Number(group.measured.toFixed(6))); }
+  catch(error) {
+   if(error?.code!=='INSUFFICIENT_STOCK'&&error?.code!=='INSUFFICIENT_SEALED_STOCK')throw error;
+   const required=Number((group.whole+group.measured).toFixed(6)),available=Number(before.quantity.toFixed(6));
+   const affected=[...new Map(group.ingredients.map(entry=>{const line=lines.find(item=>item.id===entry.lineId);return [entry.lineId,{lineId:entry.lineId,productId:line?.productId??null,productName:String(line?.name||line?.productSnapshot?.name||'Product'),required:Number(entry.amount.toFixed(6)),unit:entry.ingredient.baseUnit}]})).values()];
+   throw new ApiProblem(error.status,error.code,error.message,{orderId:p.orderId,stockLocationId:locationId,stockItemId:stockId,stockItemName:String(stock.name||''),required,available,shortfall:Number(Math.max(0,required-available).toFixed(6)),unit:stock.baseUnit,affectedLines:affected,sealedContainers:before.sealedContainers??null,openQuantity:before.openQuantity??null});
+  }
   const costs=group.ingredients.map(entry=>({...entry,costMinor:total(entry.amount,stock.averageUnitCostMinor)}));
   plans.push({stockId,stock,before,after,group,costs});
  }

@@ -187,10 +187,32 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         const revoked=await store.revokeOwnSession({businessId:actor.businessId,staffId:actor.staffId,sessionId:revokeSessionPath[1],currentSessionId:actor.sessionId,actorDeviceId:actor.deviceId||null,at:new Date()});
         if(!revoked)throw new ApiProblem(404,'SESSION_UNAVAILABLE','This staff session is no longer available.');res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req),revokeSessionPath[1]));return json(res,200,{revoked:true});
       }
+      if(req.method==='POST'&&url.pathname==='/v1/devices/access-requests'){
+        const actor=await authenticateUnenrolledStaffSession(req,store);if(actor.mustChangePassword)throw new ApiProblem(403,'PASSWORD_CHANGE_REQUIRED','Change the initial password before requesting device access.');const input=await readJson(req);
+        const deviceId=input.deviceId,deviceName=typeof input.deviceName==='string'?input.deviceName.trim():'',deviceClass=input.deviceClass||'BROWSER',reason=typeof input.reason==='string'?input.reason.trim():'';
+        if(!uuidPattern.test(String(deviceId))||deviceName.length<1||deviceName.length>100||!['BROWSER','POS','WAITER','KITCHEN','RECEPTION','MANAGER'].includes(deviceClass)||reason.length<3||reason.length>300)throw new ApiProblem(400,'VALIDATION_FAILED','Enter a device name, device type and access reason.');
+        const publicKey=input.publicKey;if(!publicKey||publicKey.kty!=='EC'||publicKey.crv!=='P-256'||typeof publicKey.x!=='string'||typeof publicKey.y!=='string'||'d' in publicKey)throw new ApiProblem(400,'VALIDATION_FAILED','A public device key is required.');
+        try{createPublicKey({key:publicKey,format:'jwk'})}catch{throw new ApiProblem(400,'VALIDATION_FAILED','The public device key is invalid.');}
+        const outletId=input.outletId||null;if(outletId&&!uuidPattern.test(outletId))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid requested outlet.');
+        const capabilities=Array.isArray(input.capabilities)?input.capabilities:[];const allowedCapabilities=['pos2.simpleCashier','pos2.waiterTickets','pos2.offlineCash','pos2.offlineAuthV2','pos2.localKitchenTickets'];if(capabilities.length>allowedCapabilities.length||capabilities.some(value=>!allowedCapabilities.includes(value))||new Set(capabilities).size!==capabilities.length)throw new ApiProblem(400,'VALIDATION_FAILED','Requested device capabilities are invalid.');
+        const at=new Date(),request=await store.createDeviceAccessRequest({id:randomUUID(),businessId:actor.businessId,staffId:actor.staffId,deviceId,publicKey,deviceName,deviceClass,outletId,capabilities,reason,at,expiresAt:new Date(at.getTime()+24*60*60_000)});return json(res,201,request);
+      }
+      if(req.method==='GET'&&url.pathname==='/v1/devices/access-requests/mine'){
+        const actor=await authenticateUnenrolledStaffSession(req,store);const deviceId=url.searchParams.get('deviceId')||'';if(!uuidPattern.test(deviceId))throw new ApiProblem(400,'VALIDATION_FAILED','A valid device ID is required.');return json(res,200,{request:await store.ownDeviceAccessRequest(actor.businessId,actor.staffId,deviceId)});
+      }
+      if(req.method==='GET'&&url.pathname==='/v1/devices/access-requests'){
+        const actor=await authenticate(req);if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('devices.manage'))throw new ApiProblem(403,'PERMISSION_DENIED','Device management permission is required.');return json(res,200,{requests:await store.deviceAccessRequests(actor.businessId,new Date())});
+      }
+      const deviceDecisionPath=url.pathname.match(/^\/v1\/devices\/access-requests\/([0-9a-f-]{36})\/(approve|deny)$/i);
+      if(req.method==='POST'&&deviceDecisionPath){
+        const actor=await authenticate(req);if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('devices.manage'))throw new ApiProblem(403,'PERMISSION_DENIED','Device management permission is required.');const [,requestId,decisionText]=deviceDecisionPath;if(!uuidPattern.test(requestId))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid device request.');const input=await readJson(req),reason=typeof input.reason==='string'?input.reason.trim():'';if(reason.length<3||reason.length>300)throw new ApiProblem(400,'VALIDATION_FAILED','Enter a reason for this device decision.');
+        const decision=decisionText.toLowerCase()==='approve'?'APPROVED':'DENIED',permissions=Array.isArray(input.permissions)?input.permissions:[];if(permissions.length>200||permissions.some(value=>typeof value!=='string')||new Set(permissions).size!==permissions.length)throw new ApiProblem(400,'VALIDATION_FAILED','Approved device permissions are invalid.');const outletId=input.outletId||null;if(outletId&&!uuidPattern.test(outletId))throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid assigned outlet.');
+        return json(res,200,await store.decideDeviceAccessRequest({businessId:actor.businessId,requestId,actor,decision,reason,outletId,permissions,at:new Date()}));
+      }
       if (req.method === 'POST' && url.pathname === '/v1/devices/enrollment-challenges') {
         const actor = await authenticateUnenrolledStaffSession(req, store);
         if(actor.mustChangePassword)throw new ApiProblem(403,'PASSWORD_CHANGE_REQUIRED','Change the initial password before enrolling this device.');
-        if (!actor.permissions?.includes('*')&&!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll this device.');
+        const input=await readJson(req);if (!actor.permissions?.includes('*')&&!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')){if(!uuidPattern.test(String(input.deviceId||'')))throw new ApiProblem(403,'PERMISSION_DENIED','This device needs administrator approval.');const request=await store.ownDeviceAccessRequest(actor.businessId,actor.staffId,input.deviceId);if(request?.status!=='APPROVED'||new Date(request.expiresAt)<=new Date())throw new ApiProblem(403,'DEVICE_APPROVAL_REQUIRED','This device needs administrator approval.');}
         const issuedAt = new Date();
         const challengeId = randomUUID();
         const challenge = randomBytes(32).toString('hex');
@@ -199,9 +221,9 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if (req.method === 'POST' && url.pathname === '/v1/devices/enroll') {
         const actor = await authenticateUnenrolledStaffSession(req, store);
         if(actor.mustChangePassword)throw new ApiProblem(403,'PASSWORD_CHANGE_REQUIRED','Change the initial password before enrolling this device.');
-        if (!actor.permissions?.includes('*')&&!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')) throw new ApiProblem(403, 'PERMISSION_DENIED', 'You are not allowed to enroll this device.');
         const input = await readJson(req);
         const {challengeId, deviceId, publicKey, signature} = input;
+        if(!actor.permissions?.includes('*')&&!actor.permissions?.includes('devices.manage')&&!actor.permissions?.includes('devices.register')){const request=uuidPattern.test(String(deviceId||''))?await store.ownDeviceAccessRequest(actor.businessId,actor.staffId,deviceId):null;if(request?.status!=='APPROVED'||new Date(request.expiresAt)<=new Date())throw new ApiProblem(403,'DEVICE_APPROVAL_REQUIRED','This device needs administrator approval.');}
         const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
         if (typeof challengeId !== 'string' || !uuid.test(challengeId) || typeof deviceId !== 'string' || !uuid.test(deviceId)
           || !publicKey || publicKey.kty !== 'EC' || publicKey.crv !== 'P-256' || typeof publicKey.x !== 'string' || typeof publicKey.y !== 'string' || 'd' in publicKey

@@ -326,7 +326,8 @@ export class PostgresStore {
   async authenticateSession(tokenHash, deviceId, now = new Date()) {
     const {rows} = await this.pool.query(`
       SELECT s.business_id AS "businessId", s.staff_id AS "staffId", s.id AS "sessionId", d.id AS "deviceId",
-             COALESCE(array_agg(p.permission) FILTER (WHERE p.permission IS NOT NULL), '{}') AS permissions
+             COALESCE(array_agg(p.permission) FILTER (WHERE p.permission IS NOT NULL), '{}') AS permissions,
+             d.approved_permissions AS "approvedPermissions",d.assigned_outlet_id AS "allowedOutletId"
       FROM api_staff_sessions s
       JOIN api_access_tokens a ON a.session_id=s.id AND a.token_hash=$1 AND a.revoked_at IS NULL AND a.expires_at>$3
       JOIN api_enrolled_devices d ON d.business_id = s.business_id AND d.staff_id = s.staff_id AND d.id = $2
@@ -334,9 +335,11 @@ export class PostgresStore {
       JOIN api_staff_profiles f ON f.business_id=s.business_id AND f.staff_id=s.staff_id AND f.active AND NOT f.must_change_password
       WHERE s.revoked_at IS NULL AND s.expires_at > $3 AND s.device_id=d.id
         AND d.revoked_at IS NULL
-      GROUP BY s.business_id, s.staff_id, s.id, d.id
+      GROUP BY s.business_id, s.staff_id, s.id, d.id,d.approved_permissions,d.assigned_outlet_id
     `, [tokenHash, deviceId, now]);
-    return rows[0] ?? null;
+    const actor=rows[0];if(!actor)return null;
+    if(actor.approvedPermissions!==null){const approved=Array.isArray(actor.approvedPermissions)?actor.approvedPermissions:[];actor.permissions=actor.permissions.includes('*')?approved:approved.filter(permission=>actor.permissions.includes(permission));actor.permissions=actor.permissions.filter(permission=>permission!=='*');}
+    delete actor.approvedPermissions;return actor;
   }
 
   async authenticateStaffSession(tokenHash, now = new Date()) {
@@ -498,6 +501,45 @@ export class PostgresStore {
     });
   }
 
+  async createDeviceAccessRequest({id,businessId,staffId,deviceId,publicKey,deviceName,deviceClass,outletId,capabilities,reason,at,expiresAt}) {
+    return this.transaction(async tx=>{
+      await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`device-request:${businessId}:${staffId}:${deviceId}`]);
+      await tx.client.query("UPDATE api_device_access_requests SET status='EXPIRED',decided_at=$4,decision_reason='Request expired' WHERE business_id=$1 AND staff_id=$2 AND device_id=$3 AND status IN ('PENDING','APPROVED') AND expires_at<=$4",[businessId,staffId,deviceId,at]);
+      const existing=await tx.client.query("SELECT id,status,expires_at AS \"expiresAt\" FROM api_device_access_requests WHERE business_id=$1 AND staff_id=$2 AND device_id=$3 AND status IN ('PENDING','APPROVED') FOR UPDATE",[businessId,staffId,deviceId]);
+      if(existing.rows[0]&&['PENDING','APPROVED'].includes(existing.rows[0].status)&&new Date(existing.rows[0].expiresAt)>at)return existing.rows[0];
+      const recent=await tx.client.query('SELECT count(*)::int AS count FROM api_device_access_requests WHERE business_id=$1 AND staff_id=$2 AND requested_at>$3',[businessId,staffId,new Date(at.getTime()-60*60_000)]);
+      if(recent.rows[0].count>=10)throw new ApiProblem(429,'RATE_LIMITED','Too many device access requests were submitted.');
+      await tx.client.query(`INSERT INTO api_device_access_requests(id,business_id,staff_id,device_id,public_key,device_name,device_class,requested_outlet_id,requested_capabilities,request_reason,status,requested_at,expires_at)
+        VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9::jsonb,$10,'PENDING',$11,$12)`,[id,businessId,staffId,deviceId,JSON.stringify(publicKey),deviceName,deviceClass,outletId,JSON.stringify(capabilities),reason,at,expiresAt]);
+      return {id,status:'PENDING',expiresAt:expiresAt.toISOString()};
+    });
+  }
+
+  async ownDeviceAccessRequest(businessId,staffId,deviceId){
+    const {rows}=await this.pool.query(`SELECT id,status,device_name AS "deviceName",device_class AS "deviceClass",requested_outlet_id AS "outletId",requested_capabilities AS capabilities,request_reason AS reason,requested_at AS "requestedAt",expires_at AS "expiresAt",decided_at AS "decidedAt",decision_reason AS "decisionReason" FROM api_device_access_requests WHERE business_id=$1 AND staff_id=$2 AND device_id=$3`,[businessId,staffId,deviceId]);return rows[0]??null;
+  }
+
+  async deviceAccessRequests(businessId,at){
+    await this.pool.query("UPDATE api_device_access_requests SET status='EXPIRED',decided_at=$2,decision_reason='Request expired' WHERE business_id=$1 AND status IN ('PENDING','APPROVED') AND expires_at<=$2",[businessId,at]);
+    const {rows}=await this.pool.query(`SELECT id,staff_id AS "staffId",device_id AS "deviceId",device_name AS "deviceName",device_class AS "deviceClass",requested_outlet_id AS "outletId",requested_capabilities AS capabilities,request_reason AS reason,status,requested_at AS "requestedAt",expires_at AS "expiresAt",decided_at AS "decidedAt",decided_by AS "decidedBy",decision_reason AS "decisionReason" FROM api_device_access_requests WHERE business_id=$1 ORDER BY CASE status WHEN 'PENDING' THEN 0 ELSE 1 END,requested_at DESC LIMIT 200`,[businessId]);return rows;
+  }
+
+  async decideDeviceAccessRequest({businessId,requestId,actor,decision,reason,outletId,permissions,at}){
+    return this.transaction(async tx=>{
+      const {rows}=await tx.client.query('SELECT * FROM api_device_access_requests WHERE business_id=$1 AND id=$2 FOR UPDATE',[businessId,requestId]);const row=rows[0];
+      if(!row||row.status!=='PENDING'||new Date(row.expires_at)<=at)throw new ApiProblem(409,'DEVICE_REQUEST_UNAVAILABLE','This device request is no longer pending. Refresh the list.');
+      if(row.staff_id===actor.staffId)throw new ApiProblem(403,'DEVICE_REQUEST_SELF_APPROVAL','Use a different authorized administrator to decide your device request.');
+      if(decision==='APPROVED'){
+        const staff=await tx.client.query('SELECT permission FROM api_staff_permissions WHERE business_id=$1 AND staff_id=$2',[businessId,row.staff_id]);const staffPermissions=new Set(staff.rows.map(item=>item.permission));
+        if(permissions.some(permission=>!staffPermissions.has('*')&&!staffPermissions.has(permission)))throw new ApiProblem(403,'DEVICE_PERMISSION_ESCALATION','A device can receive only permissions already granted to its staff member.');
+        if(outletId){const outlet=await tx.client.query('SELECT 1 FROM business_outlets WHERE business_id=$1 AND id=$2 AND archived_at IS NULL',[businessId,outletId]);if(!outlet.rows.length)throw new ApiProblem(400,'VALIDATION_FAILED','Choose an active outlet in this business.');}
+      }
+      await tx.client.query('UPDATE api_device_access_requests SET status=$3,decided_at=$4,decided_by=$5,decision_reason=$6,approved_outlet_id=$7,approved_permissions=$8::jsonb WHERE business_id=$1 AND id=$2',[businessId,requestId,decision,at,actor.staffId,reason,decision==='APPROVED'?outletId:null,decision==='APPROVED'?JSON.stringify(permissions):null]);
+      const commandId=randomUUID();await tx.insertAudit({businessId,commandId,name:decision==='APPROVED'?'DEVICE_ACCESS_APPROVED':'DEVICE_ACCESS_DENIED',actor,at});
+      return {requestId,status:decision,decidedAt:at.toISOString(),reason};
+    });
+  }
+
   async issueDeviceEnrollmentChallenge({challengeId, challenge, businessId, staffId, issuedAt, expiresAt}) {
     return this.transaction(async tx=>{
       await tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`device-enrollment:${businessId}:${staffId}`]);
@@ -546,15 +588,17 @@ export class PostgresStore {
       }
       const staff=await tx.client.query('SELECT active FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2 FOR SHARE',[businessId,staffId]);
       if(!staff.rows[0]?.active){const error=new Error('An active API staff profile is required to enroll a device.');error.status=403;error.code='STAFF_INACTIVE';throw error;}
+      const approvedRequest=await tx.client.query("SELECT id,device_name AS \"deviceName\",device_class AS \"deviceClass\",approved_outlet_id AS \"outletId\",requested_capabilities AS capabilities,approved_permissions AS permissions,public_key AS \"publicKey\" FROM api_device_access_requests WHERE business_id=$1 AND staff_id=$2 AND device_id=$3 AND status='APPROVED' AND expires_at>$4 FOR UPDATE",[businessId,staffId,deviceId,at]);
+      if(approvedRequest.rows.length&&JSON.stringify(approvedRequest.rows[0].publicKey)!==JSON.stringify(publicKey))throw new ApiProblem(409,'DEVICE_REQUEST_KEY_CHANGED','The approved device key changed. Submit a new access request.');
       const {rows:deviceRows}=await tx.client.query(`
-        INSERT INTO api_enrolled_devices (id, business_id, staff_id, public_key, created_at)
-        VALUES ($1, $2, $3, $4::jsonb, $5)
+        INSERT INTO api_enrolled_devices (id, business_id, staff_id, public_key, created_at,device_name,device_class,assigned_outlet_id,approved_capabilities,approved_permissions)
+        VALUES ($1, $2, $3, $4::jsonb, $5,$6,$7,$8,$9::jsonb,$10::jsonb)
         ON CONFLICT (business_id,id) DO NOTHING
         RETURNING id
-      `, [deviceId, businessId, staffId, JSON.stringify(publicKey), at]);
+      `, [deviceId, businessId, staffId, JSON.stringify(publicKey), at,approvedRequest.rows[0]?.deviceName||'ServOS browser device',approvedRequest.rows[0]?.deviceClass||'BROWSER',approvedRequest.rows[0]?.outletId||null,JSON.stringify(approvedRequest.rows[0]?.capabilities||[]),approvedRequest.rows[0]?.permissions?JSON.stringify(approvedRequest.rows[0].permissions):null]);
       const created=deviceRows.length===1;
       if(!created){
-        const existing=await tx.client.query('SELECT staff_id AS "staffId" FROM api_enrolled_devices WHERE business_id=$1 AND id=$2 FOR UPDATE',[businessId,deviceId]);
+        const existing=await tx.client.query('SELECT staff_id AS "staffId",approved_permissions AS "approvedPermissions" FROM api_enrolled_devices WHERE business_id=$1 AND id=$2 FOR UPDATE',[businessId,deviceId]);
         if(existing.rows[0]?.staffId!==staffId){const error=new Error('This browser device identity belongs to another staff account.');error.status=409;error.code='DEVICE_ID_OWNED_BY_ANOTHER_STAFF';throw error;}
         const reusable=await tx.client.query('SELECT id FROM api_enrolled_devices WHERE business_id=$1 AND id=$2 AND staff_id=$3 AND public_key=$4::jsonb AND revoked_at IS NULL FOR UPDATE',[businessId,deviceId,staffId,JSON.stringify(publicKey)]);
         if(!reusable.rows.length){const error=new Error('This device ID is already enrolled with a different key or has been revoked.');error.status=409;error.code='DEVICE_ID_UNAVAILABLE';throw error;}
@@ -562,6 +606,7 @@ export class PostgresStore {
       const {rowCount}=await tx.client.query('UPDATE api_staff_sessions SET device_id=$2 WHERE id=$1 AND business_id=$3 AND staff_id=$4 AND device_id IS NULL AND revoked_at IS NULL AND expires_at>$5',[sessionId,deviceId,businessId,staffId,at]);
       if(rowCount!==1){const error=new Error('The API session could not be bound to this device.');error.status=409;error.code='SESSION_BINDING_FAILED';throw error;}
       await tx.client.query('UPDATE api_device_enrollment_challenges SET consumed_at = $2 WHERE id = $1', [challengeId, at]);
+      if(approvedRequest.rows[0])await tx.client.query("UPDATE api_device_access_requests SET status='ENROLLED',enrolled_at=$3 WHERE business_id=$1 AND id=$2",[businessId,approvedRequest.rows[0].id,at]);
       if(created){
         await tx.client.query("INSERT INTO business_entity_versions(business_id,entity_type,entity_id,version) VALUES($1,'enrolledDevices',$2,1) ON CONFLICT(business_id,entity_type,entity_id) DO NOTHING",[businessId,deviceId]);
         const [record]=await deviceProjections(tx.client,businessId).then(records=>records.filter(item=>item.id===deviceId));
