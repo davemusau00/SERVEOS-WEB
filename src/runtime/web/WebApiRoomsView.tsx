@@ -78,16 +78,16 @@ export function WebApiRoomsView({records,session,disabled,command,client,queue=[
  const saveType=async(event:React.FormEvent)=>{
   event.preventDefault();const name=typeName.trim(),code=(typeCode.trim()||name.toUpperCase().replace(/[^A-Z0-9]+/g,'-')),id=typeId||uuid(),current=roomTypes.find(row=>row.id===id);
   if(!name)return setMessage('Enter a room type name.');
-  if(await run('roomType.save','roomTypes',id,{id,data:{name,code,maxGuests:Number(typeCapacity)},expectedVersions:[{collection:'roomTypes',id,version:current?.version?0},...(current?[]:[])]},'Room type saved.')){setTypeId(id);setTypeName('');setTypeCode('');}
+  setTypeId(id);if(await run('roomType.save','roomTypes',id,{id,data:{name,code,maxGuests:Number(typeCapacity)},expectedVersions:[{collection:'roomTypes',id,version:current?.version??0}]},'Room type saved.')){setTypeId('');setTypeName('');setTypeCode('');}
  };
  const saveRoom=async(event:React.FormEvent)=>{
   event.preventDefault();const id=roomId||uuid(),roomType=roomTypes.find(row=>row.id===roomTypeId),current=rooms.find(row=>row.id===id);if(!roomType)return setMessage('Choose an active room type first.');
-  if(await run('room.save','rooms',id,{id,data:{number:roomNumber,roomTypeId,capacity:Number(roomCapacity),turnaroundMinutes:Number(turnaround),floor:String(current?.data.floor||''),amenities:Array.isArray(current?.data.amenities)?current.data.amenities:[],notes:String(current?.data.notes||'')},expectedVersions:[current?baseline(current):{collection:'rooms',id,version:0},baseline(roomType)]},current?'Room updated.':'Room saved.')){setRoomId('');setRoomNumber('');setRoomCapacity(String(roomType.data.maxGuests));}
+  setRoomId(id);if(await run('room.save','rooms',id,{id,data:{number:roomNumber,roomTypeId,capacity:Number(roomCapacity),turnaroundMinutes:Number(turnaround),floor:String(current?.data.floor||''),amenities:Array.isArray(current?.data.amenities)?current.data.amenities:[],notes:String(current?.data.notes||'')},expectedVersions:[current?baseline(current):{collection:'rooms',id,version:0},baseline(roomType)]},current?'Room updated.':'Room saved.')){setRoomId('');setRoomNumber('');setRoomCapacity(String(roomType.data.maxGuests));}
  };
  const saveRate=async(event:React.FormEvent)=>{
   event.preventDefault();const id=rateId||uuid(),roomType=roomTypes.find(row=>row.id===rateTypeId),current=rates.find(row=>row.id===id);if(!roomType)return setMessage('Choose an active room type first.');
   try{const data={name:rateName,roomTypeId:rateTypeId,mode:rateMode,priceMinor:parseMoneyToMinor(ratePrice),currency:'KES',taxBasisPoints:parsePercentToBasisPoints(rateTax),notes:String(current?.data.notes||''),...(rateMode==='DAY_USE'?{durationMinutes:Number(dayMinutes)}:{})};
-   if(await run('ratePlan.save','ratePlans',id,{id,data,expectedVersions:[current?baseline(current):{collection:'ratePlans',id,version:0},baseline(roomType)]},current?'Rate plan updated.':'Rate plan saved.')){setRateId('');setRateName('');}
+   setRateId(id);if(await run('ratePlan.save','ratePlans',id,{id,data,expectedVersions:[current?baseline(current):{collection:'ratePlans',id,version:0},baseline(roomType)]},current?'Rate plan updated.':'Rate plan saved.')){setRateId('');setRateName('');}
   }catch(error){setMessage(error instanceof Error?error.message:'Enter a valid rate.');}
  };
  const reserve=async(event:React.FormEvent,walkIn=false)=>{
@@ -115,6 +115,18 @@ export function WebApiRoomsView({records,session,disabled,command,client,queue=[
   if(action.kind==='OPEN_MAINTENANCE'){const id=uuid(),fault=values.fault.trim();await run('maintenance.open','maintenanceWorkOrders',id,{id,roomId:action.room.id,title:values.title.trim(),fault,reason:fault,expectedVersions:[baseline(action.room)]},'Room blocked and maintenance work order opened.');return}
   if(action.kind==='RESOLVE_MAINTENANCE'){await run('maintenance.resolve','maintenanceWorkOrders',action.work.id,{id:action.work.id,resolution:values.resolution.trim(),expectedVersions:[baseline(action.work)]},'Maintenance resolution recorded.');return}
   await run('maintenance.returnToService','rooms',action.room.id,{id:action.room.id,expectedVersions:[baseline(action.room)]},'Room returned to service as dirty.');
+ };
+ const reservationActions=(reservation:BusinessRecord)=>{
+  const held=Boolean(uncertain[`roomReservations:${reservation.id}`]),blocked=disabled||busy||held;
+  const room=rooms.find(candidate=>candidate.id===reservation.data.roomId),reference=reservationDisplayReference(reservation,active(records,'businessDocuments'),room,propertyTimeZone);
+  return <>{reservation.data.status==='RESERVED'&&<>
+   {canOperate&&<button type="button" className={button} disabled={blocked||(requiresUpfront(reservation)&&!onNavigate)} title={requiresUpfront(reservation)&&!onNavigate?'Upfront payment must be completed in Front Desk.':undefined} onClick={()=>void checkIn(reservation)}>{onNavigate||requiresUpfront(reservation)?'Check in at Front Desk':'Check in'}</button>}
+   {canOperate&&<button type="button" className={button} disabled={blocked} onClick={()=>editReservation(reservation)}>Modify</button>}
+   {canOperate&&<button type="button" className={button} disabled={blocked} onClick={()=>void cancel(reservation)}>Cancel</button>}
+   {canManage&&Date.parse(String(reservation.data.endsAt))<Date.now()&&<button type="button" className={button} disabled={blocked} onClick={()=>void run('roomReservation.noShow','roomReservations',reservation.id,{id:reservation.id,expectedVersions:[baseline(reservation)]},`${reference} marked no-show.`)}>Mark no-show</button>}
+   {!folios.some(folio=>folio.id===reservation.id)&&allowed(session,'folio.manage')&&<button type="button" className={button} disabled={blocked} onClick={()=>void run('folio.open','folios',reservation.id,{id:reservation.id,expectedVersions:[baseline(reservation)]},'Guest folio opened.')}>Open folio</button>}
+   {canOperate&&<button type="button" className={button} disabled={blocked} onClick={()=>void run('roomReservation.confirmation','businessDocuments',reservation.id,{id:reservation.id,expectedVersions:[baseline(reservation)]},'Reservation confirmation issued.')}>Issue confirmation</button>}
+  </>}{reservation.data.status==='CHECKED_IN'&&allowed(session,'folio.view')&&onNavigate&&<button type="button" className={button} onClick={()=>onNavigate('Guest Accounts')}>View guest account</button>}{held&&<span className="self-center text-xs text-amber-200">Original update awaiting recovery</span>}</>;
  };
 
  if(!allowed(session,'rooms.view')&&!canManage&&!canOperate)return <section className="rounded-xl border border-slate-800 p-5">Room access is not enabled for this staff account.</section>;

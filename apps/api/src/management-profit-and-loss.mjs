@@ -26,7 +26,7 @@ receipt_items AS (
  SELECT 'sale:'||r.document_id::text||':'||r.department AS source_key,r.issued_at AS occurred_at,
    'REVENUE'::text AS section,'REVENUE_SALES'::text AS account_code,r.department,
    r.document_number AS reference,'Issued sales receipt'::text AS description,
-   sum(r.net_minor) AS amount_minor,'documents'::text AS collection,r.document_id AS record_id,r.document_id,
+   sum(r.net_minor) AS amount_minor,'businessDocuments'::text AS collection,r.document_id AS record_id,r.document_id,
    NULL::text AS category
  FROM receipt_items r WHERE ${period('r.issued_at')}
  GROUP BY r.document_id,r.department,r.issued_at,r.document_number
@@ -48,7 +48,7 @@ receipt_items AS (
  UNION ALL
  SELECT 'hotel:'||j.id::text||':'||l.line_number::text,j.occurred_at,'REVENUE',l.account_code,
    CASE l.account_code WHEN 'REVENUE_ACCOMMODATION' THEN 'ACCOMMODATION' WHEN 'REVENUE_SERVICE' THEN 'HOTEL_SERVICES' ELSE 'HOTEL_ADJUSTMENTS' END,
-   COALESCE('Room '||room.number,'Guest folio'),j.description,l.credit_minor-l.debit_minor,'hospitalityJournals',j.id,NULL,NULL
+   COALESCE('Room '||room.number,'Guest folio'),j.description,l.credit_minor-l.debit_minor,'hospitalityJournalEntries',j.id,NULL,NULL
  FROM business_hospitality_journals j JOIN business_hospitality_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id
  LEFT JOIN business_folios f ON f.business_id=j.business_id AND f.id=j.folio_id
  LEFT JOIN business_room_reservations rv ON rv.business_id=f.business_id AND rv.id=f.reservation_id
@@ -91,6 +91,12 @@ receipt_items AS (
    'Stock waste',m.reason,round(abs(m.quantity_delta)*s.average_unit_cost_minor),'stockMovements',m.id,NULL,'Stock waste'
  FROM inventory_movements m LEFT JOIN inventory_movement_states s ON s.business_id=m.business_id AND s.movement_id=m.id
  WHERE m.business_id=$1 AND m.movement_type='WASTE' AND ${period('m.occurred_at')}
+ UNION ALL
+ SELECT 'waste-correction:'||r.reversal_command_id::text,r.occurred_at,'OPERATING_EXPENSES','EXPENSE_STOCK_WASTE_REVERSAL','BUSINESS',
+   'Stock waste correction',r.reason,-round(abs(m.quantity_delta)*s.average_unit_cost_minor),'movementCorrections',r.reversal_command_id,NULL,'Stock waste'
+ FROM inventory_reversals r JOIN inventory_movements m ON m.business_id=r.business_id AND m.id=r.original_movement_id AND m.movement_type='WASTE'
+ LEFT JOIN inventory_movement_states s ON s.business_id=m.business_id AND s.movement_id=m.id
+ WHERE r.business_id=$1 AND ${period('r.occurred_at')}
 )
 `;
 
@@ -142,6 +148,7 @@ export async function profitAndLoss(pool,businessId,from,to){
   warn('UNISSUED_PREPARATION',control.unissued_preparation,'Prepared open orders are excluded from issued-sales revenue and COGS; review their period allocation.');
   warn('EXPENSE_JOURNAL_EXCEPTION',control.expense_journal_exceptions,'Posted expense sources and journals do not reconcile.');
   coverage.push({code:'ACCOUNTING_COVERAGE',count:null,message:'Hotel direct costs, depreciation, financing, payroll/accrual completeness and closing adjustments are not certified. Whole-business profit and tax remain unavailable.',blocksPosMargin:false});
+  coverage.push({code:'HOTEL_SERVICE_PERIOD',count:null,message:'Accommodation follows existing folio charge journals, including booked periods charged upfront. Deferred revenue and service-period allocation require an approved policy; this is not a certified accrual statement.',blocksPosMargin:false});
   const posGrossProfitMinor=coverage.some(issue=>issue.blocksPosMargin)?null:add(posNetRevenueMinor,-cogsMinor);
   return {reportVersion:1,from,to,timeZone:params[3],currency:'KES',generatedAt:controls.rows[0].generated_at.toISOString(),status:'INCOMPLETE',periodStatus:'NOT_CLOSED',basis:'ISSUED_POS_BILLS_AND_FOLIO_ACCRUAL',
    totals:{posSalesBeforeReturnsMinor:salesMinor,salesReturnsMinor:returnsMinor,posNetRevenueMinor,netRevenueMinor,recordedPosCogsMinor:cogsMinor,postedOperatingExpensesMinor:operatingExpensesMinor,posGrossProfitMinor,grossProfitMinor:null,operatingProfitMinor:null,profitBeforeTaxMinor:null,taxMinor:null,netProfitMinor:null},

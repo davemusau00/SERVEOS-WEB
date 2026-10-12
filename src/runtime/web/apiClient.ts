@@ -10,6 +10,17 @@ export interface ApiCustomerCreditStatementPage {protocolVersion:1;customerId:st
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
 export interface ApiStaffSession {sessionId:string;deviceId:string|null;createdAt:string;expiresAt:string;revokedAt:string|null;current:boolean;deviceRevoked:boolean;expired:boolean}
 export interface ApiFinanceSummary {from:string;to:string;timeZone:string;currency:'KES';salesRevenueMinor:number;postedExpensesMinor:number;operatingResultBeforeTaxMinor:number;expensesByTender:{cashMinor:number;externalMinor:number};expensesByCategory:Array<{categoryId:string;name:string;amountMinor:number}>;debtorAging:Record<string,number>;payableAging:Record<string,number>;supplierPayments:{count:number;amountMinor:number}}
+export type ApiStatementSection='REVENUE'|'RETURNS'|'COGS'|'OPERATING_EXPENSES';
+export interface ApiProfitAndLoss {
+ reportVersion:1;from:string;to:string;timeZone:string;currency:'KES';generatedAt:string;status:'INCOMPLETE';periodStatus:'NOT_CLOSED';basis:'ISSUED_POS_BILLS_AND_FOLIO_ACCRUAL';
+ totals:{posSalesBeforeReturnsMinor:number;salesReturnsMinor:number;posNetRevenueMinor:number;netRevenueMinor:number;recordedPosCogsMinor:number;postedOperatingExpensesMinor:number;posGrossProfitMinor:number|null;grossProfitMinor:null;operatingProfitMinor:null;profitBeforeTaxMinor:null;taxMinor:null;netProfitMinor:null};
+ lines:Array<{section:ApiStatementSection;accountCode:string;department:string;category:string|null;sourceCount:number;unknownCount:number;amountMinor:number}>;
+ coverage:Array<{code:string;count:number|null;message:string;blocksPosMargin:boolean}>;sourceCount:number;
+ reconciliation:{posRevenueJournalMinor:number;issuedPosNetRevenueMinor:number;timingDifferenceMinor:number;note:string};
+ definitions:Array<{key:string;label:string;basis:string}>;
+}
+export interface ApiStatementSource {sourceKey:string;occurredAt:string;section:ApiStatementSection;accountCode:string;department:string;reference:string;description:string;amountMinor:number|null;collection:string;recordId:string;documentId:string|null;category:string|null}
+export interface ApiStatementSourcePage {from:string;to:string;timeZone:string;currency:'KES';section:ApiStatementSection|'ALL';items:ApiStatementSource[];hasMore:boolean;nextCursor:string|null}
 export interface ApiImportTemplate {key:string;label:string;headers:string[];required:string[];permission:string;permissions:string[];importable:boolean;examples?:string[][]}
 export interface ApiImportRow {rowNumber:number;status:'VALID'|'INVALID';externalId:string|null;normalized:Record<string,string>;errors:string[];warnings:string[]}
 export interface ApiImportPlanStep {rowNumber:number;action:'CREATE'|'BLOCKED'|'CONFLICT';status:'PLANNED'|'BLOCKED'|'CONFLICT'|'APPLIED'|'FAILED';operation:string|null;targetCollection:string|null;targetId:string|null;reason:string;error:string|null}
@@ -110,6 +121,8 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   catalogItems(search=''){return request<{items:ApiCatalogItem[]}>(`/v1/catalog/items?search=${encodeURIComponent(search)}`)},
   customerCreditStatement(customerId:string,cursor?:string,limit=100){const query=new URLSearchParams({limit:String(limit)});if(cursor)query.set('cursor',cursor);return request<ApiCustomerCreditStatementPage>(`/v1/customer-credit/accounts/${encodeURIComponent(customerId)}/statement?${query}`)},
   financeSummary(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiFinanceSummary>(`/v1/finance/summary?${query}`)},
+  profitAndLoss(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiProfitAndLoss>(`/v1/finance/profit-and-loss?${query}`)},
+  profitAndLossSources(from:string,to:string,{section='ALL',before,limit=50}:{section?:ApiStatementSection|'ALL';before?:string|null;limit?:number}={}){const query=new URLSearchParams({from,to,section,limit:String(limit)});if(before)query.set('before',before);return request<ApiStatementSourcePage>(`/v1/finance/profit-and-loss/sources?${query}`)},
   roomAvailability(startsAt:string,endsAt:string,guests:number){const query=new URLSearchParams({startsAt,endsAt,guests:String(guests)});return request<{rooms:Array<{id:string;number:string;roomTypeId:string;capacity:number;housekeepingState:string;maintenanceState:string}>}>(`/v1/hospitality/availability?${query}`)},
   bootstrapCatalog(snapshotId?:string){return request<ApiCatalogBootstrapManifest>(snapshotId?`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}`:'/v1/bootstrap/catalog')},
   bootstrapCatalogPage(snapshotId:string,after:number){return request<ApiCatalogBootstrapPage>(`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}/pages?after=${encodeURIComponent(after)}`)},

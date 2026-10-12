@@ -1,4 +1,5 @@
 import {offlineCashReconciliationProjections} from './offline-cash-v2.mjs';
+import {profitAndLoss,profitAndLossSources} from './management-profit-and-loss.mjs';
 import {randomUUID} from 'node:crypto';
 import {supplierCreditBalanceProjections,supplierCreditApplicationProjections} from './supplier-credit-application-projections.mjs';
 import {customerProjections} from './customer-commands.mjs';
@@ -40,6 +41,9 @@ const policyColumns = `business_id AS "businessId",allow_direct_receipts AS "all
 
 export class PostgresStore {
   constructor(pool) { this.pool = pool; }
+
+  async profitAndLoss(businessId,from,to){return profitAndLoss(this.pool,businessId,from,to);}
+  async profitAndLossSources(businessId,from,to,options){return profitAndLossSources(this.pool,businessId,from,to,options);}
 
   async transaction(work) {
     const client = await this.pool.connect();
