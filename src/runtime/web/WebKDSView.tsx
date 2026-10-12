@@ -19,7 +19,7 @@ export function WebKDSView({records,session,disabled,command,onRefresh,onActivit
  const key=`servos-kds-filters:${session.businessId}:${session.actorId}`;
  const [filters,setFilters]=useState(()=>readFilters(key));
  const [now,setNow]=useState(Date.now),[refreshing,setRefreshing]=useState(false),[saving,setSaving]=useState('');
- const [notice,setNotice]=useState(''),[failure,setFailure]=useState<{orderId:string;reference:string;message:string;unknown:boolean}|null>(null);
+ const [notice,setNotice]=useState(''),[failure,setFailure]=useState<{orderId:string;reference:string;message:string;unknown:boolean;commandId?:string}|null>(null);
  const [awaiting,setAwaiting]=useState<Record<string,{version:number;unknown:boolean;commandId?:string}>>({});
  const inFlight=useRef(false);const refreshedAfterFailure=useRef(false);
  const board=useMemo(()=>kdsBoard(records),[records]);
@@ -30,6 +30,15 @@ export function WebKDSView({records,session,disabled,command,onRefresh,onActivit
  useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
  useEffect(()=>{try{sessionStorage.setItem(key,JSON.stringify(filters));}catch{/* Filters are optional, never financial storage. */}},[key,filters]);
  useEffect(()=>{setAwaiting(current=>Object.fromEntries(Object.entries(current).filter(([id,pending])=>{const row=records.find(r=>r.collection==='orders'&&r.id===id);const entry=pending.commandId?queue.find(q=>q.id===pending.commandId):undefined;const unresolved=pending.unknown&&entry?.state!=='SYNCHRONIZED';return unresolved||!row||row.version<=pending.version;})));},[records,queue]);
+ useEffect(()=>{
+  if(!failure?.commandId)return;
+  const entry=queue.find(q=>q.id===failure.commandId);
+  if(entry?.state==='SYNCHRONIZED'){setFailure(null);setAwaiting(current=>{const next={...current};delete next[failure.orderId];return next;});}
+  else if(failure.unknown&&(entry?.state==='CONFLICT'||entry?.state==='REJECTED')){
+   setAwaiting(current=>{const next={...current};delete next[failure.orderId];return next;});
+   setFailure({...failure,unknown:false,message:'The server did not apply this update. Refresh and review the current ticket before trying again.'});refreshedAfterFailure.current=false;
+  }
+ },[queue,failure]);
  const unresolved=(id:string)=>queue.some(q=>q.state!=='SYNCHRONIZED'&&q.state!=='REJECTED'&&q.state!=='CONFLICT'&&q.command.operation==='order.kds'&&q.command.payload.orderId===id);
  const configuredStations=prepStations.filter(station=>board.lines.some(line=>line.station===station)||records.some(r=>r.collection==='products'&&!r.archived&&r.data.routeTo===station));
  const stations=configuredStations.length?configuredStations:prepStations;
@@ -54,7 +63,7 @@ export function WebKDSView({records,session,disabled,command,onRefresh,onActivit
     setAwaiting(current=>({...current,[line.order.id]:{version:line.order.version,unknown:false}}));setNotice(`${line.reference}: update recorded by server; refreshing the board.`);
     try{await onRefresh();}catch{setNotice(`${line.reference}: update recorded. Refresh the board to see its current state.`);}
    }else if(out.kind==='PENDING'||out.kind==='OUTCOME_UNKNOWN'){
-    setAwaiting(current=>({...current,[line.order.id]:{version:line.order.version,unknown:out.kind==='OUTCOME_UNKNOWN',commandId:out.commandId}}));setFailure({orderId:line.order.id,reference:line.reference,message:'This update is awaiting confirmation. Recover the original update in Activity; do not submit another.',unknown:true});
+    setAwaiting(current=>({...current,[line.order.id]:{version:line.order.version,unknown:out.kind==='OUTCOME_UNKNOWN',commandId:out.commandId}}));setFailure({orderId:line.order.id,reference:line.reference,message:'This update is awaiting confirmation. Recover the original update in Activity; do not submit another.',unknown:true,commandId:out.commandId});
    }else setFailure({orderId:line.order.id,reference:line.reference,message:out.kind==='DRAFT_SAVED'?'This update is only a draft and has not reached preparation. Refresh before continuing.':out.message,unknown:false});
   }catch{setFailure({orderId:line.order.id,reference:line.reference,message:'The update outcome is uncertain. Open Activity to recover the original update before continuing.',unknown:true});}
   finally{inFlight.current=false;setSaving('');}
