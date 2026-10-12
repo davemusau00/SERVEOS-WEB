@@ -184,6 +184,7 @@ export function resolveOperationDependencies(operation: string, collection: stri
   if (operation === 'stockAlertPolicy.save') {
     add('stockItems', payload.stockItemId); add('stockLocations', payload.locationId); add('outlets', payload.outletId);
   }
+  if (operation === 'room.housekeeping.assign') add('employees',payload.staffId);
   if (operation.startsWith('maintenance.')) {
     const workOrderId = String(payload.id || id || '');
     const workOrder=byKey.get(key('maintenanceWorkOrders',workOrderId));

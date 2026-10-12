@@ -452,6 +452,7 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
   if(type==='cashRecovery'){setTab('POS');setAlertsOpen(false);window.dispatchEvent(new CustomEvent('servos:open-pos-record',{detail:{type:'recovery'}}));return;}
   if(type==='print'){setTab('POS');setAlertsOpen(false);window.dispatchEvent(new CustomEvent('servos:open-pos-record',{detail:{type:'recovery'}}));return;}
   if(type==='recovery'){setTab('Activity');setAlertsOpen(false);return;}
+  if(type==='stock'){setTab('Inventory');setAlertsOpen(false);return;}
   if(type==='ticket'||type==='order'){void syncRef.current().then(()=>{
    setTab('POS');setAlertsOpen(false);
    window.dispatchEvent(new CustomEvent('servos:open-pos-record',{detail:{type,id}}));

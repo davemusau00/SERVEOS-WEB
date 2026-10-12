@@ -27,7 +27,7 @@ export function WebApiSettings({records,session,disabled,command,queue=[]}:{reco
  const open=(kind:Editor['kind'],record?:BusinessRecord)=>{
   const d=record?.data||{};let values:Editor['values'];
   if(kind==='BUSINESS')values={businessName:String(d.businessName||''),address:String(d.address||''),contact:String(d.contact||''),taxPin:String(d.taxPin||''),footer:String(d.footer||''),vatRatePct:percent(d.vatRateBasisPoints),levyRatePct:percent(d.levyRateBasisPoints),logoPngDataUrl:String(d.logoPngDataUrl||''),paymentQrPngDataUrl:String(d.paymentQrPngDataUrl||''),paymentQrEnabled:d.paymentQrEnabled===true};
-  else if(kind==='TILL')values={scope:String(d.scope||'SINGLE_BUSINESS'),varianceThreshold:typeof d.varianceThresholdMinor==='number'?minorMoneyDecimal(d.varianceThresholdMinor):'0'};
+  else if(kind==='TILL')values={scope:String(d.scope||'SINGLE_BUSINESS'),varianceThreshold:typeof d.varianceThresholdMinor==='number'?(minorMoneyDecimal(d.varianceThresholdMinor)??'0'):'0'};
   else values={name:String(d.name||''),code:String(d.code||''),method:String(d.method||'CASH'),referenceRequired:d.referenceRequired===true,archived:record?.archived===true,mpesaMode:String(d.mpesaMode||'TILL'),mpesaNumber:String(d.mpesaNumber||''),mpesaAccountReference:String(d.mpesaAccountReference||'')};
   setEditor({kind,collection:kind==='BUSINESS'?'businessSettings':kind==='TILL'?'tillPolicy':'paymentAccounts',id:kind==='ACCOUNT'?record?.id||crypto.randomUUID():session.businessId,version:record?.version??0,values});setReason('');setMessage('');setPending(false);
  };
