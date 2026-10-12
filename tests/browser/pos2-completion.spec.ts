@@ -6,7 +6,7 @@ const harness=buildSync({stdin:{contents:`
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {CommandResolutionCard} from './src/runtime/web/CommandResolutionCard';
-import {ProcurementWorkflowTabs} from './src/runtime/web/WebBusinessApp';
+import {ProcurementWorkflowTabs} from './src/runtime/web/ProcurementWorkflowTabs';
 const sections=[{id:'orders',label:'Purchase orders',content:React.createElement('p',null,'Order workflow panel')},{id:'receiving',label:'Receive deliveries',content:React.createElement('p',null,'Receiving workflow panel')},{id:'suppliers',label:'Suppliers',content:React.createElement('p',null,'Supplier workflow panel')}];
 const records=[{collection:'orders',id:'order-1',version:3,data:{state:'OPEN',items:[{id:'line-1',state:'DRAFT'}]}},{collection:'stockLocations',id:'location-1',version:1,data:{name:'Main store'}}];
 function App(){return React.createElement('main',{className:'space-y-6 p-4'},React.createElement(CommandResolutionCard,{error:{code:'INSUFFICIENT_STOCK',message:'Stock changed; review the shortage.',retryable:false,details:{orderId:'order-1',stockItemId:'stock-1',stockItemName:'Coffee beans',stockLocationId:'location-1',required:25,available:4,shortfall:21,unit:'kg',affectedLines:[{lineId:'line-1',productName:'Filter coffee',required:25,unit:'kg'}]}},commandId:'original-command',records,canViewStock:true,canReceive:false,canCount:true,canEditHeld:true}),React.createElement(ProcurementWorkflowTabs,{sections}));}
