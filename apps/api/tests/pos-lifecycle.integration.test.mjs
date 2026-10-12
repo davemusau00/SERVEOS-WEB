@@ -195,6 +195,23 @@ test('PostgreSQL POS settlement, receipt replay, stock consumption, and floorpla
  assert.equal(kitchenDocument.snapshot.orderId,orderId);
  assert.equal((await pool.query('SELECT count(*)::int AS count FROM pos_order_events WHERE business_id=$1 AND command_id=$2',[businessId,fireCommand.commandId])).rows[0].count,1);
 
+ const shortageOrderId=randomUUID(),shortageLineId=randomUUID();
+ const shortageOrder=await confirmed('order.create',{id:shortageOrderId,name:'Insufficient stock recovery',outletId,serviceDestination:'COUNTER'},{[`orders:${shortageOrderId}`]:0,[`outlets:${outletId}`]:1,[`stockLocations:${locationId}`]:1,[`businessSettings:${businessId}`]:1});
+ const shortageLine=await confirmed('order.addItem',{orderId:shortageOrderId,itemId:shortageLineId,productId,quantity:100,portionId:'regular'},{[`orders:${shortageOrderId}`]:shortageOrder.result.version,[`products:${productId}`]:1,[`businessSettings:${businessId}`]:1});
+ const shortageBalance=await pool.query('SELECT quantity::text,version::int AS version FROM inventory_location_balances WHERE business_id=$1 AND stock_item_id=$2 AND location_id=$3',[businessId,stockId,locationId]);
+ const shortageCommand={commandId:randomUUID(),name:'order.fire',payload:{orderId:shortageOrderId,itemIds:[shortageLineId],expectedBalanceVersions:{[`${stockId}:${locationId}`]:shortageBalance.rows[0].version}},expectedVersions:{[`orders:${shortageOrderId}`]:shortageLine.result.version,[`stockItems:${stockId}`]:2,[`stockLocations:${locationId}`]:1}};
+ const shortage=await executeCommand({db:store,actor,registry,command:shortageCommand});
+ assert.equal(shortage.kind,'CONFLICT');assert.equal(shortage.error.code,'INSUFFICIENT_STOCK');assert.equal(shortage.error.retryable,false);
+ assert.equal(shortage.error.details.orderId,shortageOrderId);assert.equal(shortage.error.details.stockLocationId,locationId);assert.equal(shortage.error.details.stockItemId,stockId);
+ assert.equal(shortage.error.details.required,25);assert.equal(shortage.error.details.available,Number(shortageBalance.rows[0].quantity));assert.equal(shortage.error.details.shortfall,25-Number(shortageBalance.rows[0].quantity));
+ assert.equal(shortage.error.details.affectedLines[0].lineId,shortageLineId);assert.equal(shortage.error.details.affectedLines[0].productName,'Filter coffee');
+ const shortagePersisted=await store.commandStatus(businessId,shortageCommand.commandId);assert.deepEqual(shortagePersisted.outcome.error.details,shortage.error.details,'typed stock evidence survives durable command status recovery');
+ const shortageState=await pool.query('SELECT o.state,l.state AS "lineState" FROM pos_orders o JOIN pos_order_lines l ON l.business_id=o.business_id AND l.order_id=o.id WHERE o.business_id=$1 AND o.id=$2 AND l.id=$3',[businessId,shortageOrderId,shortageLineId]);
+ assert.equal(shortageState.rows[0].state,'OPEN');assert.equal(shortageState.rows[0].lineState,'DRAFT');
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM inventory_movements WHERE business_id=$1 AND source_command_id=$2',[businessId,shortageCommand.commandId])).rows[0].count,0);
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM business_documents WHERE business_id=$1 AND source_command_id=$2',[businessId,shortageCommand.commandId])).rows[0].count,0);
+ assert.equal((await pool.query('SELECT count(*)::int AS count FROM payments WHERE business_id=$1 AND source_command_id=$2',[businessId,shortageCommand.commandId])).rows[0].count,0);
+
  let lifecycleOrder=fireResponse.result.order;
  assert.deepEqual(lifecycleOrder.data.items.filter(line=>line.state==='DRAFT').map(line=>line.id),[barLineId]);
  const fireBar={commandId:randomUUID(),name:'order.fire',payload:{orderId,itemIds:[barLineId],expectedBalanceVersions:{[`${stockId}:${locationId}`]:2}},expectedVersions:{[`orders:${orderId}`]:lifecycleOrder.version,[`stockItems:${stockId}`]:2,[`stockLocations:${locationId}`]:1}};

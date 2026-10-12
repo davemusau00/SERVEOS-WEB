@@ -4,9 +4,11 @@ import { SearchCombobox } from '../../design-system/controls';
 import { isCommandConfirmed, type CommandOutcome } from '../../types/transactions';
 import { operatorError } from './operatorError';
 import { WebActionDialog, type WebActionField } from './WebActionDialog';
+import type {ApiAuthenticatedDeviceSession} from './apiAuth';
+import type {ApiDeviceAccessRequest} from './apiClient';
 
 type CommandFn = (operation: string, collection: string, id: string, payload: Record<string, unknown>) => Promise<CommandOutcome>;
-type Device = { id: string; name: string; class: string; ownerId: string; active: boolean; lastSequence: number | null; lastSeenAt: string | null; telemetryAvailable: boolean; protocolVersion: number; createdAt: string };
+type Device = { id: string; name: string; class: string; ownerId: string; active: boolean; lastSequence: number | null; lastSeenAt: string | null; telemetryAvailable: boolean; protocolVersion: number; createdAt: string; assignedOutletId:string|null; approvedPermissions:string[]|null };
 type StaffAction = { kind: 'REVOKE_DEVICE'; device: Device; record: BusinessRecord } | { kind: 'DEACTIVATE_STAFF'; person: BusinessRecord };
 
 const input = 'w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-white';
@@ -35,14 +37,19 @@ const outcomeText = (outcome: CommandOutcome) => {
   }
 };
 
-export function WebStaffAdminView({ records, session, disabled, command, currentDeviceId }: {
+export function WebStaffAdminView({ records, session, disabled, command, currentDeviceId,apiAuth }: {
   records: BusinessRecord[];
   session: WebSession;
   disabled: boolean;
   command: CommandFn;
   currentDeviceId: string;
+  apiAuth:ApiAuthenticatedDeviceSession;
 }) {
   const [devices, setDevices] = useState<Device[]>([]);
+  const [deviceRequests,setDeviceRequests]=useState<ApiDeviceAccessRequest[]>([]);
+  const [requestReason,setRequestReason]=useState('');
+  const [requestOutlet,setRequestOutlet]=useState('');
+  const [requestPermissions,setRequestPermissions]=useState<Record<string,string[]>>({});
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [outcome, setOutcome] = useState<CommandOutcome | null>(null);
@@ -71,10 +78,23 @@ export function WebStaffAdminView({ records, session, disabled, command, current
       telemetryAvailable: row.data.telemetryAvailable === true,
       protocolVersion: Number(row.data.protocolVersion || 1),
       createdAt: String(row.data.createdAt || ''),
+      assignedOutletId:typeof row.data.assignedOutletId==='string'?row.data.assignedOutletId:null,
+      approvedPermissions:Array.isArray(row.data.approvedPermissions)?row.data.approvedPermissions.filter((item):item is string=>typeof item==='string'):null,
     })));
   };
 
-  useEffect(() => { void loadDevices(); }, [session.actorId, session.policyVersion, records]);
+  const loadDeviceRequests=async()=>{if(!allowed(session,'devices.manage'))return;try{const result=await apiAuth.client.deviceAccessRequests();setDeviceRequests(result.requests);setError('');}catch(failure){setError(operatorError(failure));}};
+
+  useEffect(() => { void loadDevices();void loadDeviceRequests(); }, [session.actorId, session.policyVersion, records]);
+
+  const decideDeviceRequest=async(request:ApiDeviceAccessRequest,decision:'approve'|'deny')=>{
+    if(busy||disabled)return;const reason=requestReason.trim();if(reason.length<3){setError('Enter a decision reason of at least three characters.');return;}
+    setBusy(true);setError('');setNotice('');try{
+      const permissions=decision==='approve'?(requestPermissions[request.id]||[]):[];
+      await apiAuth.client.decideDeviceAccessRequest(request.id,decision,{reason,permissions,outletId:decision==='approve'?requestOutlet||request.outletId:null});
+      setNotice(decision==='approve'?'Device request approved. The staff member must sign in again to prove the device key and complete enrollment.':'Device request denied. The requesting staff member can see the decision when they sign in.');setRequestReason('');await loadDeviceRequests();await loadDevices();
+    }catch(failure){setError(operatorError(failure));}finally{setBusy(false);}
+  };
 
   const run = async (operation: string, id: string, payload: Record<string, unknown>, collection = 'employees'): Promise<CommandOutcome> => {
     if (disabled || busy) {
@@ -215,7 +235,8 @@ export function WebStaffAdminView({ records, session, disabled, command, current
       <label className="text-sm sm:col-span-2">Exact target ID<input required className={input} value={approvalTarget} onChange={event => setApprovalTarget(event.target.value)} /></label>
       <button disabled={disabled || busy} className={`${button} sm:col-span-2`}>Issue five-minute one-time approval</button>
     </form>}
-    {allowed(session, 'devices.manage') && <div className="space-y-2"><div className="flex items-center justify-between"><h3 className="font-semibold">API enrolled devices</h3><button className={button} onClick={() => void loadDevices()}>Refresh</button></div>{devices.map(device => <article key={device.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 p-3"><div className="min-w-0"><b>{device.name}</b><p className="break-all font-mono text-xs text-slate-400">{device.id} · {device.class} · protocol {device.protocolVersion}</p><p className="text-xs text-slate-500">Owner {device.ownerId} · sequence {device.lastSequence ?? 'not tracked'} · last seen {device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : device.telemetryAvailable ? 'not yet' : 'not tracked'}</p></div><div className="flex items-center gap-2"><span>{device.active ? 'Active' : 'Revoked'}</span>{device.active && <button disabled={disabled || busy || device.id === currentDeviceId} className={button} onClick={() => void revoke(device)}>Revoke</button>}</div></article>)}</div>}
+    {allowed(session, 'devices.manage') && <section className="space-y-3 rounded-xl border border-slate-800 p-3" aria-label="Device access requests"><div className="flex items-center justify-between"><div><h3 className="font-semibold">Pending device access</h3><p className="text-sm text-slate-400">Approval enrolls the signed device. It does not add permissions or enable an offline cashier cohort.</p></div><button className={button} onClick={() => void loadDeviceRequests()}>Refresh requests</button></div>{deviceRequests.filter(request=>request.status==='PENDING').length===0&&<p className="text-sm text-slate-400">No pending device requests.</p>}{deviceRequests.filter(request=>request.status==='PENDING').map(request=>{const employee=staff.find(row=>row.id===request.staffId),staffPermissions=Array.isArray(employee?.data.permissions)?employee.data.permissions.filter((item):item is string=>typeof item==='string'):[];const selected=requestPermissions[request.id]||staffPermissions.filter(value=>value==='business.view');return <article key={request.id} className="space-y-3 rounded-lg border border-slate-700 p-3"><div><b>{request.deviceName}</b><p>{String(employee?.data.name||request.staffId)} · {request.deviceClass} · requested {new Date(request.requestedAt||'').toLocaleString()}</p><p className="text-sm text-slate-400">{request.reason} · Expires {new Date(request.expiresAt).toLocaleString()}</p></div><label className="block text-sm">Assign outlet<select className={input} value={requestOutlet||request.outletId||''} onChange={event=>setRequestOutlet(event.target.value)}><option value="">No outlet restriction</option>{records.filter(row=>row.collection==='outlets'&&!row.archived).map(row=><option key={row.id} value={row.id}>{String(row.data.name)}</option>)}</select></label><fieldset className="flex flex-wrap gap-3"><legend className="text-sm">Device permission ceiling (subset of staff grants)</legend>{staffPermissions.filter(value=>value!=='*').map(permission=><label key={permission} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={selected.includes(permission)} onChange={event=>setRequestPermissions(previous=>({...previous,[request.id]:event.target.checked?[...selected,permission]:selected.filter(value=>value!==permission)}))}/>{permission}</label>)}</fieldset><label className="block text-sm">Decision reason<input className={input} minLength={3} maxLength={300} value={requestReason} onChange={event=>setRequestReason(event.target.value)}/></label><div className="flex flex-wrap gap-2"><button className={`${button} border-emerald-700`} disabled={disabled||busy||!selected.includes('business.view')} onClick={()=>void decideDeviceRequest(request,'approve')}>Approve selected access</button><button className={`${button} border-rose-800`} disabled={disabled||busy} onClick={()=>void decideDeviceRequest(request,'deny')}>Deny request</button></div></article>})}</section>}
+    {allowed(session, 'devices.manage') && <div className="space-y-2"><div className="flex items-center justify-between"><h3 className="font-semibold">API enrolled devices</h3><button className={button} onClick={() => void loadDevices()}>Refresh</button></div>{devices.map(device => <article key={device.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 p-3"><div className="min-w-0"><b>{device.name}</b><p className="break-all font-mono text-xs text-slate-400">{device.id} · {device.class} · protocol {device.protocolVersion}</p><p className="text-xs text-slate-500">Owner {device.ownerId} · outlet {device.assignedOutletId||'not restricted'} · permissions {device.approvedPermissions?.join(', ')||'staff permission set'} · sequence {device.lastSequence ?? 'not tracked'} · last seen {device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : device.telemetryAvailable ? 'not yet' : 'not tracked'}</p></div><div className="flex items-center gap-2"><span>{device.active ? 'Active' : 'Revoked'}</span>{device.active && <button disabled={disabled || busy || device.id === currentDeviceId} className={button} onClick={() => void revoke(device)}>Revoke</button>}</div></article>)}</div>}
     {staff.some(person => person.data.role === 'Admin' && person.data.active !== false) && !staff.some(person => person.data.role === 'Admin' && !person.archived) && <p className="text-sm text-amber-300">An Admin profile is marked inactive; verify that another active Admin remains before continuing.</p>}
     {staffAction && <WebActionDialog title={staffAction.kind === 'REVOKE_DEVICE' ? `Revoke ${staffAction.device.name}?` : `Deactivate ${String(staffAction.person.data.name || staffAction.person.id)}?`} description={staffAction.kind === 'REVOKE_DEVICE' ? 'The device and its linked active sessions will lose access. Record why it is being revoked.' : 'The staff account will lose access and its active sessions and devices will be revoked.'} fields={staffActionFields} confirmLabel={staffAction.kind === 'REVOKE_DEVICE' ? 'Revoke device' : 'Deactivate staff'} danger disabled={disabled || busy} onClose={() => setStaffAction(null)} onConfirm={submitStaffAction} />}
   </section>;

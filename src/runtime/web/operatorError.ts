@@ -2,6 +2,11 @@
 export function operatorError(error:unknown):string{
  const candidate=error instanceof Error?error.message:typeof error==='string'?error:typeof (error as any)?.message==='string'?(error as any).message:'';
  const message=candidate.replace(/^Error:\s*/,'').trim();
+ const code=typeof (error as any)?.code==='string'?(error as any).code:'';
+ if(code==='INSUFFICIENT_STOCK')return 'Not enough stock is recorded at the order location. Review the affected item and current stock before editing the held order.';
+ if(code==='VERSION_CONFLICT')return 'The order or stock changed on another device. Refresh the current records and review them before submitting a new command.';
+ if(code==='STOCK_CONFIGURATION_CHANGED')return 'The product stock setup changed. Review its stock item and portion, then update the held line.';
+ if(code==='DEVICE_APPROVAL_REQUIRED')return 'This device needs administrator approval. Submit or check its request from the sign-in screen.';
  if(!message)return 'The operation could not be completed. Review Activity and verify the affected record before retrying.';
  const match=message.match(/^(PERMISSION_DENIED|AUTHORIZATION_REQUIRED|CONFLICT|DUPLICATE_REFERENCE|PROTOCOL_UNSUPPORTED|INVALID_STATE|VALIDATION_FAILED):\s*(.*)$/i);
  const technical=/\bSQLSTATE\b|\bPGRST\d{3}\b|\bPostgREST\b|\bPostgreSQL\b|\bstack trace\b|\bTypeError\b|\bReferenceError\b|\bSyntaxError\b|\bHTTP(?:\/\d(?:\.\d)?)?\s*\d{3}\b|\bstatus code\s*\d{3}\b|https?:\/\/|\brpc\/[\w./-]+|\b(?:relation|column|function)\s+[\w."'-]+\s+does not exist\b|\bviolates (?:foreign key|check|unique|not-null) constraint\b|\bECONN(?:REFUSED|RESET|ABORTED)\b|\bEAI_AGAIN\b|\bETIMEDOUT\b|socket hang up|fetch failed/i;

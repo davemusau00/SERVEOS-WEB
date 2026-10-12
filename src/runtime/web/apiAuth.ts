@@ -45,7 +45,7 @@ export async function signInAndEnrollApiDevice(input:{apiOrigin:string;loginName
     if(!mayEnroll){
       const previous=await client.myDeviceAccessRequest(identity.deviceId);
       if(previous.request?.status==='DENIED')throw new Error(`Device access was denied: ${previous.request.decisionReason||'contact your administrator before requesting again.'}`);
-      if(previous.request?.status==='PENDING')throw new Error('This device needs administrator approval. Ask an administrator to review the request, then sign in again.');
+      if(previous.request?.status==='PENDING'&&Date.parse(previous.request.expiresAt)>Date.now())throw new Error('This device needs administrator approval. Ask an administrator to review the request, then sign in again.');
       if(previous.request?.status==='APPROVED'&&Date.parse(previous.request.expiresAt)>Date.now())await enrollWebDeviceWithApi(input.apiOrigin,enrollmentToken,profile.businessId,profile.staffId,identity,true);
       else if(previous.request?.status==='APPROVED'){
         const request=await client.requestDeviceAccess({deviceId:identity.deviceId,publicKey:identity.publicKey,deviceName:'ServOS browser device',deviceClass:'BROWSER',capabilities:[],reason:'Request access to the ServOS web workspace.'});

@@ -20,7 +20,7 @@ export interface BusinessCommandV2 {
 }
 export interface TransactionResult {
   commandId:string; status:TransactionState; serverSequence?:number; recordVersions:RecordVersion[]; auditReference?:string;
-  error?:{code:string;message:string;retryable:boolean};
+  error?:{code:string;message:string;retryable:boolean;details?:Record<string,unknown>};
 }
 export interface ChangePage { cursor:number; hasMore:boolean; highWater?:number; changes:Array<{sequence:number;commandId:string;actorId?:string;deviceId?:string;occurredAt:string;records:Array<RecordVersion & {data:Record<string,unknown>;archived:boolean}>}> }
 export interface OfflineGrant {

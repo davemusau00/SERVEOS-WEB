@@ -344,7 +344,7 @@ export class PostgresStore {
 
   async authenticateStaffSession(tokenHash, now = new Date()) {
     const {rows} = await this.pool.query(`
-      SELECT s.business_id AS "businessId", s.staff_id AS "staffId",s.id AS "sessionId",d.id AS "deviceId",f.must_change_password AS "mustChangePassword",
+      SELECT s.business_id AS "businessId", s.staff_id AS "staffId",s.id AS "sessionId",d.id AS "deviceId",f.must_change_password AS "mustChangePassword",d.approved_permissions AS "approvedPermissions",d.assigned_outlet_id AS "allowedOutletId",
              COALESCE(array_agg(p.permission) FILTER (WHERE p.permission IS NOT NULL), '{}') AS permissions
       FROM api_staff_sessions s
       JOIN api_access_tokens a ON a.session_id=s.id AND a.token_hash=$1 AND a.revoked_at IS NULL AND a.expires_at>$2
@@ -352,9 +352,11 @@ export class PostgresStore {
       LEFT JOIN api_enrolled_devices d ON d.business_id=s.business_id AND d.id=s.device_id AND d.revoked_at IS NULL
       LEFT JOIN api_staff_permissions p ON p.business_id = s.business_id AND p.staff_id = s.staff_id
       WHERE s.revoked_at IS NULL AND s.expires_at > $2
-      GROUP BY s.business_id, s.staff_id,s.id,d.id,f.must_change_password
+      GROUP BY s.business_id, s.staff_id,s.id,d.id,f.must_change_password,d.approved_permissions,d.assigned_outlet_id
     `, [tokenHash, now]);
-    return rows[0] ?? null;
+    const actor=rows[0];if(!actor)return null;
+    if(actor.approvedPermissions!==null){const approved=Array.isArray(actor.approvedPermissions)?actor.approvedPermissions:[];actor.permissions=actor.permissions.includes('*')?approved:approved.filter(permission=>actor.permissions.includes(permission));actor.permissions=actor.permissions.filter(permission=>permission!=='*');}
+    delete actor.approvedPermissions;return actor;
   }
 
   async ownSessions({businessId,staffId,currentSessionId,at=new Date()}) {

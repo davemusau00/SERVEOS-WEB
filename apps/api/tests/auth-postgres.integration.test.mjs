@@ -36,8 +36,8 @@ test('PostgreSQL staff setup, device enrollment, sessions, refresh, and staff li
       const text=await response.text();let value={};try{value=text?JSON.parse(text):{}}catch{value={raw:text}}
       return {status:response.status,value,cookie:response.headers.get('set-cookie')?.split(';',1)[0]};
     };
-    const enroll=async({token,businessId,staffId,deviceId,keyPair})=>{
-      const challenge=await call('/v1/devices/enrollment-challenges',{method:'POST',token});
+    const enroll=async({token,businessId,staffId,deviceId,keyPair,approvedRequest=false})=>{
+      const challenge=await call('/v1/devices/enrollment-challenges',{method:'POST',token,body:approvedRequest?{deviceId}:undefined});
       assert.equal(challenge.status,201,JSON.stringify(challenge.value));
       const publicKey=keyPair.publicKey.export({format:'jwk'});
       const signed=`${challenge.value.challengeId}\n${businessId}\n${staffId}\n${deviceId}\n${challenge.value.challenge}`;
@@ -111,6 +111,22 @@ test('PostgreSQL staff setup, device enrollment, sessions, refresh, and staff li
     const workerPassword='Worker-new-password-2026';
     assert.equal((await call('/v1/auth/password',{method:'POST',token:workerSession.accessToken,body:{currentPassword:workerInitial,newPassword:workerPassword}})).status,200);
     assert.equal((await call('/v1/auth/login',{method:'POST',body:{loginName:workerLoginName,password:workerInitial}})).status,401);
+    await pool.query("INSERT INTO api_staff_permissions(business_id,staff_id,permission) VALUES($1,$2,'business.view'),($1,$2,'pos.sell')",[businessId,workerId]);
+    const requestDevice=randomUUID(),requestKey=generateKeyPairSync('ec',{namedCurve:'prime256v1'}),requestBody={deviceId:requestDevice,publicKey:requestKey.publicKey.export({format:'jwk'}),deviceName:'Worker Tablet',deviceClass:'POS',outletId:null,capabilities:['pos2.simpleCashier','pos2.offlineCash'],reason:'Assigned cashier station'};
+    const submitted=await call('/v1/devices/access-requests',{method:'POST',token:workerSession.accessToken,body:requestBody});
+    assert.equal(submitted.status,201,JSON.stringify(submitted.value));assert.equal(submitted.value.status,'PENDING');
+    assert.equal((await call('/v1/devices/access-requests/mine?deviceId='+requestDevice,{token:workerSession.accessToken})).value.request.id,submitted.value.id);
+    assert.equal((await call('/v1/devices/access-requests',{token:workerSession.accessToken})).value.error.code,'PERMISSION_DENIED','staff cannot list business device requests');
+    assert.equal((await call(`/v1/devices/access-requests/${submitted.value.id}/approve`,{method:'POST',token:workerSession.accessToken,body:{reason:'Self approval',permissions:['business.view']}})).value.error.code,'PERMISSION_DENIED','staff cannot approve their own request');
+    assert.equal((await call('/v1/devices/access-requests',{token:admin.accessToken})).value.requests.some(request=>request.id===submitted.value.id),true);
+    const approved=await call(`/v1/devices/access-requests/${submitted.value.id}/approve`,{method:'POST',token:admin.accessToken,body:{reason:'Approved assigned cashier',permissions:['business.view'],outletId:null}});
+    assert.equal(approved.status,200,JSON.stringify(approved.value));assert.equal(approved.value.status,'APPROVED');
+    assert.equal((await call(`/v1/devices/access-requests/${submitted.value.id}/approve`,{method:'POST',token:admin.accessToken,body:{reason:'Replay approval',permissions:['business.view']}})).value.error.code,'DEVICE_REQUEST_UNAVAILABLE','decisions cannot be replayed');
+    const workerApprovedSession=await login(workerLoginName,workerPassword);
+    const enrolledRequest=await enroll({token:workerApprovedSession.accessToken,businessId,staffId:workerId,deviceId:requestDevice,keyPair:requestKey,approvedRequest:true});
+    assert.equal(enrolledRequest.result.status,201,JSON.stringify(enrolledRequest.result.value));
+    assert.deepEqual((await call('/v1/auth/session',{token:workerApprovedSession.accessToken})).value.permissions,['business.view'],'enrollment applies the approved permission ceiling');
+    assert.equal((await pool.query("SELECT status FROM api_device_access_requests WHERE id=$1",[submitted.value.id])).rows[0].status,'ENROLLED');
     const workerDeviceCollision=await enroll({token:workerSession.accessToken,businessId,staffId:workerId,deviceId:deviceA,keyPair:generateKeyPairSync('ec',{namedCurve:'prime256v1'})});
     assert.equal(workerDeviceCollision.result.status,409);
     assert.equal(workerDeviceCollision.result.value.error.code,'DEVICE_ID_OWNED_BY_ANOTHER_STAFF');

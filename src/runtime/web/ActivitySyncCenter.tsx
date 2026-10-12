@@ -3,6 +3,8 @@ import { AlertTriangle, CheckCircle2, Clock3, FileEdit, RefreshCw, Send, WifiOff
 import {redactSensitiveData,type QueuedCommand,type WorkflowDraft} from './BusinessStore';
 import { ds } from '../../design-system/tokens';
 import { EmptyState, StatusBadge } from '../../design-system/components';
+import {CommandResolutionCard} from './CommandResolutionCard';
+import type {BusinessRecord} from './session';
 
 type QueueFilter = 'ALL' | 'WAITING' | 'OUTCOME_UNKNOWN' | 'SYNCED' | 'CONFLICT' | 'REJECTED';
 
@@ -32,7 +34,7 @@ const icon: Record<QueuedCommand['state'], React.ComponentType<{ className?: str
 
 const operationLabel = (operation: string) => operation.replace(/[._]/g, ' ').replace(/\b\w/g, value => value.toUpperCase());
 
-export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync, onReviewDraft,onExportRecovery }: { queue: QueuedCommand[]; drafts: WorkflowDraft[]; online: boolean; syncing: boolean; onSync: () => Promise<void>; onReviewDraft: (draft: WorkflowDraft) => void;onExportRecovery?:()=>Promise<void> }) {
+export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync, onReviewDraft,onExportRecovery,records,permissions }: { queue: QueuedCommand[]; drafts: WorkflowDraft[]; online: boolean; syncing: boolean; onSync: () => Promise<void>; onReviewDraft: (draft: WorkflowDraft) => void;onExportRecovery?:()=>Promise<void>;records:BusinessRecord[];permissions:string[] }) {
   const [filter, setFilter] = useState<QueueFilter>('ALL');
   const filtered = useMemo(() => queue.slice().reverse().filter(item => {
     if (filter === 'ALL') return true;
@@ -66,9 +68,9 @@ export function ActivitySyncCenter({ queue, drafts, online, syncing, onSync, onR
     {filtered.length === 0 && drafts.length === 0 ? <EmptyState title="No saved changes yet" description="Commands and local drafts will appear here after you work in the browser." /> : <div className="space-y-3">
       {filtered.map(item => { const Icon = icon[item.state]; return <article className={`${ds.panel} p-4`} key={item.id}>
         <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-start gap-3"><span className="mt-0.5 rounded-lg bg-slate-950 p-2 text-slate-300"><Icon className="h-4 w-4" /></span><div><h3 className="font-bold text-white">{operationLabel(item.command.operation)}</h3><p className="mt-1 text-xs text-slate-500">Command saved on this browser · sequence {item.sequence}</p></div></div><StatusBadge tone={tone[item.state]}>{labels[item.state]}</StatusBadge></div>
-        {item.result?.error && <p className="mt-3 rounded-lg border border-rose-900/70 bg-rose-950/30 p-3 text-sm text-rose-200">{item.result.error.message}</p>}
+        {item.result?.error && <div className="mt-3"><CommandResolutionCard error={item.result.error} commandId={item.id} records={records} canViewStock={permissions.includes('*')||permissions.includes('inventory.view')} canReceive={permissions.includes('*')||permissions.includes('inventory.receive')||permissions.includes('procurement.receive')} canCount={permissions.includes('*')||permissions.includes('inventory.count')} canEditHeld={permissions.includes('*')||permissions.includes('pos.sell')}/></div>}
         {item.state === 'OUTCOME_UNKNOWN' && <p role="status" className="mt-3 rounded-lg border border-amber-800 bg-amber-950/30 p-3 text-sm text-amber-100">The server may have committed this command, but its acknowledgement was not received. Synchronize to retry the same command ID and reconcile its original result. Do not submit this action again.</p>}
-        {item.state === 'CONFLICT' && <p className="mt-3 text-sm leading-6 text-amber-100">The server did not silently overwrite this change. Review the current records, then reopen the saved workflow and submit a new command with fresh versions.</p>}
+        {item.state === 'CONFLICT' && item.result?.error?.code!=='INSUFFICIENT_STOCK' && <p className="mt-3 text-sm leading-6 text-amber-100">The server did not overwrite this change. Review the current record, then reopen the workflow and submit a new command with fresh versions.</p>}
         {item.state === 'REJECTED' && <p className="mt-3 text-sm leading-6 text-slate-300">The server rejected this command. Do not resend it. Review the saved workflow and create a new command only after its business conditions are valid.</p>}
         <details className="mt-3 text-xs text-slate-500"><summary className="cursor-pointer font-semibold">Technical details</summary><p className="mt-2 break-all">{item.command.operation} · {item.id}</p><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-3">{JSON.stringify(redactSensitiveData(item.result || item.command.payload), null, 2)}</pre></details>
       </article> })}

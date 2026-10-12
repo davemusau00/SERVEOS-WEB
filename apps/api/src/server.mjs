@@ -29,7 +29,7 @@ const json = (res, status, value) => {
 };
 const scrypt=promisify(scryptCallback);
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const knownPermissions=new Set(JSON.parse(readFileSync(new URL('../../contracts/permissions.json',import.meta.url),'utf8')).permissions);
+const knownPermissions=new Set(JSON.parse(readFileSync(new URL('../../../contracts/permissions.json',import.meta.url),'utf8')).permissions);
 const calendarDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(`${value}T00:00:00Z`))&&new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;
 const ACCESS_TOKEN_TTL=15*60_000,REFRESH_TOKEN_TTL=30*24*60*60_000,REFRESH_FAMILY_TTL=90*24*60*60_000,REFRESH_COOKIE_PREFIX='servos_refresh_';
 const refreshCookieName=sessionId=>`${REFRESH_COOKIE_PREFIX}${sessionId}`;
