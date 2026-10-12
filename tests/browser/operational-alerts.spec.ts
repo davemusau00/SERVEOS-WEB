@@ -28,13 +28,15 @@ for(const role of ['waiter','cashier','preparation','manager'] as const){
   if(url.pathname==='/v1/devices/enroll'){deviceId=JSON.parse(request.postData()||'{}').deviceId;return respond({deviceId,businessId,createdAt:new Date().toISOString()},201);}
   const bootstrapRecords=[
    {collection:'outlets',id:outletId,version:1,data:{name:'Dining',defaultStockLocationId:stockId},archived:false},
-   {collection:'products',id:productId,version:1,data:{name:'Coffee',priceMinor:90000,category:'Drinks',routeTo:'COUNTER',barcode:'COFFEE1234'},archived:false},
+   {collection:'businessSettings',id:businessId,version:1,data:{vatRateBasisPoints:1600,levyRateBasisPoints:0},archived:false},
+   {collection:'stockLocations',id:stockId,version:1,data:{name:'Store'},archived:false},
+   {collection:'products',id:productId,version:1,data:{name:'Coffee',priceMinor:90000,taxClassId:'A_16',category:'Drinks',routeTo:'COUNTER',barcode:'COFFEE1234'},archived:false},
    {collection:'posTickets',id:ticketId,version:2,data:{createdByStaffId:staffId,outletId,status:'APPROVED',payload:{name:'Table 4',lines:[]},approvalOrderId:orderId,submittedAt:new Date().toISOString()},archived:false},
    {collection:'orders',id:orderId,version:1,data:{name:'Table 4',outletId,state:'COMPLETED',grandTotalMinor:90000,amountPaidMinor:90000,items:[]},archived:false}
   ];
   const bootstrapPath='/v1/bootstrap/catalog';
   if(url.pathname===bootstrapPath){
-   const snapshotId='a1000000-0000-4000-8000-000000000008',expiresAt=new Date(Date.now()+600000).toISOString(),pageSize=25,pageHashes=[sha256({afterOrdinal:0,nextOrdinal:bootstrapRecords.length,records:bootstrapRecords})],core={protocolVersion:2,snapshotId,expiresAt,schemaVersion:2,highWaterCursor:cursor,recordCount:bootstrapRecords.length,collectionCounts:{outlets:1,products:1,posTickets:1,orders:1},pageSize,pageCount:pageHashes.length,pageHashes},manifest={...core,sha256:sha256(core)};
+   const snapshotId='a1000000-0000-4000-8000-000000000008',expiresAt=new Date(Date.now()+600000).toISOString(),pageSize=25,pageHashes=[sha256({afterOrdinal:0,nextOrdinal:bootstrapRecords.length,records:bootstrapRecords})],core={protocolVersion:2,snapshotId,expiresAt,schemaVersion:2,highWaterCursor:cursor,recordCount:bootstrapRecords.length,collectionCounts:{outlets:1,businessSettings:1,stockLocations:1,products:1,posTickets:1,orders:1},pageSize,pageCount:pageHashes.length,pageHashes},manifest={...core,sha256:sha256(core)};
    snapshots.set(snapshotId,{expiresAt,cursor,manifest,records:bootstrapRecords});return respond({protocolVersion:2,snapshotId,expiresAt,cursor,manifest});
   }
   const bootstrapPage=url.pathname.match(/^\/v1\/bootstrap\/catalog\/([0-9a-f-]{36})\/pages$/i);

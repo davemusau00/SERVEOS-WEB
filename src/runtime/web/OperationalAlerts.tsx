@@ -1,7 +1,7 @@
 import type {BusinessStore} from './BusinessStore';
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
-import type {MpesaReference,OperationalAlert} from './apiClient';
+import {ApiHttpError,type MpesaReference,type OperationalAlert} from './apiClient';
 import {allowed,type BusinessRecord,type WebSession} from './session';
 import type {QueuedCommand} from './BusinessStore';
 import type {CommandOutcome} from '../../types/transactions';
@@ -20,7 +20,7 @@ export function OperationalAlerts({apiAuth,session,records,queue,command,onOpen,
   initialized.current=true;data.items.forEach(i=>seen.current.add(i.id));
   if(fresh.length&&soundRef.current&&document.visibilityState==='visible'&&audio.current&&navigator.locks)await navigator.locks.request('servos-alert-sound',{ifAvailable:true},async lock=>{if(!lock)return;const key=`servos-alert-sound:${session.businessId}:${session.actorId}`;try{const last=localStorage.getItem(key);if(last===fresh[0].id)return;localStorage.setItem(key,fresh[0].id);}catch{return;}const oscillator=audio.current!.createOscillator(),gain=audio.current!.createGain();gain.gain.value=0.08;oscillator.connect(gain);gain.connect(audio.current!.destination);oscillator.start();oscillator.stop(audio.current!.currentTime+0.15);});
   setItems(data.items);setReferences(data.references);setPublicKey(data.publicKey);onCount(data.items.filter(i=>!i.readAt).length);setMessage('');
- }catch{setMessage('Alerts are unavailable. Reconnect and refresh; existing orders remain available.');}finally{loading.current=false;}},[apiAuth,store,session.businessId,session.actorId,onCount]);
+ }catch(error){if(error instanceof ApiHttpError&&[401,403].includes(error.status)){setItems([]);setReferences([]);setPublicKey(null);setNewAlert('');onCount(0);}setMessage('Alerts are unavailable. Reconnect and refresh; existing orders remain available.');}finally{loading.current=false;}},[apiAuth,store,session.businessId,session.actorId,onCount]);
  useEffect(()=>{void refresh();const timer=setInterval(()=>void refresh(),15000);const visible=()=>{if(document.visibilityState==='visible')void refresh();};window.addEventListener('online',visible);document.addEventListener('visibilitychange',visible);return()=>{clearInterval(timer);window.removeEventListener('online',visible);document.removeEventListener('visibilitychange',visible);audio.current?.close();};},[refresh]);
  useEffect(()=>{void refresh();},[records,refresh]);
  useEffect(()=>{if(open&&eventId)requestAnimationFrame(()=>{const alert=document.getElementById(`alert-${eventId}`);alert?.scrollIntoView({block:'center'});alert?.focus({preventScroll:true});});},[open,eventId,items]);

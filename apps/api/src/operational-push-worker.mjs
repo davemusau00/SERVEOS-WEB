@@ -15,7 +15,7 @@ export async function escalateOperationalTasks(pool){
 }
 export async function deliverOperationalPush(pool,send=webPush.sendNotification.bind(webPush)){
  const client=await pool.connect();let rows;try{await client.query('BEGIN');
- ({rows}=await client.query(`WITH due AS (SELECT business_id,event_id,subscription_id FROM operational_push_deliveries WHERE status='QUEUED' AND next_attempt_at<=now() ORDER BY next_attempt_at LIMIT 20 FOR UPDATE SKIP LOCKED) UPDATE operational_push_deliveries d SET attempts=attempts+1,next_attempt_at=now()+interval '1 minute' FROM due WHERE d.business_id=due.business_id AND d.event_id=due.event_id AND d.subscription_id=due.subscription_id RETURNING d.*`));await client.query('COMMIT');}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+ ({rows}=await client.query(`WITH due AS (SELECT business_id,event_id,subscription_id FROM operational_push_deliveries WHERE status='QUEUED' AND next_attempt_at<=now() ORDER BY next_attempt_at LIMIT 20 FOR UPDATE SKIP LOCKED) UPDATE operational_push_deliveries d SET attempts=attempts+1,next_attempt_at=now()+interval '5 minutes' FROM due WHERE d.business_id=due.business_id AND d.event_id=due.event_id AND d.subscription_id=due.subscription_id RETURNING d.*`));await client.query('COMMIT');}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
  for(const d of rows){
  const {rows:subs}=await pool.query(`SELECT s.subscription,s.business_id AS "businessId",s.staff_id AS "staffId",s.device_id AS "deviceId",e.target_type AS "targetType",e.target_id AS "targetId",e.created_at AS "createdAt",e.outlet_id,e.kind,e.resolved_at,i.device_id AS "inboxDevice",ARRAY(SELECT permission FROM api_staff_permissions p WHERE p.business_id=s.business_id AND p.staff_id=s.staff_id) AS permissions FROM operational_push_subscriptions s JOIN api_staff_sessions a ON a.id=s.session_id AND a.business_id=s.business_id AND a.staff_id=s.staff_id AND a.device_id=s.device_id AND a.revoked_at IS NULL AND a.expires_at>now() JOIN api_staff_profiles f ON f.business_id=s.business_id AND f.staff_id=s.staff_id AND f.active AND NOT f.must_change_password JOIN api_enrolled_devices dev ON dev.business_id=s.business_id AND dev.id=s.device_id AND dev.staff_id=s.staff_id AND dev.revoked_at IS NULL JOIN operational_events e ON e.business_id=s.business_id AND e.id=$2 JOIN operational_inbox i ON i.business_id=e.business_id AND i.event_id=e.id AND i.staff_id=s.staff_id AND (i.device_id IS NULL OR i.device_id=s.device_id) WHERE s.id=$1 AND s.revoked_at IS NULL AND i.read_at IS NULL`,[d.subscription_id,d.event_id]);
  let status='CANCELLED',http=null;const s=subs[0];
@@ -30,8 +30,8 @@ export async function deliverOperationalPush(pool,send=webPush.sendNotification.
 }
 export function startOperationalWorker(pool){
  if(process.env.OPERATIONS_WORKER_ENABLED!=='true')return ()=>{};
- const pushEnabled=Boolean(process.env.WEB_PUSH_PUBLIC_KEY&&process.env.WEB_PUSH_PRIVATE_KEY&&process.env.WEB_PUSH_SUBJECT);
- if(pushEnabled)webPush.setVapidDetails(process.env.WEB_PUSH_SUBJECT,process.env.WEB_PUSH_PUBLIC_KEY,process.env.WEB_PUSH_PRIVATE_KEY);
+ let pushEnabled=Boolean(process.env.WEB_PUSH_PUBLIC_KEY&&process.env.WEB_PUSH_PRIVATE_KEY&&process.env.WEB_PUSH_SUBJECT);
+ if(pushEnabled){try{webPush.setVapidDetails(process.env.WEB_PUSH_SUBJECT,process.env.WEB_PUSH_PUBLIC_KEY,process.env.WEB_PUSH_PRIVATE_KEY);}catch{pushEnabled=false;console.error(JSON.stringify({event:'operational_push_configuration_invalid'}));}}
  let running=false,stopped=false;const tick=async()=>{if(running||stopped)return;running=true;try{await escalateOperationalTasks(pool);if(pushEnabled)await deliverOperationalPush(pool);}catch{console.error(JSON.stringify({event:'operational_worker_retry'}));}finally{running=false;}};
  const timer=setInterval(()=>void tick(),15000);timer.unref();return ()=>{stopped=true;clearInterval(timer);};
 }
