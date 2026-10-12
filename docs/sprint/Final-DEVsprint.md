@@ -8,7 +8,7 @@
 **Repository:** `davemusau00/SERVEOS-WEB`  
 **Development branch reviewed:** `feat/pos2-cashier-tickets-offline`  
 **Production baseline previously identified:** `reset/vps-platform`  
-**Plan status:** Active implementation backlog; POS2 release evidence recorded separately; operational alerts implementation under local validation; broader epics remain open  
+**Plan status:** Active implementation backlog; POS2 release evidence recorded separately; operational alerts source locally validated within the recorded automated scope; device/staging acceptance and broader epics remain open
 **Prepared:** 12 October 2026  
 **Reviewed:** 12 October 2026, against repository source and the recorded POS2 release; no fresh VPS inspection in this documentation update
 
@@ -93,6 +93,9 @@ Do not mark a feature completed because a component exists or because a pull req
 | Finance aggregation | `apps/api/src/postgres-store.mjs` |
 | Reporting endpoints | `apps/api/src/reports.mjs`, `apps/api/src/server.mjs` |
 | POS2 and offline functionality | POS runtime, sync, command and transaction modules |
+| Operational events, inbox and reference claims | `apps/api/src/operational-alerts.mjs`, `apps/api/migrations/078_operational_alerts.sql` |
+| Background push and escalation | `apps/api/src/operational-push-worker.mjs`, `scripts/web-shell-plugin.ts` |
+| Foreground alerts and mobile tasks | `src/runtime/web/OperationalAlerts.tsx`, `src/runtime/web/WebBusinessApp.tsx` |
 | Database migrations | `apps/api` migration directory |
 
 File paths must be revalidated against the branch HEAD when implementation begins.
@@ -110,7 +113,7 @@ Repository baseline inspected for this update: `34e6043`, plus current working c
 | POS2 / POS-01 | Prior release documents signed offline cash, manager cash resolution, checkout handoff and pending-ledger upgrade/rollback tests; source contains these paths | Supervised real-staff pilot, complete provisional-stock presentation, exact supported-device evidence; no general-availability claim |
 | Docker / OPS-02 | `apps/api/Dockerfile` uses repository-root context, copies root contracts and runs as `node`; prior release records nonroot image acceptance | Rebuild each candidate with its current dependency lockfile and verify module graph/image digest; never reuse stale staged context |
 | Thermal / PRINT-01 | Source has explicit thermal-only profiles and fail-closed unknown types, readable reference helpers and immutable issued snapshots | Real printer/driver/cutter/QR/fiscal evidence remains unverified; physical acceptance was waived for the prior update, not passed |
-| Navigation / NAV-01, NAV-02 | Source still offers all permitted desktop workspaces; the current alert cohort adds compact role-specific mobile tasks and More | Browser regression, device acceptance, wider desktop grouping/collapse and broader responsive polish |
+| Navigation / NAV-01, NAV-02 | Source still offers all permitted desktop workspaces; the current alert cohort adds compact role-specific mobile tasks and More | Recorded Chromium regressions passed; actual device acceptance, wider desktop grouping/collapse and broader responsive polish remain open |
 | KDS / KDS-01 through KDS-04 | Inspection found older `productName`/`courseStatus` reads against canonical `name`/`preparationStatus`; this slice corrects mapping and uses readable order labels | Full dense-board redesign, queue timing, malformed-snapshot recovery and supervised kitchen/bar acceptance |
 | Rooms / ROOM-01, ROOM-02 | Rooms passes an explicit `ratePlanId`; Quick Reservation uses configured property context and a different command payload | Prove shared day/night price parity, capacity/concurrency and upfront-payment/checkout behavior under the newly selected business policy |
 | Finance / FIN-01 through FIN-03 | `financeSummary` uses journaled `REVENUE_SALES`, posted expenses and payable/payment summaries; it is not a full P&L | Historical sale-time cost/COGS reconciliation, defined accounting coverage, approved valuation policy, reporting drill-down and fixtures |
@@ -147,7 +150,7 @@ These choices narrow the corresponding future work; they do not silently change 
 | DS-01 | P1 | Uneven spacing, inconsistent control sizes and unpolished screens | Observed UI; source uses mixed local styles | Shared design system |
 | DS-02 | P1 | Overlapping search icons, text and controls | Observed UI | Component-level fixes |
 | NAV-01 | P1 | Too many top-level workspaces | Verified in source | Grouped, role-based navigation |
-| ALERT-01 | P1 | Ticket/decision/preparation/payment updates need a durable role-scoped inbox | Current implementation; local validation in progress | Operational alerts |
+| ALERT-01 | P1 | Ticket/decision/preparation/payment updates need a durable role-scoped inbox | Current implementation; local automated evidence recorded in section 9.11 | Operational alerts |
 | ALERT-02 | P0 | Waiter-submitted M-Pesa codes must never imply settlement | Manual-only policy; current API review implementation | Cashier evidence review |
 | ALERT-03 | P1 | Background push needs safe subscriptions, retries and actual device delivery proof | Worker/SW implementation; physical devices unverified | Background alerts |
 | ALERT-04 | P0 | Duplicate, stale or revoked notifications must not trigger financial actions or leak data | API/SW acceptance required | Authorization and replay |
@@ -893,12 +896,17 @@ Derive access from API permissions and enrolled-device authority, not role-name 
 | TypeScript | `npm run lint` passed |
 | API contract and architecture checks | Passed; operational commands use existing registry/permissions |
 | Build | Passed; new service-worker listeners included |
-| Real PostgreSQL 16 | Dedicated local `serveos-alerts-test-pg`, loopback 54359, synthetic data; API suite initially 44/44 passed; final rerun recorded at completion |
+| Real PostgreSQL 16 | Dedicated local `serveos-alerts-test-pg`, loopback 54359, synthetic data; final API suite 44/44 passed, including operational integration |
 | Focused operational API test | Passed reference forwarding/review without settlement, ready event, partial payment/replay, duplicate evidence, recipient isolation, escalation, expired subscription and logout suppression |
-| Browser regressions | In progress; results to be finalized after fixes/checks |
+| Unit tests | `npm test`: 47/47 passed, including generic service-worker notification and endpoint guards |
+| Real-API browser tests | `npm run test:browser:api`: 6/6 passed against disposable PostgreSQL, desktop/mobile layouts |
+| UI inventory gate | Passed: 1,865 interactions inventoried; 281 findings remain review items, not operator acceptance |
+| Browser regressions | `npm run test:browser:production`: 53 passed, 1 intentionally skipped (duplicate mobile process-restart case; desktop counterpart passed). Includes all eight new role cases and pending-cash SW upgrade/rollback; Chromium layouts are not actual Android/iOS push acceptance |
 | Hosted CI / candidate image / staging | Not run for this working change; prior release CI is not this candidate's CI |
 | Actual Windows/Android/iOS push delivery | Not tested; no VAPID production activation |
 | Production mutation | None in this implementation turn |
+
+**Remaining ALERT scope before release:** preserve individual delivery-attempt history beyond the current retry count/latest HTTP result; prove browser Back/deep-link recovery and scroll/filter retention across each supported workspace; exercise denied permission and real multi-tab sound behavior; rehearse checkout handoff/staff revocation while a delivery is in flight; run isolated staging and record actual Windows/Android/iOS push evidence. Local assertions and a provider mock do not close those device gates. Pending local cash warnings are terminal-local; remote manager visibility begins only when central reconciliation evidence exists.
 
 ---
 
@@ -2085,17 +2093,19 @@ A new waiter, cashier or receptionist follows the relevant guide on a tablet.
 
 **Pass:** No broken tour steps and no unauthorized operations.
 
-### Scenario I: Order Alerts and Payment Evidence
-
-A waiter submits a ticket, the cashier receives it, explicitly approves, preparation staff mark items ready, and the waiter forwards a customer M-Pesa reference. The cashier verifies merchant evidence, records a partial payment through the existing payment command and sees the correct remaining balance. Duplicate references, stale alerts and retries cannot create a second settlement. Background push is accepted only after actual device delivery evidence.
-
-**Pass:** Correct recipients, distinct sent/seen/verified/paid states, safe offline/permission fallback and usable role-specific mobile navigation.
-
 ### Scenario H: Thermal Printing
 
 A cashier prints a receipt and reprints it after a controlled printer failure.
 
 **Pass:** Correct content, readable 80mm layout, correct reprint labeling, no duplicate sale.
+
+---
+
+### Scenario I: Order Alerts and Payment Evidence
+
+A waiter submits a ticket, the cashier receives it, explicitly approves, preparation staff mark items ready, and the waiter forwards a customer M-Pesa reference. The cashier verifies merchant evidence, records a partial payment through the existing payment command and sees the correct remaining balance. Duplicate references, stale alerts and retries cannot create a second settlement. Background push is accepted only after actual device delivery evidence.
+
+**Pass:** Correct recipients, distinct sent/seen/verified/paid states, safe offline/permission fallback and usable role-specific mobile navigation.
 
 ---
 

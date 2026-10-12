@@ -1,7 +1,7 @@
 {
   "generatedBy": "npm run audit:ui",
   "schemaVersion": 2,
-  "sourceDigest": "18dbb63a28d2562004b1a2e8046448857e2293b76bcb31608b5d796d9be6b805",
+  "sourceDigest": "4037193de2c73a0d73ac74f3bc7f3923756a1d733860bbe730fad385eb996e24",
   "scope": "Compact tracked summary; full static inventory is a CI artifact and findings require human review",
   "count": 1865,
   "fullArtifact": "artifacts/ui-audit/UI_INTERACTION_INVENTORY.full.json",
@@ -203,303 +203,303 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:30:158",
+      "id": "src/runtime/web/OperationalAlerts.tsx:31:158",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 30,
+      "line": 31,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:30:185",
+      "id": "src/runtime/web/OperationalAlerts.tsx:31:185",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 30,
+      "line": 31,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:30:258",
+      "id": "src/runtime/web/OperationalAlerts.tsx:31:258",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 30,
+      "line": 31,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:30:285",
+      "id": "src/runtime/web/OperationalAlerts.tsx:31:285",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 30,
+      "line": 31,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:32:124",
-      "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 32,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/OperationalAlerts.tsx:32:97",
-      "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 32,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/OperationalAlerts.tsx:33:133",
-      "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 33,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/OperationalAlerts.tsx:33:160",
+      "id": "src/runtime/web/OperationalAlerts.tsx:33:124",
       "file": "src/runtime/web/OperationalAlerts.tsx",
       "line": 33,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:33:205",
+      "id": "src/runtime/web/OperationalAlerts.tsx:33:97",
       "file": "src/runtime/web/OperationalAlerts.tsx",
       "line": 33,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:33:260",
+      "id": "src/runtime/web/OperationalAlerts.tsx:34:133",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 33,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/OperationalAlerts.tsx:33:314",
-      "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 33,
+      "line": 34,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:33:357",
+      "id": "src/runtime/web/OperationalAlerts.tsx:34:160",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 33,
+      "line": 34,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:33:524",
+      "id": "src/runtime/web/OperationalAlerts.tsx:34:205",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 33,
+      "line": 34,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:33:551",
+      "id": "src/runtime/web/OperationalAlerts.tsx:34:260",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 33,
+      "line": 34,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:35:265",
+      "id": "src/runtime/web/OperationalAlerts.tsx:34:314",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 35,
+      "line": 34,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:35:292",
+      "id": "src/runtime/web/OperationalAlerts.tsx:34:357",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 35,
+      "line": 34,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:36:281",
+      "id": "src/runtime/web/OperationalAlerts.tsx:34:524",
+      "file": "src/runtime/web/OperationalAlerts.tsx",
+      "line": 34,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/OperationalAlerts.tsx:34:551",
+      "file": "src/runtime/web/OperationalAlerts.tsx",
+      "line": 34,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/OperationalAlerts.tsx:36:265",
       "file": "src/runtime/web/OperationalAlerts.tsx",
       "line": 36,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:36:308",
+      "id": "src/runtime/web/OperationalAlerts.tsx:36:292",
       "file": "src/runtime/web/OperationalAlerts.tsx",
       "line": 36,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:37:163",
+      "id": "src/runtime/web/OperationalAlerts.tsx:37:281",
       "file": "src/runtime/web/OperationalAlerts.tsx",
       "line": 37,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:37:190",
+      "id": "src/runtime/web/OperationalAlerts.tsx:37:308",
       "file": "src/runtime/web/OperationalAlerts.tsx",
       "line": 37,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:41:270",
+      "id": "src/runtime/web/OperationalAlerts.tsx:38:163",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 41,
+      "line": 38,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:41:297",
+      "id": "src/runtime/web/OperationalAlerts.tsx:38:190",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 41,
+      "line": 38,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:1000",
+      "id": "src/runtime/web/OperationalAlerts.tsx:42:308",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 42,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:1067",
+      "id": "src/runtime/web/OperationalAlerts.tsx:42:335",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 42,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:1152",
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:1000",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 47,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:1179",
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:1067",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 47,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:532",
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:1152",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 47,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:1179",
+      "file": "src/runtime/web/OperationalAlerts.tsx",
+      "line": 47,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:532",
+      "file": "src/runtime/web/OperationalAlerts.tsx",
+      "line": 47,
       "surface": "textarea",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:623",
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:623",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 47,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:697",
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:697",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 47,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:740",
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:740",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 47,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:837",
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:837",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 47,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:46:916",
+      "id": "src/runtime/web/OperationalAlerts.tsx:47:916",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 46,
+      "line": 47,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:1004",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:1004",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:126",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:126",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:293",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:293",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:387",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:387",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:493",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:493",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:594",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:594",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:691",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:691",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:792",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:792",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:868",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:868",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "textarea",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:957",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:957",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/OperationalAlerts.tsx:51:98",
+      "id": "src/runtime/web/OperationalAlerts.tsx:53:98",
       "file": "src/runtime/web/OperationalAlerts.tsx",
-      "line": 51,
+      "line": 53,
       "surface": "form",
       "status": "UNREVIEWED"
     },
@@ -1470,56 +1470,56 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1081",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1095",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 86,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1153",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1167",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 86,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1260",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1274",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 86,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1332",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1346",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 86,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1495",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1509",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 86,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1557",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1571",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 86,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1953",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:1967",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 86,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:2025",
+      "id": "src/runtime/web/pos2/TicketsInbox.tsx:86:2039",
       "file": "src/runtime/web/pos2/TicketsInbox.tsx",
       "line": 86,
       "surface": "onClick",
@@ -8876,247 +8876,247 @@
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:442:1039",
+      "id": "src/runtime/web/WebBusinessApp.tsx:446:1039",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 442,
+      "line": 446,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:442:334",
+      "id": "src/runtime/web/WebBusinessApp.tsx:446:334",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 442,
+      "line": 446,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:442:462",
+      "id": "src/runtime/web/WebBusinessApp.tsx:446:462",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 442,
+      "line": 446,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:442:861",
+      "id": "src/runtime/web/WebBusinessApp.tsx:446:861",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 442,
+      "line": 446,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:442:905",
+      "id": "src/runtime/web/WebBusinessApp.tsx:446:905",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 442,
+      "line": 446,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:442:970",
+      "id": "src/runtime/web/WebBusinessApp.tsx:446:970",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 442,
+      "line": 446,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:444:1169",
-      "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 444,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebBusinessApp.tsx:444:237",
-      "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 444,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebBusinessApp.tsx:444:436",
-      "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 444,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebBusinessApp.tsx:444:780",
-      "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 444,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:1136",
-      "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 448,
-      "surface": "button",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:1244",
+      "id": "src/runtime/web/WebBusinessApp.tsx:448:1169",
       "file": "src/runtime/web/WebBusinessApp.tsx",
       "line": 448,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:1415",
+      "id": "src/runtime/web/WebBusinessApp.tsx:448:237",
       "file": "src/runtime/web/WebBusinessApp.tsx",
       "line": 448,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:1442",
+      "id": "src/runtime/web/WebBusinessApp.tsx:448:436",
       "file": "src/runtime/web/WebBusinessApp.tsx",
       "line": 448,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:1507",
+      "id": "src/runtime/web/WebBusinessApp.tsx:448:780",
       "file": "src/runtime/web/WebBusinessApp.tsx",
       "line": 448,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:1565",
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:1136",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 448,
-      "surface": "onClick",
-      "status": "UNREVIEWED"
-    },
-    {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:699",
-      "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 448,
+      "line": 452,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:740",
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:1244",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 448,
+      "line": 452,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:794",
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:1415",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 448,
+      "line": 452,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:448:908",
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:1442",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 448,
+      "line": 452,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:449:624",
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:1507",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 449,
+      "line": 452,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:449:704",
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:1565",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 449,
+      "line": 452,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:451:221",
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:699",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 451,
+      "line": 452,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:451:297",
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:740",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 451,
+      "line": 452,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:491:1247",
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:794",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 491,
+      "line": 452,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebBusinessApp.tsx:452:908",
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 452,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebBusinessApp.tsx:453:624",
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 453,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebBusinessApp.tsx:453:704",
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 453,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebBusinessApp.tsx:455:221",
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 455,
+      "surface": "button",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebBusinessApp.tsx:455:297",
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 455,
+      "surface": "onClick",
+      "status": "UNREVIEWED"
+    },
+    {
+      "id": "src/runtime/web/WebBusinessApp.tsx:495:1247",
+      "file": "src/runtime/web/WebBusinessApp.tsx",
+      "line": 495,
       "surface": "input",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:491:1564",
+      "id": "src/runtime/web/WebBusinessApp.tsx:495:1564",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 491,
+      "line": 495,
       "surface": "onChange",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:491:246",
+      "id": "src/runtime/web/WebBusinessApp.tsx:495:246",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 491,
+      "line": 495,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:491:303",
+      "id": "src/runtime/web/WebBusinessApp.tsx:495:303",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 491,
+      "line": 495,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:491:353",
+      "id": "src/runtime/web/WebBusinessApp.tsx:495:353",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 491,
+      "line": 495,
       "surface": "form",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:491:407",
+      "id": "src/runtime/web/WebBusinessApp.tsx:495:407",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 491,
+      "line": 495,
       "surface": "onSubmit",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:491:91",
+      "id": "src/runtime/web/WebBusinessApp.tsx:495:91",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 491,
+      "line": 495,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:497:512",
+      "id": "src/runtime/web/WebBusinessApp.tsx:501:552",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 497,
+      "line": 501,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:497:549",
+      "id": "src/runtime/web/WebBusinessApp.tsx:501:589",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 497,
+      "line": 501,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:497:662",
+      "id": "src/runtime/web/WebBusinessApp.tsx:501:702",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 497,
+      "line": 501,
       "surface": "button",
       "status": "UNREVIEWED"
     },
     {
-      "id": "src/runtime/web/WebBusinessApp.tsx:497:700",
+      "id": "src/runtime/web/WebBusinessApp.tsx:501:740",
       "file": "src/runtime/web/WebBusinessApp.tsx",
-      "line": 497,
+      "line": 501,
       "surface": "onClick",
       "status": "UNREVIEWED"
     },

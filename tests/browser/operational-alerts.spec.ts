@@ -65,7 +65,7 @@ for(const role of ['waiter','cashier','preparation','manager'] as const){
  await nav.getByRole('button',{name:'More',exact:true}).click();const more=page.getByRole('dialog',{name:'All permitted workspaces'});await expect(more.getByRole('button',{name:'Activity & sync',exact:true})).toBeVisible();await more.getByRole('button',{name:'Close More'}).click();
  if(role==='cashier'){
   await nav.getByRole('button',{name:'Sale',exact:true}).click();await page.getByRole('button',{name:/Coffee/}).click();await page.getByRole('button',{name:/Coffee/}).click();await expect(page.getByLabel('Current bill')).toContainText('KES 1,800.00');
-  await nav.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('dialog',{name:'All permitted workspaces'}).getByRole('button',{name:'Catalog',exact:true}).click();await expect(page).toHaveURL(/Catalog/);await expect(page.getByLabel('Current bill')).not.toBeVisible();await page.keyboard.type('COFFEE1234',{delay:1});await page.keyboard.press('Enter');
+  await nav.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('dialog',{name:'All permitted workspaces'}).getByRole('button',{name:'Catalog',exact:true}).click();await expect(page).toHaveURL(/Catalog/);await expect(page.getByLabel('Current bill')).not.toBeVisible();await page.evaluate(()=>{(document.activeElement as HTMLElement)?.blur();});await page.keyboard.type('COFFEE1234',{delay:1});await page.keyboard.press('Enter');
   await nav.getByRole('button',{name:'Sale',exact:true}).click();await expect(page.getByLabel('Current bill')).toContainText('KES 1,800.00');expect(calls).toHaveLength(0);
  }
  if(role==='waiter'){
