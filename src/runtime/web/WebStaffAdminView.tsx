@@ -6,6 +6,7 @@ import { operatorError } from './operatorError';
 import { WebActionDialog, type WebActionField } from './WebActionDialog';
 import type {ApiAuthenticatedDeviceSession} from './apiAuth';
 import type {ApiDeviceAccessRequest} from './apiClient';
+import {publishOperatorNotice} from './operatorNotifications';
 
 type CommandFn = (operation: string, collection: string, id: string, payload: Record<string, unknown>) => Promise<CommandOutcome>;
 type Device = { id: string; name: string; class: string; ownerId: string; active: boolean; lastSequence: number | null; lastSeenAt: string | null; telemetryAvailable: boolean; protocolVersion: number; createdAt: string; assignedOutletId:string|null; approvedPermissions:string[]|null };
@@ -83,7 +84,7 @@ export function WebStaffAdminView({ records, session, disabled, command, current
     })));
   };
 
-  const loadDeviceRequests=async()=>{if(!allowed(session,'devices.manage'))return;try{const result=await apiAuth.client.deviceAccessRequests();setDeviceRequests(result.requests);setError('');}catch(failure){setError(operatorError(failure));}};
+  const loadDeviceRequests=async()=>{if(!allowed(session,'devices.manage'))return;try{const result=await apiAuth.client.deviceAccessRequests();setDeviceRequests(result.requests);for(const request of result.requests)if(request.status==='PENDING')publishOperatorNotice({id:request.id,dedupeKey:`device-request:${request.id}:pending`,stage:'pending',severity:'warning',title:'Device approval requested',message:`${request.deviceName} is waiting for an administrator decision.`,scope:{businessId:session.businessId,deviceId:apiAuth.identity.deviceId},action:{label:'Review device request',destination:'devices'},persistent:true});setError('');}catch(failure){setError(operatorError(failure));}};
 
   useEffect(() => { void loadDevices();void loadDeviceRequests(); }, [session.actorId, session.policyVersion, records]);
 
@@ -92,6 +93,7 @@ export function WebStaffAdminView({ records, session, disabled, command, current
     setBusy(true);setError('');setNotice('');try{
       const permissions=decision==='approve'?(requestPermissions[request.id]||[]):[];
       await apiAuth.client.decideDeviceAccessRequest(request.id,decision,{reason,permissions,outletId:decision==='approve'?requestOutlet||request.outletId:null});
+      publishOperatorNotice({id:request.id,stage:decision==='approve'?'confirmed':'rejected',severity:decision==='approve'?'success':'info',title:decision==='approve'?'Device access approved':'Device request denied',message:decision==='approve'?'The staff member must sign in again to prove the device key. Offline checkout still needs separate authorization.':'The requester can see this decision when they sign in.',scope:{businessId:session.businessId,deviceId:apiAuth.identity.deviceId},dedupeKey:`device-request:${request.id}:${decision}`,action:{label:'View device requests',destination:'devices'},durationMs:4000});
       setNotice(decision==='approve'?'Device request approved. The staff member must sign in again to prove the device key and complete enrollment.':'Device request denied. The requesting staff member can see the decision when they sign in.');setRequestReason('');await loadDeviceRequests();await loadDevices();
     }catch(failure){setError(operatorError(failure));}finally{setBusy(false);}
   };

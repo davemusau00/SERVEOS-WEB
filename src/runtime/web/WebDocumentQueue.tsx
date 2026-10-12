@@ -20,6 +20,7 @@ export function WebDocumentQueue({records,actorId,deviceId,disabled,command,read
  const inFlight=useRef(false);
  const job=jobs.find(row=>row.id===selected);
  const document=issuedDocument(records.find(row=>row.collection==='businessDocuments'&&row.id===job?.data.documentId));
+ useEffect(()=>{const open=(event:Event)=>{const jobId=(event as CustomEvent<{jobId?:string}>).detail?.jobId;if(jobId&&jobs.some(row=>row.id===jobId))setSelected(jobId);};window.addEventListener('servos:open-print-job',open);return()=>window.removeEventListener('servos:open-print-job',open)},[jobs]);
  useEffect(()=>{
   const resolved=Object.entries(pending).filter(([,commandId])=>{const entry=queue.find(row=>row.id===commandId);return entry&&['SYNCHRONIZED','REJECTED','CONFLICT'].includes(entry.state)});
   if(!resolved.length)return;

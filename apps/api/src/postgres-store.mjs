@@ -591,7 +591,7 @@ export class PostgresStore {
       const staff=await tx.client.query('SELECT active FROM api_staff_profiles WHERE business_id=$1 AND staff_id=$2 FOR SHARE',[businessId,staffId]);
       if(!staff.rows[0]?.active){const error=new Error('An active API staff profile is required to enroll a device.');error.status=403;error.code='STAFF_INACTIVE';throw error;}
       const approvedRequest=await tx.client.query("SELECT id,device_name AS \"deviceName\",device_class AS \"deviceClass\",approved_outlet_id AS \"outletId\",requested_capabilities AS capabilities,approved_permissions AS permissions,public_key AS \"publicKey\" FROM api_device_access_requests WHERE business_id=$1 AND staff_id=$2 AND device_id=$3 AND status='APPROVED' AND expires_at>$4 FOR UPDATE",[businessId,staffId,deviceId,at]);
-      if(approvedRequest.rows.length&&JSON.stringify(approvedRequest.rows[0].publicKey)!==JSON.stringify(publicKey))throw new ApiProblem(409,'DEVICE_REQUEST_KEY_CHANGED','The approved device key changed. Submit a new access request.');
+      if(approvedRequest.rows.length&&['kty','crv','x','y'].some(field=>approvedRequest.rows[0].publicKey?.[field]!==publicKey?.[field]))throw new ApiProblem(409,'DEVICE_REQUEST_KEY_CHANGED','The approved device key changed. Submit a new access request.');
       const {rows:deviceRows}=await tx.client.query(`
         INSERT INTO api_enrolled_devices (id, business_id, staff_id, public_key, created_at,device_name,device_class,assigned_outlet_id,approved_capabilities,approved_permissions)
         VALUES ($1, $2, $3, $4::jsonb, $5,$6,$7,$8,$9::jsonb,$10::jsonb)

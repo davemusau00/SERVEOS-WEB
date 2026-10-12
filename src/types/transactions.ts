@@ -5,8 +5,8 @@ export type CommandOutcome =
   | { kind:'DRAFT_SAVED'; draftId:string }
   | { kind:'PENDING'; commandId:string }
   | { kind:'OUTCOME_UNKNOWN'; commandId:string; message:string }
-  | { kind:'REJECTED'; commandId:string; message:string }
-  | { kind:'CONFLICT'; commandId:string; message:string }
+  | { kind:'REJECTED'; commandId:string; message:string; error?:TransactionResult['error'] }
+  | { kind:'CONFLICT'; commandId:string; message:string; error?:TransactionResult['error'] }
   | { kind:'BLOCKED'; message:string };
 export const isCommandConfirmed=(outcome:CommandOutcome)=>outcome.kind==='CONFIRMED';
 export interface RecordVersion { collection:string; id:string; version:number }
