@@ -39,8 +39,10 @@ export type WebApiPosProps={apiAuth?:ApiAuthenticatedDeviceSession;store:Busines
 export function WebApiPosView(props:WebApiPosProps){
  const [advanced,setAdvanced]=useState(false);
  const [selectedOrder,setSelectedOrder]=useState('');
- const [tickets,setTickets]=useState(false);
- if(props.session.capabilities?.['pos2.waiterTickets']===true&&(tickets||!allowed(props.session,'pos.sell')))return <>{allowed(props.session,'pos.sell')&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setTickets(false)}>Back to cashier</button>}<TicketsInbox {...props}/></>;
+ const [tickets,setTickets]=useState(false),[focusedTicket,setFocusedTicket]=useState('');
+ useEffect(()=>{const open=(event:Event)=>{const {type,id}=(event as CustomEvent<{type:string;id?:string}>).detail;if(type==='recovery'){setTickets(false);setAdvanced(true);}else if(type==='tickets'||type==='ticket'){setTickets(true);setFocusedTicket(id||'');}else {setTickets(false);setAdvanced(false);if(type==='order'&&id)setSelectedOrder(id);}};window.addEventListener('servos:open-pos-record',open);return()=>window.removeEventListener('servos:open-pos-record',open);},[]);
+
+ if(props.session.capabilities?.['pos2.waiterTickets']===true&&(tickets||!allowed(props.session,'pos.sell')))return <>{allowed(props.session,'pos.sell')&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setTickets(false)}>Back to cashier</button>}<TicketsInbox {...props} focusedTicketId={focusedTicket}/></>;
  if(props.session.capabilities?.['pos2.simpleCashier']===true&&!advanced)return <>{props.session.capabilities?.['pos2.waiterTickets']===true&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setTickets(true)}>Tickets ({props.records.filter(row=>row.collection==='posTickets'&&['SUBMITTED','NEEDS_REVIEW'].includes(String(row.data.status))).length})</button>}<CashierWorkspace {...props} initialOrderId={selectedOrder} onOrderChange={setSelectedOrder} onMore={()=>setAdvanced(true)}/></>;
  return <>{props.session.capabilities?.['pos2.simpleCashier']===true&&<button className="min-h-11 rounded border border-slate-600 px-3 py-2" onClick={()=>setAdvanced(false)}>Back to cashier</button>}{props.session.capabilities?.['pos2.offlineCash']===true&&<CashManagerRecovery {...props}/>}<LegacyWebApiPosView {...props} initialOrderId={selectedOrder}/></>;
 }
@@ -56,6 +58,7 @@ function LegacyWebApiPosView({records,session,disabled,command,queue,deviceId,re
  const tableState=(table:BusinessRecord)=>{const tableOrders=orders.filter(row=>row.data.tableId===table.id).sort((left,right)=>String(right.data.updatedAt||'').localeCompare(String(left.data.updatedAt||'')));const latest=tableOrders[0];if(latest&&['OPEN','FIRED'].includes(String(latest.data.state)))return 'ORDERING';if(latest&&['COMPLETED','VOIDED','MERGED'].includes(String(latest.data.state))&&latest.id!==table.data.readyAfterOrderId)return 'CLEANING';return String(table.data.state||'AVAILABLE')};
  const availableTables=tables.filter(row=>tableState(row)==='AVAILABLE'&&!tableBusy(row.id));
  const [outletId,setOutletId]=useState(outlets[0]?.id||''),[orderId,setOrderId]=useState(initialOrderId),[query,setQuery]=useState('');
+ useEffect(()=>{setOrderId(initialOrderId);},[initialOrderId]);
  const outletAvailableTables=availableTables.filter(row=>row.data.outletId===outletId);
  const outletOccupiedTables=tables.filter(row=>row.data.outletId===outletId&&tableState(row)==='ORDERING'&&tableBusy(row.id));
  const preferenceKey=`servos-pos-favorites:${session.businessId}:${session.actorId}`;

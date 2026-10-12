@@ -1,3 +1,5 @@
+import {startOperationalWorker} from './operational-push-worker.mjs';
+import {operationalRoute} from './operational-alerts.mjs';
 import {checkBridgeClaim} from './bridge-authorization.mjs';
 import {pos2Capabilities} from './pos2-capabilities.mjs';
 import {validateMigrationManifest} from './migration-manifest.mjs';
@@ -152,6 +154,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       if(req.method==='POST'&&url.pathname==='/v1/auth/logout'){
         const authorization=req.headers.authorization;if(typeof authorization!=='string'||!authorization.startsWith('Bearer '))throw new ApiProblem(401,'AUTH_REQUIRED','A staff session is required.');
         const result=await store.revokeSession(createHash('sha256').update(authorization.slice(7)).digest('hex'));
+        if(result.sessionId&&store.pool)await store.pool.query('UPDATE operational_push_subscriptions SET revoked_at=now() WHERE session_id=$1',[result.sessionId]);
         if(result.sessionId)res.setHeader('set-cookie',clearRefreshCookie(secureRequest(req),result.sessionId));
         return json(res,200,{revoked:result.revoked});
       }
@@ -382,6 +385,7 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
         await store.createCatalogBootstrapSnapshot({snapshotId,businessId:actor.businessId,staffId:actor.staffId,deviceId:actor.deviceId,sessionId:actor.sessionId,authorizationHash,manifest,records,createdAt,expiresAt:new Date(expiresAt)});
         return json(res,200,{protocolVersion:2,snapshotId,expiresAt,cursor:bootstrap.cursor,manifest});
       }
+      if(url.pathname.startsWith('/v1/operations/')){const actor=await authenticate(req);return json(res,200,await operationalRoute(store.pool,actor,req.method,url.pathname,req.method==='POST'?await readJson(req):{}));}
       if (req.method === 'POST' && url.pathname === '/v1/commands') {
         const actor = await authenticate(req);
         const outcome = await executeCommand({db: store, command: await readJson(req), actor, registry});
@@ -415,7 +419,8 @@ async function main() {
   await retireInitialAdminSetupSecret(store);
   const server = createApiServer({store, registry: createApiCommandRegistry(), authenticate: req => authenticateSession(req, store), origin: config.webOrigin});
   server.listen(config.port, config.host, () => console.log(JSON.stringify({event: 'api_started', port: config.port, environment: config.nodeEnv, logLevel: config.logLevel})));
-  const shutdown = () => server.close(async () => { await pool.end(); process.exit(0); });
+  const stopOperationalWorker=startOperationalWorker(pool);
+  const shutdown = () => {stopOperationalWorker();server.close(async () => { await pool.end(); process.exit(0); });};
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 }

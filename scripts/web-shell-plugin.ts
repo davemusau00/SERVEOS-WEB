@@ -38,6 +38,21 @@ self.addEventListener('message',event=>{
  })());
 });
 self.addEventListener('activate',event=>event.waitUntil(self.clients.matchAll({type:'window'}).then(clients=>clients.forEach(client=>client.postMessage({type:'SERVOS_SW_READY',cache:CACHE})))));
+self.addEventListener('push',event=>event.waitUntil((async()=>{
+ let data;try{data=event.data?.json()}catch{return}
+ if(!data||typeof data.eventId!=='string'||!/^[a-f0-9-]{36}$/i.test(data.eventId))return;
+ await self.registration.showNotification('ServOS operational alert',{body:'Open ServOS to review an operational update.',tag:'servos-'+data.eventId,data:{eventId:data.eventId},icon:'/icon.svg'});
+})()));
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();event.waitUntil((async()=>{
+  const id=event.notification.data?.eventId;if(typeof id!=='string'||!/^[a-f0-9-]{36}$/i.test(id))return;
+  const destination='/#/?alert='+encodeURIComponent(id);
+  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  const client=windows.find(window=>new URL(window.url).origin===self.location.origin);
+  if(client){await client.focus();client.postMessage({type:'SERVOS_OPEN_ALERT',eventId:id});}
+  else await self.clients.openWindow(destination);
+ })());
+});
 self.addEventListener('fetch',event=>{
  const req=event.request,url=new URL(req.url);
  if(req.method!=='GET'||url.origin!==self.location.origin||req.headers.has('Authorization'))return;

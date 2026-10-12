@@ -23,6 +23,7 @@ const money=(value:unknown)=>formatDocumentMoney(Number(value||0));
 export function CashierWorkspace({records,session,deviceId,queue,command,disabled,readRecords,store,apiAuth,onMore,initialOrderId='',onOrderChange,initialOfflineLease=null}:WebApiPosProps&{onMore:()=>void;onOrderChange?:(id:string)=>void;initialOfflineLease?:OfflineCashLease|null}){
  const outlets=records.filter(row=>row.collection==='outlets'&&!row.archived);
  const [outletId,setOutlet]=useState(String(records.find(row=>row.collection==='orders'&&row.id===initialOrderId)?.data.outletId||outlets[0]?.id||'')),[orderId,setOrder]=useState(initialOrderId),[query,setQuery]=useState(''),[category,setCategory]=useState('');
+ useEffect(()=>{if(initialOrderId!==orderId)setOrder(initialOrderId);},[initialOrderId]);
  useEffect(()=>onOrderChange?.(orderId),[orderId,onOrderChange]);
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[paymentRequest,setPaymentRequest]=useState(0);
  const [choice,setChoice]=useState<BusinessRecord|null>(null),[portionId,setPortion]=useState(''),[modifiers,setModifiers]=useState<string[]>([]),[note,setNote]=useState('');

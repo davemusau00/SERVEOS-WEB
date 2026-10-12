@@ -180,6 +180,12 @@ export class BusinessStore {
     await request(tx.objectStore('meta').put(true,'offlineCreationStopped'));
     return (await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId);
   }));}
+  async localOperationalWarnings():Promise<Array<{id:string;summary:string}>>{return this.cashTransaction(['cashSales','localPrintEvidence'],'readonly',async tx=>{
+    const sales=(await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId);
+    const ids=new Set(sales.map(sale=>sale.id));
+    const prints=(await request(tx.objectStore('localPrintEvidence').getAll())).filter(row=>ids.has(row.saleId)&&row.type&&['SENDING','DELIVERY_UNCERTAIN','FAILED'].includes(row.status));
+    return [...sales.filter(sale=>sale.state!=='SERVER_CONFIRMED').map(sale=>({id:sale.id,summary:`${sale.reference}: cash recorded locally; ${sale.state==='RECONCILIATION_REQUIRED'?'manager reconciliation required':sale.state==='OUTCOME_UNKNOWN'?'outcome awaiting recovery':'server sync pending'}`})),...prints.map(row=>({id:row.id,summary:'Local print needs attention. Check paper before retrying.'}))];
+  });}
   async localCashSales(){return this.cashTransaction(['cashSales'],'readonly',async tx=>(await request(tx.objectStore('cashSales').getAll())).filter(sale=>sale.staffId===this.actorId).sort((a,b)=>a.sequence-b.sequence));}
   async recordLocalShiftCount(tillSessionId:string,countedMinor:number,reason:string){
     if(!Number.isSafeInteger(countedMinor)||countedMinor<0||reason.trim().length<3||reason.length>500)throw Error('Enter a non-negative cash count and a review reason.');

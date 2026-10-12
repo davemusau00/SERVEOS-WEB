@@ -2076,19 +2076,20 @@ For financial or reservation changes, the appropriate specialist must additional
 These decisions must be resolved before the corresponding work is marked complete:
 
 1. Which room rate plans are authoritative for quick reservations, walk-ins and standard bookings?
-2. Which room pricing overrides may receptionists perform without manager approval?
-3. How are accommodation revenue and guest deposits recognized?
-4. What inventory valuation and COGS method is approved?
-5. Which historical financial records can be migrated reliably?
-6. Which tax mappings are approved by the accountant?
-7. Which M-Pesa integrations are already operational and which are planned?
-8. Which printer models and Android devices are officially supported?
-9. Should QR orders require staff acceptance before firing to the kitchen?
-10. Which business types and staff roles are in the initial pilot?
-11. Which offline operations are permitted and which must remain online-only?
-12. What are the exact property-local shift and day-closing rules?
-13. Which reports are essential for the first production release?
-14. Which remaining P1 improvements may be deferred without harming operations?
+A STANDARD ROOM RATE SHOULD APPLY ACROSS THE BOARD EASY TO CONFIGURE, APPLIES TO BOTH DAY AND NIGHT 
+2. Which room pricing overrides may receptionists perform without manager approval? NONE
+3. How are accommodation revenue and guest deposits recognized? IN THIS VERSION THERE ARE NO DEPOSITS ITS CASH UP FRONT 
+4. What inventory valuation and COGS method is approved? FIND BEST SUITED FOR HOSPITALITY BUSINESS
+5. Which historical financial records can be migrated reliably? WE SHALL NOT MIGRATE ANYTHING, FRESH INSTALL!!!!!
+6. Which tax mappings are approved by the accountant?AVOID TAX FOR NOW
+7. Which M-Pesa integrations are already operational and which are planned?NONE , MANUAL
+8. Which printer models and Android devices are officially supported? AVOID BROWSER PRINTING GOOD ENOUGH BUT RETAIN OTHER RLEVANT CODE 
+9. Should QR orders require staff acceptance before firing to the kitchen? YES BUT DEFER THIS FOR FUTURE VERSION 
+10. Which business types and staff roles are in the initial pilot? HOSPITALITY 
+11. Which offline operations are permitted and which must remain online-only? SALES ONLY THE REST MUST BE ONLINE 
+12. What are the exact property-local shift and day-closing rules? NA
+13. Which reports are essential for the first production release? ALL
+14. Which remaining P1 improvements may be deferred without harming operations? IDK
 
 ---
 

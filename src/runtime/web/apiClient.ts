@@ -103,6 +103,10 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
    }}finally{await reader.cancel().catch(()=>undefined);reader.releaseLock()}
   },
   changes(after:number,limit=200){return request<ApiChangePage>(`/v1/sync/changes?after=${encodeURIComponent(after)}&limit=${encodeURIComponent(limit)}`)},
+  operationalInbox(){return request<{items:OperationalAlert[];references:MpesaReference[];publicKey:string|null}>('/v1/operations/inbox')},
+  readOperationalAlert(id:string){return request('/v1/operations/read',{method:'POST',body:JSON.stringify({id})})},
+  registerPush(subscription:PushSubscription){return request('/v1/operations/push',{method:'POST',body:JSON.stringify({subscription:subscription.toJSON()})})},
+  removePush(){return request('/v1/operations/push',{method:'DELETE'})},
   catalogItems(search=''){return request<{items:ApiCatalogItem[]}>(`/v1/catalog/items?search=${encodeURIComponent(search)}`)},
   customerCreditStatement(customerId:string,cursor?:string,limit=100){const query=new URLSearchParams({limit:String(limit)});if(cursor)query.set('cursor',cursor);return request<ApiCustomerCreditStatementPage>(`/v1/customer-credit/accounts/${encodeURIComponent(customerId)}/statement?${query}`)},
   financeSummary(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiFinanceSummary>(`/v1/finance/summary?${query}`)},
@@ -122,3 +126,6 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   cancelImport(batchId:string,reason:string){return request<{cancelled:boolean;batchId:string;status:string}>(`/v1/import/batches/${encodeURIComponent(batchId)}/cancel`,{method:'POST',body:JSON.stringify({reason})})},
  };
 }
+
+export type OperationalAlert={id:string;kind:string;targetType:'ticket'|'order'|'reference'|'print'|'cashRecovery';targetId:string;summary:string;createdAt:string;resolvedAt:string|null;readAt:string|null};
+export type MpesaReference={id:string;ticketId:string;orderId:string;code:string;amountMinor:number|string;receivedAt:string;note:string;status:string;duplicate:boolean;version:number|string;reason:string|null;submittedBy:string;orderLabel:string};
