@@ -117,5 +117,14 @@ test('operational inbox, claims, escalation and push preserve payment authority 
  await deliverOperationalPush(pool,async()=>{const e=new Error('Gone');e.statusCode=410;throw e;});assert.ok((await pool.query('SELECT revoked_at FROM operational_push_subscriptions WHERE id=$1',[subId])).rows[0].revoked_at);
  await operationalRoute(pool,cashier,'POST','/v1/operations/push',{subscription});await pool.query("UPDATE operational_push_deliveries SET status='QUEUED',next_attempt_at=now() WHERE subscription_id=$1",[subId]);
  await pool.query('UPDATE api_staff_sessions SET revoked_at=now() WHERE id=$1',[cashier.sessionId]);await deliverOperationalPush(pool,async()=>{throw Error('Must not deliver after sign out');});assert.equal((await pool.query('SELECT status FROM operational_push_deliveries WHERE subscription_id=$1',[subId])).rows[0].status,'CANCELLED');
+ const attempts=(await pool.query('SELECT attempt,outcome,provider_status,started_at,finished_at FROM operational_push_attempts WHERE subscription_id=$1 ORDER BY attempt',[subId])).rows;
+ assert.deepEqual(attempts.map(a=>[a.attempt,a.outcome,a.provider_status]),[[1,'ACCEPTED',201],[2,'QUEUED',503],[3,'EXPIRED',410],[4,'CANCELLED',null]]);
+ assert.ok(attempts.every(a=>a.started_at instanceof Date&&a.finished_at instanceof Date));
+ // Recovery retains an interrupted attempt rather than labelling it delivered.
+ await pool.query(`INSERT INTO operational_push_attempts(business_id,event_id,subscription_id,attempt) SELECT business_id,event_id,subscription_id,attempts+1 FROM operational_push_deliveries WHERE subscription_id=$1`,[subId]);
+ await pool.query(`UPDATE operational_push_deliveries SET attempts=attempts+1,status='QUEUED',next_attempt_at=now() WHERE subscription_id=$1`,[subId]);
+ await deliverOperationalPush(pool,async()=>{throw Error('Revoked session must remain undeliverable');});
+ assert.deepEqual((await pool.query('SELECT outcome FROM operational_push_attempts WHERE subscription_id=$1 ORDER BY attempt',[subId])).rows.map(a=>a.outcome),['ACCEPTED','QUEUED','EXPIRED','CANCELLED','ABANDONED','CANCELLED']);
+
  const disabled=process.env.OPERATIONS_REFERENCE_COHORTS;process.env.OPERATIONS_REFERENCE_COHORTS='[]';assert.equal((await run(waiter,'mpesaReference.submit',{...claim,id:randomUUID()})).error.code,'CAPABILITY_DISABLED');process.env.OPERATIONS_REFERENCE_COHORTS=disabled;
 });
