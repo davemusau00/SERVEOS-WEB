@@ -11,7 +11,7 @@ export async function addOperationalEvent({tx,actor,command,at},handled){
  if(command.name==='order.kds'&&command.payload.status!=='READY')return;
  if(!tx.client||!alertKinds.has(command.name)||!pos2Capabilities(actor)['operations.inbox'])return;
  const cash=handled.records.find(r=>r.collection==='offlineCashReconciliations');
- const print=handled.records.find(r=>r.collection==='printJobs');
+ const print=command.name.startsWith('print.')?handled.records.find(r=>r.collection==='printJobs'):undefined;
  if(print&&!['DELIVERY_UNCERTAIN','FAILED','CONFIRMED'].includes(print.data.state))return;
  const ticket=handled.records.find(r=>r.collection==='posTickets');
  const order=handled.records.find(r=>r.collection==='orders');

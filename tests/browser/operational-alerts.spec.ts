@@ -7,6 +7,7 @@ const sha256=(value:unknown)=>createHash('sha256').update(stableJson(value)).dig
 for(const role of ['waiter','cashier','preparation','manager'] as const){
  test(`role mobile navigation and alerts: ${role}`,async({page})=>{
  const permissions=role==='manager'?['*']:role==='cashier'?['pos.sell','payment.record','ticket.approve','ticket.view_outlet','mpesa.record']:role==='waiter'?['ticket.create','ticket.view_own','floorplan.view']:['kds.view','kds.update'];
+ permissions.push('devices.register');
  const capabilities={'operations.inbox':true,'operations.references':true,'operations.push':false,'pos2.simpleCashier':true,'pos2.waiterTickets':true};
  const outletId='a1000000-0000-4000-8000-000000000011',ticketId='a1000000-0000-4000-8000-000000000012',orderId='a1000000-0000-4000-8000-000000000013',productId='a1000000-0000-4000-8000-000000000014',alertId='a1000000-0000-4000-8000-000000000015';
  let read=false;const calls:any[]=[];
@@ -33,7 +34,7 @@ for(const role of ['waiter','cashier','preparation','manager'] as const){
   ];
   const bootstrapPath='/v1/bootstrap/catalog';
   if(url.pathname===bootstrapPath){
-   const snapshotId='a1000000-0000-4000-8000-000000000008',expiresAt=new Date(Date.now()+600000).toISOString(),pageSize=25,pageHashes=[sha256({afterOrdinal:0,nextOrdinal:bootstrapRecords.length,records:bootstrapRecords})],core={protocolVersion:2,snapshotId,expiresAt,schemaVersion:2,highWaterCursor:cursor,recordCount:bootstrapRecords.length,collectionCounts:{stockItems:bootstrapRecords.length},pageSize,pageCount:pageHashes.length,pageHashes},manifest={...core,sha256:sha256(core)};
+   const snapshotId='a1000000-0000-4000-8000-000000000008',expiresAt=new Date(Date.now()+600000).toISOString(),pageSize=25,pageHashes=[sha256({afterOrdinal:0,nextOrdinal:bootstrapRecords.length,records:bootstrapRecords})],core={protocolVersion:2,snapshotId,expiresAt,schemaVersion:2,highWaterCursor:cursor,recordCount:bootstrapRecords.length,collectionCounts:{outlets:1,products:1,posTickets:1,orders:1},pageSize,pageCount:pageHashes.length,pageHashes},manifest={...core,sha256:sha256(core)};
    snapshots.set(snapshotId,{expiresAt,cursor,manifest,records:bootstrapRecords});return respond({protocolVersion:2,snapshotId,expiresAt,cursor,manifest});
   }
   const bootstrapPage=url.pathname.match(/^\/v1\/bootstrap\/catalog\/([0-9a-f-]{36})\/pages$/i);
