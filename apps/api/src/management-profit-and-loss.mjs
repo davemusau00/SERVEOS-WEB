@@ -5,6 +5,7 @@ import {ApiProblem} from './command-kernel.mjs';
 // Original issued POS bills recognise sales; folio journals recognise hotel income.
 // Tender receipts/collections, supplier payments and guest deposits are excluded.
 const moneySql=value=>`CASE WHEN ${value} ~ '^[0-9]+$' THEN (${value})::numeric END`;
+const quantitySql=value=>`CASE WHEN ${value} ~ '^[0-9]+([.][0-9]+)?$' THEN (${value})::numeric END`;
 const listSql=value=>`CASE WHEN jsonb_typeof(${value})='array' THEN ${value} ELSE '[]'::jsonb END`;
 const departmentSql=item=>`CASE COALESCE(${item}->>'routeTo',${item}->'productSnapshot'->>'routeTo') WHEN 'BAR' THEN 'BAR' WHEN 'KITCHEN' THEN 'KITCHEN' ELSE 'OTHER_POS' END`;
 const period=column=>`${column} >= ($2::date AT TIME ZONE $4) AND ${column} < (($3::date+1) AT TIME ZONE $4)`;
@@ -37,7 +38,8 @@ receipt_items AS (
  FROM financial_journals j JOIN financial_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id AND l.account_code='REVENUE_SALES'
  LEFT JOIN order_payments p ON p.business_id=j.business_id AND p.id=j.payment_id
  LEFT JOIN customer_credit_entries c ON c.business_id=j.business_id AND c.id=j.customer_credit_entry_id
- LEFT JOIN receipts d ON d.order_key=COALESCE(p.order_id,c.order_id)::text
+ LEFT JOIN customer_credit_entries original_credit ON original_credit.business_id=c.business_id AND original_credit.id=c.reverses_entry_id
+ LEFT JOIN receipts d ON d.order_key=COALESCE(p.order_id,c.order_id,original_credit.order_id)::text
  WHERE j.business_id=$1 AND ${period('j.occurred_at')} AND l.debit_minor>0 AND d.issued_at<=j.occurred_at
  GROUP BY j.id,j.occurred_at,j.source_type,d.document_number,d.id
  UNION ALL
@@ -118,16 +120,18 @@ export async function profitAndLoss(pool,businessId,from,to){
   const controls=await db.query(`${statementCte}
    SELECT
    (SELECT count(*) FROM receipt_items r WHERE ${period('r.issued_at')} AND (r.net_minor IS NULL OR r.tax_minor IS NULL OR r.gross_minor IS NULL OR r.gross_minor<>r.net_minor+r.tax_minor))::text AS invalid_items,
-   (SELECT count(*) FROM receipts d WHERE ${period('d.issued_at')} AND (${moneySql("d.snapshot->'taxes'->>'netMinor'")} IS NULL OR NOT EXISTS(SELECT 1 FROM receipt_items i WHERE i.document_id=d.id) OR ${moneySql("d.snapshot->'taxes'->>'netMinor'")} IS DISTINCT FROM (SELECT sum(i.net_minor) FROM receipt_items i WHERE i.document_id=d.id)))::text AS invalid_receipts,
+   (SELECT count(*) FROM receipts d WHERE ${period('d.issued_at')} AND (d.snapshot->>'currency' IS DISTINCT FROM 'KES' OR ${moneySql("d.snapshot->'taxes'->>'netMinor'")} IS NULL OR NOT EXISTS(SELECT 1 FROM receipt_items i WHERE i.document_id=d.id) OR ${moneySql("d.snapshot->'taxes'->>'netMinor'")} IS DISTINCT FROM (SELECT sum(i.net_minor) FROM receipt_items i WHERE i.document_id=d.id)))::text AS invalid_receipts,
    (SELECT count(*) FROM receipt_candidates d WHERE issuance>1 AND ${period('d.issued_at')})::text AS subsequent_receipts,
    (SELECT count(*) FROM receipt_items r WHERE ${period('r.issued_at')} AND jsonb_typeof(COALESCE(r.item->'ingredientSnapshot',r.item->'productSnapshot'->'ingredientSnapshot')) IS DISTINCT FROM 'array')::text AS unknown_recipes,
    (SELECT count(*) FROM receipt_items r CROSS JOIN LATERAL jsonb_array_elements(${listSql("COALESCE(r.item->'ingredientSnapshot',r.item->'productSnapshot'->'ingredientSnapshot')")}) ingredient WHERE ${period('r.issued_at')} AND NOT EXISTS(SELECT 1 FROM pos_stock_consumptions c WHERE c.business_id=$1 AND c.order_id::text=r.order_key AND c.line_id::text=r.item->>'id' AND c.stock_item_id::text=ingredient->>'stockItemId'))::text AS missing_consumptions,
+   (SELECT count(*) FROM receipt_items r CROSS JOIN LATERAL jsonb_array_elements(${listSql("COALESCE(r.item->'ingredientSnapshot',r.item->'productSnapshot'->'ingredientSnapshot')")}) ingredient JOIN pos_stock_consumptions c ON c.business_id=$1 AND c.order_id::text=r.order_key AND c.line_id::text=r.item->>'id' AND c.stock_item_id::text=ingredient->>'stockItemId' WHERE ${period('r.issued_at')} AND (c.quantity IS DISTINCT FROM ${quantitySql("ingredient->>'quantity'")}*${quantitySql("r.item->>'quantity'")} OR c.cost_minor<>round(c.quantity*c.unit_cost_minor)))::text AS cost_reconciliation_exceptions,
    (SELECT count(*) FROM receipt_items r JOIN pos_stock_consumptions c ON c.business_id=$1 AND c.order_id::text=r.order_key AND c.line_id::text=r.item->>'id' WHERE ${period('r.issued_at')} AND c.unit_cost_minor=0)::text AS zero_cost_consumptions,
    (SELECT count(*) FROM business_expenses e WHERE e.business_id=$1 AND e.status='DRAFT' AND ${period('e.occurred_at')})::text AS draft_expenses,
    (SELECT count(*) FROM pos_orders o WHERE o.business_id=$1 AND o.state IN ('OPEN','FIRED') AND o.created_at<(($3::date+1) AT TIME ZONE $4) AND EXISTS(SELECT 1 FROM pos_stock_consumptions c WHERE c.business_id=o.business_id AND c.order_id=o.id))::text AS unissued_preparation,
    (SELECT count(*) FROM business_expenses e LEFT JOIN business_expense_journals j ON j.business_id=e.business_id AND j.expense_id=e.id WHERE e.business_id=$1 AND e.status='POSTED' AND ${period('e.occurred_at')} AND (j.id IS NULL OR j.amount_minor<>e.amount_minor))::text AS expense_journal_exceptions,
    (SELECT COALESCE(sum(l.credit_minor-l.debit_minor),0) FROM financial_journals j JOIN financial_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id WHERE j.business_id=$1 AND ${period('j.occurred_at')} AND l.account_code='REVENUE_SALES')::text AS pos_journal_revenue,
    (SELECT COALESCE(sum(l.credit_minor-l.debit_minor),0) FROM business_hospitality_journals j JOIN business_hospitality_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id WHERE j.business_id=$1 AND ${period('j.occurred_at')} AND l.account_code='REVENUE_SALES')::text AS room_charge_journal_revenue,
+   (SELECT COALESCE(sum(${moneySql("d.snapshot->>'discountTotalMinor'")}),0) FROM receipts d WHERE ${period('d.issued_at')})::text AS issued_discount_minor,
    statement_timestamp() AS generated_at`,params);
   const control=Object.fromEntries(Object.entries(controls.rows[0]).filter(([key])=>key!=='generated_at').map(([key,value])=>[key,integer(value)]));
   const lines=totals.rows.map(row=>({section:row.section,accountCode:row.account_code,department:row.department,category:row.category,sourceCount:integer(row.source_count),unknownCount:integer(row.unknown_count),amountMinor:integer(row.amount_minor)}));
@@ -142,20 +146,21 @@ export async function profitAndLoss(pool,businessId,from,to){
   warn('REISSUED_BILLS',control.subsequent_receipts,'An order has additional issued receipts. Only its original bill is recognised; review later changes.',true);
   warn('UNKNOWN_RECIPE',control.unknown_recipes,'Historical recipe evidence is missing; inventory costs cannot be assumed to be zero.',true);
   warn('MISSING_CONSUMPTION',control.missing_consumptions,'Issued ingredient snapshots lack matching sale-time consumption evidence.',true);
+  warn('COST_RECONCILIATION',control.cost_reconciliation_exceptions,'Issued quantities, ingredient usage and immutable sale-time costs require reconciliation.',true);
   warn('ZERO_COST_REVIEW',control.zero_cost_consumptions,'Zero sale-time inventory costs require review before a supported margin is shown.',true);
   warn('UNPRICED_COST',lines.reduce((n,line)=>n+line.unknownCount,0),'Some inventory costs lack historical valuation evidence. Their amounts are excluded, not treated as zero.');
   warn('DRAFT_EXPENSES',control.draft_expenses,'Expense drafts are excluded until authorised posting.');
-  warn('UNISSUED_PREPARATION',control.unissued_preparation,'Prepared open orders are excluded from issued-sales revenue and COGS; review their period allocation.');
+  warn('UNISSUED_PREPARATION',control.unissued_preparation,'Prepared open orders are excluded from issued-sales revenue and COGS; review their period allocation.',true);
   warn('EXPENSE_JOURNAL_EXCEPTION',control.expense_journal_exceptions,'Posted expense sources and journals do not reconcile.');
   coverage.push({code:'ACCOUNTING_COVERAGE',count:null,message:'Hotel direct costs, depreciation, financing, payroll/accrual completeness and closing adjustments are not certified. Whole-business profit and tax remain unavailable.',blocksPosMargin:false});
   coverage.push({code:'HOTEL_SERVICE_PERIOD',count:null,message:'Accommodation follows existing folio charge journals, including booked periods charged upfront. Deferred revenue and service-period allocation require an approved policy; this is not a certified accrual statement.',blocksPosMargin:false});
   const posGrossProfitMinor=coverage.some(issue=>issue.blocksPosMargin)?null:add(posNetRevenueMinor,-cogsMinor);
   return {reportVersion:1,from,to,timeZone:params[3],currency:'KES',generatedAt:controls.rows[0].generated_at.toISOString(),status:'INCOMPLETE',periodStatus:'NOT_CLOSED',basis:'ISSUED_POS_BILLS_AND_FOLIO_ACCRUAL',
-   totals:{posSalesBeforeReturnsMinor:salesMinor,salesReturnsMinor:returnsMinor,posNetRevenueMinor,netRevenueMinor,recordedPosCogsMinor:cogsMinor,postedOperatingExpensesMinor:operatingExpensesMinor,posGrossProfitMinor,grossProfitMinor:null,operatingProfitMinor:null,profitBeforeTaxMinor:null,taxMinor:null,netProfitMinor:null},
+   totals:{posSalesBeforeReturnsMinor:salesMinor,posSalesDiscountsMinor:control.issued_discount_minor,salesReturnsMinor:returnsMinor,posNetRevenueMinor,netRevenueMinor,recordedPosCogsMinor:cogsMinor,postedOperatingExpensesMinor:operatingExpensesMinor,posGrossProfitMinor,grossProfitMinor:null,operatingProfitMinor:null,profitBeforeTaxMinor:null,taxMinor:null,netProfitMinor:null},
    lines,coverage,sourceCount:lines.reduce((count,line)=>count+line.sourceCount,0),
    reconciliation:{posRevenueJournalMinor:add(control.pos_journal_revenue,control.room_charge_journal_revenue),issuedPosNetRevenueMinor:posNetRevenueMinor,timingDifferenceMinor:add(posNetRevenueMinor,-add(control.pos_journal_revenue,control.room_charge_journal_revenue)),note:'POS journal revenue is posted on tender/credit/room charge; this statement recognises the original issued bill. Timing differences require a reviewed bridge, not an automatic adjustment.'},
    definitions:[
-    {key:'REVENUE_SALES',label:'Issued POS sales',basis:'Original immutable receipt item net amounts; configured VAT and levy excluded. Department follows the issued station snapshot, not today\'s catalogue.'},
+    {key:'REVENUE_SALES',label:'Issued POS sales',basis:'Original immutable receipt item net amounts, already reduced by issued discounts; configured VAT and levy excluded. Department follows the issued station snapshot, not today\'s catalogue.'},
     {key:'REVENUE_SALES_RETURN',label:'Sales returns',basis:'Original revenue debit journals and POS room-charge reversals, only after an issued bill exists. Returns are not re-applied from mutable refunded order totals.'},
     {key:'EXPENSE_POS_COGS',label:'POS cost of sales',basis:'Immutable ingredient consumption cost recognised with the issued bill; documented unopened returns reverse original cost at return time. Refunds alone do not restore stock.'},
     {key:'REVENUE_ACCOMMODATION',label:'Accommodation revenue',basis:'Folio accrual revenue journal lines, excluding tax, tender collections and deposits.'},
@@ -169,11 +174,41 @@ export async function profitAndLoss(pool,businessId,from,to){
 export async function profitAndLossSources(pool,businessId,from,to,{section='ALL',before=null,limit=50}={}){
  if(!['ALL','REVENUE','RETURNS','COGS','OPERATING_EXPENSES'].includes(section)||!Number.isInteger(limit)||limit<1||limit>100)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a supported statement section and page size.');
  let cursor=null;
- if(before){try{cursor=JSON.parse(Buffer.from(before,'base64url').toString('utf8'));if(typeof cursor.at!=='string'||!Number.isFinite(Date.parse(cursor.at))||typeof cursor.key!=='string'||cursor.key.length>250||cursor.from!==from||cursor.to!==to||cursor.section!==section)throw new Error()}catch{throw new ApiProblem(400,'VALIDATION_FAILED','The source cursor is invalid for this report.');}}
+ if(before){try{if(typeof before!=='string'||before.length>1024)throw new Error();cursor=JSON.parse(Buffer.from(before,'base64url').toString('utf8'));if(typeof cursor.at!=='string'||!Number.isFinite(Date.parse(cursor.at))||typeof cursor.key!=='string'||cursor.key.length>250||cursor.from!==from||cursor.to!==to||cursor.section!==section)throw new Error()}catch{throw new ApiProblem(400,'VALIDATION_FAILED','The source cursor is invalid for this report.');}}
  return read(pool,async db=>{
   const params=await parameters(db,businessId,from,to);
   const result=await db.query(`${statementCte} SELECT source_key,occurred_at,section,account_code,department,reference,description,amount_minor::text,collection,record_id,document_id,category FROM source_lines WHERE ($5='ALL' OR section=$5) AND ($6::timestamptz IS NULL OR (occurred_at,source_key)<($6::timestamptz,$7::text)) ORDER BY occurred_at DESC,source_key DESC LIMIT $8`,[...params,section,cursor?.at??null,cursor?.key??null,limit+1]);
   const hasMore=result.rows.length>limit,rows=result.rows.slice(0,limit),last=rows.at(-1);
   return {from,to,timeZone:params[3],currency:'KES',section,items:rows.map(row=>({sourceKey:row.source_key,occurredAt:row.occurred_at.toISOString(),section:row.section,accountCode:row.account_code,department:row.department,reference:row.reference,description:row.description,amountMinor:row.amount_minor===null?null:integer(row.amount_minor),collection:row.collection,recordId:row.record_id,documentId:row.document_id,category:row.category})),hasMore,nextCursor:hasMore?Buffer.from(JSON.stringify({at:last.occurred_at.toISOString(),key:last.source_key,from,to,section})).toString('base64url'):null};
+ });
+}
+
+export async function profitAndLossSource(pool,businessId,from,to,key){
+ if(typeof key!=='string'||key.length<1||key.length>250)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a statement source.');
+ return read(pool,async db=>{
+  const params=await parameters(db,businessId,from,to);
+  // Membership is proved against the same business/period definition as totals.
+  // A guessed record ID cannot expose a document from another business or report.
+  const matching=await db.query(`${statementCte} SELECT source_key,occurred_at,section,account_code,department,reference,description,amount_minor::text,collection,record_id,document_id,category FROM source_lines WHERE source_key=$5`,[...params,key]);
+  const row=matching.rows[0];if(!row)throw new ApiProblem(404,'RESOURCE_NOT_FOUND','This source does not belong to the selected business statement. Refresh the statement before reviewing it.');
+  const source={sourceKey:row.source_key,occurredAt:row.occurred_at.toISOString(),section:row.section,accountCode:row.account_code,department:row.department,reference:row.reference,description:row.description,amountMinor:row.amount_minor===null?null:integer(row.amount_minor),collection:row.collection,recordId:row.record_id,documentId:row.document_id,category:row.category};
+  let document=null;
+  if(row.document_id){const docs=await db.query(`SELECT id,document_type AS type,document_number AS "documentNumber",layout_version AS "layoutVersion",snapshot_hash AS hash,snapshot,issued_at AS "issuedAt" FROM business_documents WHERE business_id=$1 AND id=$2`,[businessId,row.document_id]);if(docs.rows[0])document={...docs.rows[0],issuedAt:docs.rows[0].issuedAt.toISOString()};}
+  const journalLines=[];
+  if(row.collection==='journalEntries'){
+   const lines=await db.query('SELECT account_code,debit_minor::text,credit_minor::text FROM financial_journal_lines WHERE business_id=$1 AND journal_id=$2 ORDER BY line_number',[businessId,row.record_id]);journalLines.push(...lines.rows);
+  }else if(row.collection==='hospitalityJournalEntries'){
+   const lines=await db.query('SELECT account_code,debit_minor::text,credit_minor::text FROM business_hospitality_journal_lines WHERE business_id=$1 AND journal_id=$2 ORDER BY line_number',[businessId,row.record_id]);journalLines.push(...lines.rows);
+  }else if(row.collection==='expenses'){
+   const lines=await db.query('SELECT l.account_code,l.debit_minor::text,l.credit_minor::text FROM business_expense_journals j JOIN business_expense_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id WHERE j.business_id=$1 AND j.expense_id=$2 ORDER BY l.line_number',[businessId,row.record_id]);journalLines.push(...lines.rows);
+  }else if(row.collection==='businessDocuments'){
+   const lines=await db.query(`SELECT l.account_code,sum(l.debit_minor)::text AS debit_minor,sum(l.credit_minor)::text AS credit_minor FROM financial_journals j JOIN financial_journal_lines l ON l.business_id=j.business_id AND l.journal_id=j.id LEFT JOIN order_payments p ON p.business_id=j.business_id AND p.id=j.payment_id LEFT JOIN customer_credit_entries c ON c.business_id=j.business_id AND c.id=j.customer_credit_entry_id WHERE j.business_id=$1 AND COALESCE(p.order_id,c.order_id)::text=(SELECT snapshot->>'orderId' FROM business_documents WHERE business_id=$1 AND id=$2) GROUP BY l.account_code ORDER BY l.account_code`,[businessId,row.record_id]);journalLines.push(...lines.rows);
+  }
+  let inventory=null;
+  if(row.collection==='stockMovements'){
+   const movements=await db.query(`SELECT m.movement_type,m.quantity_delta::text,m.reason,s.name,s.base_unit,e.average_unit_cost_minor::text AS unit_cost_minor,e.before_state,e.after_state FROM inventory_movements m JOIN stock_items s ON s.business_id=m.business_id AND s.id=m.stock_item_id LEFT JOIN inventory_movement_states e ON e.business_id=m.business_id AND e.movement_id=m.id WHERE m.business_id=$1 AND m.id=$2`,[businessId,row.record_id]);
+   const m=movements.rows[0];if(m)inventory={itemName:m.name,baseUnit:m.base_unit,movementType:m.movement_type,quantityDelta:m.quantity_delta,unitCostMinor:m.unit_cost_minor??null,reason:m.reason,before:m.before_state??null,after:m.after_state??null};
+  }
+  return {source,document,inventory,journalLines:journalLines.map(line=>({accountCode:line.account_code,debitMinor:integer(line.debit_minor),creditMinor:integer(line.credit_minor)})),generatedAt:new Date().toISOString(),journalScope:row.collection==='businessDocuments'?'ALL_POSTINGS_FOR_ORDER':'SOURCE_JOURNAL'};
  });
 }

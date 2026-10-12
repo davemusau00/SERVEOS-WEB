@@ -70,7 +70,7 @@ export function TicketsInbox({records,session,store,command,disabled,queue,focus
  const tickets=records.filter(row=>row.collection==='posTickets'&&(allowed(session,'ticket.view_outlet')||allowed(session,'ticket.approve')||row.data.createdByStaffId===session.actorId));
  const pending=queue.some(row=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(row.state)&&row.command.payload.ticketId===ticketId);
  const button='min-h-11 rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
- return <section aria-label="Waiter tickets" className="space-y-4">
+ return <section aria-label="Waiter tickets" data-guide-anchor="pos.tickets" className="space-y-4">
   <h2 className="text-xl font-bold">Tickets ({tickets.filter(row=>['SUBMITTED','NEEDS_REVIEW'].includes(String(row.data.status))).length})</h2>
   {allowed(session,'business.configure')&&<button className={button} disabled={disabled||busy||!navigator.onLine} onClick={()=>void command('pos.checkoutEnroll','posTickets',session.businessId,{outletId,deviceId:store.deviceId}).then(result=>setMessage(result.kind==='CONFIRMED'?'This device is enrolled as the checkout terminal.':'message' in result?result.message:'Enrollment pending; check Activity.'))}>Enroll this checkout device for selected outlet</button>}
   {allowed(session,'ticket.create')&&<form className="space-y-2 rounded-xl border border-slate-700 p-3" onSubmit={event=>{event.preventDefault();void send();}}>

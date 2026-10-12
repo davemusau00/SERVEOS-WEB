@@ -478,7 +478,7 @@ export function WebBusinessApp({initialSession,onSignOut,apiAuth,apiStore}:{init
  {ready&&tab==='Housekeeping'&&<WebHousekeepingView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Maintenance'&&<WebMaintenanceView records={records} session={session} disabled={disabled} command={submit}/>}
  {ready&&tab==='Floorplan'&&<WebFloorplanView records={records} session={session} disabled={disabled} command={submit}/>}
-  {ready&&tab==='Rooms'&&<WebApiRoomsView records={records} session={session} disabled={disabled} command={submit} client={apiAuth.client}/>} 
+  {ready&&tab==='Rooms'&&<WebApiRoomsView records={records} session={session} disabled={disabled} command={submit} client={apiAuth.client} queue={queue} onNavigate={next=>setTab(next)}/>} 
   {ready&&tab==='Assets'&&<WebApiFinanceAssets records={records} session={session} disabled={disabled} command={submit} client={apiAuth.client} deviceId={store.current?.deviceId||''} initialView="ASSETS"/>}
   
  {ready&&tab==='Settings'&&allowed(session,'business.configure')&&<WebApiSettings records={records} session={session} disabled={disabled||queue.some(entry=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(entry.state)&&['business.settings.save','till.policy.save','paymentAccount.save','outlet.save'].includes(entry.command.operation))} command={submit}/>}

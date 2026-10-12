@@ -19,10 +19,11 @@ function matchesPayload(value:unknown,step:GuideStep):boolean {
  return Object.values(record).some(item=>matchesPayload(item,step));
 }
 function savedState(guide:GuideDefinition,progress:WebGuidanceProgress|undefined){
- const valid=progress?.guideVersion===guide.version&&progress.guideId===guide.id;
- const storedCompleted=Array.isArray(progress?.completedStepIds)?progress.completedStepIds:[];
+ const valid=Boolean(progress&&progress.guideVersion===guide.version&&progress.guideId===guide.id);
+ const storedCompleted=Array.isArray(progress?.completedStepIds)?progress?.completedStepIds||[]:[];
  const completed=valid?guide.steps.filter(step=>storedCompleted.includes(step.id)).map(step=>step.id):[];
- const index=valid&&progress?.state==='COMPLETED'&&completed.length===guide.steps.length?guide.steps.length:valid&&progress?.currentStepId?guide.steps.findIndex(step=>step.id===progress.currentStepId):0;
+ const currentStepId=progress?.currentStepId;
+ const index=valid&&progress?.state==='COMPLETED'&&completed.length===guide.steps.length?guide.steps.length:valid&&currentStepId?guide.steps.findIndex(step=>step.id===currentStepId):0;
  return {index:index>=0?index:0,completed};
 }
 
@@ -36,6 +37,7 @@ export function WebGuidedTour(props:Props){
 function GuidedTask({guide,localProgress=false,permissions=[],availableWorkspaces,committedOperation,onClose,progress,onProgress,onNavigate,onOpenHelp}:Props&{guide:GuideDefinition}){
  const [state,setState]=useState(()=>savedState(guide,progress));
  const [retry,setRetry]=useState(0);const [summary,setSummary]=useState(false);
+ const [viewport,setViewport]=useState(()=>({height:window.visualViewport?.height||window.innerHeight,top:window.visualViewport?.offsetTop||0,width:window.visualViewport?.width||window.innerWidth}));
  const current=guide.steps[state.index];const complete=state.completed.length===guide.steps.length;
  const callbacks=useRef({onClose,onProgress,onNavigate,onOpenHelp});callbacks.current={onClose,onProgress,onNavigate,onOpenHelp};
  const stateRef=useRef(state);stateRef.current=state;
@@ -57,6 +59,11 @@ function GuidedTask({guide,localProgress=false,permissions=[],availableWorkspace
  useEffect(()=>{
   originalFocus.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
   return()=>{const element=originalFocus.current;if(element&&visibleGuideTarget(element))element.focus({preventScroll:true});};
+ },[]);
+ useEffect(()=>{
+  const update=()=>setViewport({height:window.visualViewport?.height||window.innerHeight,top:window.visualViewport?.offsetTop||0,width:window.visualViewport?.width||window.innerWidth});
+  window.addEventListener('resize',update);window.visualViewport?.addEventListener('resize',update);window.visualViewport?.addEventListener('scroll',update);
+  return()=>{window.removeEventListener('resize',update);window.visualViewport?.removeEventListener('resize',update);window.visualViewport?.removeEventListener('scroll',update);};
  },[]);
  useEffect(()=>{heading.current?.focus({preventScroll:true});},[state.index,summary]);
  useEffect(()=>{
@@ -82,10 +89,11 @@ function GuidedTask({guide,localProgress=false,permissions=[],availableWorkspace
   const finished=completed.length===guide.steps.length;
   if(next.index===guide.steps.length){setSummary(true);persist({...next,index:guide.steps.findIndex(item=>!completed.includes(item.id))},finished);}else persist(next);
  };
+ const advanceRef=useRef(advance);advanceRef.current=advance;
  useEffect(()=>{
   if(!committedOperation||seenCommit.current===committedOperation.id)return;
   seenCommit.current=committedOperation.id;
-  if(!summary&&allowed&&workspaceAllowed&&current?.successOperations?.includes(committedOperation.operation)&&matchesPayload(committedOperation.payload,current))advance(true);
+  if(!summary&&allowed&&workspaceAllowed&&current?.successOperations?.includes(committedOperation.operation)&&matchesPayload(committedOperation.payload,current))advanceRef.current(true);
  },[committedOperation,current,summary,allowed,workspaceAllowed]);
  const moveBack=()=>{interacted.current=true;const next={...stateRef.current,index:Math.max(0,stateRef.current.index-1)};stateRef.current=next;setState(next);setSummary(false);persist(next);};
  const restart=()=>{interacted.current=true;const next={index:0,completed:[]};stateRef.current=next;setState(next);setSummary(false);setRetry(value=>value+1);persist(next);};
@@ -94,11 +102,12 @@ function GuidedTask({guide,localProgress=false,permissions=[],availableWorkspace
  const openHelp=()=>{if(callbacks.current.onOpenHelp)callbacks.current.onOpenHelp(guide.id);else{callbacks.current.onNavigate?.('Help');callbacks.current.onClose();}};
  const missing=target.state==='MISSING';
  // Dock above the phone's application navigation. Move to the top when the target is low.
- const topDock=Boolean(target.rect&&target.rect.top>window.innerHeight*.5&&window.innerWidth<768);
+ const topDock=Boolean(target.rect&&target.rect.top>viewport.top+viewport.height*.5&&viewport.width<768);
+ const keyboardInset=Math.max(0,window.innerHeight-viewport.top-viewport.height);
  const skipped=guide.steps.filter(step=>!state.completed.includes(step.id));
  return <div className="pointer-events-none fixed inset-0 z-[60]">
   {target.rect&&target.state==='FOUND'&&!summary&&<div aria-hidden="true" className="fixed rounded-lg border-2 border-amber-300 shadow-[0_0_0_3px_rgba(15,23,42,.75)]" style={{top:Math.max(0,target.rect.top-3),left:Math.max(0,target.rect.left-3),width:target.rect.width+6,height:target.rect.height+6}}/>}
-  <section ref={dialog} role="dialog" aria-modal="false" aria-labelledby="servos-guide-heading" aria-describedby="servos-guide-description" className="pointer-events-auto fixed right-4 w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-amber-500/50 bg-slate-900 p-4 text-white shadow-2xl sm:p-5" style={{...(topDock?{top:'calc(1rem + env(safe-area-inset-top))'}:{bottom:'calc(5.5rem + env(safe-area-inset-bottom))'}),maxHeight:'calc(100dvh - 8rem - env(safe-area-inset-bottom))'}} onKeyDown={event=>{
+  <section ref={dialog} role="dialog" aria-modal="false" aria-labelledby="servos-guide-heading" aria-describedby="servos-guide-description" className="pointer-events-auto fixed right-4 w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-amber-500/50 bg-slate-900 p-4 text-white shadow-2xl sm:p-5" style={{...(topDock?{top:`calc(${viewport.top+16}px + env(safe-area-inset-top))`}:{bottom:`calc(max(5.5rem, ${keyboardInset+16}px) + env(safe-area-inset-bottom))`}),maxHeight:Math.max(120,viewport.height-112)}} onKeyDown={event=>{
    if(event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return;
    if(event.key==='ArrowLeft'){event.preventDefault();moveBack();}
    if(event.key==='ArrowRight'&&target.state!=='WAITING'&&target.state!=='MISSING'&&!current?.successOperations?.length&&!summary){event.preventDefault();advance();}

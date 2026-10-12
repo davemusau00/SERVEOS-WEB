@@ -14,6 +14,7 @@ const screenTabs:Record<string,string>={pos:'POS',inventory:'Inventory',catalog:
 const workspaceFor=(screen:string)=>screenTabs[screen.toLowerCase().replace(/[^a-z]/g,'')];
 const guideFor=(query:string)=>GUIDES.find(guide=>guide.id===query.trim()||guide.title.toLowerCase()===query.trim().toLowerCase());
 const initialArticle=(query:string)=>{const guide=guideFor(query);return (guide?articles.find(article=>article.guideId===guide.id):undefined)||(!guide?articles.find(article=>article.title.toLowerCase().includes(query.toLowerCase())):undefined);};
+const selectedInitially=(value:string)=>initialArticle(value)?.id||(guideFor(value)?`guide:${guideFor(value)!.id}`:articles[0]?.id)||'';
 const associatedGuide=(article:Article|undefined)=>{
  if(!article)return undefined;
  if(article.guideId)return GUIDES.find(guide=>guide.id===article.guideId);
@@ -25,7 +26,6 @@ const cleanStep=(value:string)=>value.replace(/^#{1,6}\s*/gm,'').replace(/\*\*/g
 
 export function WebHelpView({initialQuery='',permissions=[],availableWorkspaces,progress=[],onStartTour,onRestartGuide,onNavigate}:Props){
  const [query,setQuery]=useState(()=>guideFor(initialQuery)?'':initialQuery);
- const selectedInitially=(value:string)=>initialArticle(value)?.id||(guideFor(value)?`guide:${guideFor(value)!.id}`:articles[0]?.id)||'';
  const [selectedId,setSelectedId]=useState(()=>selectedInitially(initialQuery));
  useEffect(()=>{setQuery(guideFor(initialQuery)?'':initialQuery);setSelectedId(selectedInitially(initialQuery));},[initialQuery]);
  const results=useMemo(()=>{const value=query.trim().toLowerCase();return value?articles.filter(article=>[article.title,article.section,article.summary,article.guideId,...article.keywords].join(' ').toLowerCase().includes(value)):articles;},[query]);

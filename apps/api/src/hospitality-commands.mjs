@@ -20,7 +20,16 @@ const dayNumber=value=>{const [year,month,day]=String(value).split('-').map(Numb
 const iso=value=>value instanceof Date?value.toISOString():value;
 const advisory=(tx,businessId,key)=>tx.client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`${key}:${businessId}`]);
 const roomLock=(tx,businessId,id)=>advisory(tx,businessId,`room-booking:${id}`);
-const record=(collection,row)=>{const {archivedAt,...data}=row;return {collection,id:row.id,version:Number(row.version),archived:Boolean(archivedAt),data:{...data,version:Number(row.version)}}};
+const record=(collection,row)=>{
+ const {archivedAt,...data}=row;
+ for(const key of ['balanceMinor','depositMinor','amountMinor','taxMinor','netMinor','vatMinor','levyMinor','balanceDeltaMinor','depositDeltaMinor','cashTenderedMinor','changeMinor','receivedAmountMinor','priceMinor','taxBasisPoints','units','quotedAmountMinor','capacity','turnaroundMinutes','guests'])if(data[key]!==undefined&&data[key]!==null)data[key]=Number(data[key]);
+ if(collection==='folioEntries'){
+  data.reservationId=data.details?.reservationId??null;data.period=data.details?.period??null;
+  data.description=data.details?.description??data.details?.reason??data.kind;
+  data.grossMinor=Number(data.amountMinor);
+ }
+ return {collection,id:row.id,version:Number(row.version),archived:Boolean(archivedAt),data:{...data,version:Number(row.version)}};
+};
 
 const folioColumns=`id,reservation_id AS "reservationId",customer_id AS "customerId",currency,balance_minor AS "balanceMinor",deposit_minor AS "depositMinor",status,version,opened_at AS "openedAt",opened_by AS "openedBy",closed_at AS "closedAt",closed_by AS "closedBy"`;
 const stayColumns=`id,reservation_id AS "reservationId",room_id AS "roomId",customer_id AS "customerId",status,checked_in_at AS "checkedInAt",checked_in_by AS "checkedInBy",checked_out_at AS "checkedOutAt",checked_out_by AS "checkedOutBy",version,created_at AS "createdAt",updated_at AS "updatedAt"`;

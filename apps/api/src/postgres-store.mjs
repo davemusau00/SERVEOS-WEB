@@ -1,5 +1,5 @@
 import {offlineCashReconciliationProjections} from './offline-cash-v2.mjs';
-import {profitAndLoss,profitAndLossSources} from './management-profit-and-loss.mjs';
+import {profitAndLoss,profitAndLossSources,profitAndLossSource} from './management-profit-and-loss.mjs';
 import {randomUUID} from 'node:crypto';
 import {supplierCreditBalanceProjections,supplierCreditApplicationProjections} from './supplier-credit-application-projections.mjs';
 import {customerProjections} from './customer-commands.mjs';
@@ -44,6 +44,7 @@ export class PostgresStore {
 
   async profitAndLoss(businessId,from,to){return profitAndLoss(this.pool,businessId,from,to);}
   async profitAndLossSources(businessId,from,to,options){return profitAndLossSources(this.pool,businessId,from,to,options);}
+  async profitAndLossSource(businessId,from,to,key){return profitAndLossSource(this.pool,businessId,from,to,key);}
 
   async transaction(work) {
     const client = await this.pool.connect();

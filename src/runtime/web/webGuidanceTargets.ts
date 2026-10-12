@@ -22,7 +22,7 @@ export function useGuideTarget(step:GuideStep|undefined,retry:number,enabled:boo
  const [target,setTarget]=useState<GuideTarget>(empty);
  useEffect(()=>{
   if(!enabled||!step?.target){setTarget(empty);return;}
-  const anchors=[step.target,...step.alternateTargets||[]];
+  const anchors=[step.target,...(step.alternateTargets||[])];
   let active=true,frame=0,expired=false,scrolled:HTMLElement|null=null;
   const locate=()=>{
    frame=0;if(!active)return;

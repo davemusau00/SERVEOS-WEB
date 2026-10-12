@@ -13,7 +13,7 @@ export interface ApiFinanceSummary {from:string;to:string;timeZone:string;curren
 export type ApiStatementSection='REVENUE'|'RETURNS'|'COGS'|'OPERATING_EXPENSES';
 export interface ApiProfitAndLoss {
  reportVersion:1;from:string;to:string;timeZone:string;currency:'KES';generatedAt:string;status:'INCOMPLETE';periodStatus:'NOT_CLOSED';basis:'ISSUED_POS_BILLS_AND_FOLIO_ACCRUAL';
- totals:{posSalesBeforeReturnsMinor:number;salesReturnsMinor:number;posNetRevenueMinor:number;netRevenueMinor:number;recordedPosCogsMinor:number;postedOperatingExpensesMinor:number;posGrossProfitMinor:number|null;grossProfitMinor:null;operatingProfitMinor:null;profitBeforeTaxMinor:null;taxMinor:null;netProfitMinor:null};
+ totals:{posSalesBeforeReturnsMinor:number;posSalesDiscountsMinor:number;salesReturnsMinor:number;posNetRevenueMinor:number;netRevenueMinor:number;recordedPosCogsMinor:number;postedOperatingExpensesMinor:number;posGrossProfitMinor:number|null;grossProfitMinor:null;operatingProfitMinor:null;profitBeforeTaxMinor:null;taxMinor:null;netProfitMinor:null};
  lines:Array<{section:ApiStatementSection;accountCode:string;department:string;category:string|null;sourceCount:number;unknownCount:number;amountMinor:number}>;
  coverage:Array<{code:string;count:number|null;message:string;blocksPosMargin:boolean}>;sourceCount:number;
  reconciliation:{posRevenueJournalMinor:number;issuedPosNetRevenueMinor:number;timingDifferenceMinor:number;note:string};
@@ -21,6 +21,7 @@ export interface ApiProfitAndLoss {
 }
 export interface ApiStatementSource {sourceKey:string;occurredAt:string;section:ApiStatementSection;accountCode:string;department:string;reference:string;description:string;amountMinor:number|null;collection:string;recordId:string;documentId:string|null;category:string|null}
 export interface ApiStatementSourcePage {from:string;to:string;timeZone:string;currency:'KES';section:ApiStatementSection|'ALL';items:ApiStatementSource[];hasMore:boolean;nextCursor:string|null}
+export interface ApiStatementSourceDetail {source:ApiStatementSource;document:{id:string;type:string;documentNumber:string;layoutVersion:number;hash:string;snapshot:Record<string,unknown>;issuedAt:string}|null;inventory:{itemName:string;baseUnit:string;movementType:string;quantityDelta:string;unitCostMinor:string|null;reason:string;before:Record<string,unknown>|null;after:Record<string,unknown>|null}|null;journalLines:Array<{accountCode:string;debitMinor:number;creditMinor:number}>;generatedAt:string;journalScope:'ALL_POSTINGS_FOR_ORDER'|'SOURCE_JOURNAL'}
 export interface ApiImportTemplate {key:string;label:string;headers:string[];required:string[];permission:string;permissions:string[];importable:boolean;examples?:string[][]}
 export interface ApiImportRow {rowNumber:number;status:'VALID'|'INVALID';externalId:string|null;normalized:Record<string,string>;errors:string[];warnings:string[]}
 export interface ApiImportPlanStep {rowNumber:number;action:'CREATE'|'BLOCKED'|'CONFLICT';status:'PLANNED'|'BLOCKED'|'CONFLICT'|'APPLIED'|'FAILED';operation:string|null;targetCollection:string|null;targetId:string|null;reason:string;error:string|null}
@@ -123,6 +124,7 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   financeSummary(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiFinanceSummary>(`/v1/finance/summary?${query}`)},
   profitAndLoss(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiProfitAndLoss>(`/v1/finance/profit-and-loss?${query}`)},
   profitAndLossSources(from:string,to:string,{section='ALL',before,limit=50}:{section?:ApiStatementSection|'ALL';before?:string|null;limit?:number}={}){const query=new URLSearchParams({from,to,section,limit:String(limit)});if(before)query.set('before',before);return request<ApiStatementSourcePage>(`/v1/finance/profit-and-loss/sources?${query}`)},
+  profitAndLossSource(from:string,to:string,key:string){const query=new URLSearchParams({from,to,key});return request<ApiStatementSourceDetail>(`/v1/finance/profit-and-loss/source?${query}`)},
   roomAvailability(startsAt:string,endsAt:string,guests:number){const query=new URLSearchParams({startsAt,endsAt,guests:String(guests)});return request<{rooms:Array<{id:string;number:string;roomTypeId:string;capacity:number;housekeepingState:string;maintenanceState:string}>}>(`/v1/hospitality/availability?${query}`)},
   bootstrapCatalog(snapshotId?:string){return request<ApiCatalogBootstrapManifest>(snapshotId?`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}`:'/v1/bootstrap/catalog')},
   bootstrapCatalogPage(snapshotId:string,after:number){return request<ApiCatalogBootstrapPage>(`/v1/bootstrap/catalog/${encodeURIComponent(snapshotId)}/pages?after=${encodeURIComponent(after)}`)},
