@@ -32,4 +32,4 @@ The primary `WebBusinessApp` navigation already grants Settings to `business.con
 
 ## Acceptance status
 
-Implementation is complete for the navigation metadata and device-access focus fix. Lint, focused browser acceptance and the complete release gate are recorded in the dated sprint/evidence documents after execution. Production approval, backup/restore, staging, and deployment remain separate gates; this audit authorizes no live change.
+Implementation is complete for the navigation metadata and device-access focus fix. The full `npm run verify:release` gate passed on 2026-10-12: production browser acceptance passed 71 tests with one configured mobile skip; the UI audit gate inventoried 2,231 interactions and 318 heuristic candidates; architecture and documentation checks passed. The live server was only inspected read-only in the subsequent deployment preflight. Physical printer validation, authenticated HTTPS staging, backup/restore proof, and live deployment remain separate gates; no live change was made.

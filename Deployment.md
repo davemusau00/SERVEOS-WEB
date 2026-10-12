@@ -214,3 +214,11 @@ This is development and disposable-local-test scope only. A passing local gate i
 
 See [the settings and configuration surface audit](docs/sprint/pos2-settings-configuration-audit-20261012.md) for the confirmed workspace map, deliberate configuration boundaries, and the fixed Settings permission metadata mismatch. No live resources or business data were changed.
 
+## Live update authorization and preflight — 2026-10-12
+
+The operator later authorized pushing the POS 2.0 completion and notification updates to the live SERVEOS server. This supersedes the earlier feature-branch-only boundary, but it does not waive the backup, terminal reconciliation, authenticated staging, and data-safe cutover gates above. The current deployment attempt and evidence are appended to [the dated deployment log](docs/deployment-evidence/2026-10-12.md).
+
+The complete local release gate passed on branch `feat/pos2-cashier-tickets-offline`, source SHA `3da90cdbb48795b3caf185b1743cb20ff21708af`. Read-only preflight confirmed the SERVEOS routes already point to the isolated `serveos-replacement` API on loopback port 3104 and its replacement database. The active database has one open till and one open order; the current terminal IndexedDB state is unverified. Nginx has no controlled HTTPS staging origin for authenticated candidate acceptance. The current-run encrypted off-host backup and independent restore proof are also absent.
+
+**Current deployment state: `LOCAL_RELEASE_VERIFIED`; live update is blocked before staging or mutation.** Do not migrate/restart the active API, change live routes, or enable the candidate until the open till/order are safely closed, terminals and offline evidence are reconciled, a recoverable current backup/restore is proven, and the candidate passes authenticated staging. Preserve the active replacement database and all historical SERVEOS resources. The explicit live-update authorization remains valid once those gates are satisfied; no second approval is needed unless the maintenance time or data mode changes.
+

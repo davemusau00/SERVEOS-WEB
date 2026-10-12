@@ -1,17 +1,18 @@
 {
   "schemaVersion": 2,
   "generatedBy": "npm run audit:ui",
-  "sourceDigest": "b94a3c6f9be599da7b2219526024e514f4451f0d3b9d1cb1bc967f5cf4c3c9b4",
+  "sourceDigest": "604dc956e1c1416d6c8fb2fde8d28b499752e6595d587e8104ef5aacfb87140a",
   "scope": "Compact tracked summary; full static signals are a CI artifact and do not imply acceptance",
-  "interactionCount": 2191,
-  "findingCount": 314,
+  "interactionCount": 2231,
+  "findingCount": 318,
   "findingSummary": {
     "business-time-input": 9,
     "custom-overlay-review": 1,
     "dialog-accessibility-review": 10,
-    "disabled-action-explanation-review": 234,
+    "disabled-action-explanation-review": 237,
     "disabled-action-visibility": 51,
-    "excessive-required-fields": 9
+    "excessive-required-fields": 9,
+    "raw-technical-error-review": 1
   },
   "fullArtifact": "artifacts/ui-audit/OPERATOR_UX_AUDIT.full.json"
 }
