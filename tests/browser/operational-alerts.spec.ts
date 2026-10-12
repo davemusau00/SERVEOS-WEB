@@ -28,7 +28,7 @@ for(const role of ['waiter','cashier','preparation','manager'] as const){
   if(url.pathname==='/v1/devices/enroll'){deviceId=JSON.parse(request.postData()||'{}').deviceId;return respond({deviceId,businessId,createdAt:new Date().toISOString()},201);}
   const bootstrapRecords=[
    {collection:'outlets',id:outletId,version:1,data:{name:'Dining',defaultStockLocationId:stockId},archived:false},
-   {collection:'products',id:productId,version:1,data:{name:'Coffee',priceMinor:90000,category:'Drinks',routeTo:'COUNTER'},archived:false},
+   {collection:'products',id:productId,version:1,data:{name:'Coffee',priceMinor:90000,category:'Drinks',routeTo:'COUNTER',barcode:'COFFEE1234'},archived:false},
    {collection:'posTickets',id:ticketId,version:2,data:{createdByStaffId:staffId,outletId,status:'APPROVED',payload:{name:'Table 4',lines:[]},approvalOrderId:orderId,submittedAt:new Date().toISOString()},archived:false},
    {collection:'orders',id:orderId,version:1,data:{name:'Table 4',outletId,state:'COMPLETED',grandTotalMinor:90000,amountPaidMinor:90000,items:[]},archived:false}
   ];
@@ -61,10 +61,17 @@ for(const role of ['waiter','cashier','preparation','manager'] as const){
  const expected=role==='waiter'?'Orders':role==='cashier'?'Sale':role==='preparation'?'Preparation':'Overview';await expect(nav.getByRole('button',{name:expected,exact:true})).toBeVisible();
  await nav.getByRole('button',{name:'Alerts (1)'}).click();const inbox=page.getByRole('dialog',{name:'Operational alerts'});await expect(inbox).toBeVisible();await expect(inbox).toContainText('Reading an alert does not approve');await expect(inbox.getByRole('button',{name:'Enable alerts',exact:true})).toBeDisabled();await inbox.getByRole('button',{name:'Close',exact:true}).click();
  await nav.getByRole('button',{name:'More',exact:true}).click();const more=page.getByRole('dialog',{name:'All permitted workspaces'});await expect(more.getByRole('button',{name:'Activity & sync',exact:true})).toBeVisible();await more.getByRole('button',{name:'Close More'}).click();
+ if(role==='cashier'){
+  await nav.getByRole('button',{name:'Sale',exact:true}).click();await page.getByRole('button',{name:/Coffee/}).click();await page.getByRole('button',{name:/Coffee/}).click();await expect(page.getByLabel('Current bill')).toContainText('KES 1,800.00');
+  await nav.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('dialog',{name:'All permitted workspaces'}).getByRole('button',{name:'Catalog',exact:true}).click();await page.keyboard.type('COFFEE1234',{delay:1});await page.keyboard.press('Enter');
+  await nav.getByRole('button',{name:'Sale',exact:true}).click();await expect(page.getByLabel('Current bill')).toContainText('KES 1,800.00');expect(calls).toHaveLength(0);
+ }
  if(role==='waiter'){
+
   await nav.getByRole('button',{name:'Orders',exact:true}).click();await page.getByText('Send M-Pesa reference',{exact:true}).click();await page.getByLabel('Transaction code',{exact:true}).fill('QAZ1234567');await page.getByLabel('Claimed amount (KES)',{exact:true}).fill('900.25');await page.getByLabel('Received time (Nairobi)',{exact:true}).fill('2026-10-12T12:30');
   const form=page.locator('details form');await form.getByRole('button',{name:'Send to cashier',exact:true}).click();await expect(page.getByText('Sent to cashier for verification. Payment is not confirmed.',{exact:true})).toBeVisible();expect(calls).toHaveLength(1);expect(calls[0].name).toBe('mpesaReference.submit');expect(calls[0].payload.amountMinor).toBe(90025);expect(calls[0].payload.receivedAt).toBe('2026-10-12T09:30:00.000Z');
  }
+ for(const viewport of [{width:1024,height:768},{width:1366,height:768},{width:390,height:844}]){await page.setViewportSize(viewport);expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);}
  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
  });
 }

@@ -41,7 +41,7 @@ self.addEventListener('activate',event=>event.waitUntil(self.clients.matchAll({t
 self.addEventListener('push',event=>event.waitUntil((async()=>{
  let data;try{data=event.data?.json()}catch{return}
  if(!data||typeof data.eventId!=='string'||!/^[a-f0-9-]{36}$/i.test(data.eventId))return;
- await self.registration.showNotification('ServOS operational alert',{body:'Open ServOS to review an operational update.',tag:'servos-'+data.eventId,data:{eventId:data.eventId},icon:'/icon.svg'});
+ await self.registration.showNotification('ServOS operational alert',{body:'Open ServOS to review an operational update.',tag:'servos-'+data.eventId,data:{eventId:data.eventId},icon:'/icons/servos-192.svg'});
 })()));
 self.addEventListener('notificationclick',event=>{
  event.notification.close();event.waitUntil((async()=>{
