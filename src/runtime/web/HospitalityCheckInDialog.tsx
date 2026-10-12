@@ -1,4 +1,4 @@
-import React,{useRef,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import {Dialog,FormField} from '../../design-system/controls';
 import {ds} from '../../design-system/tokens';
 import {parseMoneyToMinor} from '../../utils/fiscal';
@@ -30,8 +30,9 @@ export function HospitalityCheckInDialog({reservation,records,session,deviceId,q
  const folio=active(records,'folios').find(r=>r.id===current.id),stay=active(records,'stays').find(r=>r.id===current.id);
  const accounts=active(records,'paymentAccounts').filter(r=>r.data.method==='CASH'&&r.data.currency==='KES');
  const till=active(records,'tillSessions').find(r=>r.data.status==='OPEN'&&r.data.operatorId===session.actorId&&r.data.deviceId===deviceId);
- const [accountId,setAccountId]=useState(accounts[0]?.id||''),[cash,setCash]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[held,setHeld]=useState(false);
+ const [accountId,setAccountId]=useState(accounts[0]?.id||''),[cash,setCash]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[held,setHeld]=useState(false),[awaitingId,setAwaitingId]=useState('');
  const inFlight=useRef(false),submitted=useRef(false);
+ useEffect(()=>{if(!awaitingId)return;const original=queue.find(r=>r.id===awaitingId);if(!original)return;if(original.state==='SYNCHRONIZED'){setNotice('The original check-in was confirmed by the server. Review the current guest state; do not collect cash again.');}else if(original.state==='REJECTED'||original.state==='CONFLICT'){setHeld(false);submitted.current=false;setAwaitingId('');setNotice(original.result?.error?.message||'The original check-in was rejected. Review the current booking and balance before trying again.');}},[queue,awaitingId]);
  const account=accounts.find(r=>r.id===accountId);
  const pending=queue.find(r=>['PENDING_SYNC','OUTCOME_UNKNOWN'].includes(r.state)&&r.command.operation==='stay.checkIn'&&r.command.payload.id===current.id);
  let due=0,tender:number|null=null,blocker='';
@@ -50,7 +51,7 @@ export function HospitalityCheckInDialog({reservation,records,session,deviceId,q
    const reviewed=[current,...(room?[room]:[]),{collection:'folios',id:current.id,version:folio?.version||0},{collection:'stays',id:current.id,version:stay?.version||0},...(upfront&&due>0&&account&&till?[account,till]:[])].map(r=>({collection:r.collection,id:r.id,version:r.version}));
    const result=await command('stay.checkIn','stays',current.id,{id:current.id,...(upfront&&due>0?{payment:{accountId,amountMinor:due,cashTenderedMinor:tender,tillSessionId:till?.id}}:{}),expectedVersions:reviewed});
    if(result.kind==='CONFIRMED'){onClose();return;}
-   setHeld(result.kind==='PENDING'||result.kind==='OUTCOME_UNKNOWN');
+   setHeld(result.kind==='PENDING'||result.kind==='OUTCOME_UNKNOWN');if('commandId'in result)setAwaitingId(result.commandId);
    if(result.kind==='REJECTED'||result.kind==='CONFLICT'||result.kind==='BLOCKED'||result.kind==='DRAFT_SAVED')submitted.current=false;
    setNotice('message'in result?result.message:result.kind==='DRAFT_SAVED'?'Check-in was saved as a draft. The room and payment are not confirmed.':'Check-in is awaiting the original server outcome. Do not take this cash or submit again.');
   }catch{setHeld(true);setNotice('The check-in outcome needs recovery. Inspect the original command in Activity before receiving more cash.');}

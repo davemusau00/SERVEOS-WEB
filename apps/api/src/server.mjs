@@ -318,6 +318,16 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
       const reportPermissionCheck=actor=>{if(!['*','reports.view','accounting.view'].some(permission=>actor.permissions?.includes(permission)))throw new ApiProblem(403,'PERMISSION_DENIED','You are not allowed to view business reports.');};
       const reportRangeCheck=(from,to)=>{if(!calendarDate(from)||!calendarDate(to)||from>to||(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000>366)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a valid report range of at most 367 calendar days.');};
       const reportOutletCheck=value=>{if(value!==null&&value!==undefined&&value!==''&&!uuidPattern.test(value))throw new ApiProblem(400,'VALIDATION_FAILED','The outlet filter is invalid.');return value||null};
+      if(req.method==='GET'&&['/v1/finance/profit-and-loss','/v1/finance/profit-and-loss/sources'].includes(url.pathname)){
+        const actor=await authenticate(req);reportPermissionCheck(actor);
+        const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';reportRangeCheck(from,to);
+        if(url.pathname.endsWith('/sources')){
+          const limitRaw=url.searchParams.get('limit')??'50';
+          if(!/^\d+$/.test(limitRaw)||Number(limitRaw)<1||Number(limitRaw)>100)throw new ApiProblem(400,'VALIDATION_FAILED','Choose a source page size from 1 to 100.');
+          return json(res,200,await store.profitAndLossSources(actor.businessId,from,to,{section:url.searchParams.get('section')||'ALL',before:url.searchParams.get('before'),limit:Number(limitRaw)}));
+        }
+        return json(res,200,await store.profitAndLoss(actor.businessId,from,to));
+      }
       if(req.method==='GET'&&url.pathname==='/v1/reports/sales-summary'){
         const actor=await authenticate(req);reportPermissionCheck(actor);
         const from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';reportRangeCheck(from,to);

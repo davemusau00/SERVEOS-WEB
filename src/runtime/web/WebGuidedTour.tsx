@@ -20,7 +20,8 @@ function matchesPayload(value:unknown,step:GuideStep):boolean {
 }
 function savedState(guide:GuideDefinition,progress:WebGuidanceProgress|undefined){
  const valid=progress?.guideVersion===guide.version&&progress.guideId===guide.id;
- const completed=valid?guide.steps.filter(step=>progress?.completedStepIds.includes(step.id)).map(step=>step.id):[];
+ const storedCompleted=Array.isArray(progress?.completedStepIds)?progress.completedStepIds:[];
+ const completed=valid?guide.steps.filter(step=>storedCompleted.includes(step.id)).map(step=>step.id):[];
  const index=valid&&progress?.state==='COMPLETED'&&completed.length===guide.steps.length?guide.steps.length:valid&&progress?.currentStepId?guide.steps.findIndex(step=>step.id===progress.currentStepId):0;
  return {index:index>=0?index:0,completed};
 }
