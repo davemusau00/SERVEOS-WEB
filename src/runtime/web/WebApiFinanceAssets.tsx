@@ -1,5 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {ProfitAndLossReport} from './ProfitAndLossReport';
+import {CompletionReportsPanel} from './CompletionReportsPanel';
 import {AccountingPeriodReview} from './AccountingPeriodReview';
 import {HistoricalCostReview} from './HistoricalCostReview';
 import {formatFinancialMoney} from '../../utils/financialMoney';
@@ -70,6 +71,7 @@ export function WebApiFinanceAssets({records,session,disabled,command,client,dev
   <div className="flex flex-wrap gap-2">{canViewFinance&&<button className={view==='FINANCE'?primary:button} onClick={()=>setView('FINANCE')}>Expenses and reports</button>}{canViewAssets&&<button className={view==='ASSETS'?primary:button} onClick={()=>setView('ASSETS')}>Asset register</button>}</div>
   {view==='FINANCE'&&canViewFinance&&<div className="space-y-4">
    {canReadStatement&&<ProfitAndLossReport client={client} records={records} timeZone={propertyTimeZone} disabled={disabled} canTechnical={session.permissions.includes('*')||session.permissions.includes('audit.view')}/>}
+   {canReadStatement&&<CompletionReportsPanel client={client} session={session} records={records} timeZone={propertyTimeZone} disabled={disabled}/> }
    {canReadEvidence&&<AccountingPeriodReview records={records} session={session} client={client} command={command} disabled={disabled} timeZone={propertyTimeZone}/>}
    {canReadEvidence&&<HistoricalCostReview records={records} session={session} client={client} command={command} disabled={disabled} timeZone={propertyTimeZone}/>}
    {(session.permissions.includes('*')||session.permissions.includes('finance.expense.record'))&&<div className="grid gap-4 xl:grid-cols-2">

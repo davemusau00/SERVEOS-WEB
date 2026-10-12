@@ -11,6 +11,11 @@ export interface ApiCatalogBootstrapPage {protocolVersion:2;snapshotId:string;af
 export interface ApiCustomerCreditStatementPage {protocolVersion:1;customerId:string;items:Array<{collection:string;id:string;version:number;data:Record<string,unknown>;archived:boolean}>;hasMore:boolean;nextCursor:string|null}
 export interface ApiStaffLogin {accessToken:string;sessionId:string;businessId:string;staffId:string;displayName:string;permissions:string[];expiresAt:string;mustChangePassword:boolean}
 export interface ApiStaffSession {sessionId:string;deviceId:string|null;createdAt:string;expiresAt:string;revokedAt:string|null;current:boolean;deviceRevoked:boolean;expired:boolean}
+export interface ApiCompletionReport {
+ report:string;from:string;to:string;timeZone:string;generatedAt:string;certified:false;
+ basis?:string;status?:string;currency?:string;recordCount?:number;hasMore?:boolean;limit?:number;offset?:number;
+ rows:Array<Record<string,unknown>>;totals?:Record<string,unknown>;notes?:string[];blockers?:string[];
+}
 export interface ApiFinanceSummary {from:string;to:string;timeZone:string;generatedAt?:string;currency:'KES';salesRevenueMinor:number;postedExpensesMinor:number;operatingResultBeforeTaxMinor:number;expensesByTender:{cashMinor:number;externalMinor:number};expensesByCategory:Array<{categoryId:string;name:string;amountMinor:number}>;debtorAging:Record<string,number>;debtorReconciliation?:{sourceBalanceMinor:number;agingTotalMinor:number;differenceMinor:number;exceptionAccounts:number;reconciled:boolean};payableAging:Record<string,number>;supplierPayments:{count:number;amountMinor:number}}
 export type ApiStatementSection='REVENUE'|'RETURNS'|'COGS'|'OPERATING_EXPENSES';
 export interface ApiProfitAndLoss {
@@ -129,6 +134,16 @@ export function createServOSApiClient({baseUrl,accessToken,setAccessToken,sessio
   historicalCostSource(id:string){return request<ApiHistoricalCostSource>(`/v1/accounting/cost-sources/${encodeURIComponent(id)}`)},
   accountingPeriodReview(id:string){return request<AccountingPeriodReviewRecord>(`/v1/accounting/periods/reviews/${encodeURIComponent(id)}`)},
   financeSummary(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiFinanceSummary>(`/v1/finance/summary?${query}`)},
+  completionReport(kind:string,{from,to,timeZone,limit=100,offset=0,tillId}:{from:string;to:string;timeZone?:string;limit?:number;offset?:number;tillId?:string}){
+   const query=new URLSearchParams({from,to,limit:String(limit),offset:String(offset)});
+   if(timeZone)query.set('timeZone',timeZone);if(tillId)query.set('tillId',tillId);
+   return request<ApiCompletionReport>(`/v1/reports/operations/${encodeURIComponent(kind)}?${query}`);
+  },
+  requestAccountingCoverageSnapshot(requestId:string,from:string,to:string,timeZone='Africa/Nairobi'){
+   return request<{requestId:string;status:string;existing:boolean}>('/v1/reports/coverage-snapshots',{
+    method:'POST',body:JSON.stringify({requestId,from,to,timeZone})});
+  },
+  accountingCoverageSnapshot(requestId:string){return request<{requestId:string;status:string;sha256:string|null;snapshot:Record<string,unknown>|null}>(`/v1/reports/coverage-snapshots/${requestId}`);},
   salesSummary(from:string,to:string,{timeZone,outletId}:{timeZone?:string;outletId?:string}={}){const query=new URLSearchParams({from,to});if(timeZone)query.set('timeZone',timeZone);if(outletId)query.set('outletId',outletId);return request<ApiSalesSummary>(`/v1/reports/sales-summary?${query}`)},
   occupancyReport(from:string,to:string,{timeZone}:{timeZone?:string}={}){const query=new URLSearchParams({from,to});if(timeZone)query.set('timeZone',timeZone);return request<ApiOccupancyReport>(`/v1/reports/occupancy?${query}`)},
   profitAndLoss(from:string,to:string){const query=new URLSearchParams({from,to});return request<ApiProfitAndLoss>(`/v1/finance/profit-and-loss?${query}`)},

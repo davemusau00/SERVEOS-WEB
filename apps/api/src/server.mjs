@@ -19,6 +19,8 @@ import {readConfig} from './config.mjs';
 import {createApiCommandRegistry} from './command-registry.mjs';
 import {applyImport,cancelImport,getImportBatch,getImportPlan,importTemplates,listImportBatches,planImport,stageImport} from './csv-import.mjs';
 import {occupancy,salesRegister,salesSummary,stockOnHand} from './reports.mjs';
+import {completionReport} from './completion-reports.mjs';
+import {enqueueCoverageSnapshot,coverageSnapshotState} from './completion-jobs.mjs';
 
 const json = (res, status, value) => {
   res.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
@@ -356,6 +358,24 @@ export function createApiServer({store, registry = new Map(), authenticate, orig
           return json(res,200,await store.profitAndLossSources(actor.businessId,from,to,{section:url.searchParams.get('section')||'ALL',before:url.searchParams.get('before'),limit:Number(limitRaw)}));
         }
         return json(res,200,await store.profitAndLoss(actor.businessId,from,to));
+      }
+      const afReportMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/reports\/operations\/([a-z-]+)$/);
+      if(afReportMatch){
+        const actor=await authenticate(req),from=url.searchParams.get('from')||'',to=url.searchParams.get('to')||'';
+        reportRangeCheck(from,to);
+        return json(res,200,await completionReport(store.pool,actor,{
+          kind:afReportMatch[1],from,to,timeZone:url.searchParams.get('timeZone')||undefined,
+          limit:url.searchParams.get('limit')||'100',offset:url.searchParams.get('offset')||'0',tillId:url.searchParams.get('tillId')||undefined
+        }));
+      }
+      if(req.method==='POST'&&url.pathname==='/v1/reports/coverage-snapshots'){
+        const actor=await authenticate(req);
+        return json(res,202,await enqueueCoverageSnapshot(store.pool,actor,await readJson(req)));
+      }
+      const afSnapshotMatch=req.method==='GET'&&url.pathname.match(/^\/v1\/reports\/coverage-snapshots\/([0-9a-f-]{36})$/i);
+      if(afSnapshotMatch){
+        const actor=await authenticate(req);
+        return json(res,200,await coverageSnapshotState(store.pool,actor,afSnapshotMatch[1]));
       }
       if(req.method==='GET'&&url.pathname==='/v1/reports/sales-summary'){
         const actor=await authenticate(req);reportPermissionCheck(actor);

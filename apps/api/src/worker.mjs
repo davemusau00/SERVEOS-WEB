@@ -1,5 +1,6 @@
 import {pathToFileURL} from 'node:url';
 import {randomUUID} from 'node:crypto';
+import {coverageSnapshotHandler} from './completion-jobs.mjs';
 
 export async function claimJob(pool, workerId, handlers, now = new Date()) {
   const supported = [...handlers.keys()];
@@ -92,7 +93,7 @@ async function main() {
   process.on('SIGTERM', stop); process.on('SIGINT', stop);
   const workerId = process.env.WORKER_ID || randomUUID();
   // Add typed handlers as their owning domain modules are implemented.
-  const handlers = new Map();
+  const handlers = new Map([['ACCOUNTING_COVERAGE_SNAPSHOT', coverageSnapshotHandler(pool)]]);
   if (handlers.size === 0) {
     console.log(JSON.stringify({event: 'worker_started', workerId, supportedJobTypes: [], notice: 'No job handlers registered; worker exiting. Implement handlers in domain modules to enable background processing.'}));
     await pool.end();
