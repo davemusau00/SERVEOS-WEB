@@ -8,8 +8,9 @@
 **Repository:** `davemusau00/SERVEOS-WEB`  
 **Development branch reviewed:** `feat/pos2-cashier-tickets-offline`  
 **Production baseline previously identified:** `reset/vps-platform`  
-**Plan status:** Consolidated implementation backlog, pending engineering validation and execution  
-**Prepared:** 12 October 2026
+**Plan status:** Active implementation backlog; POS2 release evidence recorded separately; operational alerts implementation under local validation; broader epics remain open  
+**Prepared:** 12 October 2026  
+**Reviewed:** 12 October 2026, against repository source and the recorded POS2 release; no fresh VPS inspection in this documentation update
 
 ---
 
@@ -33,6 +34,7 @@ The objective is not to add more isolated features or apply cosmetic CSS fixes. 
 8. Working interactive guidance and staff onboarding.
 9. A coherent QR-ordering workflow where supported by the existing architecture.
 10. A tested, staged deployment with clear rollback and sign-off procedures.
+11. Durable order alerts, cashier M-Pesa reference review and task-focused mobile navigation.
 
 ### Non-negotiable product principle
 
@@ -97,6 +99,42 @@ File paths must be revalidated against the branch HEAD when implementation begin
 
 ---
 
+### 2.4 Current source and recorded-release checkpoint
+
+This document is the broader development backlog, not a declaration of general availability. The [POS2 release evidence](../releases/pos2-20261012-update.md) records the earlier deployment of `ce59c2b2caeb5aeab5734b605a43086799812801`, API canary on loopback 3103, expanded schema 077 and the retained 3102 API/PWA rollback artifacts. These are recorded observations, not fresh live verification in this turn. Re-run the canonical guide preflight before any further production change.
+
+Repository baseline inspected for this update: `34e6043`, plus current working changes. That commit already includes migration 078 and the new default-off operational capability names. This does **not** establish that schema 078 or alerts are deployed. API readiness requires the candidate binary's exact migration manifest; preserve canonical SQL bytes and never edit applied migrations to satisfy a checksum.
+
+| Area / backlog IDs | Current evidence and status | Remaining work |
+|---|---|---|
+| POS2 / POS-01 | Prior release documents signed offline cash, manager cash resolution, checkout handoff and pending-ledger upgrade/rollback tests; source contains these paths | Supervised real-staff pilot, complete provisional-stock presentation, exact supported-device evidence; no general-availability claim |
+| Docker / OPS-02 | `apps/api/Dockerfile` uses repository-root context, copies root contracts and runs as `node`; prior release records nonroot image acceptance | Rebuild each candidate with its current dependency lockfile and verify module graph/image digest; never reuse stale staged context |
+| Thermal / PRINT-01 | Source has explicit thermal-only profiles and fail-closed unknown types, readable reference helpers and immutable issued snapshots | Real printer/driver/cutter/QR/fiscal evidence remains unverified; physical acceptance was waived for the prior update, not passed |
+| Navigation / NAV-01, NAV-02 | Source still offers all permitted desktop workspaces; the current alert cohort adds compact role-specific mobile tasks and More | Browser regression, device acceptance, wider desktop grouping/collapse and broader responsive polish |
+| KDS / KDS-01 through KDS-04 | Inspection found older `productName`/`courseStatus` reads against canonical `name`/`preparationStatus`; this slice corrects mapping and uses readable order labels | Full dense-board redesign, queue timing, malformed-snapshot recovery and supervised kitchen/bar acceptance |
+| Rooms / ROOM-01, ROOM-02 | Rooms passes an explicit `ratePlanId`; Quick Reservation uses configured property context and a different command payload | Prove shared day/night price parity, capacity/concurrency and upfront-payment/checkout behavior under the newly selected business policy |
+| Finance / FIN-01 through FIN-03 | `financeSummary` uses journaled `REVENUE_SALES`, posted expenses and payable/payment summaries; it is not a full P&L | Historical sale-time cost/COGS reconciliation, defined accounting coverage, approved valuation policy, reporting drill-down and fixtures |
+| Import / IMP-01, IMP-02 | Apply button remains conditional on execution permission; prior release reports 73 products / 72 stock masters | Permission explanation, pack/unit cost validation and authorized new catalogue setup; historical migration is out of scope for the new-install policy |
+| Help / HELP-01 | Guided tours, anchor lookup and progress infrastructure exist | Prove published tours across loading, permission changes, navigation and mobile; an existing component is not acceptance |
+| QR / QR-01 | No end-to-end ordering acceptance established in this review | Deferred future version; staff acceptance before fire is the selected policy |
+| Alerts / ALERT-01 through ALERT-05 | Current source adds durable events/inbox, manual reference proposals/review, push outbox/worker and role-specific mobile tasks | Local acceptance results below, then isolated staging; real-device background delivery and activation remain separate gates |
+| Design / DS-01, DS-02, QA-01 | Shared tokens/components exist; screenshots and observations identify remaining inconsistent surfaces | Complete screen matrix, accessibility/visual regression and low-end-device measurement |
+
+### 2.5 Business choices supplied during this review
+
+These choices narrow the corresponding future work; they do not silently change existing stored data or switch production features:
+
+- **Rooms:** one easily configured standard rate across day and night stays; receptionist pricing overrides are not allowed. The current separate booking/rate paths must be reconciled and tested before this is marked implemented.
+- **Payments:** cash upfront for the selected room workflow; new guest-deposit functionality is outside this version. Preserve existing authorized folio/deposit records and API compatibility until an explicit tested replacement exists.
+- **Historical migration:** no historical data migration for a new installation. This never authorizes erasing the already active `serveos-next` business, its storage or financial evidence.
+- **Taxes:** defer new tax/fiscal integration work for this slice. Preserve existing configured rates, issued snapshots and legal identifiers; this is not evidence that transactions are tax-exempt or fiscal-compliant.
+- **M-Pesa:** manual merchant verification, no live Daraja/STK integration. A waiter forwards customer-claimed evidence; only the enrolled cashier records verified settlement.
+- **Printing:** retain existing browser/OS 80 mm printing and relevant bridge code. No new bridge/hardware activation; physical acceptance remains open rather than recorded as passed.
+- **QR:** defer customer QR ordering; a future implementation must require staff acceptance before stock/fire.
+- **Inventory valuation:** retain the existing moving weighted-average inventory cost infrastructure and sale-time consumption cost evidence as the implementation starting point. Prove COGS/valuation reconciliation before presenting a full P&L; do not value historical sales using today's product cost.
+
+---
+
 ## 3. Priority Register
 
 **P0:** Blocks correctness, safe operation or release.  
@@ -109,6 +147,11 @@ File paths must be revalidated against the branch HEAD when implementation begin
 | DS-01 | P1 | Uneven spacing, inconsistent control sizes and unpolished screens | Observed UI; source uses mixed local styles | Shared design system |
 | DS-02 | P1 | Overlapping search icons, text and controls | Observed UI | Component-level fixes |
 | NAV-01 | P1 | Too many top-level workspaces | Verified in source | Grouped, role-based navigation |
+| ALERT-01 | P1 | Ticket/decision/preparation/payment updates need a durable role-scoped inbox | Current implementation; local validation in progress | Operational alerts |
+| ALERT-02 | P0 | Waiter-submitted M-Pesa codes must never imply settlement | Manual-only policy; current API review implementation | Cashier evidence review |
+| ALERT-03 | P1 | Background push needs safe subscriptions, retries and actual device delivery proof | Worker/SW implementation; physical devices unverified | Background alerts |
+| ALERT-04 | P0 | Duplicate, stale or revoked notifications must not trigger financial actions or leak data | API/SW acceptance required | Authorization and replay |
+| ALERT-05 | P1 | Pending cash and uncertain print delivery need accessible recovery alerts | Local and server evidence paths | Recovery inbox |
 | NAV-02 | P1 | Navigation wastes space on operational screens | Observed UI | Narrow, collapsible sidebar |
 | KDS-01 | P1 | Oversized empty KDS surfaces and weak ticket density | Observed UI | Responsive ticket board |
 | KDS-02 | P1 | UUIDs and generic item names exposed to staff | Observed UI; fallback behavior verified | Human references and snapshots |
@@ -306,6 +349,7 @@ Test on real or representative low-end Android devices, tablets and desktop brow
 - WCAG 2.2 AA targeted for relevant interactions.
 - All core workflows operable using keyboard and touch.
 - Visual regression baselines captured for every major workspace.
+- Role-specific mobile task bar and alerts retain authorized More access and basket state.
 - Every modified screen passes the shared UI checklist.
 
 **Definition of done:** No new screen can introduce an undocumented parallel design language.
@@ -365,7 +409,7 @@ Backend permissions remain authoritative. Hiding a navigation item does not repl
 
 - Desktop: compact sidebar with optional expansion.
 - Tablet: narrow rail or collapsible drawer.
-- Mobile: task-focused navigation drawer.
+- Mobile: fixed role-specific task bar plus a More drawer for all permitted workspaces; safe-area padding and at least 44 px touch targets.
 - Remember preferred navigation density per staff/device where appropriate.
 - Display current workspace and breadcrumb context.
 - Support search or quick access for permitted workspaces.
@@ -583,6 +627,8 @@ All UI entry points must call the same validated business rules.
 
 ### 7.3 Rate and pricing rules
 
+**Selected version policy:** one standard configurable room rate for day/night stays; no receptionist override. Existing rate-plan infrastructure remains compatible. The following broader options are future capabilities unless individually accepted:
+
 Support:
 
 - Room-type-specific rates.
@@ -667,7 +713,7 @@ Split the current combined Rooms experience into:
 
 ### 7.7 Folio correctness
 
-- Deposits are liabilities until correctly applied or earned under the accounting policy.
+- New selected-version bookings use payment upfront; deposits are out of scope. Preserve and correctly classify any existing deposits until a tested replacement or reconciliation explicitly handles them.
 - Accommodation charges must post according to the defined stay and revenue-recognition rules.
 - Room changes must not double-charge accommodation.
 - Refunds and adjustments require audit records.
@@ -734,7 +780,7 @@ The feature branch contains related work, but source availability must not be co
 
 - Waiter creates ticket.
 - Waiter assigns table or tab.
-- Order is fired to the correct station.
+- Enrolled cashier explicitly approves the submitted ticket; only approved lines are fired to the correct station.
 - KOT/BOT is generated.
 - Cashier views and settles ticket.
 - Split or partial payments follow authorized rules.
@@ -777,6 +823,82 @@ The feature branch contains related work, but source availability must not be co
 - Shift totals reconcile to posted transactions.
 - Unauthorized operators cannot override tills or refunds.
 - Pilot staff can complete a sale and print a receipt on supported devices.
+
+---
+
+### 9.6 Epic ALERT: Order alerts and manual M-Pesa reference forwarding
+
+**Selected scope:** durable in-app inbox, optional foreground sound, optional background Web Push and role-specific mobile navigation. No customer messaging, SMS scraping, direct Daraja integration or offline waiter-to-cashier delivery.
+
+| Event | Recipient | Safe next action |
+|---|---|---|
+| Ticket submitted/revised | Enrolled outlet cashier | Review latest proposal; never automatically approve |
+| Ticket approved/rejected/needs review | Ticket author | See actual decision/reason |
+| Approved preparation requested | Authorized preparation staff | Open canonical KDS station queue |
+| Preparation reaches READY | Responsible ticket authors and cashier | Inspect current ready items before collection |
+| Customer-provided M-Pesa code submitted | Enrolled cashier | Check actual merchant receipt and current bill |
+| Payment committed | Responsible ticket authors and cashier | Read current paid amount and remaining balance |
+| Pending/unknown local cash | Original terminal/operator | Recover original ID; do not repeat payment |
+| Server reconciliation required | Cashier and authorized manager | Open original cash evidence and resolution |
+| Print delivery uncertain/failed | Responsible operator | Inspect paper/evidence; retry only through marked reprint workflow |
+
+Use readable order/table labels, staff names and Nairobi timestamps in the authenticated inbox. Lock-screen push contains a generic operational message, no transaction code, amount or customer details. Opening an alert refreshes current state; stale alerts cannot settle, approve, fire or print.
+
+### 9.7 Alert data and API contracts
+
+- Expand-only migration `078_operational_alerts.sql`: operational events, staff/device-scoped inbox entries, push subscriptions, delivery outbox/attempt evidence, M-Pesa reference submissions and immutable review history.
+- Relevant successful business commands save events and delivery-outbox entries within their existing PostgreSQL transaction. Durable original command ID/payload hash remains the deduplication boundary; no second order or billing engine.
+- `mpesaReference.submit` is online-only, idempotent and ticket-author scoped. Input: stable submission ID, approved ticket ID, transaction code, integer minor-unit amount, explicit received timestamp and optional note. The server derives order/outlet ownership; it does not trust a waiter-supplied order association.
+- `mpesaReference.review` is online-only and requires M-Pesa/payment permission plus the enrolled outlet checkout device. Input: submission ID/current version, VERIFIED or REJECTED, evidence/reason and explicit actual-funds confirmation for verification.
+- SUBMITTED means customer-claimed evidence. VERIFIED means cashier reviewed merchant evidence. PAID means matching funds were posted by the existing payment command. Reading an alert changes only its seen state. Partial payment never implies a fully settled bill.
+- Duplicate codes and references already in the financial ledger are flagged; conflicting verified references are rejected. Retain every submission and review reason. Same-ID retries return the original outcome.
+- Authenticated routes: `GET /v1/operations/inbox`, `POST /v1/operations/read`, `POST /v1/operations/push`, `DELETE /v1/operations/push`. Apply existing session/enrollment/origin controls and current role/device filtering.
+- Foreground updates reuse the change stream after committed commands, with periodic refresh fallback. Locally pending cash and uncertain print evidence remain available without inventing a server-success event.
+
+### 9.8 Push, escalation and failure behavior
+
+- Default OFF cohort variables: `OPERATIONS_INBOX_COHORTS`, `OPERATIONS_REFERENCE_COHORTS`, `OPERATIONS_PUSH_COHORTS`; each contains exact business/staff/device tuples, computed by the API. Activate inbox/reference cohorts before background push.
+- Worker default OFF: `OPERATIONS_WORKER_ENABLED=false`. Configure server-held `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`, `WEB_PUSH_SUBJECT` only for the accepted stage/cohort. Never put the private key in PWA assets or logs.
+- Explicit Enable alerts user action requests permission; denied/unsupported push retains the inbox. Only approved browser push endpoints are accepted; subscriptions cannot be reassigned across staff/business/device ownership.
+- The worker claims due deliveries with database locking, retries transient failures with bounded backoff/jitter, retires 404/410 subscriptions, and rechecks active session/staff/device/cohort/permissions/checkout before sending. Delivery ACCEPTED is provider transport evidence, not staff-read or task-resolution evidence.
+- Notification clicks open the authenticated inbox. Service-worker handling does not bypass the cash-safe update/rollback boundary and does not cache authenticated financial API responses.
+- Foreground sound is opt-in after interaction, once across coordinated tabs, and does not replay a historical login/reconnection backlog. Badges count unread alerts independently of actionable tickets/reference reviews.
+- Unresolved ticket/reference escalation defaults to five minutes, configurable with `OPERATIONS_ESCALATION_MINUTES`, once per event. Decisions cancel old task escalation; reading does not. Managers receive the durable task, not a new financial command.
+- Logout and revoked staff/session/device prevent further delivery; checkout handoff prevents routing to the old terminal. Browser push is best-effort, never a guaranteed cashier acknowledgement or substitute for the durable inbox.
+- iOS delivery requires supported installed Home Screen PWA behavior. Exact Windows/Android/iOS device tests remain open until recorded. [Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API), [WebKit Home Screen push](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/).
+
+### 9.9 Mobile tasks and state preservation
+
+| Staff capability | Primary mobile destinations |
+|---|---|
+| Waiter | Orders, permitted Tables, Alerts, More |
+| Cashier | Sale, Tickets, Alerts, More; Shift within cashier header |
+| Preparation operator | Preparation, Alerts, More |
+| Manager | Overview, Operations, Alerts, More |
+
+Derive access from API permissions and enrolled-device authority, not role-name guesses. Preserve all authorized modules under More and existing workspace links. Keep navigation above safe-area insets and outside basket/payment/dialog controls; handle keyboard, Escape and focus. Preserve the cashier basket/drafts while opening alerts or More; restore workspace scrolling. Live badges are distinct from API connection state; an unsent offline waiter draft is never shown as delivered.
+
+### 9.10 Acceptance and activation evidence
+
+- PostgreSQL: simultaneous tickets, same-ID approval/event replay, author/outlet isolation, review permission/device restrictions, duplicate/used references, immutable review history, partial balances, cashier timeout recovery and payment replay without a second settlement.
+- Browser: each role at 390x844, 1024x768 and 1366x768; safe areas, More access, no overlap/overflow, keyboard/focus, current-record deep links, preserved baskets and clear unacknowledged reference wording.
+- Push: generic payload, explicit permission, denied support fallback, expired subscriptions, transient retry, multiple tabs, sign-out/staff/device revocation, stale tasks and no alert storm. Simulated worker tests do not establish actual browser delivery.
+- Upgrade/rollback: keep pending financial IndexedDB evidence, safe SW activation and old release assets. Never clear local storage to fix notification behavior.
+- Local source/test results are recorded below after execution; isolated staging, real devices and external code review remain open. No production deployment or new capability activation is authorized by this implementation slice.
+
+### 9.11 Current local verification record
+
+| Evidence | Result / artifact |
+|---|---|
+| TypeScript | `npm run lint` passed |
+| API contract and architecture checks | Passed; operational commands use existing registry/permissions |
+| Build | Passed; new service-worker listeners included |
+| Real PostgreSQL 16 | Dedicated local `serveos-alerts-test-pg`, loopback 54359, synthetic data; API suite initially 44/44 passed; final rerun recorded at completion |
+| Focused operational API test | Passed reference forwarding/review without settlement, ready event, partial payment/replay, duplicate evidence, recipient isolation, escalation, expired subscription and logout suppression |
+| Browser regressions | In progress; results to be finalized after fixes/checks |
+| Hosted CI / candidate image / staging | Not run for this working change; prior release CI is not this candidate's CI |
+| Actual Windows/Android/iOS push delivery | Not tested; no VAPID production activation |
+| Production mutation | None in this implementation turn |
 
 ---
 
@@ -1069,8 +1191,8 @@ Support, as appropriate:
 - On-screen dashboard.
 - CSV export.
 - XLSX export.
-- Full-page PDF for management reports where implemented.
-- Narrow, vertically reflowed 80mm thermal summaries for supported physical print workflows.
+- Digital report exports where implemented; any physical Print or Print PDF action must render an 80 mm thermal layout.
+- Narrow, vertically reflowed 80mm layouts for **every** physical print workflow; unknown document types fail closed without A4/Letter fallback.
 
 Do not squeeze a desktop chart or A4 report onto an 80mm receipt.
 
@@ -1500,7 +1622,7 @@ Cover:
 
 Required operator journeys:
 
-1. Waiter creates ticket → kitchen receives it → cashier settles → receipt prints.
+1. Waiter submits ticket, enrolled cashier approves it → kitchen receives it → cashier settles → receipt prints.
 2. Offline cashier records eligible cash transaction → reconnects → no duplicate payment.
 3. Receptionist checks availability → books room → checks guest in → posts accommodation → checks out.
 4. Housekeeper updates room status → Front Desk sees the change.
@@ -1760,6 +1882,8 @@ Estimates are planning ranges, not verified implementation commitments. Re-estim
 - Product-name snapshot investigation.
 - Actionable conflict states.
 - Search and icon overlap fixes.
+- Role-specific mobile task bar, safe-area/focus/state preservation and inbox access (?9.9).
+- Correct canonical KDS names/status fields before preparation-ready alert acceptance.
 
 **Exit criteria:**
 - KDS pilot journey passes.
@@ -1792,6 +1916,8 @@ Estimates are planning ranges, not verified implementation commitments. Re-estim
 - POS2 pilot tests.
 - Offline replay and uncertain-outcome handling.
 - Till reconciliation.
+- Durable operational inbox and waiter M-Pesa evidence/review without settlement (?9.6-9.8).
+- Background push after actual device acceptance; safe subscription revocation and escalation.
 - KOT/BOT printing.
 - 80mm document physical testing.
 - Import permission messaging.
@@ -1959,6 +2085,12 @@ A new waiter, cashier or receptionist follows the relevant guide on a tablet.
 
 **Pass:** No broken tour steps and no unauthorized operations.
 
+### Scenario I: Order Alerts and Payment Evidence
+
+A waiter submits a ticket, the cashier receives it, explicitly approves, preparation staff mark items ready, and the waiter forwards a customer M-Pesa reference. The cashier verifies merchant evidence, records a partial payment through the existing payment command and sees the correct remaining balance. Duplicate references, stale alerts and retries cannot create a second settlement. Background push is accepted only after actual device delivery evidence.
+
+**Pass:** Correct recipients, distinct sent/seen/verified/paid states, safe offline/permission fallback and usable role-specific mobile navigation.
+
 ### Scenario H: Thermal Printing
 
 A cashier prints a receipt and reprints it after a controlled printer failure.
@@ -2056,6 +2188,11 @@ For financial or reservation changes, the appropriate specialist must additional
 - [ ] No control overlap.
 - [ ] Mobile and tablet layouts tested.
 - [ ] Navigation simplified.
+- [ ] Alert/reference role and checkout authorization tested.
+- [ ] Mobile task bar, basket/keyboard/focus and More access tested.
+- [ ] Push subscriptions/revocation and actual device delivery recorded.
+- [ ] Same-ID reference/payment replay and partial balance verified.
+- [ ] Escalation cancels on resolution, never on read acknowledgement.
 - [ ] Help and tours tested.
 - [ ] User-facing errors are actionable.
 
@@ -2071,25 +2208,24 @@ For financial or reservation changes, the appropriate specialist must additional
 
 ---
 
-## 28. Open Decisions Requiring Business Confirmation
+## 28. Business Choices and Remaining Decisions
 
-These decisions must be resolved before the corresponding work is marked complete:
+The explicit choices supplied in this file are consolidated in ?2.5 and take precedence over broader optional capabilities listed in the backlog. They are requirements, not evidence that the corresponding code has been changed.
 
-1. Which room rate plans are authoritative for quick reservations, walk-ins and standard bookings?
-A STANDARD ROOM RATE SHOULD APPLY ACROSS THE BOARD EASY TO CONFIGURE, APPLIES TO BOTH DAY AND NIGHT 
-2. Which room pricing overrides may receptionists perform without manager approval? NONE
-3. How are accommodation revenue and guest deposits recognized? IN THIS VERSION THERE ARE NO DEPOSITS ITS CASH UP FRONT 
-4. What inventory valuation and COGS method is approved? FIND BEST SUITED FOR HOSPITALITY BUSINESS
-5. Which historical financial records can be migrated reliably? WE SHALL NOT MIGRATE ANYTHING, FRESH INSTALL!!!!!
-6. Which tax mappings are approved by the accountant?AVOID TAX FOR NOW
-7. Which M-Pesa integrations are already operational and which are planned?NONE , MANUAL
-8. Which printer models and Android devices are officially supported? AVOID BROWSER PRINTING GOOD ENOUGH BUT RETAIN OTHER RLEVANT CODE 
-9. Should QR orders require staff acceptance before firing to the kitchen? YES BUT DEFER THIS FOR FUTURE VERSION 
-10. Which business types and staff roles are in the initial pilot? HOSPITALITY 
-11. Which offline operations are permitted and which must remain online-only? SALES ONLY THE REST MUST BE ONLINE 
-12. What are the exact property-local shift and day-closing rules? NA
-13. Which reports are essential for the first production release? ALL
-14. Which remaining P1 improvements may be deferred without harming operations? IDK
+| Question | Selected policy / remaining evidence |
+|---|---|
+| Room rates | One standard configurable rate across day/night; parity test and shared workflow still required |
+| Receptionist override | None; API/UI enforcement and regression evidence required |
+| Guest deposits | No new deposit workflow for this version; upfront payment; existing records remain protected |
+| Valuation / COGS | Start from existing moving weighted-average inventory and sale-time costs; prove reconciliation before full P&L |
+| Historical migration | None for new installations; no authority to erase active production |
+| Tax | Defer new integration work; preserve configured tax snapshots/identifiers; no compliance claim |
+| M-Pesa | Manual; waiter forwards reference, cashier verifies and records payment |
+| Printing | Existing browser/OS 80 mm retained; actual hardware acceptance unverified |
+| QR | Deferred future version; staff acceptance required before fire |
+| Alerts and navigation | In-app + optional push; manual reference forwarding; role-specific mobile destinations selected |
+
+Remaining business/device decisions: actual supported POS/Android/iOS versions and devices, pilot staff/outlet cohort, property-local shift/day-close policy, first-release report definitions and accepted deferred P1 items. These must be recorded before their dependent features are called accepted.
 
 ---
 
@@ -2099,6 +2235,8 @@ The development team must produce:
 
 - Updated shared design system.
 - Unified workspace navigation.
+- Durable operational inbox and manual M-Pesa reference/review audit.
+- Push configuration/permission/revocation runbook and actual device delivery report.
 - Redesigned KDS.
 - Consolidated reservation and pricing logic.
 - Improved Front Desk and Rooms workflows.

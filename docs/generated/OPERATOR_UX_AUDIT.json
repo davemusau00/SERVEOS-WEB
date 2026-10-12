@@ -1,15 +1,14 @@
 {
   "schemaVersion": 2,
   "generatedBy": "npm run audit:ui",
-  "sourceDigest": "2e7bbb1b10e11ac53c2cf8941433ab36889a3f7e46dfdb831fff9f633119899a",
+  "sourceDigest": "18dbb63a28d2562004b1a2e8046448857e2293b76bcb31608b5d796d9be6b805",
   "scope": "Compact tracked summary; full static signals are a CI artifact and do not imply acceptance",
-  "interactionCount": 1810,
-  "findingCount": 278,
+  "interactionCount": 1865,
+  "findingCount": 281,
   "findingSummary": {
-    "business-time-input": 7,
-    "custom-overlay-review": 1,
-    "dialog-accessibility-review": 11,
-    "disabled-action-explanation-review": 199,
+    "business-time-input": 8,
+    "dialog-accessibility-review": 10,
+    "disabled-action-explanation-review": 203,
     "disabled-action-visibility": 51,
     "excessive-required-fields": 9
   },
