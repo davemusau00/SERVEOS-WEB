@@ -13,7 +13,7 @@ type SetupConfiguration={
  taxTreatment:'ZERO_RATES'|'CUSTOM_RATES'|null;vatRateBasisPoints:number;levyRateBasisPoints:number;businessType:BusinessType|null;
  locations:Location[];outlets:Outlet[];payments:Payment[];optionalSteps:{products:'NOW'|'LATER';staff:'NOW'|'LATER';rooms:'NOW'|'LATER'};
 };
-type Props={businessId:string;records:BusinessRecord[];online:boolean;command:(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;readRecords:()=>Promise<BusinessRecord[]>;onSignOut:()=>void};
+type Props={businessId:string;permissions:string[];records:BusinessRecord[];online:boolean;command:(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;readRecords:()=>Promise<BusinessRecord[]>;onSignOut:()=>void};
 
 const types:Array<{value:BusinessType;label:string;location:string;outlets:string[];locationType:Location['type']}>=[
  {value:'BAR_CLUB',label:'Bar / Club',location:'Bar Store',outlets:['Main Bar'],locationType:'STORE'},
@@ -66,8 +66,11 @@ const defaultPayment=(method:PaymentMethod,mode?:'TILL'|'PAYBILL'):Payment=>{
 };
 const outcomeMessage=(outcome:CommandOutcome)=>'message' in outcome?outcome.message:`${outcome.kind} — review the synchronized business records before continuing.`;
 
-export function BusinessSetupWizard({businessId,records,online,command,readRecords,onSignOut}:Props){
+export function BusinessSetupWizard({businessId,permissions,records,online,command,readRecords,onSignOut}:Props){
  const setupRecord=records.find(record=>record.collection==='businessSetup'&&record.id===businessId);
+ const hasPermission=(permission:string)=>permissions.includes('*')||permissions.includes(permission);
+ const canConfigureBusiness=hasPermission('business.configure'),canConfigureTax=hasPermission('business.tax.configure'),canManageLocations=hasPermission('catalog.manage')||hasPermission('inventory.adjust');
+ const missingSetupAccess=[!canConfigureBusiness?'business setup':null,!canConfigureTax?'receipt and tax settings':null,!canManageLocations?'stock-location management':null].filter((value):value is string=>Boolean(value));
  const [configuration,setConfiguration]=useState<SetupConfiguration>(()=>initialConfiguration(setupRecord));
  const [vatText,setVatText]=useState(()=>percentText(initialConfiguration(setupRecord).vatRateBasisPoints));
  const [levyText,setLevyText]=useState(()=>percentText(initialConfiguration(setupRecord).levyRateBasisPoints));
@@ -124,6 +127,7 @@ export function BusinessSetupWizard({businessId,records,online,command,readRecor
  };
  const recordsNow=async()=>readRecords();
  const prepareDefaults=async()=>{
+  if(missingSetupAccess.length)throw new Error(`An authorized administrator must provide access to ${missingSetupAccess.join(', ')} before business defaults can be saved.`);
   await persist(3);
   const latest=await recordsNow();
   const existingSettings=activeRecord(latest,'businessSettings',businessId);
@@ -160,7 +164,8 @@ export function BusinessSetupWizard({businessId,records,online,command,readRecor
  const stepTitles=['Business identity','Business type','Outlets and payments','Finish'];
  const canPrepare=configuration.businessType&&configuration.locations.length>0&&configuration.outlets.length>0&&configuration.payments.some(account=>account.method==='CASH')&&configuration.taxTreatment;
  const prepared=!!activeRecord(records,'businessSettings',businessId)&&configuration.locations.every(location=>!!activeRecord(records,'stockLocations',location.id))&&configuration.outlets.every(outlet=>!!activeRecord(records,'outlets',outlet.id))&&configuration.payments.every(account=>!!activeRecord(records,'paymentAccounts',account.id));
- const nextDisabled=busy||!online;
+ const nextDisabled=busy||!online||!canConfigureBusiness;
+ const canSaveDefaults=Boolean(canPrepare)&&missingSetupAccess.length===0;
 
  return <main className="min-h-dvh bg-slate-950 px-3 py-5 text-slate-100 sm:px-6 sm:py-8">
   <div className="mx-auto max-w-4xl">
@@ -171,6 +176,7 @@ export function BusinessSetupWizard({businessId,records,online,command,readRecor
    <section className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/30">
     <div className="border-b border-slate-800 p-5 sm:p-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-amber-300">Setup {step+1} of {stepTitles.length}</p><h1 className="mt-2 text-2xl font-black sm:text-3xl">{stepTitles[step]}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">These choices are saved to your business and can be resumed after signing out or refreshing this page.</p></div><div className="flex gap-1.5" aria-label="Setup progress">{stepTitles.map((title,index)=><span key={title} title={title} className={`h-2 w-9 rounded-full ${index<=step?'bg-amber-400':'bg-slate-700'}`}/>)}</div></div></div>
     {!online&&<div className="border-b border-amber-800 bg-amber-950/40 px-5 py-3 text-sm text-amber-100">Connect to the business API to save first-run setup.</div>}
+    {online&&!canConfigureBusiness&&<div role="status" className="border-b border-amber-800 bg-amber-950/40 px-5 py-3 text-sm text-amber-100">Your account can view this setup, but it cannot save business configuration. Ask an administrator to update your access.</div>}
     {message&&<div role={isError?'alert':'status'} aria-label="Setup status" className={`mx-5 mt-5 rounded-xl border p-3 text-sm ${isError?'border-rose-800 bg-rose-950/40 text-rose-100':'border-emerald-800 bg-emerald-950/30 text-emerald-100'}`}>{message}</div>}
     {step===0&&<form onSubmit={event=>void continueStep(event)} className="space-y-4 p-5 sm:p-7">
      <div className="grid gap-4 sm:grid-cols-2">
@@ -207,8 +213,9 @@ export function BusinessSetupWizard({businessId,records,online,command,readRecor
       {[['Business identity and explicit tax treatment',!!configuration.businessName&&!!configuration.receiptName&&!!configuration.taxTreatment],['Business type and starting navigation',!!configuration.businessType],['Outlet and storage defaults',configuration.outlets.length>0&&configuration.locations.length>0],['Business settings and receipt details',!!activeRecord(records,'businessSettings',businessId)],['Cash payment account',configuration.payments.some(item=>item.method==='CASH')&&configuration.payments.filter(item=>item.method==='CASH').every(item=>!!activeRecord(records,'paymentAccounts',item.id))],['Selected optional payment accounts',configuration.payments.filter(item=>item.method!=='CASH').every(item=>!!activeRecord(records,'paymentAccounts',item.id))]].map(([label,done])=><div key={String(label)} className="flex items-center gap-3"><CheckCircle2 className={`h-4 w-4 shrink-0 ${done?'text-emerald-400':'text-slate-600'}`}/><span className={done?'text-slate-200':'text-slate-400'}>{String(label)}{done?' · complete':' · to do'}</span></div>)}
      </div></section>
      <section className="grid gap-3 sm:grid-cols-3"><article className="rounded-xl border border-slate-800 p-3"><b className="text-sm">Products and opening stock</b><p className={help}>Add your first product or import the catalog after setup. Inventory can be configured later.</p></article><article className="rounded-xl border border-slate-800 p-3"><b className="text-sm">Staff</b><p className={help}>Add staff and role templates from the Staff workspace after setup.</p></article><article className="rounded-xl border border-slate-800 p-3"><b className="text-sm">Rooms</b><p className={help}>{configuration.businessType==='HOTEL_RESORT'?'Set up room types and rooms from the Rooms workspace after setup.':'Hotel room setup is optional for this business type.'}</p></article></section>
-     <div className="flex flex-wrap justify-between gap-2 border-t border-slate-800 pt-4"><button type="button" className={secondary} disabled={busy} onClick={()=>setStep(2)}><ArrowLeft className="h-4 w-4"/>Back</button><div className="flex flex-wrap gap-2"><button type="button" className={secondary} disabled={busy||!online||!canPrepare} onClick={()=>{setBusy(true);setMessage('Saving business defaults…');void prepareDefaults().catch(error=>{setIsError(true);setMessage(error instanceof Error?error.message:'Business defaults could not be saved.')}).finally(()=>setBusy(false))}}>{busy?'Saving…':prepared?'Refresh setup defaults':'Save business defaults'}</button><button type="button" className={primary} disabled={busy||!online||!prepared} onClick={()=>void finish()}>{busy?'Finishing…':'Finish and open workspace'}<ArrowRight className="h-4 w-4"/></button></div></div>
+      <div className="flex flex-wrap justify-between gap-2 border-t border-slate-800 pt-4"><button type="button" className={secondary} disabled={busy} onClick={()=>setStep(2)}><ArrowLeft className="h-4 w-4"/>Back</button><div className="flex flex-wrap gap-2"><button type="button" className={secondary} disabled={busy||!online||!canSaveDefaults} onClick={()=>{setBusy(true);setMessage('Saving business defaults…');void prepareDefaults().catch(error=>{setIsError(true);setMessage(error instanceof Error?error.message:'Business defaults could not be saved.')}).finally(()=>setBusy(false))}}>{busy?'Saving…':prepared?'Refresh setup defaults':'Save business defaults'}</button><button type="button" className={primary} disabled={busy||!online||!prepared||!canConfigureBusiness} onClick={()=>void finish()}>{busy?'Finishing…':'Finish and open workspace'}<ArrowRight className="h-4 w-4"/></button></div></div>
      {!canPrepare&&<p className="text-sm text-amber-200">Complete business identity, choose a business type, and select Cash before saving defaults.</p>}
+      {missingSetupAccess.length>0&&!prepared&&<p role="status" className="text-sm text-amber-200">Saving business defaults needs an authorized administrator with {missingSetupAccess.join(', ')} access. This action will remain unavailable until those permissions are available.</p>}
      {prepared&&<p className="text-xs text-slate-400">Products, staff, and hotel rooms remain available after setup. You can change business settings later.</p>}
     </div>}
    </section>

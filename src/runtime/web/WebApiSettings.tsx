@@ -12,18 +12,20 @@ import {prepareDocumentLogoPng,prepareMpesaTillQr} from '../../receipts/branding
 
 type Field={key:string;label:string;kind?:'number'|'checkbox'|'textarea'|'select';choices?:string[];required?:boolean};
 type Editor={kind:'BUSINESS'|'TILL'|'ACCOUNT';collection:string;id:string;version:number;values:Record<string,string|boolean>};
+type BusinessType='BAR_CLUB'|'RESTAURANT_CAFE'|'HOTEL_RESORT'|'RETAIL_POS'|'MIXED_HOSPITALITY';
 type Command=(operation:string,collection:string,id:string,payload:Record<string,unknown>)=>Promise<CommandOutcome>;
 const input='mt-1 block w-full rounded border border-slate-700 bg-slate-950 p-2';
 const button='rounded border border-slate-600 px-3 py-2 disabled:opacity-40';
 const percent=(value:unknown)=>typeof value==='number'?String(value/100):'';
 const minor=(value:string|boolean)=>parseMoneyToMinor(value);
 
-export function WebApiSettings({records,session,disabled,command,queue=[]}:{records:BusinessRecord[];session:WebSession;disabled:boolean;command:Command;queue?:QueuedCommand[]}){
+export function WebApiSettings({records,session,businessType,disabled,command,queue=[]}:{records:BusinessRecord[];session:WebSession;businessType?:BusinessType;disabled:boolean;command:Command;queue?:QueuedCommand[]}){
  const [editor,setEditor]=useState<Editor|null>(null),[reason,setReason]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[pending,setPending]=useState(false);
  const inFlight=useRef(false);
  const business=records.find(row=>row.collection==='businessSettings'&&row.id===session.businessId);
  const till=records.find(row=>row.collection==='tillPolicy'&&row.id===session.businessId);
  const accounts=records.filter(row=>row.collection==='paymentAccounts');
+ const showHospitalitySettings=businessType===undefined||businessType==='HOTEL_RESORT'||businessType==='MIXED_HOSPITALITY';
  const open=(kind:Editor['kind'],record?:BusinessRecord)=>{
   const d=record?.data||{};let values:Editor['values'];
   if(kind==='BUSINESS')values={businessName:String(d.businessName||''),address:String(d.address||''),contact:String(d.contact||''),taxPin:String(d.taxPin||''),footer:String(d.footer||''),vatRatePct:percent(d.vatRateBasisPoints),levyRatePct:percent(d.levyRateBasisPoints),logoPngDataUrl:String(d.logoPngDataUrl||''),paymentQrPngDataUrl:String(d.paymentQrPngDataUrl||''),paymentQrEnabled:d.paymentQrEnabled===true};
@@ -45,13 +47,13 @@ export function WebApiSettings({records,session,disabled,command,queue=[]}:{reco
   }catch(error){setMessage(operatorError(error))}finally{inFlight.current=false;setBusy(false)}
  };
  return <section data-guide-anchor="business.settings" className="space-y-6">
-  <header className="space-y-1"><h2 className="text-xl font-bold">Business and payment settings</h2><p className="max-w-3xl text-sm leading-6 text-slate-400">Set property rules, outlets, receipt details, till controls, and payment accounts. Each section saves independently and confirms its result.</p></header>
-  <ApiHospitalitySettings records={records} session={session} disabled={disabled||busy||pending} command={command}/>
+  <header className="space-y-1"><h2 className="text-xl font-bold">Business and payment settings</h2><p className="max-w-3xl text-sm leading-6 text-slate-400">Set receipt details, outlets, till controls, payment accounts, and shared operating policies. Hotel stay settings appear for hotel and mixed hospitality businesses. Each section saves independently and confirms its result.</p></header>
+  {showHospitalitySettings&&<ApiHospitalitySettings records={records} session={session} disabled={disabled||busy||pending} command={command}/>}
   <PreparationSettingsPanel records={records} session={session} queue={queue} disabled={disabled||busy||pending} command={command}/>
   <StockAlertSettings records={records} session={session} queue={queue} disabled={disabled||busy||pending} command={command}/>
   <WebOutletSettings records={records} disabled={disabled||busy||pending} command={command}/>
   <section className="space-y-4 rounded-xl border border-slate-700 bg-slate-950/40 p-4 sm:p-5">
-   <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold">Business controls</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Tax changes affect new documents. Till policy changes require all tills to be closed and reviewed.</p></div><div className="flex flex-wrap gap-2">{allowed(session,'business.tax.configure')&&<button disabled={disabled||busy||pending} className={button} onClick={()=>open('BUSINESS',business)}>Business identity and tax</button>}<button disabled={disabled||busy||pending} className={button} onClick={()=>open('TILL',till)}>Till policy</button><button disabled={disabled||busy||pending} className="rounded bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40" onClick={()=>open('ACCOUNT')}>Add payment account</button></div></div>
+   <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold">Business controls</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Tax changes affect new documents. Till policy changes require all tills to be closed and reviewed.</p>{!allowed(session,'business.tax.configure')&&<p role="status" className="mt-2 max-w-3xl text-sm text-amber-200">Your access does not include receipt identity or tax-rate changes. Ask an administrator with business tax configuration access to update them.</p>}</div><div className="flex flex-wrap gap-2">{allowed(session,'business.tax.configure')&&<button disabled={disabled||busy||pending} className={button} onClick={()=>open('BUSINESS',business)}>Business identity and tax</button>}<button disabled={disabled||busy||pending} className={button} onClick={()=>open('TILL',till)}>Till policy</button><button disabled={disabled||busy||pending} className="rounded bg-amber-400 px-4 py-2 font-bold text-slate-950 disabled:opacity-40" onClick={()=>open('ACCOUNT')}>Add payment account</button></div></div>
 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{accounts.map(row=><button key={row.id} disabled={disabled||busy||pending} className={`${button} flex min-h-12 items-center justify-between gap-3 text-left`} onClick={()=>open('ACCOUNT',row)}><span className="min-w-0"><span className="block truncate font-semibold">{String(row.data.name)}</span><span className="mt-0.5 block text-xs text-slate-400">{String(row.data.method)}{row.archived ? ' - Archived' : ''}</span></span><span className="text-xs text-slate-400">Open</span></button>)}</div>
   </section>
   {editor&&<form aria-label="Edit business settings" onSubmit={event=>void submit(event)} className="space-y-4 rounded-xl border border-slate-700 bg-slate-900/80 p-4 sm:p-5">

@@ -2338,5 +2338,5 @@ Focused PostgreSQL device and stock-recovery tests passed on the disposable loca
 
 ## Settings and configuration audit
 
-See [the settings and configuration surface audit](pos2-settings-configuration-audit-20261012.md) for the confirmed workspace map, deliberate configuration boundaries, and the fixed Settings permission metadata mismatch. No live resources or business data were changed.
+See [the settings and configuration surface audit](pos2-settings-configuration-audit-20261012.md) for the confirmed workspace map, permission boundaries, fixed setup preflight and business-type-specific settings visibility. Follow-up UI/browser and docs gates passed on 2026-10-13; the complete release gate remains incomplete because the local disposable PostgreSQL service at `127.0.0.1:55432` was unavailable. No live resources or business data were changed.
 
