@@ -249,9 +249,17 @@ The latest read-only database snapshot at 2026-10-12 18:21 UTC shows 1 business,
 
 **Rollback/current change record:** No live route, API process, database schema or business row was changed, so no live rollback has been invoked. The previous active API image remains running, the previous PWA target remains `/var/www/serveos-replacement/releases/ebcf95b22aae`, and the Nginx configuration is unchanged. Retain the uploaded artifacts and verified backup for the resumed cutover. If a later cutover is made before new production writes, use the runbook's saved Nginx/PWA/API rollback path; after any new write or signed offline grant, stop for forward reconciliation instead of a blind pointer rollback.
 
-## Current update attempt — 2026-10-13
+## Initial update attempt — 2026-10-13 13:50 UTC
 
 The latest local source changes are uncommitted at `978b58dd852e1fba7f7bd01c62083a02899b4dcb`; they are not included in the previously prepared `bc06f54af5c6` artifacts. The current `npm run verify:release` attempt stopped in the PostgreSQL API suite because the disposable local database at `127.0.0.1:55432` refused connections. The changed source has not passed the full release gate and no artifact was built or uploaded for it. **Do not deploy this worktree.** Detailed command results and the fresh read-only VPS observation are in [2026-10-13 deployment evidence](docs/deployment-evidence/2026-10-13.md).
 
 Fresh read-only inspection confirms the existing SERVEOS route still points to the `ebcf95b22aae` PWA release and `serveos-replacement-api:ebcf95b22aaeb76c` image on port 3104, ready with migrations 90/90. No route, container, database, volume, print record, or business data was changed during this update attempt. The prior print, device-ledger, active-session and maintenance-window blockers have not been reconciled; the latest business-data snapshot remains the 2026-10-12 snapshot until a new authorized read-only reconciliation is recorded.
+
+## Retry — 2026-10-13 15:07 UTC
+
+The source changes are now committed on `feat/pos2-cashier-tickets-offline` as `7fe3cf6ff4bf041c54d037e1a96c50a53dccac44`; the worktree was clean and `origin/feat/pos2-cashier-tickets-offline` points to the same commit. A fresh `npm run verify:release` again passed lint, contracts, architecture, build and 51/51 root tests, then exited 1 in `test:api`: 30 passed and 14 PostgreSQL integration tests failed with `ECONNREFUSED` to `127.0.0.1:55432`. `com.docker.service` remains stopped and that port has no listener. No artifact for this commit was packaged or transferred.
+
+Fresh strict-host-key SSH checks at 15:07 UTC confirmed Nginx syntax passes, its SERVEOS configuration SHA-256 remains `9516f4f3cdb7bd1a6dfa23eeb1443b90e9947ba8a49cc7ce8211c3eb008664e5`, PWA `current` still resolves to `/var/www/serveos-replacement/releases/ebcf95b22aae`, and the running API is image `serveos-replacement-api:ebcf95b22aaeb76c` with ID `sha256:8f2c72099fc2dd7933a7fb929c4d13ce7ad0f23c826c6928fb9f42291632413b`. Readiness remains HTTP 200 with migrations 90/90 and no missing/mismatched migrations. Direct local TLS-resolved checks returned PWA HTTP 200/TLS 0 and API HTTP 200/TLS 0. No server-side state changed.
+
+One composite read-only SSH attempt had shell quoting/CRLF errors in its image-inspection and TLS commands; the direct one-line checks above succeeded. No mutating command was run. This retry did not query business tables or device-local ledgers, so the prior print/device/session/maintenance blockers remain unresolved and no business counts are claimed current. Detailed retry evidence is appended to [2026-10-13 deployment evidence](docs/deployment-evidence/2026-10-13.md).
 
